@@ -2081,6 +2081,8 @@ with left:
 
     st.markdown("### ☁️ 2. Aktivität laden")
 
+    st.caption("ℹ️ Aktuell werden nur **Garmin-Uhren** (FIT-Dateien) unterstützt.")
+
     fit_source = None
     fit_name = None
 
@@ -2094,6 +2096,11 @@ with left:
         )
     else:
         source = "📁 Datei hochladen"
+        st.caption(
+            "⌚ **Von der Uhr:** Uhr per USB anschließen, den Ordner "
+            "**GARMIN/Activity** öffnen und die gewünschte **.fit-Datei** "
+            "unten hochladen."
+        )
 
     if source == "📁 Datei hochladen":
         uploaded_file = st.file_uploader("FIT-Datei hochladen", type=["fit"])
