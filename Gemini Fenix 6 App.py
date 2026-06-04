@@ -269,14 +269,21 @@ def _database_url():
 
 
 def _py(value):
-    """numpy/pandas-Skalar -> natives Python (für DB-Bindings)."""
+    """numpy/pandas-Skalar -> natives Python (für DB-Bindings).
+
+    Postgres/psycopg2 kann numpy-Typen (z.B. numpy.float64) nicht binden –
+    SQLite schluckt sie, Postgres nicht. Daher hier zu nativem Python wandeln
+    und NaN zu None machen.
+    """
     if value is None:
         return None
     if hasattr(value, "item"):
         try:
-            return value.item()
+            value = value.item()
         except Exception:
             return value
+    if isinstance(value, float) and value != value:  # NaN
+        return None
     return value
 
 
@@ -345,7 +352,8 @@ def get_engine():
 # ---- Sessions ----
 
 def save_session(entry):
-    values = {k: entry.get(k) for k in SESSION_FIELDS if k in entry}
+    # _py: numpy-Typen -> natives Python (Postgres kann numpy nicht binden)
+    values = {k: _py(entry.get(k)) for k in SESSION_FIELDS if k in entry}
 
     with get_engine().begin() as conn:
         conn.execute(insert(sessions_table).values(**values))
