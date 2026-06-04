@@ -1,0 +1,150 @@
+.stApp {
+    background: #f6f9fc;
+}
+
+.block-container {
+    padding-top: 0rem;
+    max-width: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+.hero {
+    height: 480px;
+    background-size: cover;
+    background-position: center center;
+    border-radius: 0 0 28px 28px;
+    margin: 0 0 2rem 0;
+    padding: 70px 50px;
+    box-shadow: 0 10px 35px rgba(0,0,0,.18);
+    position: relative;
+    overflow: hidden;
+}
+
+.hero::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 75px;
+    background: #003366;
+    clip-path: polygon(0 55%, 20% 35%, 45% 60%, 70% 32%, 100% 52%, 100% 100%, 0 100%);
+}
+
+.hero-content {
+    position: relative;
+    z-index: 2;
+    max-width: 850px;
+}
+
+.logo {
+    font-size: clamp(28px, 4vw, 46px);
+    font-weight: 900;
+    color: #003366;
+    line-height: 1.05;
+    word-break: normal;
+    overflow-wrap: normal;
+}
+
+.title {
+    font-size: clamp(26px, 3.5vw, 42px);
+    font-weight: 900;
+    color: #0057c8;
+    margin-bottom: 18px;
+}
+
+.hero p {
+    font-size: 19px;
+    color: #002244;
+    font-weight: 500;
+}
+
+.hero-nav span {
+    display: inline-block;
+    margin-right: 24px;
+    font-weight: 800;
+    color: #002b5c;
+}
+
+.card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 18px rgba(0,0,0,.06);
+    margin-bottom: 18px;
+}
+
+h2, h3 {
+    color: #0057c8;
+}
+
+div[data-testid="stMetric"] {
+    background: white;
+    border: 1px solid #dbeafe;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.05);
+}
+
+div[data-testid="stMetricValue"] {
+    color: #0057c8;
+    font-weight: 900;
+}
+
+.stButton > button {
+    background: linear-gradient(90deg, #0057c8, #003c91);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: .7rem 1.2rem;
+    font-weight: 800;
+    width: 100%;
+}
+
+.stButton > button:hover {
+    background: linear-gradient(90deg, #006bea, #004aad);
+    color: white;
+}
+
+div[data-testid="stDataFrame"] {
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.footer {
+    background: #003366;
+    color: white;
+    padding: 40px 50px;
+    border-radius: 28px 28px 0 0;
+    margin: 50px -2rem -4rem -2rem;
+}
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(140px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.metric-card {
+    background: white;
+    border: 1px solid #d9e7ff;
+    border-radius: 18px;
+    padding: 22px 24px;
+    min-height: 120px;
+}
+
+.metric-label {
+    font-size: 18px;
+    color: #2f3542;
+    margin-bottom: 16px;
+    white-space: nowrap;
+}
+
+.metric-value {
+    font-size: 36px;
+    font-weight: 800;
+    color: #0057c8;
+    white-space: nowrap;
+}

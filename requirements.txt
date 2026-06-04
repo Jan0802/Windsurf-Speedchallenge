@@ -1,0 +1,14 @@
+streamlit
+pandas
+pydeck
+fitparse
+SQLAlchemy
+extra-streamlit-components
+
+# Postgres-Treiber – nur fürs Cloud-/Server-Deployment (Linux) nötig,
+# wenn DATABASE_URL auf eine Postgres-DB zeigt (z.B. Neon/Supabase).
+psycopg2-binary; platform_system != "Windows"
+
+# MTP-Zugriff auf Garmin-Uhren ohne Laufwerksbuchstaben – nur Windows/lokal.
+# Auf einem Linux-Server nicht verfügbar (und dort auch nicht sinnvoll).
+pywin32; platform_system == "Windows"

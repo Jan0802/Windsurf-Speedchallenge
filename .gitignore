@@ -1,0 +1,17 @@
+# Lokale Datenbank & migrierte Altdaten – gehören NICHT ins Repo
+surfapp.db
+ranking.csv
+profiles.json
+spots.json
+
+# Secrets (DATABASE_URL etc.) – niemals committen!
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Temporäre MTP-Kopien
+*.fit
