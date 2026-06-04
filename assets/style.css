@@ -1,150 +1,165 @@
-.stApp {
-    background: #f6f9fc;
-}
+/* === Glasmorphismus-Theme ("frosted glass" wie Apple Wetter) ===
+   Das Hintergrundbild wird per Code (base64) auf .stApp gelegt. */
 
 .block-container {
-    padding-top: 0rem;
+    padding-top: 1rem;
     max-width: 100%;
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
 }
 
+/* Überschriften hell mit weichem Schatten */
+h1, h2, h3, h4 {
+    color: #ffffff !important;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+}
+
+/* ---- Hero (Titelbereich über dem Hintergrund) ---- */
 .hero {
-    height: 480px;
-    background-size: cover;
-    background-position: center center;
-    border-radius: 0 0 28px 28px;
-    margin: 0 0 2rem 0;
-    padding: 70px 50px;
-    box-shadow: 0 10px 35px rgba(0,0,0,.18);
-    position: relative;
-    overflow: hidden;
-}
-
-.hero::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -1px;
-    height: 75px;
-    background: #003366;
-    clip-path: polygon(0 55%, 20% 35%, 45% 60%, 70% 32%, 100% 52%, 100% 100%, 0 100%);
+    margin: 0 0 1.6rem 0;
+    padding: 46px 8px 6px 8px;
 }
 
 .hero-content {
-    position: relative;
-    z-index: 2;
-    max-width: 850px;
+    max-width: 920px;
 }
 
 .logo {
-    font-size: clamp(28px, 4vw, 46px);
+    font-size: clamp(30px, 4.5vw, 52px);
     font-weight: 900;
-    color: #003366;
+    color: #ffffff;
     line-height: 1.05;
-    word-break: normal;
-    overflow-wrap: normal;
+    text-shadow: 0 3px 16px rgba(0, 0, 0, .45);
 }
 
 .title {
-    font-size: clamp(26px, 3.5vw, 42px);
+    font-size: clamp(24px, 3.4vw, 42px);
     font-weight: 900;
-    color: #0057c8;
-    margin-bottom: 18px;
+    letter-spacing: 1.5px;
+    color: #8fe3ff;
+    margin-bottom: 16px;
+    text-shadow: 0 3px 16px rgba(0, 0, 0, .45);
 }
 
 .hero p {
-    font-size: 19px;
-    color: #002244;
+    font-size: 18px;
+    color: #eaf4ff;
     font-weight: 500;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, .45);
 }
 
 .hero-nav span {
     display: inline-block;
-    margin-right: 24px;
-    font-weight: 800;
-    color: #002b5c;
+    margin: 10px 12px 0 0;
+    font-weight: 700;
+    color: #ffffff;
+    background: rgba(255, 255, 255, .14);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    padding: 7px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, .28);
 }
 
-.card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 20px;
-    box-shadow: 0 4px 18px rgba(0,0,0,.06);
-    margin-bottom: 18px;
-}
-
-h2, h3 {
-    color: #0057c8;
-}
-
+/* ---- Glas-Kacheln: Metriken ---- */
 div[data-testid="stMetric"] {
-    background: white;
-    border: 1px solid #dbeafe;
-    border-radius: 16px;
-    padding: 16px;
-    box-shadow: 0 4px 14px rgba(0,0,0,.05);
+    background: rgba(255, 255, 255, .12);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, .25);
+    border-radius: 20px;
+    padding: 16px 18px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .18);
 }
 
 div[data-testid="stMetricValue"] {
-    color: #0057c8;
     font-weight: 900;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, .3);
 }
 
+/* ---- Expander als Glas ---- */
+div[data-testid="stExpander"] {
+    background: rgba(255, 255, 255, .10);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, .22);
+    border-radius: 18px;
+    overflow: hidden;
+}
+
+/* ---- Tabellen: bewusst kräftiger für gute Lesbarkeit der Zahlen ---- */
+div[data-testid="stDataFrame"] {
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .30);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .20);
+}
+
+/* ---- Buttons als Glas ---- */
 .stButton > button {
-    background: linear-gradient(90deg, #0057c8, #003c91);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    padding: .7rem 1.2rem;
+    background: rgba(255, 255, 255, .16);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, .40);
+    border-radius: 12px;
+    padding: .6rem 1.2rem;
     font-weight: 800;
     width: 100%;
 }
 
 .stButton > button:hover {
-    background: linear-gradient(90deg, #006bea, #004aad);
-    color: white;
+    background: rgba(255, 255, 255, .30);
+    border-color: #ffffff;
+    color: #ffffff;
 }
 
-div[data-testid="stDataFrame"] {
-    border-radius: 14px;
-    overflow: hidden;
+/* ---- Sidebar als Glas ---- */
+section[data-testid="stSidebar"] {
+    background: rgba(8, 28, 52, .55);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255, 255, 255, .15);
 }
 
+/* ---- Footer ---- */
 .footer {
-    background: #003366;
-    color: white;
-    padding: 40px 50px;
-    border-radius: 28px 28px 0 0;
-    margin: 50px -2rem -4rem -2rem;
-}
-.metric-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(140px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
+    background: rgba(8, 28, 52, .45);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    color: #ffffff;
+    padding: 34px 40px;
+    border-radius: 24px;
+    margin: 40px 0 0 0;
+    border: 1px solid rgba(255, 255, 255, .20);
+    text-align: center;
 }
 
+/* dezente Trennlinien */
+hr {
+    border-color: rgba(255, 255, 255, .18) !important;
+}
+
+/* alte HTML-Kacheln (.card / .metric-*) ebenfalls als Glas */
+.card,
 .metric-card {
-    background: white;
-    border: 1px solid #d9e7ff;
+    background: rgba(255, 255, 255, .12);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, .25);
     border-radius: 18px;
-    padding: 22px 24px;
-    min-height: 120px;
-}
-
-.metric-label {
-    font-size: 18px;
-    color: #2f3542;
-    margin-bottom: 16px;
-    white-space: nowrap;
+    padding: 20px;
+    color: #ffffff;
 }
 
 .metric-value {
     font-size: 36px;
     font-weight: 800;
-    color: #0057c8;
-    white-space: nowrap;
+    color: #ffffff;
+}
+
+.metric-label {
+    font-size: 18px;
+    color: #d8e9ff;
+    margin-bottom: 14px;
 }

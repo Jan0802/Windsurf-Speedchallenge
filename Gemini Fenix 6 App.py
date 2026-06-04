@@ -1689,8 +1689,27 @@ def render_history_overview(record):
 
 load_css(app_path("assets", "style.css"))
 
-header_img = image_to_base64(app_path("assets", "header.jpg"))
 logo_img = image_to_base64(app_path("assets", "windsurfer.png"))
+
+# Vollflächiges Hintergrundbild (Wasser/Surfer). Tausche assets/background.jpg
+# gegen dein Wunschfoto – Fallback ist header.jpg.
+bg_img = (
+    image_to_base64(app_path("assets", "background.jpg"))
+    or image_to_base64(app_path("assets", "header.jpg"))
+)
+
+if bg_img:
+    st.markdown(
+        f"""
+<style>
+.stApp {{
+    background: linear-gradient(rgba(2,22,43,.45), rgba(2,22,43,.62)),
+                url("data:image/jpeg;base64,{bg_img}") center center / cover fixed no-repeat;
+}}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
 
 if logo_img:
     logo_icon = (
@@ -1700,12 +1719,8 @@ if logo_img:
 else:
     logo_icon = "🏄"
 
-if header_img:
-    st.markdown(f"""
-<div class="hero" style="background-image:
-    linear-gradient(90deg, rgba(255,255,255,.92), rgba(255,255,255,.25)),
-    url('data:image/jpeg;base64,{header_img}');
-">
+st.markdown(f"""
+<div class="hero">
     <div class="hero-content">
         <div class="logo">{logo_icon} WINDSURF</div>
         <div class="title">SPEED CHALLENGE</div>
@@ -1720,14 +1735,6 @@ if header_img:
     </div>
 </div>
 """, unsafe_allow_html=True)
-else:
-    if logo_img:
-        st.markdown(
-            f'<h1>{logo_icon} Windsurf Speed Challenge</h1>',
-            unsafe_allow_html=True,
-        )
-    else:
-        st.title("🏄 Windsurf Speed Challenge")
 
 
 # =====================================================================

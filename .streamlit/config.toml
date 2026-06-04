@@ -1,0 +1,8 @@
+# Dunkles Basis-Theme – passt zum Glas-Look mit Hintergrundbild.
+# Farben kannst du frei anpassen (Hex-Codes).
+[theme]
+base = "dark"
+primaryColor = "#2bd4d9"            # türkiser Akzent (Buttons, Links)
+backgroundColor = "#0a2540"         # tiefes Meerblau (Fallback hinter dem Bild)
+secondaryBackgroundColor = "#11385c"
+textColor = "#eaf4ff"
