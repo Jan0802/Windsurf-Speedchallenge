@@ -432,6 +432,27 @@ auth_tokens_table = Table(
     Column("created_at", DateTime, server_default=func.now()),
 )
 
+# Gruppen-Ereignisse (Rekorde / Top-3) – andere Mitglieder sehen sie beim
+# nächsten Öffnen als Banner. Wird von create_all automatisch angelegt.
+group_events_table = Table(
+    "group_events", DB_METADATA,
+    Column("id", Integer, primary_key=True),
+    Column("group_id", Integer, ForeignKey("groups.id"), nullable=False),
+    Column("username", String(80), nullable=False),
+    Column("metric", String(40)),
+    Column("rank", Integer),
+    Column("value", Float),
+    Column("message", String(255)),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
+# Pro Nutzer: bis zu welcher Ereignis-ID wurde das News-Banner gelesen.
+event_reads_table = Table(
+    "event_reads", DB_METADATA,
+    Column("user_id", Integer, primary_key=True),
+    Column("last_seen_event_id", Integer, nullable=False, default=0),
+)
+
 SESSION_FIELDS = [
     c.name for c in sessions_table.columns if c.name not in ("id", "created_at")
 ]
@@ -1123,6 +1144,233 @@ def group_member_names(group_id):
         ).all()
 
     return [r[0] for r in rows]
+
+
+# =====================================================================
+#  Rekorde & Bestleistungen
+# =====================================================================
+
+# Alle vier Wertungen – jeweils „höher ist besser".
+RECORD_METRICS = [
+    {"key": "speed_1s_kmh", "label": "Topspeed 1 s", "unit": "km/h", "decimals": 2},
+    {"key": "speed_30s_kmh", "label": "Topspeed 30 s", "unit": "km/h", "decimals": 2},
+    {"key": "longest_run_km", "label": "Längster Run", "unit": "km", "decimals": 3},
+    {"key": "total_distance_km", "label": "Gesamtstrecke", "unit": "km", "decimals": 2},
+]
+
+
+def _series_max(df, key, mask=None):
+    """Maximum einer Kennzahl-Spalte (optional gefiltert) oder None."""
+    if df is None or df.empty or key not in df.columns:
+        return None
+
+    series = df[key] if mask is None else df.loc[mask, key]
+    series = pd.to_numeric(series, errors="coerce").dropna()
+
+    return float(series.max()) if not series.empty else None
+
+
+def detect_records(entry, all_sessions, member_groups):
+    """Vergleicht die neue (noch NICHT gespeicherte) Session mit dem Bestand.
+
+    Liefert dict mit Listen: personal, spot, year, group_events.
+    """
+    username = str(entry.get("name") or "")
+    spot = entry.get("surfspot")
+    year = (entry.get("date") or "")[:4]
+
+    df = all_sessions if all_sessions is not None else pd.DataFrame()
+    have_data = not df.empty
+
+    if have_data:
+        names = df["name"].astype(str) if "name" in df.columns else None
+        spots = df["surfspot"].astype(str) if "surfspot" in df.columns else None
+        years = (
+            pd.to_datetime(df["date"], errors="coerce").dt.year
+            if "date" in df.columns else None
+        )
+    else:
+        names = spots = years = None
+
+    personal, spot_records, year_records, group_events = [], [], [], []
+
+    for m in RECORD_METRICS:
+        key, label, unit, dec = m["key"], m["label"], m["unit"], m["decimals"]
+        new_val = entry.get(key)
+
+        if new_val is None:
+            continue
+
+        new_val = float(new_val)
+        base = {"label": label, "value": new_val, "unit": unit, "decimals": dec}
+
+        # --- Persönlicher Rekord (alle eigenen Sessions) ---
+        prev_personal = (
+            _series_max(df, key, names == username) if have_data and names is not None else None
+        )
+        is_personal = prev_personal is None or new_val > prev_personal
+
+        if is_personal:
+            personal.append({**base, "previous": prev_personal})
+
+        # --- Jahresbestleistung (nur wenn KEIN All-time-Rekord) ---
+        if year and have_data and names is not None and years is not None:
+            mask_year = (names == username) & (years == int(year) if year.isdigit() else False)
+            prev_year = _series_max(df, key, mask_year)
+            is_year_best = prev_year is None or new_val > prev_year
+
+            if is_year_best and not is_personal:
+                year_records.append({**base, "previous": prev_year, "year": year})
+
+        # --- Spotrekord (alle Fahrer am selben Spot) ---
+        if spot and have_data and spots is not None:
+            prev_spot = _series_max(df, key, spots == str(spot))
+
+            if prev_spot is None or new_val > prev_spot:
+                spot_records.append({**base, "previous": prev_spot, "spot": str(spot)})
+
+        # --- Gruppen: Rang & Rekord ---
+        for g in member_groups:
+            member_names = set(group_member_names(g["id"]))
+            member_names.add(username)
+
+            # Nur sinnvolle Gruppen (mind. 2 Fahrer mit Sessions) – sonst Spam.
+            if have_data and names is not None:
+                mask_grp = names.isin(member_names)
+                distinct_riders = df.loc[mask_grp, "name"].astype(str).nunique() if mask_grp.any() else 0
+            else:
+                mask_grp = None
+                distinct_riders = 0
+
+            if distinct_riders < 2:
+                continue
+
+            grp_vals = pd.to_numeric(df.loc[mask_grp, key], errors="coerce").dropna()
+            prev_group = float(grp_vals.max()) if not grp_vals.empty else None
+            rank = int((grp_vals > new_val).sum()) + 1
+            is_group_record = prev_group is None or new_val > prev_group
+
+            if rank <= 3:
+                group_events.append({
+                    **base,
+                    "group_id": g["id"],
+                    "group_name": g["name"],
+                    "rank": rank,
+                    "is_record": is_group_record,
+                })
+
+    return {
+        "personal": personal,
+        "spot": spot_records,
+        "year": year_records,
+        "group_events": group_events,
+    }
+
+
+def record_group_events(username, group_events):
+    """Persistiert Top-3/Rekord-Ereignisse, damit Mitglieder sie später sehen."""
+    if not group_events:
+        return
+
+    rows = []
+
+    for e in group_events:
+        value_str = f"{e['value']:.{e['decimals']}f} {e['unit']}"
+
+        if e.get("is_record"):
+            message = (
+                f"🏆 {username} hat einen neuen Gruppenrekord aufgestellt: "
+                f"{e['label']} {value_str} (Gruppe {e['group_name']})."
+            )
+        else:
+            message = (
+                f"🏅 {username} ist auf Platz {e['rank']} bei {e['label']} "
+                f"in Gruppe {e['group_name']} ({value_str})."
+            )
+
+        rows.append({
+            "group_id": e["group_id"],
+            "username": username,
+            "metric": e["label"],
+            "rank": e["rank"],
+            "value": e["value"],
+            "message": message,
+        })
+
+    with get_engine().begin() as conn:
+        conn.execute(insert(group_events_table), rows)
+
+
+def unseen_group_events(user_id, username):
+    """Noch ungelesene Gruppen-Ereignisse (nicht die eigenen) für das Banner."""
+    group_ids = [g["id"] for g in my_member_groups(user_id)]
+
+    if not group_ids:
+        return []
+
+    with get_engine().connect() as conn:
+        seen_row = conn.execute(
+            select(event_reads_table.c.last_seen_event_id)
+            .where(event_reads_table.c.user_id == user_id)
+        ).first()
+        last_seen = seen_row[0] if seen_row else 0
+
+        rows = conn.execute(
+            select(group_events_table)
+            .where(
+                group_events_table.c.group_id.in_(group_ids),
+                group_events_table.c.id > last_seen,
+                group_events_table.c.username != username,
+            )
+            .order_by(group_events_table.c.id.desc())
+            .limit(20)
+        ).mappings().all()
+
+    return [dict(r) for r in rows]
+
+
+def mark_group_events_seen(user_id):
+    with get_engine().begin() as conn:
+        max_id = conn.execute(select(func.max(group_events_table.c.id))).scalar() or 0
+
+        exists = conn.execute(
+            select(event_reads_table.c.user_id).where(event_reads_table.c.user_id == user_id)
+        ).first()
+
+        if exists:
+            conn.execute(
+                update(event_reads_table)
+                .where(event_reads_table.c.user_id == user_id)
+                .values(last_seen_event_id=max_id)
+            )
+        else:
+            conn.execute(insert(event_reads_table).values(
+                user_id=user_id, last_seen_event_id=max_id
+            ))
+
+
+def personal_bests(name, spot=None, year=None):
+    """Beste Werte je Metrik für einen Fahrer, optional nach Spot/Jahr gefiltert."""
+    df = load_rider_sessions(name)
+
+    if df.empty:
+        return []
+
+    if spot and spot != "Alle" and "surfspot" in df.columns:
+        df = df[df["surfspot"].astype(str) == spot]
+
+    if year and year != "Alle" and "date" in df.columns:
+        df = df[pd.to_datetime(df["date"], errors="coerce").dt.year == int(year)]
+
+    return [
+        {
+            "label": m["label"],
+            "value": _series_max(df, m["key"]),
+            "unit": m["unit"],
+            "decimals": m["decimals"],
+        }
+        for m in RECORD_METRICS
+    ]
 
 
 def _http_get_json(url, timeout, retries=2):
@@ -2210,6 +2458,67 @@ def render_login(cookie_manager):
                     st.error(message)
 
 
+def render_achievements(ach):
+    """Hebt die Rekorde der gerade hochgeladenen Session hervor (für den Fahrer)."""
+    personal = ach.get("personal", [])
+    spot = ach.get("spot", [])
+    year = ach.get("year", [])
+    group_events = ach.get("group_events", [])
+
+    if not (personal or spot or year or group_events):
+        return
+
+    st.balloons()
+    st.markdown("### 🏆 Deine Erfolge dieser Session")
+
+    def fmt(r):
+        return f"{r['value']:.{r['decimals']}f} {r['unit']}"
+
+    for r in spot:
+        extra = "" if r["previous"] is None else f" – alter Spotrekord: {r['previous']:.{r['decimals']}f}"
+        st.success(f"🏆 **Neuer Spotrekord** an {r['spot']}: {r['label']} {fmt(r)}{extra}")
+
+    for r in personal:
+        if r["previous"] is None:
+            st.success(f"🏆 **Erste persönliche Bestleistung**: {r['label']} {fmt(r)}")
+        else:
+            st.success(
+                f"🏆 **Persönlicher Rekord**: {r['label']} {fmt(r)} "
+                f"(vorher {r['previous']:.{r['decimals']}f} {r['unit']}) 📈"
+            )
+
+    for r in year:
+        st.info(f"📅 **Jahresbestleistung {r['year']}**: {r['label']} {fmt(r)}")
+
+    for e in [g for g in group_events if g.get("is_record")]:
+        st.success(f"🏆 **Gruppenrekord** in {e['group_name']}: {e['label']} {fmt(e)}")
+
+    for e in [g for g in group_events if not g.get("is_record")]:
+        st.info(f"🏅 Platz {e['rank']} in Gruppe {e['group_name']} bei {e['label']} ({fmt(e)})")
+
+
+def render_group_news_banner(user):
+    """Banner mit ungelesenen Gruppen-Ereignissen (Rekorde/Top-3 anderer)."""
+    events = unseen_group_events(user["id"], user["username"])
+
+    if not events:
+        return
+
+    st.markdown("### 📣 Neues aus deinen Gruppen")
+
+    for e in events:
+        if e.get("rank") == 1:
+            st.success(e["message"])
+        else:
+            st.info(e["message"])
+
+    if st.button("✓ Alles gelesen", key="mark_events_seen"):
+        mark_group_events_seen(user["id"])
+        st.rerun()
+
+    st.markdown("---")
+
+
 def render_account_sidebar(user, cookie_manager):
     with st.sidebar:
         st.markdown(f"### 👤 {user['username']}")
@@ -2440,6 +2749,9 @@ if cookie_manager is not None and st.session_state.get("_pending_token"):
     st.session_state.pop("_pending_token", None)
 
 
+# News-Banner: Rekorde/Top-3 von Mitgliedern, die der Nutzer noch nicht gesehen hat.
+render_group_news_banner(current_user)
+
 render_rankings()
 
 st.markdown("---")
@@ -2562,6 +2874,38 @@ with left:
                             else:
                                 st.warning("Session konnte nicht gelöscht werden.")
                             st.rerun()
+
+    with st.expander("🏅 Meine Bestleistungen", expanded=False):
+        pb_df = load_rider_sessions(name)
+
+        if pb_df.empty:
+            st.info("Noch keine Sessions – lade eine FIT-Datei hoch.")
+        else:
+            pb_spots = sorted(
+                {str(s) for s in pb_df["surfspot"].dropna().astype(str) if str(s).strip()}
+                if "surfspot" in pb_df.columns else set()
+            )
+            pb_years = sorted(
+                {int(y) for y in pd.to_datetime(pb_df["date"], errors="coerce").dt.year.dropna()}
+                if "date" in pb_df.columns else set(),
+                reverse=True,
+            )
+
+            cpb1, cpb2 = st.columns(2)
+            spot_pb = cpb1.selectbox("Spot", ["Alle"] + pb_spots, key=f"pb_spot_{name}")
+            year_pb = cpb2.selectbox(
+                "Jahr", ["Alle"] + [str(y) for y in pb_years], key=f"pb_year_{name}"
+            )
+
+            bests = personal_bests(name, spot_pb, year_pb)
+            bc = st.columns(2)
+
+            for i, b in enumerate(bests):
+                value = (
+                    "–" if b["value"] is None
+                    else f"{b['value']:.{b['decimals']}f} {b['unit']}"
+                )
+                bc[i % 2].metric(b["label"], value)
 
     spot_options = rider.get("spots", [])
     spot_choice = st.selectbox("Surfspot", [NEW_ENTRY] + spot_options)
@@ -2886,6 +3230,10 @@ if fit_source is not None:
             st.success(
                 f"✅ Session wurde zum Online-Ranking hinzugefügt: **{fit_name}**."
             )
+
+            achievements = st.session_state.get("last_achievements")
+            if achievements:
+                render_achievements(achievements)
         elif session_exists(fit_name):
             st.info(
                 f"⚠️ Diese Datei wurde bereits hochgeladen: **{fit_name}**. "
@@ -2915,9 +3263,18 @@ if fit_source is not None:
                     "weather_code": None if weather is None or weather["code"] is None else int(weather["code"]),
                 }
 
+                # Rekorde VOR dem Speichern erkennen (Vergleich mit dem Bestand).
+                member_groups = my_member_groups(current_user["id"])
+                achievements = detect_records(entry, load_sessions(), member_groups)
+
                 save_session(entry)
                 update_profile(name.strip(), spot.strip(), board_display, sail_display)
                 update_spot_coords(spot.strip(), session_lat, session_lon)
+
+                # Top-3/Rekord-Ereignisse für die Gruppen-Mitglieder hinterlegen.
+                record_group_events(name.strip(), achievements["group_events"])
+
+                st.session_state["last_achievements"] = achievements
                 st.session_state["ranking_flash"] = (
                     "Session wurde im Online-Ranking gespeichert."
                 )
