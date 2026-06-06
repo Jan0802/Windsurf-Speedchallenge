@@ -6,6 +6,7 @@ import logging
 import os
 import secrets
 import tempfile
+import time
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -169,6 +170,181 @@ def image_to_base64(path):
 
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
+
+
+# =====================================================================
+#  Rechtsseiten (Impressum / Datenschutz)
+#  Erreichbar über ?seite=impressum bzw. ?seite=datenschutz – BEWUSST vor
+#  dem Login-Gate, damit das Impressum (Pflicht!) ohne Anmeldung erreichbar
+#  ist. Bitte die [PLATZHALTER] im LEGAL_OPERATOR ausfüllen.
+# =====================================================================
+
+LEGAL_OPERATOR = {
+    "name": "Jan Brinkman",
+    "street": "[Straße und Hausnummer]",
+    "city": "51469 Bergisch Gladbach",
+    "country": "Deutschland",
+    "email": "Windsurfspeedchallenge@outlook.de",
+    }
+
+LEGAL_STAND = "Juni 2026"
+
+
+def _legal_back_button(key):
+    if st.button("← Zurück zur Startseite", key=key):
+        st.query_params.clear()
+        st.rerun()
+
+
+def render_impressum():
+    op = LEGAL_OPERATOR
+
+    st.markdown("## 📄 Impressum")
+    st.caption("Angaben gemäß § 5 Digitale-Dienste-Gesetz (DDG)")
+
+    st.markdown(
+        f"""
+**Diensteanbieter**<br>
+{op['name']}<br>
+{op['street']}<br>
+{op['city']}<br>
+{op['country']}
+
+**Kontakt**<br>
+E-Mail: {op['email']}
+
+**Umsatzsteuer-Identifikationsnummer**<br>
+{op['vat']}
+
+**Verantwortlich für den Inhalt** nach § 18 Abs. 2 MStV<br>
+{op['name']}, Anschrift wie oben.
+
+---
+
+**Haftung für Inhalte**<br>
+Als Diensteanbieter sind wir für eigene Inhalte auf diesen Seiten nach den
+allgemeinen Gesetzen verantwortlich. Wir sind jedoch nicht verpflichtet,
+übermittelte oder gespeicherte fremde Informationen zu überwachen.
+
+**Haftung für Links**<br>
+Unser Angebot enthält Links zu externen Websites Dritter, auf deren Inhalte
+wir keinen Einfluss haben. Für diese fremden Inhalte ist stets der jeweilige
+Anbieter der Seiten verantwortlich.
+""",
+        unsafe_allow_html=True,
+    )
+
+    _legal_back_button("back_impressum")
+
+
+def render_datenschutz():
+    op = LEGAL_OPERATOR
+
+    st.markdown("## 🔒 Datenschutzerklärung")
+
+    st.markdown(
+        f"""
+### 1. Verantwortlicher
+
+Verantwortlich für die Datenverarbeitung auf dieser Website ist:<br>
+{op['name']}, {op['street']}, {op['city']}, {op['country']}<br>
+E-Mail: {op['email']}
+
+### 2. Welche Daten wir verarbeiten
+
+**Konto:** Benutzername und Passwort. Das Passwort wird ausschließlich als
+gesalzener Hash (PBKDF2-HMAC-SHA256) gespeichert – im Klartext ist es uns
+nicht bekannt.
+
+**Session-/Leistungsdaten:** Pro hochgeladener Windsurf-Session speichern wir
+Datum, Surfspot, Board, Segel sowie die berechneten Kennzahlen
+(Höchstgeschwindigkeit über 1 s und 30 s, längster Run, Gesamtstrecke) und die
+zur Session passenden Wetterdaten.
+
+**GPS-Daten:** Deine hochgeladene FIT-Datei enthält GPS-Punkte. Diese werden
+nur kurzzeitig zur Berechnung deiner Kennzahlen und zur Anzeige der Karte
+**für dich selbst** verwendet. **Der GPS-Track wird nicht dauerhaft
+gespeichert und niemals öffentlich angezeigt oder mit anderen Nutzern
+geteilt.**
+
+**Gruppen:** Von dir erstellte oder beigetretene Gruppen und der jeweilige
+Mitgliedsstatus.
+
+### 3. Öffentliche Sichtbarkeit (Ranking)
+
+Diese App ist eine Community-Bestenliste. Wenn du eine Session speicherst,
+werden **Benutzername, Datum, Surfspot, Board, Segel, die Speed-Werte und die
+Wetterangaben** im Ranking für andere angemeldete Nutzer sichtbar. In privaten
+Gruppen sind die Ergebnisse nur für bestätigte Mitglieder sichtbar.
+
+### 4. Zwecke und Rechtsgrundlagen
+
+- **Konto & Anmeldung** zur Bereitstellung der App – Art. 6 Abs. 1 lit. b DSGVO
+  (Nutzungsverhältnis).
+- **Veröffentlichung deiner Ergebnisse im Ranking** – Art. 6 Abs. 1 lit. a DSGVO
+  (deine Einwilligung, die du bei der Registrierung erteilst und jederzeit mit
+  Wirkung für die Zukunft widerrufen kannst).
+
+### 5. Cookies
+
+Setzt du beim Login „Angemeldet bleiben", speichern wir ein funktional
+notwendiges Cookie (`surf_auth`) mit einem zufälligen Anmelde-Token, damit du
+nicht bei jedem Besuch neu eingeben musst. Ohne diese Option werden keine
+Cookies gesetzt. Es findet kein Tracking und keine Werbung statt.
+
+### 6. Hosting
+
+Die App wird auf **Streamlit Community Cloud** (Snowflake Inc., USA) betrieben.
+Dabei können technisch bedingt Verbindungsdaten (z. B. IP-Adresse) in den USA
+verarbeitet werden. Grundlage für die Übermittlung sind die
+Standardvertragsklauseln der EU bzw. das EU-US Data Privacy Framework.
+
+### 7. Externe Dienste (Wetter)
+
+Zur Anzeige von Wetter und Vorhersage rufen wir die Schnittstellen von
+**Open-Meteo** ab. Dabei werden die **Koordinaten des ausgewählten Spots** sowie
+technische Verbindungsdaten an Open-Meteo übermittelt. Es werden keine Konto-
+oder Session-Daten von dir übertragen.
+
+### 8. Speicherdauer
+
+Konto-, Session- und Gruppendaten speichern wir, bis du dein Konto bzw. die
+jeweiligen Einträge löschst oder die Löschung verlangst.
+
+### 9. Deine Rechte
+
+Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der
+Verarbeitung, Datenübertragbarkeit sowie auf Widerruf erteilter Einwilligungen
+mit Wirkung für die Zukunft. Außerdem steht dir ein Beschwerderecht bei einer
+Datenschutz-Aufsichtsbehörde zu.
+
+Zur Ausübung deiner Rechte oder zur Löschung deines Kontos genügt eine formlose
+Nachricht an: {op['email']}
+
+---
+
+*Stand: {LEGAL_STAND}. Diese Erklärung wird angepasst, wenn sich die
+Datenverarbeitung ändert.*
+""",
+        unsafe_allow_html=True,
+    )
+
+    _legal_back_button("back_datenschutz")
+
+
+def render_legal_page():
+    """Zeigt eine Rechtsseite, falls per ?seite=... angefragt. True = behandelt."""
+    page = st.query_params.get("seite")
+
+    if page == "impressum":
+        render_impressum()
+        return True
+
+    if page == "datenschutz":
+        render_datenschutz()
+        return True
+
+    return False
 
 
 # =====================================================================
@@ -823,17 +999,30 @@ def group_member_names(group_id):
     return [r[0] for r in rows]
 
 
-def _http_get_json(url, timeout):
-    """GET einer JSON-API mit explizitem User-Agent.
+def _http_get_json(url, timeout, retries=2):
+    """GET einer JSON-API mit explizitem User-Agent und Retry.
 
     Wichtig fürs Cloud-Deployment (z.B. Streamlit Community Cloud): Der
     Default-UA "Python-urllib/x.y" wird von manchen CDNs/WAFs ausgehend von
-    geteilten Cloud-IPs blockiert, lokal aber durchgelassen. Wirft bei
-    HTTP-/Netzwerkfehlern – die Aufrufer fangen das ab.
+    geteilten Cloud-IPs blockiert, lokal aber durchgelassen. Zudem teilen sich
+    viele Apps dieselbe Ausgangs-IP, sodass Open-Meteo sporadisch mit HTTP 429
+    antwortet – ein kurzer Retry fängt solche Minuten-Spitzen ab. Wirft, wenn
+    alle Versuche scheitern; die Aufrufer fangen das ab.
     """
     request = Request(url, headers={"User-Agent": "WindsurfSpeedChallenge/1.0"})
-    with urlopen(request, timeout=timeout) as response:
-        return json.load(response)
+    last_error = None
+
+    for attempt in range(retries + 1):
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                return json.load(response)
+        except Exception as e:
+            last_error = e
+
+            if attempt < retries:
+                time.sleep(1.5 * (attempt + 1))
+
+    raise last_error
 
 
 @st.cache_data(show_spinner=False)
@@ -844,7 +1033,7 @@ def geocode_spot(name):
     params = {"name": name, "count": 1, "language": "de", "format": "json"}
 
     try:
-        url = f"https://geocoding-api.open-meteo.com/v1/search?{urlencode(params)}"
+        url = _open_meteo_url("geocoding-api", "/v1/search", params)
         data = _http_get_json(url, timeout=10)
     except Exception:
         return None
@@ -1077,16 +1266,16 @@ def _fetch_weather(lat, lon, when_iso):
         "end_date": date,
     }
 
-    endpoints = (
-        "https://archive-api.open-meteo.com/v1/archive",
-        "https://api.open-meteo.com/v1/forecast",
+    services = (
+        ("archive-api", "/v1/archive"),
+        ("api", "/v1/forecast"),
     )
 
     any_response = False
 
-    for base in endpoints:
+    for service, path in services:
         try:
-            data = _http_get_json(f"{base}?{urlencode(common)}", timeout=25)
+            data = _http_get_json(_open_meteo_url(service, path, common), timeout=25)
         except Exception:
             continue
 
@@ -1135,7 +1324,44 @@ def get_weather(lat, lon, when_iso):
     try:
         return _fetch_weather(lat, lon, when_iso)
     except Exception:
+        logging.exception("Historischer Wetter-Abruf fehlgeschlagen")
         return None
+
+
+def _open_meteo_key():
+    """Optionaler Open-Meteo-API-Key aus Streamlit-Secrets oder Umgebung.
+
+    Mit Key laufen die Aufrufe über den Kunden-Endpunkt und sind NICHT mehr
+    vom geteilten IP-Limit der Cloud betroffen (der eigentliche Grund für die
+    429-Fehler). Ohne Key bleibt alles wie bisher (kostenloser Endpunkt).
+    """
+    try:
+        key = st.secrets.get("OPENMETEO_API_KEY")
+        if key:
+            return key
+    except Exception:
+        pass
+
+    return os.environ.get("OPENMETEO_API_KEY")
+
+
+def _open_meteo_url(service, path, params):
+    """Baut eine Open-Meteo-URL und schaltet mit API-Key auf den Kunden-Endpunkt.
+
+    service: "api" (Forecast), "archive-api" (Historie), "geocoding-api".
+    Mit Key läuft der Aufruf über "customer-<service>.open-meteo.com" und ist
+    nicht mehr vom geteilten IP-Limit (429) der Cloud betroffen.
+    """
+    params = dict(params)
+    key = _open_meteo_key()
+
+    if key:
+        params["apikey"] = key
+        host = f"https://customer-{service}.open-meteo.com"
+    else:
+        host = f"https://{service}.open-meteo.com"
+
+    return f"{host}{path}?{urlencode(params)}"
 
 
 @st.cache_data(show_spinner=False, ttl=1800)
@@ -1150,10 +1376,20 @@ def _fetch_forecast(lat, lon):
         "forecast_days": 4,
     }
 
-    url = f"https://api.open-meteo.com/v1/forecast?{urlencode(params)}"
+    url = _open_meteo_url("api", "/v1/forecast", params)
     # Großzügiger Timeout: Open-Meteo ist zeitweise langsam (>20 s), liefert
     # aber. Erfolgreiche Antworten werden 30 Min gecacht.
     return _http_get_json(url, timeout=30)
+
+
+@st.cache_resource(show_spinner=False)
+def _forecast_fallback_store():
+    """Letzter erfolgreicher Forecast je Spot (überlebt Reruns/Sessions).
+
+    Dient als Notfall-Anzeige, wenn ein frischer Abruf gerade an einem 429
+    scheitert – dann sehen Nutzer den letzten Stand statt einer leeren Warnung.
+    """
+    return {}
 
 
 def get_forecast(lat, lon):
@@ -1162,14 +1398,23 @@ def get_forecast(lat, lon):
     Fehler werden NICHT gecacht – nur erfolgreiche Antworten landen im Cache,
     damit eine kurze Dienststörung nicht 30 Minuten hängen bleibt.
     """
+    store = _forecast_fallback_store()
+    key = (round(float(lat), 4), round(float(lon), 4))
+
     try:
         result = _fetch_forecast(lat, lon)
+        store[key] = result
         st.session_state.pop("_weather_error", None)
+        st.session_state["_weather_stale"] = False
         return result
     except Exception as e:
         logging.exception("Forecast-Abruf fehlgeschlagen")
         st.session_state["_weather_error"] = f"{type(e).__name__}: {e}"
-        return None
+
+        # Fallback: letzter erfolgreicher Stand für diesen Spot (falls vorhanden)
+        stale = store.get(key)
+        st.session_state["_weather_stale"] = stale is not None
+        return stale
 
 
 def render_rankings():
@@ -1752,6 +1997,11 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 
+# Rechtsseiten (Impressum/Datenschutz) zuerst behandeln – ohne Login erreichbar.
+if render_legal_page():
+    st.stop()
+
+
 # =====================================================================
 #  Login / Registrierung (Gate vor dem Rest der App)
 # =====================================================================
@@ -1761,6 +2011,15 @@ def render_login(cookie_manager):
     st.info(
         "Bitte einloggen oder registrieren. Danach kannst du Gruppen "
         "beitreten oder eigene anlegen."
+    )
+
+    st.markdown(
+        '<div style="text-align:center;margin:.5rem 0 1rem;opacity:.85;">'
+        '<a href="?seite=impressum" target="_self" style="color:#2bd4d9;">Impressum</a>'
+        ' &nbsp;·&nbsp; '
+        '<a href="?seite=datenschutz" target="_self" style="color:#2bd4d9;">Datenschutzerklärung</a>'
+        '</div>',
+        unsafe_allow_html=True,
     )
 
     tab_login, tab_register = st.tabs(["Einloggen", "Registrieren"])
@@ -1785,10 +2044,36 @@ def render_login(cookie_manager):
             new_username = st.text_input("Benutzername wählen")
             pwd1 = st.text_input("Passwort (mind. 6 Zeichen)", type="password")
             pwd2 = st.text_input("Passwort wiederholen", type="password")
+
+            st.markdown("**Einwilligungen**")
+
+            consent_save = st.checkbox(
+                "Ich bestätige, dass meine hochgeladenen Sessions im Ranking "
+                "gespeichert werden."
+            )
+            consent_visible = st.checkbox(
+                "Ich bin einverstanden, dass Spot, Datum, Speed und Equipment "
+                "im Ranking sichtbar sind."
+            )
+            consent_privacy = st.checkbox(
+                "Ich habe die Datenschutzerklärung gelesen und akzeptiere sie."
+            )
+
+            st.caption(
+                "ℹ️ Dein GPS-Track wird nicht gespeichert und niemals öffentlich "
+                "angezeigt – im Ranking erscheinen nur die Kennzahlen. Details in "
+                "der Datenschutzerklärung (Link oben)."
+            )
+
             submitted = st.form_submit_button("Registrieren")
 
         if submitted:
-            if pwd1 != pwd2:
+            if not (consent_save and consent_visible and consent_privacy):
+                st.error(
+                    "Bitte bestätige alle drei Einwilligungen, um dich zu "
+                    "registrieren."
+                )
+            elif pwd1 != pwd2:
                 st.error("Die Passwörter stimmen nicht überein.")
             else:
                 ok, message = register_user(new_username, pwd1)
@@ -2480,6 +2765,12 @@ with st.expander("🌦️ Spot-Wetter (aktuell & Vorhersage)", expanded=False):
                 if reason:
                     st.caption(f"Technischer Grund: {reason}")
             else:
+                if st.session_state.get("_weather_stale"):
+                    st.info(
+                        "ℹ️ Wetterdienst gerade überlastet – angezeigt wird der "
+                        "letzte zwischengespeicherte Stand."
+                    )
+
                 current = forecast.get("current", {})
                 code = current.get("weather_code")
                 emoji, description = WEATHER_CODES.get(code, ("❓", "Unbekannt"))
@@ -2590,5 +2881,10 @@ st.markdown(f"""
 <div class="footer">
     <h3 style="color:white;">{logo_icon} WINDSURF SPEED CHALLENGE</h3>
     <p>Die Community. Dein Spot. Dein Speed.</p>
+    <p style="margin-top:.75rem;">
+        <a href="?seite=impressum" target="_self" style="color:#2bd4d9;">Impressum</a>
+        &nbsp;·&nbsp;
+        <a href="?seite=datenschutz" target="_self" style="color:#2bd4d9;">Datenschutzerklärung</a>
+    </p>
 </div>
 """, unsafe_allow_html=True)
