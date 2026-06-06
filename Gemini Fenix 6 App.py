@@ -800,6 +800,22 @@ def delete_user_sessions(name):
     return result.rowcount or 0
 
 
+def delete_session(session_id, name):
+    """Löscht eine einzelne Session – nur wenn sie dem Fahrer gehört (kein Fremdlöschen)."""
+    if session_id is None or not name:
+        return False
+
+    with get_engine().begin() as conn:
+        result = conn.execute(
+            delete(sessions_table).where(
+                (sessions_table.c.id == int(session_id))
+                & (sessions_table.c.name == name)
+            )
+        )
+
+    return (result.rowcount or 0) > 0
+
+
 def delete_account(user_id, username):
     """Löscht das Konto und ALLE eigenen Daten – aber keine Fremddaten.
 
@@ -2460,6 +2476,25 @@ with left:
 
                     if chosen_label != "—":
                         selected_history_record = record_by_label[chosen_label]
+
+                        sess_id = selected_history_record.get("id")
+
+                        confirm_one = st.checkbox(
+                            "Löschen dieser Session bestätigen",
+                            key=f"confirm_del_one_{sess_id}",
+                        )
+
+                        if st.button(
+                            f"🗑️ Session löschen: {chosen_label}",
+                            key=f"del_one_btn_{sess_id}",
+                            use_container_width=True,
+                            disabled=not confirm_one,
+                        ):
+                            if delete_session(sess_id, name):
+                                st.success("Session gelöscht.")
+                            else:
+                                st.warning("Session konnte nicht gelöscht werden.")
+                            st.rerun()
 
     spot_options = rider.get("spots", [])
     spot_choice = st.selectbox("Surfspot", [NEW_ENTRY] + spot_options)
