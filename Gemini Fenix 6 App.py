@@ -2,12 +2,13 @@ import base64
 import glob
 import hashlib
 import json
+import logging
 import os
 import secrets
 import tempfile
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import pandas as pd
 import pydeck as pdk
@@ -822,6 +823,19 @@ def group_member_names(group_id):
     return [r[0] for r in rows]
 
 
+def _http_get_json(url, timeout):
+    """GET einer JSON-API mit explizitem User-Agent.
+
+    Wichtig fürs Cloud-Deployment (z.B. Streamlit Community Cloud): Der
+    Default-UA "Python-urllib/x.y" wird von manchen CDNs/WAFs ausgehend von
+    geteilten Cloud-IPs blockiert, lokal aber durchgelassen. Wirft bei
+    HTTP-/Netzwerkfehlern – die Aufrufer fangen das ab.
+    """
+    request = Request(url, headers={"User-Agent": "WindsurfSpeedChallenge/1.0"})
+    with urlopen(request, timeout=timeout) as response:
+        return json.load(response)
+
+
 @st.cache_data(show_spinner=False)
 def geocode_spot(name):
     if not name:
@@ -831,8 +845,7 @@ def geocode_spot(name):
 
     try:
         url = f"https://geocoding-api.open-meteo.com/v1/search?{urlencode(params)}"
-        with urlopen(url, timeout=10) as response:
-            data = json.load(response)
+        data = _http_get_json(url, timeout=10)
     except Exception:
         return None
 
@@ -1073,8 +1086,7 @@ def _fetch_weather(lat, lon, when_iso):
 
     for base in endpoints:
         try:
-            with urlopen(f"{base}?{urlencode(common)}", timeout=25) as response:
-                data = json.load(response)
+            data = _http_get_json(f"{base}?{urlencode(common)}", timeout=25)
         except Exception:
             continue
 
@@ -1141,8 +1153,7 @@ def _fetch_forecast(lat, lon):
     url = f"https://api.open-meteo.com/v1/forecast?{urlencode(params)}"
     # Großzügiger Timeout: Open-Meteo ist zeitweise langsam (>20 s), liefert
     # aber. Erfolgreiche Antworten werden 30 Min gecacht.
-    with urlopen(url, timeout=30) as response:
-        return json.load(response)
+    return _http_get_json(url, timeout=30)
 
 
 def get_forecast(lat, lon):
@@ -1152,8 +1163,12 @@ def get_forecast(lat, lon):
     damit eine kurze Dienststörung nicht 30 Minuten hängen bleibt.
     """
     try:
-        return _fetch_forecast(lat, lon)
-    except Exception:
+        result = _fetch_forecast(lat, lon)
+        st.session_state.pop("_weather_error", None)
+        return result
+    except Exception as e:
+        logging.exception("Forecast-Abruf fehlgeschlagen")
+        st.session_state["_weather_error"] = f"{type(e).__name__}: {e}"
         return None
 
 
@@ -2459,6 +2474,11 @@ with st.expander("🌦️ Spot-Wetter (aktuell & Vorhersage)", expanded=False):
                     "später erneut versuchen. Das liegt am Dienst, nicht an "
                     "deinen Daten."
                 )
+
+                reason = st.session_state.get("_weather_error")
+
+                if reason:
+                    st.caption(f"Technischer Grund: {reason}")
             else:
                 current = forecast.get("current", {})
                 code = current.get("weather_code")
