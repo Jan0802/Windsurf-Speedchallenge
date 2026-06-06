@@ -454,6 +454,13 @@ event_reads_table = Table(
     Column("last_seen_event_id", Integer, nullable=False, default=0),
 )
 
+# Pro Nutzer: persönliche Einstellungen (z.B. das Ranking-Filter-Preset) als JSON.
+user_prefs_table = Table(
+    "user_prefs", DB_METADATA,
+    Column("username", String(80), primary_key=True),
+    Column("data", String),
+)
+
 SESSION_FIELDS = [
     c.name for c in sessions_table.columns if c.name not in ("id", "created_at")
 ]
@@ -1213,11 +1220,66 @@ def clear_data_caches():
     for fn in (
         load_sessions, load_rider_sessions, load_profiles, load_spots,
         list_groups, my_memberships, my_member_groups, group_member_names,
+        load_user_pref,
     ):
         try:
             fn.clear()
         except Exception:
             pass
+
+
+# ---- Persönliche Einstellungen (Ranking-Filter-Preset) ----
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_user_pref(username):
+    if not username:
+        return {}
+
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(user_prefs_table.c.data).where(user_prefs_table.c.username == username)
+        ).first()
+
+    if not row or not row[0]:
+        return {}
+
+    try:
+        return json.loads(row[0])
+    except Exception:
+        return {}
+
+
+def save_user_pref(username, preset):
+    if not username:
+        return
+
+    data = json.dumps(preset, ensure_ascii=False)
+
+    with get_engine().begin() as conn:
+        exists = conn.execute(
+            select(user_prefs_table.c.username).where(user_prefs_table.c.username == username)
+        ).first()
+
+        if exists:
+            conn.execute(
+                update(user_prefs_table)
+                .where(user_prefs_table.c.username == username)
+                .values(data=data)
+            )
+        else:
+            conn.execute(insert(user_prefs_table).values(username=username, data=data))
+
+    clear_data_caches()
+
+
+def delete_user_pref(username):
+    if not username:
+        return
+
+    with get_engine().begin() as conn:
+        conn.execute(delete(user_prefs_table).where(user_prefs_table.c.username == username))
+
+    clear_data_caches()
 
 
 # =====================================================================
@@ -1875,6 +1937,14 @@ def get_forecast(lat, lon):
         return stale
 
 
+def _preset_index(options, value):
+    """Position von value in options (für selectbox-Vorbelegung), sonst 0."""
+    try:
+        return options.index(value) if value in options else 0
+    except Exception:
+        return 0
+
+
 def render_rankings():
     st.markdown("## 🏆 Online-Rankings")
 
@@ -1882,6 +1952,35 @@ def render_rankings():
 
     if flash:
         st.success(flash)
+
+    user = st.session_state.get("user")
+    username = user["username"] if user else None
+    preset = load_user_pref(username)
+
+    # ---- Persönliches Filter-Preset: speichern / zurücksetzen ----
+    with st.expander("⭐ Mein Start (Filter-Preset)", expanded=False):
+        st.caption(
+            "Speichere die aktuelle Filter-Auswahl als deinen Start – sie wird "
+            "bei jedem Öffnen automatisch vorausgewählt."
+        )
+
+        pc1, pc2 = st.columns(2)
+
+        if pc1.button("💾 Aktuelle Filter speichern", use_container_width=True):
+            save_user_pref(username, {
+                "group": st.session_state.get("rank_group", ALL_GROUP),
+                "spot": st.session_state.get("rank_spot", "Gesamt"),
+                "year": st.session_state.get("rank_year", "Alle Jahre"),
+                "month": st.session_state.get("rank_month", "Ganzes Jahr"),
+                "day": st.session_state.get("rank_day", "Ganzer Monat"),
+            })
+            st.success("Gespeichert – wird künftig beim Start geladen.")
+
+        if preset and pc2.button("↺ Zurücksetzen", use_container_width=True):
+            delete_user_pref(username)
+            for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day"):
+                st.session_state.pop(_k, None)
+            st.rerun()
 
     ranking = load_sessions()
 
@@ -1897,11 +1996,12 @@ def render_rankings():
             ranking[column] = None
 
     # ---- Filter: Gruppe (nur eigene Gruppen + "Alle") ----
-    user = st.session_state.get("user")
     member_groups = my_member_groups(user["id"]) if user else []
+    group_options = [ALL_GROUP] + [g["name"] for g in member_groups]
     group_choice = st.selectbox(
         "👥 Gruppe",
-        [ALL_GROUP] + [g["name"] for g in member_groups],
+        group_options,
+        index=_preset_index(group_options, preset.get("group")),
         key="rank_group",
         help="„Alle“ zeigt alle Fahrer. Gruppen-Ergebnisse siehst du nur als Mitglied.",
     )
@@ -1933,29 +2033,42 @@ def render_rankings():
     ]
     years = sorted(ranking["_date"].dropna().dt.year.unique(), reverse=True)
 
+    spot_options = ["Gesamt"] + spots
+    year_options = ["Alle Jahre"] + [str(y) for y in years]
+    month_options = ["Ganzes Jahr"] + months
+    day_options = ["Ganzer Monat"] + [str(d) for d in range(1, 32)]
+
     f1, f2, f3, f4 = st.columns(4)
 
     with f1:
-        spot_filter = st.selectbox("📍 Lokation", ["Gesamt"] + spots, key="rank_spot")
+        spot_filter = st.selectbox(
+            "📍 Lokation",
+            spot_options,
+            index=_preset_index(spot_options, preset.get("spot")),
+            key="rank_spot",
+        )
 
     with f2:
         year_filter = st.selectbox(
             "📅 Jahr",
-            ["Alle Jahre"] + [str(y) for y in years],
+            year_options,
+            index=_preset_index(year_options, preset.get("year")),
             key="rank_year",
         )
 
     with f3:
         month_filter = st.selectbox(
             "Monat",
-            ["Ganzes Jahr"] + months,
+            month_options,
+            index=_preset_index(month_options, preset.get("month")),
             key="rank_month",
         )
 
     with f4:
         day_filter = st.selectbox(
             "Tag",
-            ["Ganzer Monat"] + [str(d) for d in range(1, 32)],
+            day_options,
+            index=_preset_index(day_options, preset.get("day")),
             key="rank_day",
         )
 
