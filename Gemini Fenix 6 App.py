@@ -574,7 +574,10 @@ def save_session(entry):
     with get_engine().begin() as conn:
         conn.execute(insert(sessions_table).values(**values))
 
+    clear_data_caches()
 
+
+@st.cache_data(ttl=60, show_spinner=False)
 def load_sessions():
     with get_engine().connect() as conn:
         rows = conn.execute(select(sessions_table)).mappings().all()
@@ -610,6 +613,7 @@ def session_exists(filename, name=None):
         return bool(conn.execute(query).scalar())
 
 
+@st.cache_data(ttl=60, show_spinner=False)
 def load_rider_sessions(name):
     """Alle gespeicherten Sessions eines Fahrers, neueste zuerst."""
     with get_engine().connect() as conn:
@@ -631,6 +635,7 @@ def load_rider_sessions(name):
 
 # ---- Profile (Spots/Boards/Segel je Fahrer) ----
 
+@st.cache_data(ttl=60, show_spinner=False)
 def load_profiles():
     with get_engine().connect() as conn:
         rows = conn.execute(select(profiles_table)).mappings().all()
@@ -650,32 +655,44 @@ def update_profile(name, spot, board, sail):
     if not name:
         return
 
-    profiles = load_profiles()
-    rider = profiles.get(name) or {"spots": [], "boards": [], "sails": []}
-
-    for key, value in (("spots", spot), ("boards", board), ("sails", sail)):
-        items = rider.setdefault(key, [])
-
-        if value and value not in items:
-            items.append(value)
-
-    data = json.dumps(rider, ensure_ascii=False)
-
     with get_engine().begin() as conn:
-        exists = conn.execute(
-            select(profiles_table.c.name).where(profiles_table.c.name == name)
+        # Profil-Zeile frisch lesen (nicht aus dem Cache), damit der Merge
+        # keine zwischenzeitlich ergänzten Einträge verliert.
+        row = conn.execute(
+            select(profiles_table.c.data).where(profiles_table.c.name == name)
         ).first()
 
-        if exists:
+        rider = {}
+        if row and row[0]:
+            try:
+                rider = json.loads(row[0])
+            except Exception:
+                rider = {}
+
+        if not rider:
+            rider = {"spots": [], "boards": [], "sails": []}
+
+        for key, value in (("spots", spot), ("boards", board), ("sails", sail)):
+            items = rider.setdefault(key, [])
+
+            if value and value not in items:
+                items.append(value)
+
+        data = json.dumps(rider, ensure_ascii=False)
+
+        if row:
             conn.execute(
                 update(profiles_table).where(profiles_table.c.name == name).values(data=data)
             )
         else:
             conn.execute(insert(profiles_table).values(name=name, data=data))
 
+    clear_data_caches()
+
 
 # ---- Spots (Koordinaten-Cache) ----
 
+@st.cache_data(ttl=60, show_spinner=False)
 def load_spots():
     with get_engine().connect() as conn:
         rows = conn.execute(select(spots_table)).mappings().all()
@@ -700,6 +717,8 @@ def update_spot_coords(spot, lat, lon):
             )
         else:
             conn.execute(insert(spots_table).values(name=spot, **values))
+
+    clear_data_caches()
 
 
 def all_known_spots():
@@ -833,6 +852,8 @@ def delete_user_sessions(name):
             delete(sessions_table).where(sessions_table.c.name == name)
         )
 
+    clear_data_caches()
+
     return result.rowcount or 0
 
 
@@ -848,6 +869,8 @@ def delete_session(session_id, name):
                 & (sessions_table.c.name == name)
             )
         )
+
+    clear_data_caches()
 
     return (result.rowcount or 0) > 0
 
@@ -883,6 +906,8 @@ def delete_account(user_id, username):
             conn.execute(delete(groups_table).where(groups_table.c.id.in_(owned)))
 
         conn.execute(delete(users_table).where(users_table.c.id == user_id))
+
+    clear_data_caches()
 
 
 def _cookie_manager():
@@ -926,6 +951,7 @@ def logout_session(cookie_manager):
 ALL_GROUP = "Alle"
 
 
+@st.cache_data(ttl=60, show_spinner=False)
 def list_groups():
     with get_engine().connect() as conn:
         rows = conn.execute(select(groups_table)).mappings().all()
@@ -959,9 +985,12 @@ def create_group(name, owner_id, is_private):
             user_id=owner_id, group_id=group_id, status="member"
         ))
 
+    clear_data_caches()
+
     return True, f"Gruppe „{name}“ wurde erstellt."
 
 
+@st.cache_data(ttl=60, show_spinner=False)
 def my_memberships(user_id):
     """group_id -> status ('member' | 'pending')."""
     with get_engine().connect() as conn:
@@ -972,6 +1001,7 @@ def my_memberships(user_id):
     return {r["group_id"]: r["status"] for r in rows}
 
 
+@st.cache_data(ttl=60, show_spinner=False)
 def my_member_groups(user_id):
     """Gruppen, in denen der Nutzer bestätigtes Mitglied ist."""
     with get_engine().connect() as conn:
@@ -1016,6 +1046,8 @@ def join_or_request_group(user_id, group_id):
             user_id=user_id, group_id=group_id, status=status
         ))
 
+    clear_data_caches()
+
     if status == "pending":
         return True, "Beitritt angefragt – der Ersteller muss dich freischalten."
 
@@ -1028,6 +1060,8 @@ def leave_group(user_id, group_id):
             (memberships_table.c.user_id == user_id)
             & (memberships_table.c.group_id == group_id)
         ))
+
+    clear_data_caches()
 
 
 def group_membership_count(group_id):
@@ -1074,6 +1108,8 @@ def delete_group(group_id, owner_id):
         )
         conn.execute(delete(groups_table).where(groups_table.c.id == group_id))
 
+    clear_data_caches()
+
     return True, f"Gruppe {group['name']} wurde gelöscht."
 
 
@@ -1106,6 +1142,8 @@ def set_membership_status(user_id, group_id, status):
             .values(status=status)
         )
 
+    clear_data_caches()
+
 
 def invite_user(group_id, username):
     user = get_user((username or "").strip())
@@ -1133,15 +1171,19 @@ def invite_user(group_id, username):
                 )
                 .values(status="member")
             )
-            return True, f"{user['username']} wurde freigeschaltet."
+            message = f"{user['username']} wurde freigeschaltet."
+        else:
+            conn.execute(insert(memberships_table).values(
+                user_id=user["id"], group_id=group_id, status="member"
+            ))
+            message = f"{user['username']} wurde zur Gruppe hinzugefügt."
 
-        conn.execute(insert(memberships_table).values(
-            user_id=user["id"], group_id=group_id, status="member"
-        ))
+    clear_data_caches()
 
-    return True, f"{user['username']} wurde zur Gruppe hinzugefügt."
+    return True, message
 
 
+@st.cache_data(ttl=60, show_spinner=False)
 def group_member_names(group_id):
     """Benutzernamen aller bestätigten Mitglieder einer Gruppe."""
     with get_engine().connect() as conn:
@@ -1159,6 +1201,22 @@ def group_member_names(group_id):
         ).all()
 
     return [r[0] for r in rows]
+
+
+def clear_data_caches():
+    """Leert die DB-Lese-Caches nach Schreibvorgängen.
+
+    Bewusst NUR die Datenbank-Caches – die Wetter-Caches (Open-Meteo) bleiben
+    erhalten, damit kein unnötiger erneuter Abruf (429-Risiko) ausgelöst wird.
+    """
+    for fn in (
+        load_sessions, load_rider_sessions, load_profiles, load_spots,
+        list_groups, my_memberships, my_member_groups, group_member_names,
+    ):
+        try:
+            fn.clear()
+        except Exception:
+            pass
 
 
 # =====================================================================
