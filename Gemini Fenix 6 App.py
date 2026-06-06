@@ -994,6 +994,53 @@ def leave_group(user_id, group_id):
         ))
 
 
+def group_membership_count(group_id):
+    """Anzahl aller Zuordnungen (bestätigte Mitglieder + offene Anfragen)."""
+    with get_engine().connect() as conn:
+        return conn.execute(
+            select(func.count())
+            .select_from(memberships_table)
+            .where(memberships_table.c.group_id == group_id)
+        ).scalar()
+
+
+def delete_group(group_id, owner_id):
+    """Löscht eine Gruppe – nur durch den Ersteller und nur, wenn er allein drin ist.
+
+    Die Prüfung erfolgt innerhalb der Transaktion, damit niemand fremde Gruppen
+    oder eine Gruppe mit weiteren Mitgliedern löschen kann. (ok, message).
+    """
+    with get_engine().begin() as conn:
+        group = conn.execute(
+            select(groups_table).where(groups_table.c.id == group_id)
+        ).mappings().first()
+
+        if not group:
+            return False, "Gruppe nicht gefunden."
+
+        if group["owner_id"] != owner_id:
+            return False, "Nur der Ersteller kann die Gruppe löschen."
+
+        count = conn.execute(
+            select(func.count())
+            .select_from(memberships_table)
+            .where(memberships_table.c.group_id == group_id)
+        ).scalar()
+
+        if count and count > 1:
+            return False, (
+                "Löschen ist nur möglich, wenn du allein in der Gruppe bist "
+                "(weitere Mitglieder oder offene Anfragen zuerst entfernen)."
+            )
+
+        conn.execute(
+            delete(memberships_table).where(memberships_table.c.group_id == group_id)
+        )
+        conn.execute(delete(groups_table).where(groups_table.c.id == group_id))
+
+    return True, f"Gruppe {group['name']} wurde gelöscht."
+
+
 def pending_requests(group_id):
     with get_engine().connect() as conn:
         rows = conn.execute(
@@ -2270,6 +2317,26 @@ def render_account_sidebar(user, cookie_manager):
                         (st.success if ok else st.warning)(message)
                         if ok:
                             st.rerun()
+
+                    # Gruppe löschen – nur möglich, wenn man allein drin ist.
+                    member_count = group_membership_count(g["id"])
+
+                    if member_count and member_count > 1:
+                        st.caption(
+                            "🗑️ Löschen erst möglich, wenn du allein in der "
+                            "Gruppe bist (Mitglieder/Anfragen zuerst entfernen)."
+                        )
+                    else:
+                        if st.button(
+                            "🗑️ Gruppe löschen",
+                            key=f"del_group_btn_{g['id']}",
+                            use_container_width=True,
+                        ):
+                            ok, message = delete_group(g["id"], user["id"])
+                            (st.success if ok else st.warning)(message)
+                            if ok:
+                                st.rerun()
+
                     st.markdown("---")
 
         st.markdown("---")
