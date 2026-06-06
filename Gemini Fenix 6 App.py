@@ -181,7 +181,7 @@ def image_to_base64(path):
 
 LEGAL_OPERATOR = {
     "name": "Jan Brinkman",
-    "street": "[Straße und Hausnummer]",
+    "street": "Thorner Strasse 12",
     "city": "51469 Bergisch Gladbach",
     "country": "Deutschland",
     "email": "Windsurfspeedchallenge@outlook.de",
@@ -202,22 +202,25 @@ def render_impressum():
     st.markdown("## 📄 Impressum")
     st.caption("Angaben gemäß § 5 Digitale-Dienste-Gesetz (DDG)")
 
+    # Optionale Felder (z.B. USt-IdNr.) werden nur angezeigt, wenn gesetzt –
+    # so stürzt nichts ab, wenn eine Zeile in LEGAL_OPERATOR entfernt wird.
+    vat_block = ""
+    if op.get("vat"):
+        vat_block = f"**Umsatzsteuer-Identifikationsnummer**<br>\n{op['vat']}\n\n"
+
     st.markdown(
         f"""
 **Diensteanbieter**<br>
-{op['name']}<br>
-{op['street']}<br>
-{op['city']}<br>
-{op['country']}
+{op.get('name', '')}<br>
+{op.get('street', '')}<br>
+{op.get('city', '')}<br>
+{op.get('country', '')}
 
 **Kontakt**<br>
-E-Mail: {op['email']}
+E-Mail: {op.get('email', '')}
 
-**Umsatzsteuer-Identifikationsnummer**<br>
-{op['vat']}
-
-**Verantwortlich für den Inhalt** nach § 18 Abs. 2 MStV<br>
-{op['name']}, Anschrift wie oben.
+{vat_block}**Verantwortlich für den Inhalt** nach § 18 Abs. 2 MStV<br>
+{op.get('name', '')}, Anschrift wie oben.
 
 ---
 
@@ -247,8 +250,8 @@ def render_datenschutz():
 ### 1. Verantwortlicher
 
 Verantwortlich für die Datenverarbeitung auf dieser Website ist:<br>
-{op['name']}, {op['street']}, {op['city']}, {op['country']}<br>
-E-Mail: {op['email']}
+{op.get('name', '')}, {op.get('street', '')}, {op.get('city', '')}, {op.get('country', '')}<br>
+E-Mail: {op.get('email', '')}
 
 ### 2. Welche Daten wir verarbeiten
 
@@ -319,7 +322,7 @@ mit Wirkung für die Zukunft. Außerdem steht dir ein Beschwerderecht bei einer
 Datenschutz-Aufsichtsbehörde zu.
 
 Zur Ausübung deiner Rechte oder zur Löschung deines Kontos genügt eine formlose
-Nachricht an: {op['email']}
+Nachricht an: {op.get('email', '')}
 
 ---
 
