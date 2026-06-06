@@ -550,6 +550,21 @@ def get_engine():
     return engine
 
 
+def ensure_schema():
+    """Legt fehlende Tabellen an – unabhängig vom gecachten Engine.
+
+    Wichtig nach einem Deploy mit NEUEN Tabellen: get_engine() ist mit
+    @st.cache_resource gecacht, sodass dessen create_all nach dem Deploy ggf.
+    nicht erneut läuft. Diese (pro Session einmalige, idempotente) Prüfung
+    stellt sicher, dass z.B. group_events/event_reads existieren.
+    """
+    if st.session_state.get("_schema_ready"):
+        return
+
+    DB_METADATA.create_all(get_engine(), checkfirst=True)
+    st.session_state["_schema_ready"] = True
+
+
 # ---- Sessions ----
 
 def save_session(entry):
@@ -2705,6 +2720,9 @@ def render_account_sidebar(user, cookie_manager):
 
 
 cookie_manager = _cookie_manager()
+
+# Fehlende Tabellen anlegen (z.B. nach Deploy mit neuen Tabellen) – vor jedem DB-Zugriff.
+ensure_schema()
 
 if cookie_manager is not None:
     # Unsichtbares Cookie-Iframe ausblenden (verhindert eine Layout-Lücke)
