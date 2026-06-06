@@ -8,6 +8,7 @@ import secrets
 import tempfile
 import time
 from datetime import datetime, timedelta
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -1463,6 +1464,16 @@ def _http_get_json(url, timeout, retries=2):
         try:
             with urlopen(request, timeout=timeout) as response:
                 return json.load(response)
+        except HTTPError as e:
+            # 4xx (v.a. 429 Rate-Limit) lösen sich durch sofortiges Wiederholen
+            # nicht – daher gleich aufgeben, statt die Seite mit Warte-Retries
+            # zu blockieren. Nur 5xx/Netzwerkfehler werden erneut versucht.
+            if 400 <= e.code < 500:
+                raise
+            last_error = e
+
+            if attempt < retries:
+                time.sleep(1.5 * (attempt + 1))
         except Exception as e:
             last_error = e
 
