@@ -773,6 +773,66 @@ def delete_auth_token(token):
         conn.execute(delete(auth_tokens_table).where(auth_tokens_table.c.token == token))
 
 
+# ---- Konto-/Datenlöschung (immer nur eigene Daten) ----
+
+def count_user_sessions(name):
+    if not name:
+        return 0
+
+    with get_engine().connect() as conn:
+        return conn.execute(
+            select(func.count())
+            .select_from(sessions_table)
+            .where(sessions_table.c.name == name)
+        ).scalar()
+
+
+def delete_user_sessions(name):
+    """Löscht alle hochgeladenen Sessions des Fahrers. Gibt die Anzahl zurück."""
+    if not name:
+        return 0
+
+    with get_engine().begin() as conn:
+        result = conn.execute(
+            delete(sessions_table).where(sessions_table.c.name == name)
+        )
+
+    return result.rowcount or 0
+
+
+def delete_account(user_id, username):
+    """Löscht das Konto und ALLE eigenen Daten – aber keine Fremddaten.
+
+    Eigene Sessions, Profil, Anmelde-Tokens und Mitgliedschaften werden
+    entfernt. Selbst erstellte Gruppen werden mitsamt ihrer Mitgliedschaften
+    gelöscht; die Sessions der anderen Mitglieder bleiben dabei unberührt.
+    """
+    with get_engine().begin() as conn:
+        conn.execute(delete(sessions_table).where(sessions_table.c.name == username))
+        conn.execute(delete(profiles_table).where(profiles_table.c.name == username))
+        conn.execute(
+            delete(auth_tokens_table).where(auth_tokens_table.c.user_id == user_id)
+        )
+        conn.execute(
+            delete(memberships_table).where(memberships_table.c.user_id == user_id)
+        )
+
+        owned = [
+            row[0]
+            for row in conn.execute(
+                select(groups_table.c.id).where(groups_table.c.owner_id == user_id)
+            ).all()
+        ]
+
+        if owned:
+            conn.execute(
+                delete(memberships_table).where(memberships_table.c.group_id.in_(owned))
+            )
+            conn.execute(delete(groups_table).where(groups_table.c.id.in_(owned)))
+
+        conn.execute(delete(users_table).where(users_table.c.id == user_id))
+
+
 def _cookie_manager():
     """Eine Cookie-Manager-Instanz pro Skriptlauf (oder None ohne Paket)."""
     if not COOKIES_AVAILABLE:
@@ -2195,6 +2255,61 @@ def render_account_sidebar(user, cookie_manager):
                         if ok:
                             st.rerun()
                     st.markdown("---")
+
+        st.markdown("---")
+
+        with st.expander("⚠️ Konto & Daten löschen"):
+            session_count = count_user_sessions(user["username"])
+
+            st.caption(
+                f"Du hast aktuell {session_count} gespeicherte Session(s). "
+                "Gelöscht werden ausschließlich deine eigenen Daten – "
+                "niemals die Ergebnisse anderer Fahrer."
+            )
+
+            # --- Eigene Sessions löschen (Konto bleibt bestehen) ---
+            st.markdown("**Meine Sessions löschen**")
+            confirm_data = st.checkbox(
+                "Ja, alle meine Sessions endgültig löschen.",
+                key="confirm_delete_data",
+            )
+
+            if st.button(
+                "🗑️ Sessions löschen",
+                key="delete_data_btn",
+                use_container_width=True,
+                disabled=not confirm_data,
+            ):
+                removed = delete_user_sessions(user["username"])
+                st.success(f"{removed} Session(s) gelöscht.")
+                st.rerun()
+
+            st.markdown("---")
+
+            # --- Komplettes Konto löschen ---
+            st.markdown("**Konto löschen**")
+            st.caption(
+                "Entfernt dein Konto, alle deine Sessions, dein Profil und die "
+                "von dir erstellten Gruppen. Das kann nicht rückgängig gemacht "
+                "werden."
+            )
+
+            confirm_name = st.text_input(
+                "Zum Bestätigen deinen Benutzernamen eingeben",
+                key="confirm_delete_account_name",
+                placeholder=user["username"],
+            )
+
+            if st.button(
+                "❌ Konto endgültig löschen",
+                key="delete_account_btn",
+                use_container_width=True,
+                disabled=confirm_name != user["username"],
+            ):
+                delete_account(user["id"], user["username"])
+                logout_session(cookie_manager)
+                st.success("Dein Konto und alle zugehörigen Daten wurden gelöscht.")
+                st.rerun()
 
 
 cookie_manager = _cookie_manager()
