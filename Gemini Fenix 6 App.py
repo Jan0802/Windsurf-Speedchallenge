@@ -3269,6 +3269,42 @@ with st.sidebar:
     st.markdown("---")
     sidebar_tab_filter, sidebar_tab_material = st.tabs(["🔎 Filter", "🏄 Material"])
 
+
+def autocollapse_sidebar():
+    """Hält die Sidebar (Filter/Material) während der Start-Reruns eingeklappt.
+
+    ``initial_sidebar_state="collapsed"`` greift nur beim allerersten Lauf einer
+    Session. Bei den automatischen Start-Reruns (Cookie-Login über „Angemeldet
+    bleiben", Wetterabruf) klappt Streamlit die Sidebar wieder auf. Wir klicken
+    daher den vorhandenen Collapse-Button für die ersten Läufe einmalig zu –
+    so stehen beim Start zuerst die Rankings im Vordergrund. Danach steuert der
+    Nutzer die Sidebar wieder frei (das Budget ist dann aufgebraucht).
+    """
+    budget = st.session_state.get("_sidebar_collapse_budget", 3)
+    if budget <= 0:
+        return
+    st.session_state["_sidebar_collapse_budget"] = budget - 1
+    components.html(
+        """
+        <script>
+        (function () {
+            const doc = window.parent.document;
+            let tries = 0;
+            const timer = setInterval(function () {
+                tries += 1;
+                const btn = doc.querySelector('button[data-testid="stSidebarCollapseButton"]');
+                if (btn) { btn.click(); clearInterval(timer); }
+                else if (tries > 40) { clearInterval(timer); }
+            }, 25);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
+autocollapse_sidebar()
+
 # News-Banner: Rekorde/Top-3 von Mitgliedern, die der Nutzer noch nicht gesehen hat.
 render_group_news_banner(current_user)
 
