@@ -1945,44 +1945,103 @@ def _preset_index(options, value):
         return 0
 
 
-def render_rankings():
+def render_rankings(filter_container):
+    user = st.session_state.get("user")
+    username = user["username"] if user else None
+    preset = load_user_pref(username)
+
+    ranking = load_sessions()
+
+    months = [
+        "Januar", "Februar", "März", "April", "Mai", "Juni",
+        "Juli", "August", "September", "Oktober", "November", "Dezember",
+    ]
+
+    # ---- Filter-UI: links in der Sidebar (Tab „Filter") ----
+    with filter_container:
+        with st.expander("⭐ Mein Start (Filter-Preset)", expanded=False):
+            st.caption(
+                "Speichere die aktuelle Filter-Auswahl als deinen Start – sie "
+                "wird bei jedem Öffnen automatisch vorausgewählt."
+            )
+
+            if st.button("💾 Aktuelle Filter speichern", use_container_width=True):
+                save_user_pref(username, {
+                    "group": st.session_state.get("rank_group", ALL_GROUP),
+                    "spot": st.session_state.get("rank_spot", "Gesamt"),
+                    "year": st.session_state.get("rank_year", "Alle Jahre"),
+                    "month": st.session_state.get("rank_month", "Ganzes Jahr"),
+                    "day": st.session_state.get("rank_day", "Ganzer Monat"),
+                })
+                st.success("Gespeichert – wird künftig beim Start geladen.")
+
+            if preset and st.button("↺ Zurücksetzen", use_container_width=True):
+                delete_user_pref(username)
+                for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day"):
+                    st.session_state.pop(_k, None)
+                st.rerun()
+
+        member_groups = my_member_groups(user["id"]) if user else []
+        group_options = [ALL_GROUP] + [g["name"] for g in member_groups]
+        group_choice = st.selectbox(
+            "👥 Gruppe",
+            group_options,
+            index=_preset_index(group_options, preset.get("group")),
+            key="rank_group",
+            help="„Alle“ zeigt alle Fahrer. Gruppen-Ergebnisse siehst du nur als Mitglied.",
+        )
+
+        # Auswahl-Optionen für Lokation/Jahr abhängig von der gewählten Gruppe.
+        if not ranking.empty:
+            opt_df = ranking.copy()
+            opt_df["_date"] = (
+                pd.to_datetime(opt_df["date"], errors="coerce")
+                if "date" in opt_df.columns else pd.NaT
+            )
+
+            if group_choice != ALL_GROUP:
+                _gid = next((g["id"] for g in member_groups if g["name"] == group_choice), None)
+                if _gid is not None and "name" in opt_df.columns:
+                    opt_df = opt_df[opt_df["name"].astype(str).isin(set(group_member_names(_gid)))]
+
+            spot_values = (
+                opt_df["surfspot"].dropna().astype(str)
+                if "surfspot" in opt_df.columns else pd.Series(dtype=str)
+            )
+            spots = sorted(s for s in spot_values.unique() if s.strip())
+            years = sorted(opt_df["_date"].dropna().dt.year.unique(), reverse=True)
+        else:
+            spots, years = [], []
+
+        spot_options = ["Gesamt"] + spots
+        year_options = ["Alle Jahre"] + [str(y) for y in years]
+        month_options = ["Ganzes Jahr"] + months
+        day_options = ["Ganzer Monat"] + [str(d) for d in range(1, 32)]
+
+        spot_filter = st.selectbox(
+            "📍 Lokation", spot_options,
+            index=_preset_index(spot_options, preset.get("spot")), key="rank_spot",
+        )
+        year_filter = st.selectbox(
+            "📅 Jahr", year_options,
+            index=_preset_index(year_options, preset.get("year")), key="rank_year",
+        )
+        month_filter = st.selectbox(
+            "📆 Monat", month_options,
+            index=_preset_index(month_options, preset.get("month")), key="rank_month",
+        )
+        day_filter = st.selectbox(
+            "🗓️ Tag", day_options,
+            index=_preset_index(day_options, preset.get("day")), key="rank_day",
+        )
+
+    # ---- Ergebnisse: in der Mitte ----
     st.markdown("## 🏆 Online-Rankings")
 
     flash = st.session_state.pop("ranking_flash", None)
 
     if flash:
         st.success(flash)
-
-    user = st.session_state.get("user")
-    username = user["username"] if user else None
-    preset = load_user_pref(username)
-
-    # ---- Persönliches Filter-Preset: speichern / zurücksetzen ----
-    with st.expander("⭐ Mein Start (Filter-Preset)", expanded=False):
-        st.caption(
-            "Speichere die aktuelle Filter-Auswahl als deinen Start – sie wird "
-            "bei jedem Öffnen automatisch vorausgewählt."
-        )
-
-        pc1, pc2 = st.columns(2)
-
-        if pc1.button("💾 Aktuelle Filter speichern", use_container_width=True):
-            save_user_pref(username, {
-                "group": st.session_state.get("rank_group", ALL_GROUP),
-                "spot": st.session_state.get("rank_spot", "Gesamt"),
-                "year": st.session_state.get("rank_year", "Alle Jahre"),
-                "month": st.session_state.get("rank_month", "Ganzes Jahr"),
-                "day": st.session_state.get("rank_day", "Ganzer Monat"),
-            })
-            st.success("Gespeichert – wird künftig beim Start geladen.")
-
-        if preset and pc2.button("↺ Zurücksetzen", use_container_width=True):
-            delete_user_pref(username)
-            for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day"):
-                st.session_state.pop(_k, None)
-            st.rerun()
-
-    ranking = load_sessions()
 
     if ranking.empty:
         st.info("Noch keine Online-Ranking-Einträge vorhanden.")
@@ -1995,16 +2054,7 @@ def render_rankings():
         if column not in ranking.columns:
             ranking[column] = None
 
-    # ---- Filter: Gruppe (nur eigene Gruppen + "Alle") ----
-    member_groups = my_member_groups(user["id"]) if user else []
-    group_options = [ALL_GROUP] + [g["name"] for g in member_groups]
-    group_choice = st.selectbox(
-        "👥 Gruppe",
-        group_options,
-        index=_preset_index(group_options, preset.get("group")),
-        key="rank_group",
-        help="„Alle“ zeigt alle Fahrer. Gruppen-Ergebnisse siehst du nur als Mitglied.",
-    )
+    ranking["_date"] = pd.to_datetime(ranking["date"], errors="coerce")
 
     if group_choice != ALL_GROUP:
         group_id = next((g["id"] for g in member_groups if g["name"] == group_choice), None)
@@ -2016,61 +2066,6 @@ def render_rankings():
             if ranking.empty:
                 st.info(f"In der Gruppe „{group_choice}“ gibt es noch keine Sessions.")
                 return
-
-    # ---- Filter: Lokation + Datum (Jahr / Monat / Tag) ----
-    ranking["_date"] = pd.to_datetime(ranking["date"], errors="coerce")
-
-    spot_values = (
-        ranking["surfspot"].dropna().astype(str)
-        if "surfspot" in ranking.columns
-        else pd.Series(dtype=str)
-    )
-    spots = sorted(s for s in spot_values.unique() if s.strip())
-
-    months = [
-        "Januar", "Februar", "März", "April", "Mai", "Juni",
-        "Juli", "August", "September", "Oktober", "November", "Dezember",
-    ]
-    years = sorted(ranking["_date"].dropna().dt.year.unique(), reverse=True)
-
-    spot_options = ["Gesamt"] + spots
-    year_options = ["Alle Jahre"] + [str(y) for y in years]
-    month_options = ["Ganzes Jahr"] + months
-    day_options = ["Ganzer Monat"] + [str(d) for d in range(1, 32)]
-
-    f1, f2, f3, f4 = st.columns(4)
-
-    with f1:
-        spot_filter = st.selectbox(
-            "📍 Lokation",
-            spot_options,
-            index=_preset_index(spot_options, preset.get("spot")),
-            key="rank_spot",
-        )
-
-    with f2:
-        year_filter = st.selectbox(
-            "📅 Jahr",
-            year_options,
-            index=_preset_index(year_options, preset.get("year")),
-            key="rank_year",
-        )
-
-    with f3:
-        month_filter = st.selectbox(
-            "Monat",
-            month_options,
-            index=_preset_index(month_options, preset.get("month")),
-            key="rank_month",
-        )
-
-    with f4:
-        day_filter = st.selectbox(
-            "Tag",
-            day_options,
-            index=_preset_index(day_options, preset.get("day")),
-            key="rank_day",
-        )
 
     if spot_filter != "Gesamt":
         ranking = ranking[ranking["surfspot"].astype(str) == spot_filter]
@@ -2949,15 +2944,24 @@ if cookie_manager is not None and st.session_state.get("_pending_token"):
     st.session_state.pop("_pending_token", None)
 
 
+# Linke Sidebar: Konto/Gruppen sind oben bereits gerendert. Darunter zwei Tabs
+# für Filter und Material – so bleibt die Mitte komplett für Ergebnisse frei.
+with st.sidebar:
+    st.markdown("---")
+    sidebar_tab_filter, sidebar_tab_material = st.tabs(["🔎 Filter", "🏄 Material"])
+
 # News-Banner: Rekorde/Top-3 von Mitgliedern, die der Nutzer noch nicht gesehen hat.
 render_group_news_banner(current_user)
 
-render_rankings()
+render_rankings(sidebar_tab_filter)
 
 st.markdown("---")
 
 
-left, right = st.columns([1, 2])
+# „left" = Material-Tab in der Sidebar, „right" = Ergebnis-Bereich in der Mitte.
+# So bleiben alle bestehenden „with left:"/„with right:"-Blöcke unverändert gültig.
+left = sidebar_tab_material
+right = st.container()
 
 selected_history_record = None
 
@@ -3506,7 +3510,10 @@ else:
         if selected_history_record is not None:
             render_history_overview(selected_history_record)
         else:
-            st.info("Bitte links Teilnehmerdaten eingeben und eine FIT-Datei hochladen.")
+            st.info(
+                "Lade links in der Sidebar im Tab **🏄 Material** eine FIT-Datei "
+                "hoch (Material wählen & hochladen)."
+            )
             st.info("Nach dem Upload erscheint hier die Auswertung.")
 
 
