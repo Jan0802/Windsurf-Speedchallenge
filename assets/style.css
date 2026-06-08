@@ -2,10 +2,21 @@
    Das Hintergrundbild wird per Code (base64) auf .stApp gelegt. */
 
 .block-container {
-    padding-top: 0.4rem;
+    padding-top: 0.75rem;
     max-width: 100%;
     padding-left: 1.5rem;
     padding-right: 1.5rem;
+}
+
+/* Streamlit-Kopfzeile (Fork / GitHub / Menü) ausblenden – sonst überdeckt der
+   dunkle Balken den Titel. Transparent statt entfernt, damit die Sidebar-
+   Bedienung funktioniert. */
+[data-testid="stToolbar"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+[data-testid="stStatusWidget"] { display: none !important; }
+#MainMenu { display: none !important; }
+[data-testid="stHeader"] {
+    background: transparent !important;
 }
 
 /* Überschriften hell mit weichem Schatten */

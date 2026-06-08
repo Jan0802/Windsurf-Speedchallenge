@@ -2125,7 +2125,12 @@ def render_rankings(filter_container):
             "speed_30s_kn",
         ]].copy()
 
-        r30 = r30.sort_values("speed_30s_kmh", ascending=False).reset_index(drop=True)
+        # Pro Fahrer nur die beste Session (kein Mehrfach-Platzieren).
+        r30 = (
+            r30.sort_values("speed_30s_kmh", ascending=False)
+            .drop_duplicates(subset="name", keep="first")
+            .reset_index(drop=True)
+        )
         r30.insert(0, "Platz", r30.index + 1)
 
         r30 = r30.rename(columns={
@@ -2158,7 +2163,12 @@ def render_rankings(filter_container):
             "speed_1s_kn",
         ]].copy()
 
-        r1 = r1.sort_values("speed_1s_kmh", ascending=False).reset_index(drop=True)
+        # Pro Fahrer nur die beste Session.
+        r1 = (
+            r1.sort_values("speed_1s_kmh", ascending=False)
+            .drop_duplicates(subset="name", keep="first")
+            .reset_index(drop=True)
+        )
         r1.insert(0, "Platz", r1.index + 1)
 
         r1 = r1.rename(columns={
@@ -2193,7 +2203,12 @@ def render_rankings(filter_container):
             "longest_run_m",
         ]].copy()
 
-        rrun = rrun.sort_values("longest_run_m", ascending=False).reset_index(drop=True)
+        # Pro Fahrer nur der beste (längste) Run.
+        rrun = (
+            rrun.sort_values("longest_run_m", ascending=False)
+            .drop_duplicates(subset="name", keep="first")
+            .reset_index(drop=True)
+        )
         rrun.insert(0, "Platz", rrun.index + 1)
 
         rrun = rrun.rename(columns={
