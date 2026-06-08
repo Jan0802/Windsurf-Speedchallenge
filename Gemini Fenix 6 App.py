@@ -557,8 +557,16 @@ def _migrate_legacy(engine):
 @st.cache_resource(show_spinner=False)
 def get_engine():
     url = _database_url()
-    connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
-    engine = create_engine(url, connect_args=connect_args, pool_pre_ping=True)
+    is_sqlite = url.startswith("sqlite")
+    connect_args = {"check_same_thread": False} if is_sqlite else {}
+    # Remote-Postgres (Neon/Supabase) kappt Leerlauf-Verbindungen. pool_pre_ping
+    # fängt tote Verbindungen ab, pool_recycle erneuert sie vor dem Timeout –
+    # so vermeiden wir den langsamen "stale connection"-Fehler + Retry, der die
+    # App in der Cloud träge wirken lässt. Bei SQLite (lokal) irrelevant.
+    engine_kwargs = {"pool_pre_ping": True}
+    if not is_sqlite:
+        engine_kwargs["pool_recycle"] = 1800
+    engine = create_engine(url, connect_args=connect_args, **engine_kwargs)
     DB_METADATA.create_all(engine)
     _migrate_legacy(engine)
     return engine
@@ -615,7 +623,7 @@ def save_session(entry):
     clear_data_caches()
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_sessions():
     with get_engine().connect() as conn:
         rows = conn.execute(select(sessions_table)).mappings().all()
@@ -651,7 +659,7 @@ def session_exists(filename, name=None):
         return bool(conn.execute(query).scalar())
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_rider_sessions(name):
     """Alle gespeicherten Sessions eines Fahrers, neueste zuerst."""
     with get_engine().connect() as conn:
@@ -673,7 +681,7 @@ def load_rider_sessions(name):
 
 # ---- Profile (Spots/Boards/Segel je Fahrer) ----
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_profiles():
     with get_engine().connect() as conn:
         rows = conn.execute(select(profiles_table)).mappings().all()
@@ -730,7 +738,7 @@ def update_profile(name, spot, board, sail):
 
 # ---- Spots (Koordinaten-Cache) ----
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_spots():
     with get_engine().connect() as conn:
         rows = conn.execute(select(spots_table)).mappings().all()
@@ -989,7 +997,7 @@ def logout_session(cookie_manager):
 ALL_GROUP = "Alle"
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def list_groups():
     with get_engine().connect() as conn:
         rows = conn.execute(select(groups_table)).mappings().all()
@@ -1028,7 +1036,7 @@ def create_group(name, owner_id, is_private):
     return True, f"Gruppe „{name}“ wurde erstellt."
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def my_memberships(user_id):
     """group_id -> status ('member' | 'pending')."""
     with get_engine().connect() as conn:
@@ -1039,7 +1047,7 @@ def my_memberships(user_id):
     return {r["group_id"]: r["status"] for r in rows}
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def my_member_groups(user_id):
     """Gruppen, in denen der Nutzer bestätigtes Mitglied ist."""
     with get_engine().connect() as conn:
@@ -1221,7 +1229,7 @@ def invite_user(group_id, username):
     return True, message
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def group_member_names(group_id):
     """Benutzernamen aller bestätigten Mitglieder einer Gruppe."""
     with get_engine().connect() as conn:
@@ -1260,7 +1268,7 @@ def clear_data_caches():
 
 # ---- Persönliche Einstellungen (Ranking-Filter-Preset) ----
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_user_pref(username):
     if not username:
         return {}

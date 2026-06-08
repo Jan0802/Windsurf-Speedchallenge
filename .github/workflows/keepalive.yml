@@ -1,0 +1,64 @@
+name: keepalive-db
+
+# Hält einen Free-Tier-Postgres (Neon/Supabase) wach, indem regelmäßig direkt
+# eine SELECT-1-Abfrage ausgeführt wird. Das verhindert den Auto-Suspend der DB
+# und damit den mehrsekündigen Cold-Start, der die Streamlit-App nach Leerlauf
+# träge wirken lässt. Läuft komplett unabhängig von der App (kein HTTP-Ping –
+# ein GET auf eine Streamlit-App führt den Python-Code nicht aus).
+#
+# EINMALIGE EINRICHTUNG:
+#   GitHub → Repo → Settings → Secrets and variables → Actions → New repository secret
+#   Name:  DATABASE_URL
+#   Value: dieselbe URL wie in den Streamlit-Secrets (z.B. postgresql://...@...neon.tech/...?sslmode=require)
+#
+# HINWEISE:
+#   - GitHub kann geplante Läufe um einige Minuten verzögern; */5 ist der kleinste
+#     sinnvolle Wert. Reicht das gegen den 5-Minuten-Suspend von Neon nicht aus,
+#     ist ein externer Cron (z.B. cron-job.org, 2–3 Min.) auf einen kleinen
+#     DB-Ping-Service die punktgenauere Alternative.
+#   - GitHub deaktiviert geplante Workflows nach 60 Tagen ohne Repo-Aktivität.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keepalive-db
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install DB-Treiber
+        run: pip install --quiet "SQLAlchemy>=2" "psycopg2-binary"
+
+      - name: SELECT 1
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          import os, sys, time
+          from sqlalchemy import create_engine, text
+
+          url = os.environ.get("DATABASE_URL", "").strip()
+          if not url:
+              print("DATABASE_URL ist nicht gesetzt – Secret im Repo anlegen. Übersprungen.")
+              sys.exit(0)
+
+          # Alte "postgres://"-Schreibweise auf das von SQLAlchemy erwartete
+          # "postgresql://" normalisieren.
+          if url.startswith("postgres://"):
+              url = "postgresql://" + url[len("postgres://"):]
+
+          t0 = time.time()
+          engine = create_engine(url, pool_pre_ping=True)
+          with engine.connect() as conn:
+              conn.execute(text("SELECT 1"))
+          print(f"OK – DB geantwortet in {time.time() - t0:.2f}s")
+          PY
