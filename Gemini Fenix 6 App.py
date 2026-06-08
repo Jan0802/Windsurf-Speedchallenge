@@ -12,6 +12,7 @@ from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+import numpy as np
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
@@ -32,7 +33,9 @@ from sqlalchemy import (
     delete,
     func,
     insert,
+    inspect,
     select,
+    text,
     update,
 )
 
@@ -411,6 +414,7 @@ sessions_table = Table(
     Column("temp_c", Float),
     Column("precip_mm", Float),
     Column("weather_code", Integer),
+    Column("trust_score", Float),
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -560,17 +564,41 @@ def get_engine():
 
 
 def ensure_schema():
-    """Legt fehlende Tabellen an – unabhängig vom gecachten Engine.
+    """Legt fehlende Tabellen UND fehlende Spalten an – unabhängig vom Cache.
 
-    Wichtig nach einem Deploy mit NEUEN Tabellen: get_engine() ist mit
+    Wichtig nach einem Deploy mit NEUEN Tabellen/Spalten: get_engine() ist mit
     @st.cache_resource gecacht, sodass dessen create_all nach dem Deploy ggf.
     nicht erneut läuft. Diese (pro Session einmalige, idempotente) Prüfung
-    stellt sicher, dass z.B. group_events/event_reads existieren.
+    stellt sicher, dass z.B. group_events/event_reads und neue Spalten wie
+    sessions.trust_score existieren. create_all legt nur fehlende TABELLEN an –
+    fehlende SPALTEN ergänzen wir per ALTER TABLE.
     """
     if st.session_state.get("_schema_ready"):
         return
 
-    DB_METADATA.create_all(get_engine(), checkfirst=True)
+    engine = get_engine()
+    DB_METADATA.create_all(engine, checkfirst=True)
+
+    try:
+        inspector = inspect(engine)
+
+        for table in DB_METADATA.tables.values():
+            existing = {c["name"] for c in inspector.get_columns(table.name)}
+
+            for column in table.columns:
+                if column.name in existing:
+                    continue
+
+                col_type = column.type.compile(engine.dialect)
+
+                with engine.begin() as conn:
+                    conn.execute(text(
+                        f'ALTER TABLE {table.name} ADD COLUMN "{column.name}" {col_type}'
+                    ))
+    except Exception:
+        # Migration ist best-effort; ein Fehler darf die App nicht blockieren.
+        pass
+
     st.session_state["_schema_ready"] = True
 
 
@@ -2134,7 +2162,7 @@ def render_rankings(filter_container):
     if "date" not in ranking.columns:
         ranking["date"] = ""
 
-    for column in ("wind_kmh", "wind_dir_deg", "temp_c", "weather_code"):
+    for column in ("wind_kmh", "wind_dir_deg", "temp_c", "weather_code", "trust_score"):
         if column not in ranking.columns:
             ranking[column] = None
 
@@ -2192,6 +2220,7 @@ def render_rankings(filter_container):
         return " · ".join(parts) if parts else "–"
 
     ranking["Wetter"] = ranking.apply(weather_summary, axis=1)
+    ranking["Trust"] = ranking["trust_score"].apply(_trust_badge)
 
     rcol1, rcol2 = st.columns(2)
 
@@ -2201,12 +2230,13 @@ def render_rankings(filter_container):
         r30 = ranking[[
             "date",
             "name",
+            "speed_30s_kmh",
+            "speed_30s_kn",
             "surfspot",
             "board",
             "sail",
             "Wetter",
-            "speed_30s_kmh",
-            "speed_30s_kn",
+            "Trust",
         ]].copy()
 
         # Pro Fahrer nur die beste Session (kein Mehrfach-Platzieren).
@@ -2239,12 +2269,13 @@ def render_rankings(filter_container):
         r1 = ranking[[
             "date",
             "name",
+            "speed_1s_kmh",
+            "speed_1s_kn",
             "surfspot",
             "board",
             "sail",
             "Wetter",
-            "speed_1s_kmh",
-            "speed_1s_kn",
+            "Trust",
         ]].copy()
 
         # Pro Fahrer nur die beste Session.
@@ -2279,12 +2310,13 @@ def render_rankings(filter_container):
         rrun = ranking[[
             "date",
             "name",
+            "longest_run_km",
+            "longest_run_m",
             "surfspot",
             "board",
             "sail",
             "Wetter",
-            "longest_run_km",
-            "longest_run_m",
+            "Trust",
         ]].copy()
 
         # Pro Fahrer nur der beste (längste) Run.
@@ -2478,6 +2510,193 @@ def detect_runs(df):
             })
 
     return pd.DataFrame(runs)
+
+
+# =====================================================================
+#  Trust Score – Plausibilitätsprüfung einer Aufzeichnung (Anti-Cheat)
+# =====================================================================
+
+def _haversine_m(lat1, lon1, lat2, lon2):
+    """Distanz in Metern zwischen Punktfolgen (vektorisiert)."""
+    radius = 6371000.0
+    p1 = np.radians(lat1)
+    p2 = np.radians(lat2)
+    dphi = np.radians(lat2 - lat1)
+    dlmb = np.radians(lon2 - lon1)
+    a = np.sin(dphi / 2.0) ** 2 + np.cos(p1) * np.cos(p2) * np.sin(dlmb / 2.0) ** 2
+    return 2.0 * radius * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
+
+
+def _bearing_deg(lat1, lon1, lat2, lon2):
+    """Kurs (0–360°) von Punkt 1 nach Punkt 2 (vektorisiert)."""
+    p1 = np.radians(lat1)
+    p2 = np.radians(lat2)
+    dl = np.radians(lon2 - lon1)
+    x = np.sin(dl) * np.cos(p2)
+    y = np.cos(p1) * np.sin(p2) - np.sin(p1) * np.cos(p2) * np.cos(dl)
+    return (np.degrees(np.arctan2(x, y)) + 360.0) % 360.0
+
+
+def _penalty(value, good, bad, max_pen):
+    """Linearer Abzug: <=good → 0, >=bad → max_pen, dazwischen interpoliert."""
+    if value is None or value != value:  # None oder NaN
+        return 0.0
+    if value <= good:
+        return 0.0
+    if value >= bad:
+        return float(max_pen)
+    return float(max_pen) * (value - good) / (bad - good)
+
+
+def _status(pen, max_pen):
+    if pen >= 0.6 * max_pen:
+        return "bad"
+    if pen >= 0.2 * max_pen:
+        return "warn"
+    return "ok"
+
+
+def compute_trust_score(df, spot_top_kmh=None):
+    """Plausibilitäts-/Trust-Score 0–100 aus der GPS-Physik einer Session.
+
+    Prüft maximale Beschleunigung, Kursänderung bei hoher Geschwindigkeit,
+    GPS-Rauschen, Punktdichte und (optional) den Vergleich mit dem Spot-Bestwert.
+    Kann eine Kennzahl nicht berechnet werden (z.B. ohne GPS), wird sie neutral
+    gewertet (kein Abzug). Rückgabe: {'score', 'components', 'note'}.
+    """
+    if df is None or df.empty or not {"timestamp", "speed_kmh"}.issubset(df.columns):
+        return {"score": None, "components": [], "note": "Zu wenige Daten für eine Bewertung."}
+
+    d = df.dropna(subset=["timestamp", "speed_kmh"]).sort_values("timestamp").reset_index(drop=True)
+
+    if len(d) < 10:
+        return {"score": None, "components": [], "note": "Aufzeichnung zu kurz für eine Bewertung."}
+
+    dt = d["timestamp"].diff().dt.total_seconds()
+    dt_valid = dt.where(dt > 0)
+    speed_ms = d["speed_kmh"] / 3.6
+    has_gps = (
+        {"lat", "lon"}.issubset(d.columns)
+        and int(d[["lat", "lon"]].notna().all(axis=1).sum()) > 10
+    )
+
+    components = []
+    score = 100.0
+
+    # 1) Maximale Beschleunigung (m/s²), robust über 99,5-Perzentil
+    accel = (speed_ms.diff() / dt_valid).abs()
+    max_accel = float(accel.quantile(0.995)) if accel.notna().any() else None
+    pen = _penalty(max_accel, good=4.0, bad=9.0, max_pen=30.0)
+    score -= pen
+    components.append({
+        "label": "Max. Beschleunigung",
+        "value": "–" if max_accel is None else f"{max_accel:.1f} m/s²",
+        "status": _status(pen, 30.0),
+    })
+
+    # 2) Kursänderung bei hoher Geschwindigkeit (°/s, nur > 25 km/h)
+    turn_val = None
+    if has_gps:
+        brg = pd.Series(
+            _bearing_deg(d["lat"], d["lon"], d["lat"].shift(-1), d["lon"].shift(-1)),
+            index=d.index,
+        )
+        dbrg = brg.diff().abs()
+        dbrg = dbrg.where(dbrg <= 180, 360 - dbrg)
+        turn_rate = (dbrg / dt_valid).where(speed_ms > (25 / 3.6))
+        if turn_rate.notna().any():
+            turn_val = float(turn_rate.quantile(0.99))
+    pen = _penalty(turn_val, good=40.0, bad=150.0, max_pen=25.0)
+    score -= pen
+    components.append({
+        "label": "Kursänderung bei Speed",
+        "value": "–" if turn_val is None else f"{turn_val:.0f} °/s",
+        "status": _status(pen, 25.0),
+    })
+
+    # 3) GPS-Rauschen: Anteil „unmöglicher" Punkt-Sprünge
+    noise_frac = None
+    if has_gps:
+        seg = _haversine_m(d["lat"], d["lon"], d["lat"].shift(-1), d["lon"].shift(-1))
+        implied = seg / dt_valid
+        impossible = (implied > (speed_ms + 5)) & (implied > speed_ms * 1.5)
+        denom = len(d) - 1
+        if denom > 0:
+            noise_frac = float(impossible.sum()) / denom * 100.0
+    pen = _penalty(noise_frac, good=1.0, bad=15.0, max_pen=25.0)
+    score -= pen
+    components.append({
+        "label": "GPS-Rauschen",
+        "value": "–" if noise_frac is None else f"{noise_frac:.1f} % Ausreißer",
+        "status": _status(pen, 25.0),
+    })
+
+    # 4) Punktdichte: Meter pro Trackpunkt
+    total_m = None
+    if "distance" in d.columns and d["distance"].notna().any():
+        total_m = float(d["distance"].max() - d["distance"].min())
+    elif has_gps:
+        total_m = float(
+            _haversine_m(d["lat"], d["lon"], d["lat"].shift(-1), d["lon"].shift(-1)).sum()
+        )
+    m_per_point = total_m / (len(d) - 1) if total_m and len(d) > 1 else None
+    pen = _penalty(m_per_point, good=15.0, bad=60.0, max_pen=20.0)
+    score -= pen
+    components.append({
+        "label": "Punktdichte",
+        "value": "–" if m_per_point is None else f"{m_per_point:.0f} m/Punkt",
+        "status": _status(pen, 20.0),
+    })
+
+    # 5) Vergleich mit typischem Spot-Bestwert (falls vorhanden)
+    if spot_top_kmh and spot_top_kmh > 0:
+        ratio = float(d["speed_kmh"].max()) / float(spot_top_kmh)
+        pen = _penalty(ratio, good=1.3, bad=2.2, max_pen=20.0)
+        score -= pen
+        components.append({
+            "label": "Vergleich Spot-Bestwert",
+            "value": f"{ratio * 100:.0f} % des Spot-Tops",
+            "status": _status(pen, 20.0),
+        })
+
+    return {"score": int(max(0, min(100, round(score)))), "components": components, "note": ""}
+
+
+def render_trust_score(result):
+    """Zeigt den Trust Score samt Teilbewertungen an."""
+    score = result.get("score")
+
+    if score is None:
+        st.caption(f"🔍 Trust Score: {result.get('note', 'nicht verfügbar')}")
+        return
+
+    dot = "🟢" if score >= 80 else "🟡" if score >= 55 else "🔴"
+    st.markdown(f"### {dot} Trust Score: {score}/100")
+    st.progress(score / 100)
+
+    icons = {"ok": "✅", "warn": "⚠️", "bad": "❌"}
+
+    for c in result.get("components", []):
+        st.caption(f"{icons.get(c['status'], '•')} {c['label']}: {c['value']}")
+
+    st.caption(
+        "Heuristische Plausibilitätsprüfung der GPS-Daten – kein Betrugsbeweis, "
+        "sondern ein Hinweis auf ungewöhnliche oder verrauschte Aufzeichnungen."
+    )
+
+
+def _trust_badge(score):
+    """Kompaktes Trust-Symbol für die Ranking-Tabellen (🟢/🟡/🔴 + Wert)."""
+    if score is None or (isinstance(score, float) and pd.isna(score)):
+        return "–"
+
+    try:
+        s = int(round(float(score)))
+    except Exception:
+        return "–"
+
+    dot = "🟢" if s >= 80 else "🟡" if s >= 55 else "🔴"
+    return f"{dot} {s}"
 
 
 def show_map(df):
@@ -3424,6 +3643,23 @@ if fit_source is not None:
         longest_run_m = runs_df["Distanz m"].max()
         longest_run_km = longest_run_m / 1000
 
+    # Trust Score: Plausibilität der Aufzeichnung (inkl. Vergleich mit Spot-Bestwert).
+    spot_top_kmh = None
+    try:
+        _spot = (spot or "").strip()
+        _all = load_sessions()
+        if _spot and not _all.empty and {"surfspot", "speed_1s_kmh"}.issubset(_all.columns):
+            _m = pd.to_numeric(
+                _all.loc[_all["surfspot"].astype(str) == _spot, "speed_1s_kmh"],
+                errors="coerce",
+            ).max()
+            if pd.notna(_m):
+                spot_top_kmh = float(_m)
+    except Exception:
+        spot_top_kmh = None
+
+    trust = compute_trust_score(df, spot_top_kmh)
+
     with right:
         st.markdown("## 🌊 Session Übersicht")
 
@@ -3448,6 +3684,9 @@ if fit_source is not None:
             "Längster Run",
             "Keine Daten" if longest_run_km is None else f"{longest_run_km:.2f} km"
         )
+
+        st.markdown("## 🔍 Trust Score (Plausibilität)")
+        render_trust_score(trust)
 
         st.markdown("## 🌦️ Wetter zur Session")
 
@@ -3564,6 +3803,7 @@ if fit_source is not None:
                     "temp_c": None if weather is None or weather["temp"] is None else round(weather["temp"], 1),
                     "precip_mm": None if weather is None or weather["precip"] is None else round(weather["precip"], 1),
                     "weather_code": None if weather is None or weather["code"] is None else int(weather["code"]),
+                    "trust_score": trust.get("score"),
                 }
 
                 # Rekorde VOR dem Speichern erkennen (Vergleich mit dem Bestand).
