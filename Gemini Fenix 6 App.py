@@ -15,6 +15,7 @@ from urllib.request import Request, urlopen
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
+import streamlit.components.v1 as components
 from fitparse import FitFile
 from sqlalchemy import (
     Boolean,
@@ -1937,6 +1938,89 @@ def get_forecast(lat, lon):
         return stale
 
 
+# HTML/JS-Panel, das das Wetter DIREKT IM BROWSER des Besuchers von Open-Meteo
+# holt (fetch). Dadurch zählt der Abruf auf die IP/das Tageslimit des Besuchers
+# – nicht auf die geteilte Streamlit-Cloud-IP, die sonst 429-Fehler verursacht.
+_WEATHER_HTML = """
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:transparent; color:#eaf4ff;
+         font-family: "Source Sans Pro", system-ui, -apple-system, sans-serif; }
+  .now { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 10px 0; }
+  .card { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25);
+          border-radius:16px; padding:9px 14px; min-width:120px;
+          -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+  .card .lbl { font-size:12px; opacity:.8; }
+  .card .val { font-size:20px; font-weight:800; }
+  .card .sub { font-size:12px; opacity:.85; min-height:1em; }
+  .dir { font-size:13px; opacity:.92; margin:2px 0 12px; }
+  h4 { margin:6px 0 8px; font-weight:800; }
+  table { width:100%; border-collapse:collapse; font-size:13px;
+          background:rgba(8,28,52,.35); border-radius:12px; overflow:hidden; }
+  th,td { padding:6px 8px; text-align:left;
+          border-bottom:1px solid rgba(255,255,255,.12); white-space:nowrap; }
+  th { font-weight:700; opacity:.85; }
+  tr.dsep td { border-top:2px solid rgba(255,255,255,.30); }
+  .warn { background:rgba(255,200,0,.18); border:1px solid rgba(255,200,0,.4);
+          border-radius:12px; padding:12px 14px; }
+  .muted { opacity:.7; font-size:12px; margin-top:6px; }
+</style></head><body>
+<div id="w">Lade Wetter…</div>
+<script>
+const LAT=__LAT__, LON=__LON__;
+const WMO={0:["☀️","Klar"],1:["🌤️","Überwiegend klar"],2:["⛅","Teils bewölkt"],3:["☁️","Bedeckt"],45:["🌫️","Nebel"],48:["🌫️","Reifnebel"],51:["🌦️","Leichter Nieselregen"],53:["🌦️","Nieselregen"],55:["🌧️","Starker Nieselregen"],61:["🌦️","Leichter Regen"],63:["🌧️","Regen"],65:["🌧️","Starker Regen"],66:["🌧️","Gefrierender Regen"],67:["🌧️","Starker gefrierender Regen"],71:["🌨️","Leichter Schneefall"],73:["🌨️","Schneefall"],75:["❄️","Starker Schneefall"],77:["🌨️","Schneegriesel"],80:["🌦️","Leichte Schauer"],81:["🌧️","Schauer"],82:["⛈️","Heftige Schauer"],85:["🌨️","Schneeschauer"],86:["❄️","Starke Schneeschauer"],95:["⛈️","Gewitter"],96:["⛈️","Gewitter mit Hagel"],99:["⛈️","Schweres Gewitter mit Hagel"]};
+const COMPASS=["N","NNO","NO","ONO","O","OSO","SO","SSO","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const ARROWS=["⬆️","↗️","➡️","↘️","⬇️","↙️","⬅️","↖️"];
+const WD=["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
+function comp(d){ if(d==null) return ""; return COMPASS[Math.round(d/22.5)%16]; }
+function arr(d){ if(d==null) return ""; return ARROWS[Math.round(((d+180)%360)/45)%8]; }
+function bft(k){ if(k==null) return ""; const L=[1,5,11,19,28,38,49,61,74,88,102,117]; for(let i=0;i<L.length;i++){ if(k<=L[i]) return i; } return 12; }
+function wc(c){ return WMO[c]||["❓","Unbekannt"]; }
+function f1(x){ return (x==null)?"–":(Math.round(x*10)/10).toFixed(1); }
+function r0(x){ return (x==null)?"–":Math.round(x); }
+const URL="https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+"&current=temperature_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=kmh&timezone=auto&forecast_days=4";
+fetch(URL).then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+  .then(render)
+  .catch(function(e){ document.getElementById("w").innerHTML='<div class="warn">Wetterdienst (Open-Meteo) gerade nicht erreichbar – bitte später erneut versuchen.</div><div class="muted">Technischer Grund: '+e.message+'</div>'; });
+function render(data){
+  const c=data.current||{}; const cc=wc(c.weather_code); const rain=(c.precipitation||0);
+  let out='<div class="now">';
+  out+='<div class="card"><div class="lbl">Wind</div><div class="val">'+r0(c.wind_speed_10m)+' km/h</div><div class="sub">'+(c.wind_gusts_10m==null?'':'Böen '+r0(c.wind_gusts_10m)+' km/h')+'</div></div>';
+  out+='<div class="card"><div class="lbl">Temperatur</div><div class="val">'+f1(c.temperature_2m)+' °C</div><div class="sub"></div></div>';
+  out+='<div class="card"><div class="lbl">Regen</div><div class="val">'+(rain>0?'Ja':'Nein')+'</div><div class="sub">'+(rain>0?f1(rain)+' mm':'')+'</div></div>';
+  out+='<div class="card"><div class="lbl">Bedingung</div><div class="val">'+cc[0]+'</div><div class="sub">'+cc[1]+'</div></div>';
+  out+='</div>';
+  if(c.wind_direction_10m!=null){ out+='<div class="dir">🧭 Wind aus <b>'+comp(c.wind_direction_10m)+'</b> '+arr(c.wind_direction_10m)+' ('+r0(c.wind_direction_10m)+'°)</div>'; }
+  const h=data.hourly||{}; const t=h.time||[]; const nowt=c.time||"";
+  let start=0; for(let i=0;i<t.length;i++){ if(t[i]>=nowt){ start=i; break; } }
+  const dayH={9:1,12:1,15:1,18:1,21:1}; const seen=[]; let rows=""; let lastDay=null;
+  for(let i=start;i<t.length;i++){
+    const hh=parseInt(t[i].slice(11,13),10); if(!dayH[hh]) continue;
+    const day=t[i].slice(0,10);
+    if(seen.indexOf(day)<0){ if(seen.length>=3) break; seen.push(day); }
+    const wci=wc(h.weather_code[i]); const pr=(h.precipitation[i]||0);
+    const wknd=WD[new Date(day+"T00:00").getDay()];
+    const sep=(lastDay!==null && day!==lastDay)?' class="dsep"':''; lastDay=day;
+    rows+='<tr'+sep+'><td>'+wknd+'</td><td>'+t[i].slice(5,10)+'</td><td>'+t[i].slice(11,16)+'</td><td>'+wci[0]+'</td><td>'+f1(h.temperature_2m[i])+'</td><td>'+r0(h.wind_speed_10m[i])+'</td><td>'+bft(h.wind_speed_10m[i])+'</td><td>'+r0(h.wind_gusts_10m[i])+'</td><td>'+bft(h.wind_gusts_10m[i])+'</td><td>'+comp(h.wind_direction_10m[i])+'</td><td>'+(pr>0?'Ja':'Nein')+'</td></tr>';
+  }
+  out+='<h4>Vorhersage (3 Tage, tagsüber 09–21 Uhr)</h4>';
+  out+='<table><thead><tr><th>Tag</th><th>Datum</th><th>Uhrzeit</th><th>Wetter</th><th>Temp °C</th><th>Wind</th><th>Bft</th><th>Böen</th><th>Bö.Bft</th><th>Richtung</th><th>Regen</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  document.getElementById("w").innerHTML=out;
+}
+</script></body></html>
+"""
+
+
+def render_weather_browser(lat, lon):
+    """Rendert das Wetter-Panel clientseitig (fetch im Browser des Besuchers)."""
+    html = (
+        _WEATHER_HTML
+        .replace("__LAT__", f"{float(lat):.4f}")
+        .replace("__LON__", f"{float(lon):.4f}")
+    )
+    components.html(html, height=640, scrolling=True)
+
+
 def _preset_index(options, value):
     """Position von value in options (für selectbox-Vorbelegung), sonst 0."""
     try:
@@ -3550,128 +3634,12 @@ with st.expander("🌦️ Spot-Wetter (aktuell & Vorhersage)", expanded=False):
                 "Speichere eine Session mit GPS an diesem Spot oder benenne ihn eindeutiger."
             )
         else:
-            forecast = get_forecast(spot_lat, spot_lon)
-
-            if not forecast:
-                st.warning(
-                    "Wetterdienst (Open-Meteo) gerade nicht erreichbar – bitte "
-                    "später erneut versuchen. Das liegt am Dienst, nicht an "
-                    "deinen Daten."
-                )
-
-                reason = st.session_state.get("_weather_error")
-
-                if reason:
-                    st.caption(f"Technischer Grund: {reason}")
-            else:
-                if st.session_state.get("_weather_stale"):
-                    st.info(
-                        "ℹ️ Wetterdienst gerade überlastet – angezeigt wird der "
-                        "letzte zwischengespeicherte Stand."
-                    )
-
-                current = forecast.get("current", {})
-                code = current.get("weather_code")
-                emoji, description = WEATHER_CODES.get(code, ("❓", "Unbekannt"))
-
-                st.markdown(f"**Aktuell** &nbsp; 📍 {spot_lat:.3f}, {spot_lon:.3f}")
-
-                m1, m2, m3, m4 = st.columns(4)
-
-                wind_now = current.get("wind_speed_10m")
-                gust_now = current.get("wind_gusts_10m")
-                temp_now = current.get("temperature_2m")
-                rain_now = current.get("precipitation") or 0
-
-                m1.metric(
-                    "Wind",
-                    "–" if wind_now is None else f"{wind_now:.0f} km/h",
-                    None if gust_now is None else f"Böen {gust_now:.0f} km/h",
-                )
-
-                m2.metric(
-                    "Temperatur",
-                    "–" if temp_now is None else f"{temp_now:.1f} °C",
-                )
-
-                m3.metric(
-                    "Regen",
-                    "Ja" if rain_now > 0 else "Nein",
-                    None if rain_now <= 0 else f"{rain_now:.1f} mm",
-                    delta_color="off",
-                )
-
-                m4.metric(
-                    "Bedingung",
-                    emoji,
-                    description,
-                    delta_color="off",
-                )
-
-                wind_dir_now = current.get("wind_direction_10m")
-
-                if wind_dir_now is not None:
-                    st.caption(
-                        f"🧭 Wind aus **{degrees_to_compass(wind_dir_now)}** "
-                        f"{wind_arrow(wind_dir_now)} ({wind_dir_now:.0f}°)"
-                    )
-
-                st.markdown("**Vorhersage (3 Tage, tagsüber 09–21 Uhr)**")
-
-                hourly = forecast.get("hourly", {})
-                times = hourly.get("time", [])
-                now = current.get("time", "")
-
-                start = 0
-
-                for i, t in enumerate(times):
-                    if t >= now:
-                        start = i
-                        break
-
-                daytime_hours = {9, 12, 15, 18, 21}
-                rows = []
-                seen_dates = []
-
-                for i in range(start, len(times)):
-                    if int(times[i][11:13]) not in daytime_hours:
-                        continue
-
-                    day = times[i][:10]
-
-                    if day not in seen_dates:
-                        if len(seen_dates) >= 3:
-                            break
-
-                        seen_dates.append(day)
-
-                    code_i = hourly["weather_code"][i]
-                    emoji_i = WEATHER_CODES.get(code_i, ("", ""))[0]
-                    precip_i = hourly["precipitation"][i] or 0
-                    dir_i = hourly["wind_direction_10m"][i]
-                    wind_i = hourly["wind_speed_10m"][i]
-                    gust_i = hourly["wind_gusts_10m"][i]
-                    weekday = WEEKDAYS[datetime.strptime(times[i][:10], "%Y-%m-%d").weekday()]
-
-                    rows.append({
-                        "Tag": weekday,
-                        "Datum": times[i][5:10],
-                        "Uhrzeit": times[i][11:16],
-                        "Wetter": emoji_i,
-                        "Temp °C": round(hourly["temperature_2m"][i], 1),
-                        "Wind km/h": round(wind_i),
-                        "Bft": kmh_to_beaufort(wind_i),
-                        "Böen km/h": round(gust_i),
-                        "Böen Bft": kmh_to_beaufort(gust_i),
-                        "Richtung": degrees_to_compass(dir_i),
-                        "Regen": "Ja" if precip_i > 0 else "Nein",
-                    })
-
-                st.dataframe(
-                    pd.DataFrame(rows),
-                    use_container_width=True,
-                    hide_index=True,
-                )
+            st.markdown(f"**Aktuell & Vorhersage** &nbsp; 📍 {spot_lat:.3f}, {spot_lon:.3f}")
+            render_weather_browser(spot_lat, spot_lon)
+            st.caption(
+                "Das Wetter wird direkt in deinem Browser von Open-Meteo geladen "
+                "(über deine eigene IP, unabhängig vom geteilten Server-Limit)."
+            )
 
 
 st.markdown("---")
