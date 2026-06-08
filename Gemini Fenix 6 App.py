@@ -159,7 +159,8 @@ def kmh_to_beaufort(kmh):
 
 st.set_page_config(
     page_title="Windsurf Speed Challenge",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
 
