@@ -3314,8 +3314,53 @@ def render_account_sidebar(user, cookie_manager):
                 "niemals die Ergebnisse anderer Fahrer."
             )
 
+            # --- Einzelne Session löschen ---
+            rider_sessions = load_rider_sessions(user["username"])
+
+            if not rider_sessions.empty and "id" in rider_sessions.columns:
+                st.markdown("**Einzelne Session löschen**")
+
+                del_opts = {"— bitte wählen —": None}
+
+                for i, (_, row) in enumerate(rider_sessions.iterrows()):
+                    d = row.get("date")
+                    date_str = d.strftime("%Y-%m-%d") if pd.notna(d) else "?"
+                    spot = str(row.get("surfspot", "") or "")
+                    sp = row.get("speed_1s_kmh")
+                    sp_str = "" if sp is None or pd.isna(sp) else f" · {float(sp):.1f} km/h"
+                    label = f"{date_str} · {spot}{sp_str}".strip(" ·") or f"Session {i + 1}"
+
+                    if label in del_opts:
+                        label = f"{label} ({i + 1})"
+
+                    del_opts[label] = row.get("id")
+
+                pick = st.selectbox(
+                    "Session wählen", list(del_opts.keys()), key="del_one_pick"
+                )
+
+                if pick != "— bitte wählen —":
+                    confirm_one = st.checkbox(
+                        "Ja, diese Session endgültig löschen.",
+                        key=f"confirm_del_one_{del_opts[pick]}",
+                    )
+
+                    if st.button(
+                        f"🗑️ Session löschen: {pick}",
+                        key=f"del_one_btn_{del_opts[pick]}",
+                        use_container_width=True,
+                        disabled=not confirm_one,
+                    ):
+                        if delete_session(del_opts[pick], user["username"]):
+                            st.success("Session gelöscht.")
+                        else:
+                            st.warning("Session konnte nicht gelöscht werden.")
+                        st.rerun()
+
+                st.markdown("---")
+
             # --- Eigene Sessions löschen (Konto bleibt bestehen) ---
-            st.markdown("**Meine Sessions löschen**")
+            st.markdown("**Alle meine Sessions löschen**")
             confirm_data = st.checkbox(
                 "Ja, alle meine Sessions endgültig löschen.",
                 key="confirm_delete_data",
@@ -3481,7 +3526,7 @@ with left:
     rider = profiles.get(name, {})
 
     if name:
-        with st.expander("📅 Meine letzten Sessions", expanded=False):
+        with st.expander("📅 Meine Sessions ansehen", expanded=False):
             history = load_rider_sessions(name)
 
             if history.empty:
@@ -3508,9 +3553,12 @@ with left:
                             & (history["date"].dt.date <= end)
                         ]
 
-                history = history.head(10)
+                # Vollständige (datums-gefilterte) Liste behalten – die Tabelle
+                # zeigt die letzten 10, gelöscht werden kann aber jede Session.
+                history_full = history
+                history = history_full.head(10)
 
-                if history.empty:
+                if history_full.empty:
                     st.info("Keine Sessions im gewählten Zeitraum.")
                 else:
                     columns = [
@@ -3540,16 +3588,33 @@ with left:
                         hide_index=True,
                     )
 
+                    if len(history_full) > len(history):
+                        st.caption(
+                            f"Tabelle zeigt die letzten {len(history)} – im Dropdown "
+                            f"sind alle {len(history_full)} wählbar. "
+                            "(Löschen unter „Konto & Daten löschen“.)"
+                        )
+
+                    # Dropdown über ALLE (gefilterten) Sessions, nicht nur die 10
+                    # in der Tabelle. Label mit Speed zur besseren Unterscheidung.
                     record_by_label = {}
 
-                    for i, (_, row) in enumerate(history.iterrows()):
-                        if "date" in history.columns and pd.notna(row["date"]):
+                    for i, (_, row) in enumerate(history_full.iterrows()):
+                        if "date" in history_full.columns and pd.notna(row["date"]):
                             date_str = row["date"].strftime("%Y-%m-%d")
                         else:
                             date_str = "?"
 
                         spot_label = str(row.get("surfspot", "") or "")
-                        label = f"{date_str} · {spot_label}".strip(" ·") or f"Session {i + 1}"
+                        speed_val = row.get("speed_1s_kmh")
+                        speed_label = (
+                            "" if speed_val is None or pd.isna(speed_val)
+                            else f" · {float(speed_val):.1f} km/h"
+                        )
+                        label = (
+                            f"{date_str} · {spot_label}{speed_label}".strip(" ·")
+                            or f"Session {i + 1}"
+                        )
 
                         if label in record_by_label:
                             label = f"{label} ({i + 1})"
@@ -3564,25 +3629,6 @@ with left:
 
                     if chosen_label != "—":
                         selected_history_record = record_by_label[chosen_label]
-
-                        sess_id = selected_history_record.get("id")
-
-                        confirm_one = st.checkbox(
-                            "Löschen dieser Session bestätigen",
-                            key=f"confirm_del_one_{sess_id}",
-                        )
-
-                        if st.button(
-                            f"🗑️ Session löschen: {chosen_label}",
-                            key=f"del_one_btn_{sess_id}",
-                            use_container_width=True,
-                            disabled=not confirm_one,
-                        ):
-                            if delete_session(sess_id, name):
-                                st.success("Session gelöscht.")
-                            else:
-                                st.warning("Session konnte nicht gelöscht werden.")
-                            st.rerun()
 
     # Bewusst in den Filter-Tab gerendert (nicht in den Material-Tab), damit der
     # Bestleistungs-Filter bei den übrigen Filtern sitzt. .expander() auf das
