@@ -2253,6 +2253,44 @@ def render_rankings(results_container):
         )
 
 
+@st.cache_data(show_spinner=False, max_entries=64)
+def _enrich_ranking(ranking):
+    """Ergänzt das (bereits gefilterte) Ranking um die teuren Spalten „Wetter"
+    und „Trust" (zeilenweises apply).
+
+    Gecacht und selbst-invalidierend: Bei gleichem Eingangs-DataFrame wird nicht
+    neu gerechnet; ändern sich die Sessions (load_sessions liefert andere Daten)
+    oder der Filter, ändert sich der Cache-Key automatisch. max_entries begrenzt
+    den Speicher über viele Filter-Kombinationen hinweg.
+    """
+    def weather_summary(row):
+        parts = []
+
+        if pd.notna(row.get("weather_code")):
+            emoji = WEATHER_CODES.get(int(row["weather_code"]), ("", ""))[0]
+
+            if emoji:
+                parts.append(emoji)
+
+        if pd.notna(row.get("wind_kmh")):
+            wind = f"{row['wind_kmh']:.0f} km/h"
+
+            if pd.notna(row.get("wind_dir_deg")):
+                wind += f" {degrees_to_compass(row['wind_dir_deg'])}"
+
+            parts.append(wind)
+
+        if pd.notna(row.get("temp_c")):
+            parts.append(f"{row['temp_c']:.0f}°C")
+
+        return " · ".join(parts) if parts else "–"
+
+    ranking = ranking.copy()
+    ranking["Wetter"] = ranking.apply(weather_summary, axis=1)
+    ranking["Trust"] = ranking["trust_score"].apply(_trust_badge)
+    return ranking
+
+
 def _render_ranking_tables(ranking, group_choice, member_groups, months,
                            spot_filter, year_filter, month_filter, day_filter):
     """Rendert die vier Ranking-Tabellen – reine Anzeige (keine Widgets)."""
@@ -2305,30 +2343,10 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         st.info("Keine Einträge für die gewählte Filter-Auswahl.")
         return
 
-    def weather_summary(row):
-        parts = []
-
-        if pd.notna(row.get("weather_code")):
-            emoji = WEATHER_CODES.get(int(row["weather_code"]), ("", ""))[0]
-
-            if emoji:
-                parts.append(emoji)
-
-        if pd.notna(row.get("wind_kmh")):
-            wind = f"{row['wind_kmh']:.0f} km/h"
-
-            if pd.notna(row.get("wind_dir_deg")):
-                wind += f" {degrees_to_compass(row['wind_dir_deg'])}"
-
-            parts.append(wind)
-
-        if pd.notna(row.get("temp_c")):
-            parts.append(f"{row['temp_c']:.0f}°C")
-
-        return " · ".join(parts) if parts else "–"
-
-    ranking["Wetter"] = ranking.apply(weather_summary, axis=1)
-    ranking["Trust"] = ranking["trust_score"].apply(_trust_badge)
+    # Teure Spalten (zeilenweises apply für Wetter-Text + Trust-Badge) gecacht
+    # ergänzen – siehe _enrich_ranking. Vermeidet die Neuberechnung bei jedem
+    # (Fragment-)Rerun, solange sich das gefilterte Ranking nicht ändert.
+    ranking = _enrich_ranking(ranking)
 
     rcol1, rcol2 = st.columns(2)
 
