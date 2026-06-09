@@ -623,7 +623,7 @@ def save_session(entry):
     clear_data_caches()
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_sessions():
     with get_engine().connect() as conn:
         rows = conn.execute(select(sessions_table)).mappings().all()
@@ -659,7 +659,7 @@ def session_exists(filename, name=None):
         return bool(conn.execute(query).scalar())
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_rider_sessions(name):
     """Alle gespeicherten Sessions eines Fahrers, neueste zuerst."""
     with get_engine().connect() as conn:
@@ -681,7 +681,7 @@ def load_rider_sessions(name):
 
 # ---- Profile (Spots/Boards/Segel je Fahrer) ----
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_profiles():
     with get_engine().connect() as conn:
         rows = conn.execute(select(profiles_table)).mappings().all()
@@ -738,7 +738,7 @@ def update_profile(name, spot, board, sail):
 
 # ---- Spots (Koordinaten-Cache) ----
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_spots():
     with get_engine().connect() as conn:
         rows = conn.execute(select(spots_table)).mappings().all()
@@ -997,7 +997,7 @@ def logout_session(cookie_manager):
 ALL_GROUP = "Alle"
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def list_groups():
     with get_engine().connect() as conn:
         rows = conn.execute(select(groups_table)).mappings().all()
@@ -1036,7 +1036,7 @@ def create_group(name, owner_id, is_private):
     return True, f"Gruppe „{name}“ wurde erstellt."
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def my_memberships(user_id):
     """group_id -> status ('member' | 'pending')."""
     with get_engine().connect() as conn:
@@ -1047,7 +1047,7 @@ def my_memberships(user_id):
     return {r["group_id"]: r["status"] for r in rows}
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def my_member_groups(user_id):
     """Gruppen, in denen der Nutzer bestätigtes Mitglied ist."""
     with get_engine().connect() as conn:
@@ -1229,7 +1229,7 @@ def invite_user(group_id, username):
     return True, message
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def group_member_names(group_id):
     """Benutzernamen aller bestätigten Mitglieder einer Gruppe."""
     with get_engine().connect() as conn:
@@ -1268,7 +1268,7 @@ def clear_data_caches():
 
 # ---- Persönliche Einstellungen (Ranking-Filter-Preset) ----
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_user_pref(username):
     if not username:
         return {}
@@ -2234,8 +2234,32 @@ def render_rankings(results_container):
         "Juli", "August", "September", "Oktober", "November", "Dezember",
     ]
 
-    # ---- Filter-UI: rendert am Fragment-Anker (= Sidebar-Tab „Filter") ----
-    # Eigener Container (im Fragment erzeugt) -> Widgets sind hier erlaubt.
+    member_groups = my_member_groups(user["id"]) if user else []
+
+    # Aktuelle Filter-Auswahl bestimmen: aus session_state (vom letzten Lauf)
+    # oder beim ERSTEN Laden aus dem gespeicherten Preset. Dadurch können wir die
+    # Tabellen rendern, BEVOR die Filter-Widgets gebaut werden – die Rankings
+    # erscheinen so zuerst, der teurere Optionen-Aufbau der Dropdowns läuft erst
+    # danach.
+    group_choice = st.session_state.get("rank_group", preset.get("group") or ALL_GROUP)
+    spot_filter = st.session_state.get("rank_spot", preset.get("spot") or "Gesamt")
+    year_filter = st.session_state.get("rank_year", preset.get("year") or "Alle Jahre")
+    month_filter = st.session_state.get("rank_month", preset.get("month") or "Ganzes Jahr")
+    day_filter = st.session_state.get("rank_day", preset.get("day") or "Ganzer Monat")
+
+    # ---- Tabellen ZUERST (Hauptinhalt) in den Haupt-Container ----
+    # Reine Anzeige (keine Widgets) -> aus dem Fragment in externen Container ok;
+    # .container() im st.empty()-Platzhalter ersetzt den Inhalt bei jedem Rerun.
+    with results_container.container():
+        _render_ranking_tables(
+            ranking, group_choice, member_groups, months,
+            spot_filter, year_filter, month_filter, day_filter,
+        )
+
+    # ---- Filter-UI DANACH am Fragment-Anker (= Sidebar-Tab „Filter") ----
+    # Eigener Container (im Fragment erzeugt) -> Widgets sind hier erlaubt. Die
+    # Selectboxen lesen ihren Wert aus session_state (oben bereits ausgelesen);
+    # index= dient nur der Erstbelegung beim allerersten Laden.
     with st.container():
         with st.expander("⭐ Mein Start (Filter-Preset)", expanded=False):
             st.caption(
@@ -2259,12 +2283,11 @@ def render_rankings(results_container):
                     st.session_state.pop(_k, None)
                 st.rerun()
 
-        member_groups = my_member_groups(user["id"]) if user else []
         group_options = [ALL_GROUP] + [g["name"] for g in member_groups]
-        group_choice = st.selectbox(
+        st.selectbox(
             "👥 Gruppe",
             group_options,
-            index=_preset_index(group_options, preset.get("group")),
+            index=_preset_index(group_options, group_choice),
             key="rank_group",
             help="„Alle“ zeigt alle Fahrer. Gruppen-Ergebnisse siehst du nur als Mitglied.",
         )
@@ -2296,31 +2319,21 @@ def render_rankings(results_container):
         month_options = ["Ganzes Jahr"] + months
         day_options = ["Ganzer Monat"] + [str(d) for d in range(1, 32)]
 
-        spot_filter = st.selectbox(
+        st.selectbox(
             "📍 Lokation", spot_options,
-            index=_preset_index(spot_options, preset.get("spot")), key="rank_spot",
+            index=_preset_index(spot_options, spot_filter), key="rank_spot",
         )
-        year_filter = st.selectbox(
+        st.selectbox(
             "📅 Jahr", year_options,
-            index=_preset_index(year_options, preset.get("year")), key="rank_year",
+            index=_preset_index(year_options, year_filter), key="rank_year",
         )
-        month_filter = st.selectbox(
+        st.selectbox(
             "📆 Monat", month_options,
-            index=_preset_index(month_options, preset.get("month")), key="rank_month",
+            index=_preset_index(month_options, month_filter), key="rank_month",
         )
-        day_filter = st.selectbox(
+        st.selectbox(
             "🗓️ Tag", day_options,
-            index=_preset_index(day_options, preset.get("day")), key="rank_day",
-        )
-
-    # ---- Ergebnisse: in den Haupt-Container (reine Anzeige ohne Widgets ->
-    # darf aus dem Fragment in einen externen Container geschrieben werden) ----
-    # .container() in einem st.empty()-Platzhalter: ersetzt bei jedem
-    # Fragment-Rerun den vorherigen Inhalt (verhindert doppelte Tabellen).
-    with results_container.container():
-        _render_ranking_tables(
-            ranking, group_choice, member_groups, months,
-            spot_filter, year_filter, month_filter, day_filter,
+            index=_preset_index(day_options, day_filter), key="rank_day",
         )
 
 
@@ -3605,15 +3618,18 @@ def autocollapse_sidebar():
 
 autocollapse_sidebar()
 
-# News-Banner: Rekorde/Top-3 von Mitgliedern, die der Nutzer noch nicht gesehen hat.
-render_group_news_banner(current_user)
+# Reihenfolge für die Ladezeit: Rankings (Hauptinhalt) ZUERST rendern, das
+# News-Banner und seine DB-Abfrage erst danach. Mit einem Platzhalter (news_slot)
+# bleibt das Banner optisch oben, wird aber erst nach den Rankings befüllt – so
+# erscheinen die Rankings als Erstes auf dem Bildschirm.
+news_slot = st.empty()
 
-# Haupt-Container für die Ranking-Tabellen (hier in der Mitte verankert). Das
-# Fragment selbst verankern wir IN der Sidebar, damit seine Filter-Widgets dort
-# erlaubt sind; die Tabellen schreibt es in diesen Container.
 ranking_results = st.empty()
 with sidebar_tab_filter:
     render_rankings(ranking_results)
+
+with news_slot.container():
+    render_group_news_banner(current_user)
 
 st.markdown("---")
 
