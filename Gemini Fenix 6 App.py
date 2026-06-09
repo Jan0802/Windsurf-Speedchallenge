@@ -2143,7 +2143,15 @@ def _preset_index(options, value):
         return 0
 
 
-def render_rankings(filter_container):
+@st.fragment
+def render_rankings(results_container):
+    # Als Fragment gekapselt: Ändert der Nutzer einen Filter (Gruppe/Lokation/
+    # Jahr/Monat/Tag), läuft NUR diese Funktion neu – nicht das gesamte Skript.
+    # WICHTIG: Das Fragment wird IN der Sidebar verankert (Aufruf via
+    # `with sidebar_tab_filter:`), denn ein Fragment darf Widgets nur an seinem
+    # EIGENEN Anker erzeugen, nicht in einen externen Container. Die Filter
+    # rendern daher hier (Sidebar); die Tabellen (keine Widgets) schreiben wir
+    # in den separaten Haupt-Container `results_container`.
     user = st.session_state.get("user")
     username = user["username"] if user else None
     preset = load_user_pref(username)
@@ -2155,8 +2163,9 @@ def render_rankings(filter_container):
         "Juli", "August", "September", "Oktober", "November", "Dezember",
     ]
 
-    # ---- Filter-UI: links in der Sidebar (Tab „Filter") ----
-    with filter_container:
+    # ---- Filter-UI: rendert am Fragment-Anker (= Sidebar-Tab „Filter") ----
+    # Eigener Container (im Fragment erzeugt) -> Widgets sind hier erlaubt.
+    with st.container():
         with st.expander("⭐ Mein Start (Filter-Preset)", expanded=False):
             st.caption(
                 "Speichere die aktuelle Filter-Auswahl als deinen Start – sie "
@@ -2233,7 +2242,20 @@ def render_rankings(filter_container):
             index=_preset_index(day_options, preset.get("day")), key="rank_day",
         )
 
-    # ---- Ergebnisse: in der Mitte ----
+    # ---- Ergebnisse: in den Haupt-Container (reine Anzeige ohne Widgets ->
+    # darf aus dem Fragment in einen externen Container geschrieben werden) ----
+    # .container() in einem st.empty()-Platzhalter: ersetzt bei jedem
+    # Fragment-Rerun den vorherigen Inhalt (verhindert doppelte Tabellen).
+    with results_container.container():
+        _render_ranking_tables(
+            ranking, group_choice, member_groups, months,
+            spot_filter, year_filter, month_filter, day_filter,
+        )
+
+
+def _render_ranking_tables(ranking, group_choice, member_groups, months,
+                           spot_filter, year_filter, month_filter, day_filter):
+    """Rendert die vier Ranking-Tabellen – reine Anzeige (keine Widgets)."""
     st.markdown("## 🏆 Online-Rankings")
 
     flash = st.session_state.pop("ranking_flash", None)
@@ -3497,7 +3519,12 @@ autocollapse_sidebar()
 # News-Banner: Rekorde/Top-3 von Mitgliedern, die der Nutzer noch nicht gesehen hat.
 render_group_news_banner(current_user)
 
-render_rankings(sidebar_tab_filter)
+# Haupt-Container für die Ranking-Tabellen (hier in der Mitte verankert). Das
+# Fragment selbst verankern wir IN der Sidebar, damit seine Filter-Widgets dort
+# erlaubt sind; die Tabellen schreibt es in diesen Container.
+ranking_results = st.empty()
+with sidebar_tab_filter:
+    render_rankings(ranking_results)
 
 st.markdown("---")
 
