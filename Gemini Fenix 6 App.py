@@ -1624,6 +1624,77 @@ def personal_best_table(df, spot="Alle", year="Alle", board="Alle", max_bft=None
     return out, caption
 
 
+@st.fragment
+def render_personal_bests(name, results_container):
+    """Bestleistungs-Filter (in der Sidebar) + Top-10-Tabelle (im Hauptfenster).
+
+    Als Fragment gekapselt: Ändert der Nutzer Spot/Jahr/Board/Wind, läuft NUR
+    diese Funktion neu. Wie render_rankings IN der Sidebar verankert (Aufruf via
+    `with sidebar_tab_filter:`), weil ein Fragment Widgets nur an seinem eigenen
+    Anker erzeugen darf. Die Tabelle (keine Widgets) schreiben wir in den
+    übergebenen `results_container` (ein `st.empty()` im Hauptfenster), dessen
+    `.container()` den Inhalt bei jedem Rerun sauber ersetzt.
+    """
+    pb_df = load_rider_sessions(name)
+
+    with st.expander("🏅 Meine Bestleistungen", expanded=False):
+        if pb_df.empty:
+            st.info("Noch keine Sessions – lade eine FIT-Datei hoch.")
+            results_container.empty()
+            return
+
+        pb_spots = sorted(
+            {str(s) for s in pb_df["surfspot"].dropna().astype(str) if str(s).strip()}
+            if "surfspot" in pb_df.columns else set()
+        )
+        pb_years = sorted(
+            {int(y) for y in pd.to_datetime(pb_df["date"], errors="coerce").dt.year.dropna()}
+            if "date" in pb_df.columns else set(),
+            reverse=True,
+        )
+        pb_boards = sorted(
+            {str(b) for b in pb_df["board"].dropna().astype(str) if str(b).strip()}
+            if "board" in pb_df.columns else set()
+        )
+
+        cpb1, cpb2 = st.columns(2)
+        spot_pb = cpb1.selectbox("Spot", ["Alle"] + pb_spots, key=f"pb_spot_{name}")
+        year_pb = cpb2.selectbox(
+            "Jahr", ["Alle"] + [str(y) for y in pb_years], key=f"pb_year_{name}"
+        )
+
+        cpb3, cpb4 = st.columns(2)
+        board_pb = cpb3.selectbox(
+            "Board", ["Alle"] + pb_boards, key=f"pb_board_{name}"
+        )
+        wind_pb = cpb4.selectbox(
+            "Max. Wind",
+            ["Alle"] + [f"≤ {b} Bft" for b in range(2, 11)],
+            key=f"pb_wind_{name}",
+            help="Zeigt nur Sessions bis zu dieser Windstärke – z.B. „≤ 5 Bft“ "
+                 "für: Wie schnell war ich bei höchstens 5 Beaufort?",
+        )
+        max_bft_pb = None if wind_pb == "Alle" else int(wind_pb.split()[1])
+
+        pb_table, pb_table_caption = personal_best_table(
+            pb_df, spot_pb, year_pb, board_pb, max_bft_pb
+        )
+        st.caption("➡️ Deine Top-10-Speedtabelle siehst du im Hauptfenster.")
+
+    with results_container.container():
+        st.markdown("## 🏅 Meine Bestleistungen")
+
+        if pb_table.empty:
+            st.info("Keine Sessions für diese Auswahl.")
+        else:
+            if pb_table_caption:
+                st.caption(pb_table_caption)
+
+            st.dataframe(pb_table, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+
+
 def _http_get_json(url, timeout, retries=2):
     """GET einer JSON-API mit explizitem User-Agent und Retry.
 
@@ -3554,12 +3625,6 @@ right = st.container()
 
 selected_history_record = None
 
-# Top-10-Bestleistungen werden in der Sidebar gefiltert, aber im Hauptfenster
-# (rechts) als Tabelle angezeigt. Default leer, falls der Fahrer noch keine
-# Sessions hat.
-pb_table = None
-pb_table_caption = ""
-
 
 with left:
     st.markdown("### 👤 1. Session & Material")
@@ -3675,54 +3740,9 @@ with left:
                     if chosen_label != "—":
                         selected_history_record = record_by_label[chosen_label]
 
-    # Bewusst in den Filter-Tab gerendert (nicht in den Material-Tab), damit der
-    # Bestleistungs-Filter bei den übrigen Filtern sitzt. .expander() auf das
-    # Tab-Objekt zielt direkt auf diesen Container, egal aus welchem with-Block.
-    with sidebar_tab_filter.expander("🏅 Meine Bestleistungen", expanded=False):
-        pb_df = load_rider_sessions(name)
-
-        if pb_df.empty:
-            st.info("Noch keine Sessions – lade eine FIT-Datei hoch.")
-        else:
-            pb_spots = sorted(
-                {str(s) for s in pb_df["surfspot"].dropna().astype(str) if str(s).strip()}
-                if "surfspot" in pb_df.columns else set()
-            )
-            pb_years = sorted(
-                {int(y) for y in pd.to_datetime(pb_df["date"], errors="coerce").dt.year.dropna()}
-                if "date" in pb_df.columns else set(),
-                reverse=True,
-            )
-            pb_boards = sorted(
-                {str(b) for b in pb_df["board"].dropna().astype(str) if str(b).strip()}
-                if "board" in pb_df.columns else set()
-            )
-
-            cpb1, cpb2 = st.columns(2)
-            spot_pb = cpb1.selectbox("Spot", ["Alle"] + pb_spots, key=f"pb_spot_{name}")
-            year_pb = cpb2.selectbox(
-                "Jahr", ["Alle"] + [str(y) for y in pb_years], key=f"pb_year_{name}"
-            )
-
-            cpb3, cpb4 = st.columns(2)
-            board_pb = cpb3.selectbox(
-                "Board", ["Alle"] + pb_boards, key=f"pb_board_{name}"
-            )
-            wind_pb = cpb4.selectbox(
-                "Max. Wind",
-                ["Alle"] + [f"≤ {b} Bft" for b in range(2, 11)],
-                key=f"pb_wind_{name}",
-                help="Zeigt nur Sessions bis zu dieser Windstärke – z.B. „≤ 5 Bft“ "
-                     "für: Wie schnell war ich bei höchstens 5 Beaufort?",
-            )
-            max_bft_pb = None if wind_pb == "Alle" else int(wind_pb.split()[1])
-
-            # In der schmalen Sidebar bleibt nur der Filter; die eigentliche
-            # Bestleistungs-Tabelle wird im breiten Hauptfenster angezeigt.
-            pb_table, pb_table_caption = personal_best_table(
-                pb_df, spot_pb, year_pb, board_pb, max_bft_pb
-            )
-            st.caption("➡️ Deine Top-10-Speedtabelle siehst du rechts im Hauptfenster.")
+    # „🏅 Meine Bestleistungen" (Filter + Tabelle) ist jetzt ein eigenes
+    # Fragment (render_personal_bests) – weiter unten verankert, damit ein
+    # Filterklick nicht das ganze Skript neu ausführt.
 
     spot_options = rider.get("spots", [])
     spot_choice = st.selectbox("Surfspot", [NEW_ENTRY] + spot_options)
@@ -3867,25 +3887,12 @@ with left:
                     )
 
 
-# Bestleistungen-Tabelle im Hauptfenster (gefiltert über die Sidebar). Steht
-# oben, unabhängig davon, ob gerade eine neue FIT-Datei analysiert wird.
-if pb_table is not None:
-    with right:
-        st.markdown("## 🏅 Meine Bestleistungen")
-
-        if pb_table.empty:
-            st.info("Keine Sessions für diese Auswahl.")
-        else:
-            if pb_table_caption:
-                st.caption(pb_table_caption)
-
-            st.dataframe(
-                pb_table,
-                use_container_width=True,
-                hide_index=True,
-            )
-
-        st.markdown("---")
+# Bestleistungen als Fragment: Filter in der Sidebar (Filter-Tab, unter den
+# Ranking-Filtern), Tabelle oben im Hauptfenster-Container `right`. Ein
+# Filterklick rerunt nur dieses Fragment.
+pb_results = right.empty()
+with sidebar_tab_filter:
+    render_personal_bests(current_user["username"], pb_results)
 
 
 required_ok = all([
