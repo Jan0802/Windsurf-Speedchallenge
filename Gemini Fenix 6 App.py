@@ -1547,6 +1547,83 @@ def personal_bests(name, spot=None, year=None):
     ]
 
 
+def personal_best_table(df, spot="Alle", year="Alle", board="Alle", max_bft=None, limit=10):
+    """Bis zu `limit` beste Sessions eines Fahrers als Speed-Tabelle.
+
+    Sortiert nach Topspeed 1 s (absteigend). Optional gefiltert nach Spot, Jahr,
+    Board und maximaler Windstärke (`max_bft` = Beaufort-Obergrenze, z.B. 5 für
+    "höchstens 5 Bft" – Sessions ohne Winddaten fallen dann raus). Gibt
+    (Anzeige-DataFrame, Filter-Beschriftung) zurück; der DataFrame ist leer, wenn
+    keine passenden Sessions vorhanden sind.
+    """
+    data = df.copy()
+
+    if spot and spot != "Alle" and "surfspot" in data.columns:
+        data = data[data["surfspot"].astype(str) == spot]
+
+    if year and year != "Alle" and "date" in data.columns:
+        data = data[pd.to_datetime(data["date"], errors="coerce").dt.year == int(year)]
+
+    if board and board != "Alle" and "board" in data.columns:
+        data = data[data["board"].astype(str) == board]
+
+    if max_bft is not None and "wind_kmh" in data.columns:
+        wind = pd.to_numeric(data["wind_kmh"], errors="coerce")
+        bft = wind.apply(lambda v: kmh_to_beaufort(v) if pd.notna(v) else float("nan"))
+        data = data[bft <= max_bft]  # NaN <= x ist False -> Sessions ohne Wind raus
+
+    if "speed_1s_kmh" not in data.columns:
+        return pd.DataFrame(), ""
+
+    data = data.copy()
+    data["_s1"] = pd.to_numeric(data["speed_1s_kmh"], errors="coerce")
+    data = data.dropna(subset=["_s1"]).sort_values("_s1", ascending=False).head(limit)
+
+    if data.empty:
+        return pd.DataFrame(), ""
+
+    out = pd.DataFrame()
+    out["Platz"] = range(1, len(data) + 1)
+
+    if "date" in data.columns:
+        out["Datum"] = [
+            "" if pd.isna(d) else d.strftime("%Y-%m-%d")
+            for d in pd.to_datetime(data["date"], errors="coerce")
+        ]
+    if "surfspot" in data.columns:
+        out["Spot"] = data["surfspot"].astype(str).values
+    if "board" in data.columns:
+        out["Board"] = data["board"].astype(str).values
+
+    if "wind_kmh" in data.columns:
+        wind = pd.to_numeric(data["wind_kmh"], errors="coerce")
+        out["Wind (km/h)"] = wind.round(0).values
+        out["Bft"] = [
+            None if pd.isna(v) else kmh_to_beaufort(v) for v in wind
+        ]
+
+    out["Top 1 s (km/h)"] = data["_s1"].round(2).values
+    out["1 s (kn)"] = (data["_s1"] / 1.852).round(2).values
+
+    if "speed_30s_kmh" in data.columns:
+        s30 = pd.to_numeric(data["speed_30s_kmh"], errors="coerce")
+        out["Top 30 s (km/h)"] = s30.round(2).values
+        out["30 s (kn)"] = (s30 / 1.852).round(2).values
+
+    parts = []
+    if spot and spot != "Alle":
+        parts.append(f"Spot: {spot}")
+    if year and year != "Alle":
+        parts.append(f"Jahr: {year}")
+    if board and board != "Alle":
+        parts.append(f"Board: {board}")
+    if max_bft is not None:
+        parts.append(f"≤ {max_bft} Bft")
+    caption = " · ".join(parts) if parts else "Alle Spots · alle Jahre"
+
+    return out, caption
+
+
 def _http_get_json(url, timeout, retries=2):
     """GET einer JSON-API mit explizitem User-Agent und Retry.
 
@@ -3387,6 +3464,12 @@ right = st.container()
 
 selected_history_record = None
 
+# Top-10-Bestleistungen werden in der Sidebar gefiltert, aber im Hauptfenster
+# (rechts) als Tabelle angezeigt. Default leer, falls der Fahrer noch keine
+# Sessions hat.
+pb_table = None
+pb_table_caption = ""
+
 
 with left:
     st.markdown("### 👤 1. Session & Material")
@@ -3501,7 +3584,10 @@ with left:
                                 st.warning("Session konnte nicht gelöscht werden.")
                             st.rerun()
 
-    with st.expander("🏅 Meine Bestleistungen", expanded=False):
+    # Bewusst in den Filter-Tab gerendert (nicht in den Material-Tab), damit der
+    # Bestleistungs-Filter bei den übrigen Filtern sitzt. .expander() auf das
+    # Tab-Objekt zielt direkt auf diesen Container, egal aus welchem with-Block.
+    with sidebar_tab_filter.expander("🏅 Meine Bestleistungen", expanded=False):
         pb_df = load_rider_sessions(name)
 
         if pb_df.empty:
@@ -3516,6 +3602,10 @@ with left:
                 if "date" in pb_df.columns else set(),
                 reverse=True,
             )
+            pb_boards = sorted(
+                {str(b) for b in pb_df["board"].dropna().astype(str) if str(b).strip()}
+                if "board" in pb_df.columns else set()
+            )
 
             cpb1, cpb2 = st.columns(2)
             spot_pb = cpb1.selectbox("Spot", ["Alle"] + pb_spots, key=f"pb_spot_{name}")
@@ -3523,15 +3613,25 @@ with left:
                 "Jahr", ["Alle"] + [str(y) for y in pb_years], key=f"pb_year_{name}"
             )
 
-            bests = personal_bests(name, spot_pb, year_pb)
-            bc = st.columns(2)
+            cpb3, cpb4 = st.columns(2)
+            board_pb = cpb3.selectbox(
+                "Board", ["Alle"] + pb_boards, key=f"pb_board_{name}"
+            )
+            wind_pb = cpb4.selectbox(
+                "Max. Wind",
+                ["Alle"] + [f"≤ {b} Bft" for b in range(2, 11)],
+                key=f"pb_wind_{name}",
+                help="Zeigt nur Sessions bis zu dieser Windstärke – z.B. „≤ 5 Bft“ "
+                     "für: Wie schnell war ich bei höchstens 5 Beaufort?",
+            )
+            max_bft_pb = None if wind_pb == "Alle" else int(wind_pb.split()[1])
 
-            for i, b in enumerate(bests):
-                value = (
-                    "–" if b["value"] is None
-                    else f"{b['value']:.{b['decimals']}f} {b['unit']}"
-                )
-                bc[i % 2].metric(b["label"], value)
+            # In der schmalen Sidebar bleibt nur der Filter; die eigentliche
+            # Bestleistungs-Tabelle wird im breiten Hauptfenster angezeigt.
+            pb_table, pb_table_caption = personal_best_table(
+                pb_df, spot_pb, year_pb, board_pb, max_bft_pb
+            )
+            st.caption("➡️ Deine Top-10-Speedtabelle siehst du rechts im Hauptfenster.")
 
     spot_options = rider.get("spots", [])
     spot_choice = st.selectbox("Surfspot", [NEW_ENTRY] + spot_options)
@@ -3674,6 +3774,27 @@ with left:
                         "Die Datei konnte nicht von der Uhr kopiert werden. "
                         "Uhr neu verbinden und erneut versuchen."
                     )
+
+
+# Bestleistungen-Tabelle im Hauptfenster (gefiltert über die Sidebar). Steht
+# oben, unabhängig davon, ob gerade eine neue FIT-Datei analysiert wird.
+if pb_table is not None:
+    with right:
+        st.markdown("## 🏅 Meine Bestleistungen")
+
+        if pb_table.empty:
+            st.info("Keine Sessions für diese Auswahl.")
+        else:
+            if pb_table_caption:
+                st.caption(pb_table_caption)
+
+            st.dataframe(
+                pb_table,
+                use_container_width=True,
+                hide_index=True,
+            )
+
+        st.markdown("---")
 
 
 required_ok = all([
