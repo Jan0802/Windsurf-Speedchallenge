@@ -2719,28 +2719,87 @@ def show_map(df):
         st.warning("Keine GPS-Daten gefunden.")
         return
 
-    layer = pdk.Layer(
-        "PathLayer",
-        data=[{"path": gps_df[["lon", "lat"]].values.tolist()}],
-        get_path="path",
-        get_width=4,
-        width_min_pixels=2,
-    )
-
     view_state = pdk.ViewState(
         latitude=gps_df["lat"].mean(),
         longitude=gps_df["lon"].mean(),
         zoom=13,
     )
 
+    has_speed = "speed_kmh" in gps_df.columns and gps_df["speed_kmh"].notna().any()
+    speed_lo = speed_hi = None
+
+    if has_speed:
+        # Track nach Geschwindigkeit einfärben: blau (langsam) -> orange (schnell).
+        # Jede Teilstrecke (Punkt i -> i+1) bekommt eine eigene Farbe.
+        pts = gps_df[["lon", "lat", "speed_kmh"]].to_numpy(dtype=float)
+
+        # Sehr lange Tracks ausdünnen, damit die Browser-Last klein bleibt.
+        step = max(1, len(pts) // 4000)
+        pts = pts[::step]
+
+        speeds = pts[:, 2]
+        speed_lo = float(np.nanmin(speeds))
+        # 95.-Perzentil als robuster Maximalwert (ein GPS-Ausreißer soll die
+        # Farbskala nicht ruinieren).
+        speed_hi = float(np.nanpercentile(speeds, 95))
+        span = speed_hi - speed_lo if speed_hi > speed_lo else 1.0
+
+        def _color(v):
+            t = 0.0 if np.isnan(v) else min(1.0, max(0.0, (v - speed_lo) / span))
+            # linear blau [25,100,230] -> orange [255,125,0]
+            return [
+                int(25 + t * (255 - 25)),
+                int(100 + t * (125 - 100)),
+                int(230 + t * (0 - 230)),
+            ]
+
+        segments = [
+            {
+                "path": [
+                    [pts[i, 0], pts[i, 1]],
+                    [pts[i + 1, 0], pts[i + 1, 1]],
+                ],
+                "color": _color((speeds[i] + speeds[i + 1]) / 2.0),
+            }
+            for i in range(len(pts) - 1)
+        ]
+
+        layers = [pdk.Layer(
+            "PathLayer",
+            data=segments,
+            get_path="path",
+            get_color="color",
+            get_width=4,
+            width_min_pixels=3,
+        )]
+    else:
+        # Kein Speed in den Daten -> einfarbiger Track in kräftigem Orange.
+        layers = [pdk.Layer(
+            "PathLayer",
+            data=[{"path": gps_df[["lon", "lat"]].values.tolist()}],
+            get_path="path",
+            get_color=[255, 125, 0],
+            get_width=4,
+            width_min_pixels=3,
+        )]
+
     st.pydeck_chart(
         pdk.Deck(
-            map_style=None,
+            # Heller CARTO-Basemap "Voyager" – ohne Mapbox-Token nutzbar und
+            # zeigt das Meer in hellem Blau (Positron färbt Wasser nur grau).
+            # Vorher map_style=None -> pydeck fiel auf den dunklen Default zurück.
+            map_provider="carto",
+            map_style=pdk.map_styles.CARTO_ROAD,
             initial_view_state=view_state,
-            layers=[layer],
+            layers=layers,
         ),
         use_container_width=True,
     )
+
+    if has_speed:
+        st.caption(
+            f"🟦 langsam → 🟧 schnell · Farbskala {speed_lo:.0f}–{speed_hi:.0f} km/h"
+        )
 
 
 def render_history_overview(record):
