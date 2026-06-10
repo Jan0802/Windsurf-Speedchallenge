@@ -1,0 +1,64 @@
+<svg width="600" height="600" viewBox="0 0 680 600" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Windsurfer scene emoji</title>
+<desc>A windsurfer leaning back on a board, holding a colorful sail, on a choppy sea under a dramatic golden sky, framed as a rounded emoji tile.</desc>
+<defs>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0%" stop-color="#3a4d63"/>
+<stop offset="45%" stop-color="#8a8a7a"/>
+<stop offset="70%" stop-color="#e8c07a"/>
+<stop offset="100%" stop-color="#f4dca0"/>
+</linearGradient>
+<clipPath id="tile"><rect x="40" y="40" width="600" height="520" rx="60"/></clipPath>
+</defs>
+
+<g clip-path="url(#tile)">
+<rect x="40" y="40" width="600" height="520" fill="url(#sky)"/>
+
+<ellipse cx="430" cy="225" rx="120" ry="70" fill="#fbeec4" opacity="0.55"/>
+<ellipse cx="430" cy="220" rx="55" ry="38" fill="#fff6da" opacity="0.85"/>
+
+<path d="M40 200 q90 -30 180 5 q90 30 180 -8 q90 -28 180 6 q60 18 60 12 L640 120 L40 120 Z" fill="#586173" opacity="0.5"/>
+<path d="M40 250 q120 35 240 -5 q120 -38 240 8 q60 18 120 6 L640 160 L40 160 Z" fill="#6b6f6a" opacity="0.4"/>
+
+<rect x="40" y="350" width="600" height="210" fill="#2f6e84"/>
+<path d="M40 350 q90 -22 180 4 q90 24 180 -6 q90 -22 180 4 q60 14 60 10 L640 560 L40 560 Z" fill="#3d8aa3"/>
+<path d="M40 410 q110 24 220 -6 q110 -28 220 6 q70 18 140 4 L640 560 L40 560 Z" fill="#2a6076"/>
+
+<path d="M120 420 q40 -18 80 0 q40 18 80 0" fill="none" stroke="#bfe3ec" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+<path d="M380 470 q45 -16 90 0 q45 16 90 0" fill="none" stroke="#bfe3ec" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
+<path d="M90 500 q50 -14 100 0 q50 14 100 0 q50 -14 100 0" fill="none" stroke="#cfe9f0" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+
+<g stroke="#f6e3b0" stroke-width="2" opacity="0.5">
+<line x1="360" y1="370" x2="500" y2="370"/>
+<line x1="380" y1="392" x2="470" y2="392"/>
+</g>
+
+<g transform="translate(300 300)">
+<path d="M0 -110 L70 -78 L18 92 Z" fill="#f4c430"/>
+<path d="M0 -110 L18 92 L-2 -90 Z" fill="#f7d96a"/>
+<path d="M70 -78 L52 4 L18 92 Z" fill="#e8552d"/>
+<path d="M18 92 L52 4 L30 30 Z" fill="#c33f1e"/>
+<path d="M0 -110 L70 -78 L18 92 Z" fill="none" stroke="#a8320f" stroke-width="3" stroke-linejoin="round"/>
+
+<line x1="0" y1="-110" x2="20" y2="100" stroke="#d9d2c4" stroke-width="5" stroke-linecap="round"/>
+<path d="M-30 28 q35 -14 64 -6" fill="none" stroke="#5a4632" stroke-width="5" stroke-linecap="round"/>
+
+<g fill="#1f2b2e">
+<circle cx="-34" cy="22" r="13"/>
+<path d="M-40 32 q14 18 30 14 q14 -4 18 -22 q-6 14 -20 14 q-16 0 -28 -6 Z"/>
+<path d="M-30 36 q-8 30 -18 50 q-2 8 4 8 q8 -22 22 -46 Z"/>
+<path d="M-12 40 q12 26 26 40 q4 6 8 0 q-12 -22 -26 -52 Z"/>
+<path d="M-36 30 q-22 -2 -32 6 q-4 4 2 6 q14 -6 30 -4 Z"/>
+<path d="M-22 30 q22 -8 44 -6 q6 0 2 6 q-22 -2 -42 6 Z"/>
+</g>
+
+<ellipse cx="0" cy="96" rx="92" ry="13" fill="#eef0e8"/>
+<ellipse cx="0" cy="96" rx="92" ry="13" fill="none" stroke="#c9c8b8" stroke-width="2.5"/>
+<path d="M-92 96 q92 26 184 0" fill="#d6d8cc" opacity="0.6"/>
+</g>
+
+<path d="M170 540 q60 -20 120 -4 q60 16 120 -2 q60 -18 120 2" fill="none" stroke="#e8f3f6" stroke-width="6" stroke-linecap="round" opacity="0.8"/>
+</g>
+
+<rect x="40" y="40" width="600" height="520" rx="60" fill="none" stroke="#2a4a40" stroke-width="6"/>
+</svg>
