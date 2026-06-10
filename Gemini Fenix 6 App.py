@@ -3199,8 +3199,17 @@ if bg_uri:
         f"""
 <style>
 .stApp {{
-    background: linear-gradient(rgba(2,22,43,.45), rgba(2,22,43,.62)),
-                url("{bg_uri}") center center / cover fixed no-repeat;
+    /* contain = ganzes Bild sichtbar (kein Zoom-Crop). Das Bild ist hochkant,
+       Bildschirme meist quer -> mit "cover" würde stark hineingezoomt. Die
+       Ränder füllt das dunkle Blau (background-color), sodass es wie ein
+       gerahmtes Foto wirkt statt mit hellen Balken. */
+    background-color: #02162b;
+    background-image: linear-gradient(rgba(2,22,43,.45), rgba(2,22,43,.62)),
+                      url("{bg_uri}");
+    background-position: center center;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
 }}
 </style>
 """,
