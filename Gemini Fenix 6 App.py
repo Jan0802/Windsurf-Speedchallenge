@@ -3199,15 +3199,14 @@ if bg_uri:
         f"""
 <style>
 .stApp {{
-    /* contain = ganzes Bild sichtbar (kein Zoom-Crop). Das Bild ist hochkant,
-       Bildschirme meist quer -> mit "cover" würde stark hineingezoomt. Die
-       Ränder füllt das dunkle Blau (background-color), sodass es wie ein
-       gerahmtes Foto wirkt statt mit hellen Balken. */
+    /* cover = bildschirmfüllend; bei hochkantigem Bild auf Querformat-Schirm
+       wird der mittlere Ausschnitt gezeigt (center center). Füllt komplett,
+       keine Balken. */
     background-color: #02162b;
     background-image: linear-gradient(rgba(2,22,43,.45), rgba(2,22,43,.62)),
                       url("{bg_uri}");
     background-position: center center;
-    background-size: contain;
+    background-size: cover;
     background-repeat: no-repeat;
     background-attachment: fixed;
 }}
