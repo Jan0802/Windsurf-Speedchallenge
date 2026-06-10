@@ -3563,23 +3563,43 @@ def render_account_sidebar(user):
 ensure_schema()
 
 # Login aus „Angemeldet bleiben"-Cookie wiederherstellen.
-# PERFORMANCE: Cookie wird DIREKT aus dem Request gelesen (st.context.cookies),
-# NICHT über die extra-streamlit-components-Komponente. Letztere würde bei jedem
-# Laden einen Frontend-Roundtrip + zweiten Skriptdurchlauf auslösen (Login-Screen
-# -> Rerun -> App) – ein Hauptgrund für die hohe Grundladezeit. Die Komponente
-# brauchen wir nur noch zum SETZEN des Cookies (nach dem Login, siehe unten).
+# st.context.cookies liefert auf der Streamlit Community Cloud leider nichts,
+# daher lesen wir das Cookie über die extra-streamlit-components-Komponente –
+# ABER nur, wenn noch KEIN User in der Session ist (= frischer Seitenaufruf).
+# Sobald eingeloggt, wird nichts gemountet → Reruns/Filter-Interaktionen bleiben
+# schnell. Der Komponenten-Roundtrip fällt also nur einmal beim Laden an.
 if "user" not in st.session_state:
-    try:
-        saved_token = st.context.cookies.get("surf_auth")
-        if saved_token:
-            restored = user_for_token(saved_token)
-            if restored:
-                st.session_state["user"] = {
-                    "id": restored["id"],
-                    "username": restored["username"],
-                }
-    except Exception:
-        pass
+    cm = _cookie_manager()
+    saved_token = None
+
+    if cm is not None:
+        try:
+            saved_token = cm.get("surf_auth")
+        except Exception:
+            saved_token = None
+
+    if saved_token:
+        restored = user_for_token(saved_token)
+        if restored:
+            st.session_state["user"] = {
+                "id": restored["id"],
+                "username": restored["username"],
+            }
+
+    # saved_token == None heißt: Cookie noch nicht geladen ODER nicht vorhanden.
+    # Einmal auf das Cookie-Rerun der Komponente warten, damit der Login-Screen
+    # nicht kurz aufblitzt, während das Cookie noch ankommt.
+    if (
+        "user" not in st.session_state
+        and cm is not None
+        and not st.session_state.get("_cookie_probed")
+    ):
+        st.session_state["_cookie_probed"] = True
+        st.markdown(
+            "<div style='text-align:center;margin-top:3rem;opacity:.7;'>⏳ einen Moment…</div>",
+            unsafe_allow_html=True,
+        )
+        st.stop()
 
 current_user = st.session_state.get("user")
 
@@ -3590,9 +3610,8 @@ if not current_user:
 render_account_sidebar(current_user)
 
 # „Angemeldet bleiben"-Cookie setzen – nur direkt nach dem Login (wenn ein
-# _pending_token vorliegt). Per JS aufs Eltern-Dokument, ohne Komponenten-
-# Roundtrip und ohne zweiten Skriptlauf. Gelesen wird es oben via
-# st.context.cookies.
+# _pending_token vorliegt). Per JS aufs Eltern-Dokument geschrieben; die
+# Komponente liest es beim nächsten frischen Laden wieder ein.
 if st.session_state.get("_pending_token"):
     _persist_auth_cookie(st.session_state["_pending_token"])
     st.session_state.pop("_pending_token", None)
