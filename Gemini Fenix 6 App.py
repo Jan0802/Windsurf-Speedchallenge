@@ -572,19 +572,22 @@ def get_engine():
     return engine
 
 
+@st.cache_resource(show_spinner=False)
 def ensure_schema():
-    """Legt fehlende Tabellen UND fehlende Spalten an – unabhängig vom Cache.
+    """Legt fehlende Tabellen UND fehlende Spalten an – EINMALIG PRO PROZESS.
 
     Wichtig nach einem Deploy mit NEUEN Tabellen/Spalten: get_engine() ist mit
     @st.cache_resource gecacht, sodass dessen create_all nach dem Deploy ggf.
-    nicht erneut läuft. Diese (pro Session einmalige, idempotente) Prüfung
-    stellt sicher, dass z.B. group_events/event_reads und neue Spalten wie
-    sessions.trust_score existieren. create_all legt nur fehlende TABELLEN an –
-    fehlende SPALTEN ergänzen wir per ALTER TABLE.
-    """
-    if st.session_state.get("_schema_ready"):
-        return
+    nicht erneut läuft. Diese idempotente Prüfung stellt sicher, dass z.B.
+    group_events/event_reads und neue Spalten wie sessions.trust_score
+    existieren. create_all legt nur fehlende TABELLEN an – fehlende SPALTEN
+    ergänzen wir per ALTER TABLE.
 
+    PERFORMANCE: Mit @st.cache_resource gegated (prozessweit, über alle Sessions
+    geteilt) statt über st.session_state. Sonst lief die teure Schema-Inspektion
+    (`get_columns` je Tabelle = ein Remote-Roundtrip) bei JEDEM neuen Seiten-
+    aufruf – auf einer entfernten Neon-DB mehrere Sekunden Grundladezeit.
+    """
     engine = get_engine()
     DB_METADATA.create_all(engine, checkfirst=True)
 
@@ -608,7 +611,7 @@ def ensure_schema():
         # Migration ist best-effort; ein Fehler darf die App nicht blockieren.
         pass
 
-    st.session_state["_schema_ready"] = True
+    return True
 
 
 # ---- Sessions ----
@@ -977,15 +980,17 @@ def login_session(user, remember):
         st.session_state["_pending_token"] = create_auth_token(user["id"])
 
 
-def logout_session(cookie_manager):
-    if cookie_manager is not None:
-        try:
-            token = cookie_manager.get("surf_auth")
-            if token:
-                delete_auth_token(token)
-            cookie_manager.delete("surf_auth", key="auth_cookie_del")
-        except Exception:
-            pass
+def logout_session():
+    # Token serverseitig invalidieren reicht für ein wirksames Logout: das
+    # „Angemeldet bleiben"-Cookie kann im Browser verbleiben, validiert aber
+    # nicht mehr (user_for_token gibt None). So brauchen wir hier KEINE
+    # Cookie-Komponente (die sonst einen Frontend-Roundtrip auslösen würde).
+    try:
+        token = st.context.cookies.get("surf_auth")
+        if token:
+            delete_auth_token(token)
+    except Exception:
+        pass
 
     st.session_state.pop("user", None)
 
@@ -3159,7 +3164,7 @@ if render_legal_page():
 #  Login / Registrierung (Gate vor dem Rest der App)
 # =====================================================================
 
-def render_login(cookie_manager):
+def render_login():
     st.markdown("## 🔐 Anmeldung")
     st.info(
         "Bitte einloggen oder registrieren. Danach kannst du Gruppen "
@@ -3298,12 +3303,12 @@ def render_group_news_banner(user):
     st.markdown("---")
 
 
-def render_account_sidebar(user, cookie_manager):
+def render_account_sidebar(user):
     with st.sidebar:
         st.markdown(f"### 👤 {user['username']}")
 
         if st.button("Abmelden", use_container_width=True):
-            logout_session(cookie_manager)
+            logout_session()
             st.rerun()
 
         st.markdown("---")
@@ -3523,27 +3528,23 @@ def render_account_sidebar(user, cookie_manager):
                 disabled=confirm_name != user["username"],
             ):
                 delete_account(user["id"], user["username"])
-                logout_session(cookie_manager)
+                logout_session()
                 st.success("Dein Konto und alle zugehörigen Daten wurden gelöscht.")
                 st.rerun()
 
 
-cookie_manager = _cookie_manager()
-
 # Fehlende Tabellen anlegen (z.B. nach Deploy mit neuen Tabellen) – vor jedem DB-Zugriff.
 ensure_schema()
 
-if cookie_manager is not None:
-    # Unsichtbares Cookie-Iframe ausblenden (verhindert eine Layout-Lücke)
-    st.markdown(
-        '<style>.element-container:has(iframe[height="0"]) { display:none; }</style>',
-        unsafe_allow_html=True,
-    )
-
-# Login aus „Angemeldet bleiben"-Cookie wiederherstellen
-if "user" not in st.session_state and cookie_manager is not None:
+# Login aus „Angemeldet bleiben"-Cookie wiederherstellen.
+# PERFORMANCE: Cookie wird DIREKT aus dem Request gelesen (st.context.cookies),
+# NICHT über die extra-streamlit-components-Komponente. Letztere würde bei jedem
+# Laden einen Frontend-Roundtrip + zweiten Skriptdurchlauf auslösen (Login-Screen
+# -> Rerun -> App) – ein Hauptgrund für die hohe Grundladezeit. Die Komponente
+# brauchen wir nur noch zum SETZEN des Cookies (nach dem Login, siehe unten).
+if "user" not in st.session_state:
     try:
-        saved_token = cookie_manager.get("surf_auth")
+        saved_token = st.context.cookies.get("surf_auth")
         if saved_token:
             restored = user_for_token(saved_token)
             if restored:
@@ -3557,22 +3558,30 @@ if "user" not in st.session_state and cookie_manager is not None:
 current_user = st.session_state.get("user")
 
 if not current_user:
-    render_login(cookie_manager)
+    render_login()
     st.stop()
 
-render_account_sidebar(current_user, cookie_manager)
+render_account_sidebar(current_user)
 
-# „Angemeldet bleiben"-Cookie erst hier setzen – in einem Lauf, der ganz
-# durchläuft, damit der Browser es zuverlässig speichert.
-if cookie_manager is not None and st.session_state.get("_pending_token"):
-    try:
-        cookie_manager.set(
-            "surf_auth", st.session_state["_pending_token"],
-            expires_at=datetime.now() + timedelta(days=30),
-            key="auth_cookie_set",
+# „Angemeldet bleiben"-Cookie setzen – nur direkt nach dem Login (wenn ein
+# _pending_token vorliegt). Nur HIER wird die Cookie-Komponente gemountet, also
+# nicht bei jedem normalen Seitenaufruf.
+if st.session_state.get("_pending_token"):
+    cookie_manager = _cookie_manager()
+    if cookie_manager is not None:
+        # Unsichtbares Cookie-Iframe ausblenden (verhindert eine Layout-Lücke).
+        st.markdown(
+            '<style>.element-container:has(iframe[height="0"]) { display:none; }</style>',
+            unsafe_allow_html=True,
         )
-    except Exception:
-        pass
+        try:
+            cookie_manager.set(
+                "surf_auth", st.session_state["_pending_token"],
+                expires_at=datetime.now() + timedelta(days=30),
+                key="auth_cookie_set",
+            )
+        except Exception:
+            pass
     st.session_state.pop("_pending_token", None)
 
 
