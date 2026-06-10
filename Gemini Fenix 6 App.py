@@ -207,12 +207,23 @@ def image_data_uri(path):
 
 
 @st.cache_data(show_spinner=False)
+def _bg_uri_cached(path, _mtime):
+    """base64-Kodierung des Hintergrundbilds, gecacht je (Pfad, mtime).
+
+    Die mtime ist Teil des Cache-Keys: Tauscht/aktualisierst du die Bilddatei,
+    ändert sich die mtime → der Cache lädt automatisch neu. So bleibt das teure
+    base64-Kodieren gecacht, ohne bei einem Bildwechsel das alte Bild zu zeigen.
+    """
+    return image_data_uri(path)
+
+
 def background_data_uri():
     """Findet das Hintergrundbild in mehreren Formaten und liefert die Data-URI.
 
     Reihenfolge der Kandidaten = Priorität. Du kannst das Bild als
     assets/background.webp ODER .jpg/.jpeg/.png ablegen (Fallback: header.*).
-    Gecacht, da sich die Datei nur beim Deploy ändert.
+    Die Existenz-/mtime-Prüfung läuft ungecacht (billig); nur das Kodieren ist
+    gecacht und invalidiert beim Bildwechsel automatisch.
     """
     candidates = [
         ("assets", "background.webp"),
@@ -225,9 +236,9 @@ def background_data_uri():
     ]
 
     for parts in candidates:
-        uri = image_data_uri(app_path(*parts))
-        if uri:
-            return uri
+        path = app_path(*parts)
+        if os.path.exists(path):
+            return _bg_uri_cached(path, os.path.getmtime(path))
 
     return None
 
