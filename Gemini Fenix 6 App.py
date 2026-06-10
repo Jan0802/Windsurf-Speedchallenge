@@ -1072,16 +1072,25 @@ def login_session(user, remember):
 
 
 def logout_session():
-    # Token serverseitig invalidieren reicht für ein wirksames Logout: das
-    # „Angemeldet bleiben"-Cookie kann im Browser verbleiben, validiert aber
-    # nicht mehr (user_for_token gibt None). So brauchen wir hier KEINE
-    # Cookie-Komponente (die sonst einen Frontend-Roundtrip auslösen würde).
-    try:
-        token = st.context.cookies.get("surf_auth")
-        if token:
-            delete_auth_token(token)
-    except Exception:
-        pass
+    # ALLE „Angemeldet bleiben"-Tokens des Users serverseitig löschen. Wichtig:
+    # Wir gehen über die user_id aus der Session, NICHT über das Cookie –
+    # st.context.cookies liefert auf der Streamlit Community Cloud nichts, daher
+    # würde ein Cookie-basiertes Löschen den Token nie treffen (Folge: nach dem
+    # Logout loggt das noch gültige Cookie sofort wieder ein). So ist das Cookie
+    # nach dem Logout wertlos (user_for_token gibt None) – auch ohne es im
+    # Browser zu entfernen.
+    user = st.session_state.get("user")
+
+    if user and user.get("id") is not None:
+        try:
+            with get_engine().begin() as conn:
+                conn.execute(
+                    delete(auth_tokens_table).where(
+                        auth_tokens_table.c.user_id == int(user["id"])
+                    )
+                )
+        except Exception:
+            pass
 
     st.session_state.pop("user", None)
 
