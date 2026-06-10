@@ -178,6 +178,60 @@ def image_to_base64(path):
         return base64.b64encode(f.read()).decode()
 
 
+# Endung -> MIME-Typ für base64-Data-URIs (CSS/HTML).
+_IMAGE_MIME = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+}
+
+
+def image_data_uri(path):
+    """base64-Data-URI eines Bildes inkl. passendem MIME-Typ (oder None).
+
+    Anders als image_to_base64 setzt diese Funktion den MIME-Typ anhand der
+    Dateiendung – damit funktionieren JPEG, PNG, WebP usw. gleichermaßen.
+    """
+    if not path or not os.path.exists(path):
+        return None
+
+    ext = os.path.splitext(path)[1].lower()
+    mime = _IMAGE_MIME.get(ext, "application/octet-stream")
+
+    with open(path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+
+    return f"data:{mime};base64,{b64}"
+
+
+@st.cache_data(show_spinner=False)
+def background_data_uri():
+    """Findet das Hintergrundbild in mehreren Formaten und liefert die Data-URI.
+
+    Reihenfolge der Kandidaten = Priorität. Du kannst das Bild als
+    assets/background.webp ODER .jpg/.jpeg/.png ablegen (Fallback: header.*).
+    Gecacht, da sich die Datei nur beim Deploy ändert.
+    """
+    candidates = [
+        ("assets", "background.webp"),
+        ("assets", "background.jpg"),
+        ("assets", "background.jpeg"),
+        ("assets", "background.png"),
+        ("assets", "header.webp"),
+        ("assets", "header.jpg"),
+        ("assets", "header.jpeg"),
+    ]
+
+    for parts in candidates:
+        uri = image_data_uri(app_path(*parts))
+        if uri:
+            return uri
+
+    return None
+
+
 # =====================================================================
 #  Rechtsseiten (Impressum / Datenschutz)
 #  Erreichbar über ?seite=impressum bzw. ?seite=datenschutz – BEWUSST vor
@@ -3135,20 +3189,18 @@ load_css(app_path("assets", "style.css"))
 
 logo_img = image_to_base64(app_path("assets", "windsurfer.png"))
 
-# Vollflächiges Hintergrundbild (Wasser/Surfer). Tausche assets/background.jpg
-# gegen dein Wunschfoto – Fallback ist header.jpg.
-bg_img = (
-    image_to_base64(app_path("assets", "background.jpg"))
-    or image_to_base64(app_path("assets", "header.jpg"))
-)
+# Vollflächiges Hintergrundbild (Wasser/Surfer). Lege dein Wunschfoto als
+# assets/background.webp ODER .jpg/.jpeg/.png ab (Fallback: header.*). Der
+# MIME-Typ wird automatisch passend zur Datei gesetzt.
+bg_uri = background_data_uri()
 
-if bg_img:
+if bg_uri:
     st.markdown(
         f"""
 <style>
 .stApp {{
     background: linear-gradient(rgba(2,22,43,.45), rgba(2,22,43,.62)),
-                url("data:image/jpeg;base64,{bg_img}") center center / cover fixed no-repeat;
+                url("{bg_uri}") center center / cover fixed no-repeat;
 }}
 </style>
 """,
