@@ -1786,7 +1786,7 @@ def render_personal_bests(name, results_container):
             if pb_table_caption:
                 st.caption(pb_table_caption)
 
-            st.dataframe(pb_table, use_container_width=True, hide_index=True)
+            st.dataframe(pb_table, width="stretch", hide_index=True, height=df_height(len(pb_table)))
 
         st.markdown("---")
 
@@ -2224,17 +2224,23 @@ def get_forecast(lat, lon):
 # – nicht auf die geteilte Streamlit-Cloud-IP, die sonst 429-Fehler verursacht.
 _WEATHER_HTML = """
 <!DOCTYPE html><html><head><meta charset="utf-8"><style>
-  :root { color-scheme: dark; }
-  body { margin:0; background:transparent; color:#eaf4ff;
+  /* KEIN color-scheme:dark – das zwang den Browser, hinter dem transparenten
+     Body eine dunkle Fläche zu zeichnen (der „schwarze Kasten"). Ohne das und
+     mit transparentem html/body ist der Iframe wirklich durchsichtig, sodass
+     der Seitenhintergrund durchscheint. Textfarbe setzen wir selbst hell. */
+  html, body { background: transparent !important; }
+  body { margin:0; color:#eaf4ff;
          font-family: "Source Sans Pro", system-ui, -apple-system, sans-serif; }
-  .now { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 10px 0; }
-  .card { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25);
-          border-radius:16px; padding:9px 14px; min-width:120px;
-          -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+  /* Kein dunkler Wrapper: die aktuellen Karten schweben direkt auf dem
+     Hintergrund (wie der Bereich „Aktuell & Vorhersage" darüber). */
+  .current { background:transparent; border:none; padding:0; margin:0 0 14px 0; }
+  .now { display:flex; flex-wrap:wrap; gap:10px; margin:0; }
+  .card { background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.22);
+          border-radius:14px; padding:9px 14px; min-width:120px; flex:1 1 130px; }
   .card .lbl { font-size:12px; opacity:.8; }
   .card .val { font-size:20px; font-weight:800; }
   .card .sub { font-size:12px; opacity:.85; min-height:1em; }
-  .dir { font-size:13px; opacity:.92; margin:2px 0 12px; }
+  .dir { font-size:13px; opacity:.92; margin:10px 0 0; }
   h4 { margin:6px 0 8px; font-weight:800; }
   table { width:100%; border-collapse:collapse; font-size:13px;
           background:rgba(8,28,52,.35); border-radius:12px; overflow:hidden; }
@@ -2265,13 +2271,14 @@ fetch(URL).then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return
   .catch(function(e){ document.getElementById("w").innerHTML='<div class="warn">Wetterdienst (Open-Meteo) gerade nicht erreichbar – bitte später erneut versuchen.</div><div class="muted">Technischer Grund: '+e.message+'</div>'; });
 function render(data){
   const c=data.current||{}; const cc=wc(c.weather_code); const rain=(c.precipitation||0);
-  let out='<div class="now">';
+  let out='<div class="current"><div class="now">';
   out+='<div class="card"><div class="lbl">Wind</div><div class="val">'+r0(c.wind_speed_10m)+' km/h</div><div class="sub">'+(c.wind_gusts_10m==null?'':'Böen '+r0(c.wind_gusts_10m)+' km/h')+'</div></div>';
   out+='<div class="card"><div class="lbl">Temperatur</div><div class="val">'+f1(c.temperature_2m)+' °C</div><div class="sub"></div></div>';
   out+='<div class="card"><div class="lbl">Regen</div><div class="val">'+(rain>0?'Ja':'Nein')+'</div><div class="sub">'+(rain>0?f1(rain)+' mm':'')+'</div></div>';
   out+='<div class="card"><div class="lbl">Bedingung</div><div class="val">'+cc[0]+'</div><div class="sub">'+cc[1]+'</div></div>';
   out+='</div>';
   if(c.wind_direction_10m!=null){ out+='<div class="dir">🧭 Wind aus <b>'+comp(c.wind_direction_10m)+'</b> '+arr(c.wind_direction_10m)+' ('+r0(c.wind_direction_10m)+'°)</div>'; }
+  out+='</div>';
   const h=data.hourly||{}; const t=h.time||[]; const nowt=c.time||"";
   let start=0; for(let i=0;i<t.length;i++){ if(t[i]>=nowt){ start=i; break; } }
   const dayH={9:1,12:1,15:1,18:1,21:1}; const seen=[]; let rows=""; let lastDay=null;
@@ -2471,6 +2478,17 @@ def _enrich_ranking(ranking):
     return ranking
 
 
+def df_height(n_rows, max_rows=15):
+    """Exakte Pixel-Höhe für st.dataframe, damit die Box ohne Leerraum gefüllt
+    ist (kein Default-Leerraum unter wenigen Zeilen).
+
+    Streamlit rendert Kopf- und Datenzeilen mit ~35 px. Bei mehr als `max_rows`
+    Zeilen wird gedeckelt – dann scrollt die Tabelle innerhalb der gefüllten Box.
+    """
+    rows = min(max(int(n_rows), 1), max_rows)
+    return (rows + 1) * 35 + 3
+
+
 def _render_ranking_tables(ranking, group_choice, member_groups, months,
                            spot_filter, year_filter, month_filter, day_filter):
     """Rendert die vier Ranking-Tabellen – reine Anzeige (keine Widgets)."""
@@ -2528,6 +2546,9 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     # (Fragment-)Rerun, solange sich das gefilterte Ranking nicht ändert.
     ranking = _enrich_ranking(ranking)
 
+    # 2x2-Raster. width="stretch" (moderne API, ersetzt das veraltete
+    # use_container_width) lässt jede Tabelle ihre Box voll ausfüllen; bei vielen
+    # Spalten ist sie innerhalb der Box horizontal scrollbar.
     rcol1, rcol2 = st.columns(2)
 
     with rcol1:
@@ -2563,11 +2584,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "speed_30s_kn": "30s kn",
         })
 
-        st.dataframe(
-            r30,
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.dataframe(r30, width="stretch", hide_index=True, height=df_height(len(r30)))
 
     with rcol2:
         st.markdown("### ⚡ Topgeschwindigkeit 1 Sekunde")
@@ -2602,11 +2619,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "speed_1s_kn": "1s kn",
         })
 
-        st.dataframe(
-            r1,
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.dataframe(r1, width="stretch", hide_index=True, height=df_height(len(r1)))
 
     rcol3, rcol4 = st.columns(2)
 
@@ -2643,11 +2656,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "longest_run_m": "Run m",
         })
 
-        st.dataframe(
-            rrun,
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.dataframe(rrun, width="stretch", hide_index=True, height=df_height(len(rrun)))
 
     with rcol4:
         st.markdown("### 👥 Längste Gesamtstrecke je Fahrer")
@@ -2671,11 +2680,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "last_date": "Letzte Session",
         })
 
-        st.dataframe(
-            rtotal,
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.dataframe(rtotal, width="stretch", hide_index=True, height=df_height(len(rtotal)))
 
 
 def semicircles_to_degrees(value):
@@ -3185,8 +3190,9 @@ def render_history_overview(record):
 
     st.dataframe(
         speed_table.round(2),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
+        height=df_height(len(speed_table)),
     )
 
     st.caption(
@@ -3822,8 +3828,9 @@ with left:
 
                     st.dataframe(
                         show_history,
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True,
+                        height=df_height(len(show_history)),
                     )
 
                     if len(history_full) > len(history):
@@ -4197,8 +4204,9 @@ if fit_source is not None:
 
         st.dataframe(
             speed_table.round(2),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
+            height=df_height(len(speed_table)),
         )
 
         with st.expander("🌊 Erkannte Runs / Einzelstrecken", expanded=False):
@@ -4213,8 +4221,9 @@ if fit_source is not None:
 
                 st.dataframe(
                     show_runs,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
+                    height=df_height(len(show_runs)),
                 )
             else:
                 st.info("Keine Runs erkannt. Eventuell Grenzwerte anpassen.")
@@ -4283,7 +4292,8 @@ if fit_source is not None:
     with st.expander("📋 Rohdaten", expanded=False):
         st.dataframe(
             df.head(100),
-            use_container_width=True,
+            width="stretch",
+            height=df_height(min(len(df), 100)),
         )
 
         csv = df.to_csv(index=False).encode("utf-8")
