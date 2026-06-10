@@ -970,6 +970,32 @@ def _cookie_manager():
         return None
 
 
+def _persist_auth_cookie(token, days=30):
+    """Setzt das „Angemeldet bleiben"-Cookie direkt im Browser.
+
+    Bewusst per JS auf ``window.parent.document`` (das echte App-Dokument), NICHT
+    über eine Streamlit-Cookie-Komponente: ``components.html`` löst keinen zweiten
+    Skriptlauf aus (anders als extra-streamlit-components), und das Cookie liegt
+    auf der App-Domain – so kann es beim nächsten Laden direkt über
+    ``st.context.cookies`` gelesen werden. Same-Origin-Zugriff aufs Eltern-
+    Dokument funktioniert hier (siehe auch autocollapse_sidebar).
+    """
+    max_age = int(days * 86400)
+    safe = json.dumps(token)  # sicheres JS-String-Literal
+
+    components.html(
+        f"""
+        <script>
+          try {{
+            window.parent.document.cookie =
+              "surf_auth=" + {safe} + "; max-age={max_age}; path=/; SameSite=Lax";
+          }} catch (e) {{}}
+        </script>
+        """,
+        height=0,
+    )
+
+
 def login_session(user, remember):
     st.session_state["user"] = {"id": user["id"], "username": user["username"]}
 
@@ -3564,24 +3590,11 @@ if not current_user:
 render_account_sidebar(current_user)
 
 # „Angemeldet bleiben"-Cookie setzen – nur direkt nach dem Login (wenn ein
-# _pending_token vorliegt). Nur HIER wird die Cookie-Komponente gemountet, also
-# nicht bei jedem normalen Seitenaufruf.
+# _pending_token vorliegt). Per JS aufs Eltern-Dokument, ohne Komponenten-
+# Roundtrip und ohne zweiten Skriptlauf. Gelesen wird es oben via
+# st.context.cookies.
 if st.session_state.get("_pending_token"):
-    cookie_manager = _cookie_manager()
-    if cookie_manager is not None:
-        # Unsichtbares Cookie-Iframe ausblenden (verhindert eine Layout-Lücke).
-        st.markdown(
-            '<style>.element-container:has(iframe[height="0"]) { display:none; }</style>',
-            unsafe_allow_html=True,
-        )
-        try:
-            cookie_manager.set(
-                "surf_auth", st.session_state["_pending_token"],
-                expires_at=datetime.now() + timedelta(days=30),
-                key="auth_cookie_set",
-            )
-        except Exception:
-            pass
+    _persist_auth_cookie(st.session_state["_pending_token"])
     st.session_state.pop("_pending_token", None)
 
 
