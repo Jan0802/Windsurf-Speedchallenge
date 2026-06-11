@@ -80,46 +80,46 @@ RANKING_FILE = app_path("ranking.csv")
 PROFILES_FILE = app_path("profiles.json")
 SPOTS_FILE = app_path("spots.json")
 
-NEW_ENTRY = "➕ Neu eingeben..."
+NEW_ENTRY = "➕ Add new..."
 
 # WMO-Wettercodes -> (Emoji, Beschreibung)
 WEATHER_CODES = {
-    0: ("☀️", "Klar"),
-    1: ("🌤️", "Überwiegend klar"),
-    2: ("⛅", "Teils bewölkt"),
-    3: ("☁️", "Bedeckt"),
-    45: ("🌫️", "Nebel"),
-    48: ("🌫️", "Reifnebel"),
-    51: ("🌦️", "Leichter Nieselregen"),
-    53: ("🌦️", "Nieselregen"),
-    55: ("🌧️", "Starker Nieselregen"),
-    61: ("🌦️", "Leichter Regen"),
-    63: ("🌧️", "Regen"),
-    65: ("🌧️", "Starker Regen"),
-    66: ("🌧️", "Gefrierender Regen"),
-    67: ("🌧️", "Starker gefrierender Regen"),
-    71: ("🌨️", "Leichter Schneefall"),
-    73: ("🌨️", "Schneefall"),
-    75: ("❄️", "Starker Schneefall"),
-    77: ("🌨️", "Schneegriesel"),
-    80: ("🌦️", "Leichte Schauer"),
-    81: ("🌧️", "Schauer"),
-    82: ("⛈️", "Heftige Schauer"),
-    85: ("🌨️", "Schneeschauer"),
-    86: ("❄️", "Starke Schneeschauer"),
-    95: ("⛈️", "Gewitter"),
-    96: ("⛈️", "Gewitter mit Hagel"),
-    99: ("⛈️", "Schweres Gewitter mit Hagel"),
+    0: ("☀️", "Clear"),
+    1: ("🌤️", "Mainly clear"),
+    2: ("⛅", "Partly cloudy"),
+    3: ("☁️", "Overcast"),
+    45: ("🌫️", "Fog"),
+    48: ("🌫️", "Rime fog"),
+    51: ("🌦️", "Light drizzle"),
+    53: ("🌦️", "Drizzle"),
+    55: ("🌧️", "Heavy drizzle"),
+    61: ("🌦️", "Light rain"),
+    63: ("🌧️", "Rain"),
+    65: ("🌧️", "Heavy rain"),
+    66: ("🌧️", "Freezing rain"),
+    67: ("🌧️", "Heavy freezing rain"),
+    71: ("🌨️", "Light snowfall"),
+    73: ("🌨️", "Snowfall"),
+    75: ("❄️", "Heavy snowfall"),
+    77: ("🌨️", "Snow grains"),
+    80: ("🌦️", "Light showers"),
+    81: ("🌧️", "Showers"),
+    82: ("⛈️", "Violent showers"),
+    85: ("🌨️", "Snow showers"),
+    86: ("❄️", "Heavy snow showers"),
+    95: ("⛈️", "Thunderstorm"),
+    96: ("⛈️", "Thunderstorm with hail"),
+    99: ("⛈️", "Severe thunderstorm with hail"),
 }
 
 WEEKDAYS = [
-    "Montag", "Dienstag", "Mittwoch", "Donnerstag",
-    "Freitag", "Samstag", "Sonntag",
+    "Monday", "Tuesday", "Wednesday", "Thursday",
+    "Friday", "Saturday", "Sunday",
 ]
 
-# 16-Punkte-Kompass (deutsche Abkürzungen, O = Ost)
+# 16-Punkte-Kompass (O = Ost im Deutschen -> E im Englischen)
 COMPASS = [
-    "N", "NNO", "NO", "ONO", "O", "OSO", "SO", "SSO",
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
     "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
 ]
 
@@ -874,13 +874,13 @@ def register_user(username, password):
     username = (username or "").strip()
 
     if not username or not password:
-        return False, "Benutzername und Passwort dürfen nicht leer sein."
+        return False, "Username and password must not be empty."
 
     if len(password) < 6:
-        return False, "Das Passwort muss mindestens 6 Zeichen haben."
+        return False, "The password must be at least 6 characters long."
 
     if get_user(username):
-        return False, "Dieser Benutzername ist bereits vergeben."
+        return False, "This username is already taken."
 
     salt = secrets.token_hex(16)
 
@@ -891,7 +891,7 @@ def register_user(username, password):
             salt=salt,
         ))
 
-    return True, "Registrierung erfolgreich – du kannst dich jetzt einloggen."
+    return True, "Registration successful – you can now log in."
 
 
 def verify_login(username, password):
@@ -1099,7 +1099,7 @@ def logout_session():
 #  Gruppen
 # =====================================================================
 
-ALL_GROUP = "Alle"
+ALL_GROUP = "All"
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -1114,10 +1114,10 @@ def create_group(name, owner_id, is_private):
     name = (name or "").strip()
 
     if not name:
-        return False, "Bitte einen Gruppennamen eingeben."
+        return False, "Please enter a group name."
 
     if name.lower() == ALL_GROUP.lower():
-        return False, "Dieser Name ist reserviert."
+        return False, "This name is reserved."
 
     with get_engine().begin() as conn:
         exists = conn.execute(
@@ -1125,7 +1125,7 @@ def create_group(name, owner_id, is_private):
         ).first()
 
         if exists:
-            return False, "Es gibt bereits eine Gruppe mit diesem Namen."
+            return False, "A group with this name already exists."
 
         result = conn.execute(insert(groups_table).values(
             name=name, is_private=bool(is_private), owner_id=owner_id
@@ -1138,7 +1138,7 @@ def create_group(name, owner_id, is_private):
 
     clear_data_caches()
 
-    return True, f"Gruppe „{name}“ wurde erstellt."
+    return True, f"Group \"{name}\" was created."
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -1179,7 +1179,7 @@ def join_or_request_group(user_id, group_id):
         ).mappings().first()
 
         if not group:
-            return False, "Gruppe nicht gefunden."
+            return False, "Group not found."
 
         existing = conn.execute(
             select(memberships_table).where(
@@ -1189,7 +1189,7 @@ def join_or_request_group(user_id, group_id):
         ).first()
 
         if existing:
-            return False, "Du bist dieser Gruppe bereits zugeordnet."
+            return False, "You are already part of this group."
 
         status = "pending" if group["is_private"] else "member"
 
@@ -1200,9 +1200,9 @@ def join_or_request_group(user_id, group_id):
     clear_data_caches()
 
     if status == "pending":
-        return True, "Beitritt angefragt – der Ersteller muss dich freischalten."
+        return True, "Join requested – the owner has to approve you."
 
-    return True, "Du bist der Gruppe beigetreten."
+    return True, "You have joined the group."
 
 
 def leave_group(user_id, group_id):
@@ -1237,10 +1237,10 @@ def delete_group(group_id, owner_id):
         ).mappings().first()
 
         if not group:
-            return False, "Gruppe nicht gefunden."
+            return False, "Group not found."
 
         if group["owner_id"] != owner_id:
-            return False, "Nur der Ersteller kann die Gruppe löschen."
+            return False, "Only the owner can delete the group."
 
         count = conn.execute(
             select(func.count())
@@ -1250,8 +1250,8 @@ def delete_group(group_id, owner_id):
 
         if count and count > 1:
             return False, (
-                "Löschen ist nur möglich, wenn du allein in der Gruppe bist "
-                "(weitere Mitglieder oder offene Anfragen zuerst entfernen)."
+                "You can only delete the group when you are the only one in it "
+                "(remove other members or pending requests first)."
             )
 
         conn.execute(
@@ -1261,7 +1261,7 @@ def delete_group(group_id, owner_id):
 
     clear_data_caches()
 
-    return True, f"Gruppe {group['name']} wurde gelöscht."
+    return True, f"Group {group['name']} was deleted."
 
 
 def pending_requests(group_id):
@@ -1300,7 +1300,7 @@ def invite_user(group_id, username):
     user = get_user((username or "").strip())
 
     if not user:
-        return False, "Kein Nutzer mit diesem Benutzernamen gefunden."
+        return False, "No user found with this username."
 
     with get_engine().begin() as conn:
         existing = conn.execute(
@@ -1312,7 +1312,7 @@ def invite_user(group_id, username):
 
         if existing:
             if existing["status"] == "member":
-                return False, f"{user['username']} ist bereits Mitglied."
+                return False, f"{user['username']} is already a member."
 
             conn.execute(
                 update(memberships_table)
@@ -1322,12 +1322,12 @@ def invite_user(group_id, username):
                 )
                 .values(status="member")
             )
-            message = f"{user['username']} wurde freigeschaltet."
+            message = f"{user['username']} was approved."
         else:
             conn.execute(insert(memberships_table).values(
                 user_id=user["id"], group_id=group_id, status="member"
             ))
-            message = f"{user['username']} wurde zur Gruppe hinzugefügt."
+            message = f"{user['username']} was added to the group."
 
     clear_data_caches()
 
@@ -1431,10 +1431,10 @@ def delete_user_pref(username):
 
 # Alle vier Wertungen – jeweils „höher ist besser".
 RECORD_METRICS = [
-    {"key": "speed_1s_kmh", "label": "Topspeed 1 s", "unit": "km/h", "decimals": 2},
-    {"key": "speed_30s_kmh", "label": "Topspeed 30 s", "unit": "km/h", "decimals": 2},
-    {"key": "longest_run_km", "label": "Längster Run", "unit": "km", "decimals": 3},
-    {"key": "total_distance_km", "label": "Gesamtstrecke", "unit": "km", "decimals": 2},
+    {"key": "speed_1s_kmh", "label": "Top speed 1 s", "unit": "km/h", "decimals": 2},
+    {"key": "speed_30s_kmh", "label": "Top speed 30 s", "unit": "km/h", "decimals": 2},
+    {"key": "longest_run_km", "label": "Longest run", "unit": "km", "decimals": 3},
+    {"key": "total_distance_km", "label": "Total distance", "unit": "km", "decimals": 2},
 ]
 
 
@@ -1558,13 +1558,13 @@ def record_group_events(username, group_events):
 
         if e.get("is_record"):
             message = (
-                f"🏆 {username} hat einen neuen Gruppenrekord aufgestellt: "
-                f"{e['label']} {value_str} (Gruppe {e['group_name']})."
+                f"🏆 {username} set a new group record: "
+                f"{e['label']} {value_str} (group {e['group_name']})."
             )
         else:
             message = (
-                f"🏅 {username} ist auf Platz {e['rank']} bei {e['label']} "
-                f"in Gruppe {e['group_name']} ({value_str})."
+                f"🏅 {username} is in rank {e['rank']} for {e['label']} "
+                f"in group {e['group_name']} ({value_str})."
             )
 
         rows.append({
@@ -1635,10 +1635,10 @@ def personal_bests(name, spot=None, year=None):
     if df.empty:
         return []
 
-    if spot and spot != "Alle" and "surfspot" in df.columns:
+    if spot and spot != "All" and "surfspot" in df.columns:
         df = df[df["surfspot"].astype(str) == spot]
 
-    if year and year != "Alle" and "date" in df.columns:
+    if year and year != "All" and "date" in df.columns:
         df = df[pd.to_datetime(df["date"], errors="coerce").dt.year == int(year)]
 
     return [
@@ -1652,7 +1652,7 @@ def personal_bests(name, spot=None, year=None):
     ]
 
 
-def personal_best_table(df, spot="Alle", year="Alle", board="Alle", max_bft=None, limit=10):
+def personal_best_table(df, spot="All", year="All", board="All", max_bft=None, limit=10):
     """Bis zu `limit` beste Sessions eines Fahrers als Speed-Tabelle.
 
     Sortiert nach Topspeed 1 s (absteigend). Optional gefiltert nach Spot, Jahr,
@@ -1663,13 +1663,13 @@ def personal_best_table(df, spot="Alle", year="Alle", board="Alle", max_bft=None
     """
     data = df.copy()
 
-    if spot and spot != "Alle" and "surfspot" in data.columns:
+    if spot and spot != "All" and "surfspot" in data.columns:
         data = data[data["surfspot"].astype(str) == spot]
 
-    if year and year != "Alle" and "date" in data.columns:
+    if year and year != "All" and "date" in data.columns:
         data = data[pd.to_datetime(data["date"], errors="coerce").dt.year == int(year)]
 
-    if board and board != "Alle" and "board" in data.columns:
+    if board and board != "All" and "board" in data.columns:
         data = data[data["board"].astype(str) == board]
 
     if max_bft is not None and "wind_kmh" in data.columns:
@@ -1688,10 +1688,10 @@ def personal_best_table(df, spot="Alle", year="Alle", board="Alle", max_bft=None
         return pd.DataFrame(), ""
 
     out = pd.DataFrame()
-    out["Platz"] = range(1, len(data) + 1)
+    out["Rank"] = range(1, len(data) + 1)
 
     if "date" in data.columns:
-        out["Datum"] = [
+        out["Date"] = [
             "" if pd.isna(d) else d.strftime("%Y-%m-%d")
             for d in pd.to_datetime(data["date"], errors="coerce")
         ]
@@ -1716,15 +1716,15 @@ def personal_best_table(df, spot="Alle", year="Alle", board="Alle", max_bft=None
         out["30 s (kn)"] = (s30 / 1.852).round(2).values
 
     parts = []
-    if spot and spot != "Alle":
+    if spot and spot != "All":
         parts.append(f"Spot: {spot}")
-    if year and year != "Alle":
-        parts.append(f"Jahr: {year}")
-    if board and board != "Alle":
+    if year and year != "All":
+        parts.append(f"Year: {year}")
+    if board and board != "All":
         parts.append(f"Board: {board}")
     if max_bft is not None:
         parts.append(f"≤ {max_bft} Bft")
-    caption = " · ".join(parts) if parts else "Alle Spots · alle Jahre"
+    caption = " · ".join(parts) if parts else "All spots · all years"
 
     return out, caption
 
@@ -1741,9 +1741,9 @@ def render_personal_best_filter(name):
     """
     pb_df = load_rider_sessions(name)
 
-    with st.expander("🏅 Meine Bestleistungen", expanded=False):
+    with st.expander("🏅 Personal Bests", expanded=False):
         if pb_df.empty:
-            st.info("Noch keine Sessions – lade eine FIT-Datei hoch.")
+            st.info("No sessions yet – upload a FIT file.")
             return None, ""
 
         pb_spots = sorted(
@@ -1761,28 +1761,28 @@ def render_personal_best_filter(name):
         )
 
         cpb1, cpb2 = st.columns(2)
-        spot_pb = cpb1.selectbox("Spot", ["Alle"] + pb_spots, key=f"pb_spot_{name}")
+        spot_pb = cpb1.selectbox("Spot", ["All"] + pb_spots, key=f"pb_spot_{name}")
         year_pb = cpb2.selectbox(
-            "Jahr", ["Alle"] + [str(y) for y in pb_years], key=f"pb_year_{name}"
+            "Year", ["All"] + [str(y) for y in pb_years], key=f"pb_year_{name}"
         )
 
         cpb3, cpb4 = st.columns(2)
         board_pb = cpb3.selectbox(
-            "Board", ["Alle"] + pb_boards, key=f"pb_board_{name}"
+            "Board", ["All"] + pb_boards, key=f"pb_board_{name}"
         )
         wind_pb = cpb4.selectbox(
-            "Max. Wind",
-            ["Alle"] + [f"≤ {b} Bft" for b in range(2, 11)],
+            "Max. wind",
+            ["All"] + [f"≤ {b} Bft" for b in range(2, 11)],
             key=f"pb_wind_{name}",
-            help="Zeigt nur Sessions bis zu dieser Windstärke – z.B. „≤ 5 Bft“ "
-                 "für: Wie schnell war ich bei höchstens 5 Beaufort?",
+            help="Shows only sessions up to this wind force – e.g. \"≤ 5 Bft\" "
+                 "for: How fast was I at no more than 5 Beaufort?",
         )
-        max_bft_pb = None if wind_pb == "Alle" else int(wind_pb.split()[1])
+        max_bft_pb = None if wind_pb == "All" else int(wind_pb.split()[1])
 
         pb_table, pb_table_caption = personal_best_table(
             pb_df, spot_pb, year_pb, board_pb, max_bft_pb
         )
-        st.caption("➡️ Deine Top-10-Speedtabelle siehst du im Hauptfenster.")
+        st.caption("➡️ Your top 10 speed table is shown in the main window.")
 
     return pb_table, pb_table_caption
 
@@ -1793,10 +1793,10 @@ def render_personal_best_table(pb_table, pb_table_caption):
     if pb_table is None:
         return
 
-    st.markdown("## 🏅 Meine Bestleistungen")
+    st.markdown("## 🏅 Personal Bests")
 
     if pb_table.empty:
-        st.info("Keine Sessions für diese Auswahl.")
+        st.info("No sessions for this selection.")
     else:
         if pb_table_caption:
             st.caption(pb_table_caption)
@@ -1812,11 +1812,11 @@ def render_session_history(name):
     die Detailansicht im Hauptfenster gewählten Datensatz zurück (oder None)."""
     selected = None
 
-    with st.expander("📅 Meine Sessions ansehen", expanded=False):
+    with st.expander("📅 View my sessions", expanded=False):
         history = load_rider_sessions(name)
 
         if history.empty:
-            st.info("Noch keine gespeicherten Sessions für diesen Fahrer.")
+            st.info("No saved sessions for this rider yet.")
             return None
 
         valid_dates = history["date"].dropna() if "date" in history.columns else pd.Series(dtype="datetime64[ns]")
@@ -1826,7 +1826,7 @@ def render_session_history(name):
             max_date = valid_dates.max().date()
 
             date_range = st.date_input(
-                "Zeitraum filtern",
+                "Filter by date range",
                 value=(min_date, max_date),
                 min_value=min_date,
                 max_value=max_date,
@@ -1846,7 +1846,7 @@ def render_session_history(name):
         history = history_full.head(10)
 
         if history_full.empty:
-            st.info("Keine Sessions im gewählten Zeitraum.")
+            st.info("No sessions in the selected date range.")
         else:
             columns = [
                 "date", "surfspot", "board", "sail",
@@ -1859,14 +1859,14 @@ def render_session_history(name):
                 show_history["date"] = show_history["date"].dt.strftime("%Y-%m-%d")
 
             show_history = show_history.rename(columns={
-                "date": "Datum",
-                "surfspot": "Surfspot",
+                "date": "Date",
+                "surfspot": "Surf spot",
                 "board": "Board",
-                "sail": "Segel",
+                "sail": "Sail",
                 "speed_30s_kmh": "30s km/h",
                 "speed_1s_kmh": "1s km/h",
                 "longest_run_km": "Run km",
-                "total_distance_km": "Strecke km",
+                "total_distance_km": "Distance km",
             })
 
             st.dataframe(
@@ -1878,9 +1878,9 @@ def render_session_history(name):
 
             if len(history_full) > len(history):
                 st.caption(
-                    f"Tabelle zeigt die letzten {len(history)} – im Dropdown "
-                    f"sind alle {len(history_full)} wählbar. "
-                    "(Löschen unter „Konto & Daten löschen“.)"
+                    f"Table shows the last {len(history)} – all {len(history_full)} "
+                    f"are selectable in the dropdown. "
+                    "(Delete under \"Account & delete data\".)"
                 )
 
             # Dropdown über ALLE (gefilterten) Sessions, nicht nur die 10 in der
@@ -1910,7 +1910,7 @@ def render_session_history(name):
                 record_by_label[label] = row
 
             chosen_label = st.selectbox(
-                "Session-Details rechts anzeigen",
+                "Show session details on the right",
                 ["—"] + list(record_by_label.keys()),
                 key=f"history_pick_{name}",
             )
@@ -2382,32 +2382,32 @@ _WEATHER_HTML = """
           border-radius:12px; padding:12px 14px; }
   .muted { opacity:.7; font-size:12px; margin-top:6px; }
 </style></head><body>
-<div id="w">Lade Wetter…</div>
+<div id="w">Loading weather…</div>
 <script>
 const LAT=__LAT__, LON=__LON__;
-const WMO={0:["☀️","Klar"],1:["🌤️","Überwiegend klar"],2:["⛅","Teils bewölkt"],3:["☁️","Bedeckt"],45:["🌫️","Nebel"],48:["🌫️","Reifnebel"],51:["🌦️","Leichter Nieselregen"],53:["🌦️","Nieselregen"],55:["🌧️","Starker Nieselregen"],61:["🌦️","Leichter Regen"],63:["🌧️","Regen"],65:["🌧️","Starker Regen"],66:["🌧️","Gefrierender Regen"],67:["🌧️","Starker gefrierender Regen"],71:["🌨️","Leichter Schneefall"],73:["🌨️","Schneefall"],75:["❄️","Starker Schneefall"],77:["🌨️","Schneegriesel"],80:["🌦️","Leichte Schauer"],81:["🌧️","Schauer"],82:["⛈️","Heftige Schauer"],85:["🌨️","Schneeschauer"],86:["❄️","Starke Schneeschauer"],95:["⛈️","Gewitter"],96:["⛈️","Gewitter mit Hagel"],99:["⛈️","Schweres Gewitter mit Hagel"]};
-const COMPASS=["N","NNO","NO","ONO","O","OSO","SO","SSO","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const WMO={0:["☀️","Clear"],1:["🌤️","Mainly clear"],2:["⛅","Partly cloudy"],3:["☁️","Overcast"],45:["🌫️","Fog"],48:["🌫️","Rime fog"],51:["🌦️","Light drizzle"],53:["🌦️","Drizzle"],55:["🌧️","Heavy drizzle"],61:["🌦️","Light rain"],63:["🌧️","Rain"],65:["🌧️","Heavy rain"],66:["🌧️","Freezing rain"],67:["🌧️","Heavy freezing rain"],71:["🌨️","Light snowfall"],73:["🌨️","Snowfall"],75:["❄️","Heavy snowfall"],77:["🌨️","Snow grains"],80:["🌦️","Light showers"],81:["🌧️","Showers"],82:["⛈️","Violent showers"],85:["🌨️","Snow showers"],86:["❄️","Heavy snow showers"],95:["⛈️","Thunderstorm"],96:["⛈️","Thunderstorm with hail"],99:["⛈️","Severe thunderstorm with hail"]};
+const COMPASS=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const ARROWS=["⬆️","↗️","➡️","↘️","⬇️","↙️","⬅️","↖️"];
-const WD=["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
+const WD=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 function comp(d){ if(d==null) return ""; return COMPASS[Math.round(d/22.5)%16]; }
 function arr(d){ if(d==null) return ""; return ARROWS[Math.round(((d+180)%360)/45)%8]; }
 function bft(k){ if(k==null) return ""; const L=[1,5,11,19,28,38,49,61,74,88,102,117]; for(let i=0;i<L.length;i++){ if(k<=L[i]) return i; } return 12; }
-function wc(c){ return WMO[c]||["❓","Unbekannt"]; }
+function wc(c){ return WMO[c]||["❓","Unknown"]; }
 function f1(x){ return (x==null)?"–":(Math.round(x*10)/10).toFixed(1); }
 function r0(x){ return (x==null)?"–":Math.round(x); }
 const URL="https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+"&current=temperature_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=kmh&timezone=auto&forecast_days=4";
 fetch(URL).then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
   .then(render)
-  .catch(function(e){ document.getElementById("w").innerHTML='<div class="warn">Wetterdienst (Open-Meteo) gerade nicht erreichbar – bitte später erneut versuchen.</div><div class="muted">Technischer Grund: '+e.message+'</div>'; });
+  .catch(function(e){ document.getElementById("w").innerHTML='<div class="warn">Weather service (Open-Meteo) is currently unavailable – please try again later.</div><div class="muted">Technical reason: '+e.message+'</div>'; });
 function render(data){
   const c=data.current||{}; const cc=wc(c.weather_code); const rain=(c.precipitation||0);
   let out='<div class="current"><div class="now">';
-  out+='<div class="card"><div class="lbl">Wind</div><div class="val">'+r0(c.wind_speed_10m)+' km/h</div><div class="sub">'+(c.wind_gusts_10m==null?'':'Böen '+r0(c.wind_gusts_10m)+' km/h')+'</div></div>';
-  out+='<div class="card"><div class="lbl">Temperatur</div><div class="val">'+f1(c.temperature_2m)+' °C</div><div class="sub"></div></div>';
-  out+='<div class="card"><div class="lbl">Regen</div><div class="val">'+(rain>0?'Ja':'Nein')+'</div><div class="sub">'+(rain>0?f1(rain)+' mm':'')+'</div></div>';
-  out+='<div class="card"><div class="lbl">Bedingung</div><div class="val">'+cc[0]+'</div><div class="sub">'+cc[1]+'</div></div>';
+  out+='<div class="card"><div class="lbl">Wind</div><div class="val">'+r0(c.wind_speed_10m)+' km/h</div><div class="sub">'+(c.wind_gusts_10m==null?'':'Gusts '+r0(c.wind_gusts_10m)+' km/h')+'</div></div>';
+  out+='<div class="card"><div class="lbl">Temperature</div><div class="val">'+f1(c.temperature_2m)+' °C</div><div class="sub"></div></div>';
+  out+='<div class="card"><div class="lbl">Rain</div><div class="val">'+(rain>0?'Yes':'No')+'</div><div class="sub">'+(rain>0?f1(rain)+' mm':'')+'</div></div>';
+  out+='<div class="card"><div class="lbl">Condition</div><div class="val">'+cc[0]+'</div><div class="sub">'+cc[1]+'</div></div>';
   out+='</div>';
-  if(c.wind_direction_10m!=null){ out+='<div class="dir">🧭 Wind aus <b>'+comp(c.wind_direction_10m)+'</b> '+arr(c.wind_direction_10m)+' ('+r0(c.wind_direction_10m)+'°)</div>'; }
+  if(c.wind_direction_10m!=null){ out+='<div class="dir">🧭 Wind from <b>'+comp(c.wind_direction_10m)+'</b> '+arr(c.wind_direction_10m)+' ('+r0(c.wind_direction_10m)+'°)</div>'; }
   out+='</div>';
   const h=data.hourly||{}; const t=h.time||[]; const nowt=c.time||"";
   let start=0; for(let i=0;i<t.length;i++){ if(t[i]>=nowt){ start=i; break; } }
@@ -2419,10 +2419,10 @@ function render(data){
     const wci=wc(h.weather_code[i]); const pr=(h.precipitation[i]||0);
     const wknd=WD[new Date(day+"T00:00").getDay()];
     const sep=(lastDay!==null && day!==lastDay)?' class="dsep"':''; lastDay=day;
-    rows+='<tr'+sep+'><td>'+wknd+'</td><td>'+t[i].slice(5,10)+'</td><td>'+t[i].slice(11,16)+'</td><td>'+wci[0]+'</td><td>'+f1(h.temperature_2m[i])+'</td><td>'+r0(h.wind_speed_10m[i])+'</td><td>'+bft(h.wind_speed_10m[i])+'</td><td>'+r0(h.wind_gusts_10m[i])+'</td><td>'+bft(h.wind_gusts_10m[i])+'</td><td>'+comp(h.wind_direction_10m[i])+'</td><td>'+(pr>0?'Ja':'Nein')+'</td></tr>';
+    rows+='<tr'+sep+'><td>'+wknd+'</td><td>'+t[i].slice(5,10)+'</td><td>'+t[i].slice(11,16)+'</td><td>'+wci[0]+'</td><td>'+f1(h.temperature_2m[i])+'</td><td>'+r0(h.wind_speed_10m[i])+'</td><td>'+bft(h.wind_speed_10m[i])+'</td><td>'+r0(h.wind_gusts_10m[i])+'</td><td>'+bft(h.wind_gusts_10m[i])+'</td><td>'+comp(h.wind_direction_10m[i])+'</td><td>'+(pr>0?'Yes':'No')+'</td></tr>';
   }
-  out+='<h4>Vorhersage (3 Tage, tagsüber 09–21 Uhr)</h4>';
-  out+='<table><thead><tr><th>Tag</th><th>Datum</th><th>Uhrzeit</th><th>Wetter</th><th>Temp °C</th><th>Wind</th><th>Bft</th><th>Böen</th><th>Bö.Bft</th><th>Richtung</th><th>Regen</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  out+='<h4>Forecast (3 days, daytime 09–21h)</h4>';
+  out+='<table><thead><tr><th>Day</th><th>Date</th><th>Time</th><th>Weather</th><th>Temp °C</th><th>Wind</th><th>Bft</th><th>Gusts</th><th>Gust Bft</th><th>Direction</th><th>Rain</th></tr></thead><tbody>'+rows+'</tbody></table>';
   document.getElementById("w").innerHTML=out;
 }
 </script></body></html>
@@ -2463,8 +2463,8 @@ def render_rankings(results_container):
     ranking = load_sessions()
 
     months = [
-        "Januar", "Februar", "März", "April", "Mai", "Juni",
-        "Juli", "August", "September", "Oktober", "November", "Dezember",
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
     ]
 
     member_groups = my_member_groups(user["id"]) if user else []
@@ -2475,10 +2475,10 @@ def render_rankings(results_container):
     # erscheinen so zuerst, der teurere Optionen-Aufbau der Dropdowns läuft erst
     # danach.
     group_choice = st.session_state.get("rank_group", preset.get("group") or ALL_GROUP)
-    spot_filter = st.session_state.get("rank_spot", preset.get("spot") or "Gesamt")
-    year_filter = st.session_state.get("rank_year", preset.get("year") or "Alle Jahre")
-    month_filter = st.session_state.get("rank_month", preset.get("month") or "Ganzes Jahr")
-    day_filter = st.session_state.get("rank_day", preset.get("day") or "Ganzer Monat")
+    spot_filter = st.session_state.get("rank_spot", preset.get("spot") or "Overall")
+    year_filter = st.session_state.get("rank_year", preset.get("year") or "All years")
+    month_filter = st.session_state.get("rank_month", preset.get("month") or "Whole year")
+    day_filter = st.session_state.get("rank_day", preset.get("day") or "Whole month")
 
     # ---- Tabellen ZUERST (Hauptinhalt) in den Haupt-Container ----
     # Reine Anzeige (keine Widgets) -> aus dem Fragment in externen Container ok;
@@ -2494,23 +2494,23 @@ def render_rankings(results_container):
     # Selectboxen lesen ihren Wert aus session_state (oben bereits ausgelesen);
     # index= dient nur der Erstbelegung beim allerersten Laden.
     with st.container():
-        with st.expander("⭐ Mein Start (Filter-Preset)", expanded=False):
+        with st.expander("⭐ My start (filter preset)", expanded=False):
             st.caption(
-                "Speichere die aktuelle Filter-Auswahl als deinen Start – sie "
-                "wird bei jedem Öffnen automatisch vorausgewählt."
+                "Save the current filter selection as your start – it will be "
+                "preselected automatically every time you open the app."
             )
 
-            if st.button("💾 Aktuelle Filter speichern", use_container_width=True):
+            if st.button("💾 Save current filters", use_container_width=True):
                 save_user_pref(username, {
                     "group": st.session_state.get("rank_group", ALL_GROUP),
-                    "spot": st.session_state.get("rank_spot", "Gesamt"),
-                    "year": st.session_state.get("rank_year", "Alle Jahre"),
-                    "month": st.session_state.get("rank_month", "Ganzes Jahr"),
-                    "day": st.session_state.get("rank_day", "Ganzer Monat"),
+                    "spot": st.session_state.get("rank_spot", "Overall"),
+                    "year": st.session_state.get("rank_year", "All years"),
+                    "month": st.session_state.get("rank_month", "Whole year"),
+                    "day": st.session_state.get("rank_day", "Whole month"),
                 })
-                st.success("Gespeichert – wird künftig beim Start geladen.")
+                st.success("Saved – will be loaded on start from now on.")
 
-            if preset and st.button("↺ Zurücksetzen", use_container_width=True):
+            if preset and st.button("↺ Reset", use_container_width=True):
                 delete_user_pref(username)
                 for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day"):
                     st.session_state.pop(_k, None)
@@ -2518,11 +2518,11 @@ def render_rankings(results_container):
 
         group_options = [ALL_GROUP] + [g["name"] for g in member_groups]
         st.selectbox(
-            "👥 Gruppe",
+            "👥 Group",
             group_options,
             index=_preset_index(group_options, group_choice),
             key="rank_group",
-            help="„Alle“ zeigt alle Fahrer. Gruppen-Ergebnisse siehst du nur als Mitglied.",
+            help="\"All\" shows every rider. You only see group results as a member.",
         )
 
         # Auswahl-Optionen für Lokation/Jahr abhängig von der gewählten Gruppe.
@@ -2547,25 +2547,25 @@ def render_rankings(results_container):
         else:
             spots, years = [], []
 
-        spot_options = ["Gesamt"] + spots
-        year_options = ["Alle Jahre"] + [str(y) for y in years]
-        month_options = ["Ganzes Jahr"] + months
-        day_options = ["Ganzer Monat"] + [str(d) for d in range(1, 32)]
+        spot_options = ["Overall"] + spots
+        year_options = ["All years"] + [str(y) for y in years]
+        month_options = ["Whole year"] + months
+        day_options = ["Whole month"] + [str(d) for d in range(1, 32)]
 
         st.selectbox(
-            "📍 Lokation", spot_options,
+            "📍 Location", spot_options,
             index=_preset_index(spot_options, spot_filter), key="rank_spot",
         )
         st.selectbox(
-            "📅 Jahr", year_options,
+            "📅 Year", year_options,
             index=_preset_index(year_options, year_filter), key="rank_year",
         )
         st.selectbox(
-            "📆 Monat", month_options,
+            "📆 Month", month_options,
             index=_preset_index(month_options, month_filter), key="rank_month",
         )
         st.selectbox(
-            "🗓️ Tag", day_options,
+            "🗓️ Day", day_options,
             index=_preset_index(day_options, day_filter), key="rank_day",
         )
 
@@ -2603,7 +2603,7 @@ def _enrich_ranking(ranking):
         return " · ".join(parts) if parts else "–"
 
     ranking = ranking.copy()
-    ranking["Wetter"] = ranking.apply(weather_summary, axis=1)
+    ranking["Weather"] = ranking.apply(weather_summary, axis=1)
     ranking["Trust"] = ranking["trust_score"].apply(_trust_badge)
     return ranking
 
@@ -2622,7 +2622,7 @@ def df_height(n_rows, max_rows=15):
 def _render_ranking_tables(ranking, group_choice, member_groups, months,
                            spot_filter, year_filter, month_filter, day_filter):
     """Rendert die vier Ranking-Tabellen – reine Anzeige (keine Widgets)."""
-    st.markdown("## 🏆 Online-Rankings")
+    st.markdown("## 🏆 Online rankings")
 
     flash = st.session_state.pop("ranking_flash", None)
 
@@ -2630,7 +2630,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         st.success(flash)
 
     if ranking.empty:
-        st.info("Noch keine Online-Ranking-Einträge vorhanden.")
+        st.info("No online ranking entries yet.")
         return
 
     if "date" not in ranking.columns:
@@ -2650,25 +2650,25 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             ranking = ranking[ranking["name"].astype(str).isin(member_names)].copy()
 
             if ranking.empty:
-                st.info(f"In der Gruppe „{group_choice}“ gibt es noch keine Sessions.")
+                st.info(f"The group \"{group_choice}\" has no sessions yet.")
                 return
 
-    if spot_filter != "Gesamt":
+    if spot_filter != "Overall":
         ranking = ranking[ranking["surfspot"].astype(str) == spot_filter]
 
-    if year_filter != "Alle Jahre":
+    if year_filter != "All years":
         ranking = ranking[ranking["_date"].dt.year == int(year_filter)]
 
-    if month_filter != "Ganzes Jahr":
+    if month_filter != "Whole year":
         ranking = ranking[ranking["_date"].dt.month == months.index(month_filter) + 1]
 
-        if day_filter != "Ganzer Monat":
+        if day_filter != "Whole month":
             ranking = ranking[ranking["_date"].dt.day == int(day_filter)]
 
     ranking = ranking.copy()
 
     if ranking.empty:
-        st.info("Keine Einträge für die gewählte Filter-Auswahl.")
+        st.info("No entries for the selected filters.")
         return
 
     # Teure Spalten (zeilenweises apply für Wetter-Text + Trust-Badge) gecacht
@@ -2682,7 +2682,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     rcol1, rcol2 = st.columns(2)
 
     with rcol1:
-        st.markdown("### 🏆 Beste 30 Sekunden")
+        st.markdown("### 🏆 Best 30 seconds")
 
         r30 = ranking[[
             "date",
@@ -2692,7 +2692,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "surfspot",
             "board",
             "sail",
-            "Wetter",
+            "Weather",
             "Trust",
         ]].copy()
 
@@ -2702,14 +2702,14 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             .drop_duplicates(subset="name", keep="first")
             .reset_index(drop=True)
         )
-        r30.insert(0, "Platz", r30.index + 1)
+        r30.insert(0, "Rank", r30.index + 1)
 
         r30 = r30.rename(columns={
-            "date": "Datum",
+            "date": "Date",
             "name": "Name",
-            "surfspot": "Surfspot",
+            "surfspot": "Surf spot",
             "board": "Board",
-            "sail": "Segel",
+            "sail": "Sail",
             "speed_30s_kmh": "30s km/h",
             "speed_30s_kn": "30s kn",
         })
@@ -2717,7 +2717,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         st.dataframe(r30, width="stretch", hide_index=True, height=df_height(len(r30)))
 
     with rcol2:
-        st.markdown("### ⚡ Topgeschwindigkeit 1 Sekunde")
+        st.markdown("### ⚡ Top speed 1 second")
 
         r1 = ranking[[
             "date",
@@ -2727,7 +2727,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "surfspot",
             "board",
             "sail",
-            "Wetter",
+            "Weather",
             "Trust",
         ]].copy()
 
@@ -2737,14 +2737,14 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             .drop_duplicates(subset="name", keep="first")
             .reset_index(drop=True)
         )
-        r1.insert(0, "Platz", r1.index + 1)
+        r1.insert(0, "Rank", r1.index + 1)
 
         r1 = r1.rename(columns={
-            "date": "Datum",
+            "date": "Date",
             "name": "Name",
-            "surfspot": "Surfspot",
+            "surfspot": "Surf spot",
             "board": "Board",
-            "sail": "Segel",
+            "sail": "Sail",
             "speed_1s_kmh": "1s km/h",
             "speed_1s_kn": "1s kn",
         })
@@ -2754,7 +2754,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     rcol3, rcol4 = st.columns(2)
 
     with rcol3:
-        st.markdown("### 🚩 Längster Run")
+        st.markdown("### 🚩 Longest run")
 
         rrun = ranking[[
             "date",
@@ -2764,7 +2764,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "surfspot",
             "board",
             "sail",
-            "Wetter",
+            "Weather",
             "Trust",
         ]].copy()
 
@@ -2774,14 +2774,14 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             .drop_duplicates(subset="name", keep="first")
             .reset_index(drop=True)
         )
-        rrun.insert(0, "Platz", rrun.index + 1)
+        rrun.insert(0, "Rank", rrun.index + 1)
 
         rrun = rrun.rename(columns={
-            "date": "Datum",
+            "date": "Date",
             "name": "Name",
-            "surfspot": "Surfspot",
+            "surfspot": "Surf spot",
             "board": "Board",
-            "sail": "Segel",
+            "sail": "Sail",
             "longest_run_km": "Run km",
             "longest_run_m": "Run m",
         })
@@ -2789,7 +2789,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         st.dataframe(rrun, width="stretch", hide_index=True, height=df_height(len(rrun)))
 
     with rcol4:
-        st.markdown("### 👥 Längste Gesamtstrecke je Fahrer")
+        st.markdown("### 👥 Longest total distance per rider")
 
         rtotal = (
             ranking
@@ -2802,12 +2802,12 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             .reset_index(drop=True)
         )
 
-        rtotal.insert(0, "Platz", rtotal.index + 1)
+        rtotal.insert(0, "Rank", rtotal.index + 1)
 
         rtotal = rtotal.rename(columns={
             "name": "Name",
-            "total_distance_km": "Gesamtstrecke km",
-            "last_date": "Letzte Session",
+            "total_distance_km": "Total distance km",
+            "last_date": "Last session",
         })
 
         st.dataframe(rtotal, width="stretch", hide_index=True, height=df_height(len(rtotal)))
@@ -2924,10 +2924,10 @@ def detect_runs(df):
             if distance_m >= MIN_RUN_DISTANCE_M:
                 runs.append({
                     "Start": run["timestamp"].iloc[0],
-                    "Ende": run["timestamp"].iloc[-1],
-                    "Dauer": run["timestamp"].iloc[-1] - run["timestamp"].iloc[0],
-                    "Distanz m": distance_m,
-                    "Distanz km": distance_m / 1000,
+                    "End": run["timestamp"].iloc[-1],
+                    "Duration": run["timestamp"].iloc[-1] - run["timestamp"].iloc[0],
+                    "Distance m": distance_m,
+                    "Distance km": distance_m / 1000,
                     "Max Speed km/h": run["speed_kmh"].max(),
                     "Ø Speed km/h": run["speed_kmh"].mean(),
                 })
@@ -2942,10 +2942,10 @@ def detect_runs(df):
         if distance_m >= MIN_RUN_DISTANCE_M:
             runs.append({
                 "Start": run["timestamp"].iloc[0],
-                "Ende": run["timestamp"].iloc[-1],
-                "Dauer": run["timestamp"].iloc[-1] - run["timestamp"].iloc[0],
-                "Distanz m": distance_m,
-                "Distanz km": distance_m / 1000,
+                "End": run["timestamp"].iloc[-1],
+                "Duration": run["timestamp"].iloc[-1] - run["timestamp"].iloc[0],
+                "Distance m": distance_m,
+                "Distance km": distance_m / 1000,
                 "Max Speed km/h": run["speed_kmh"].max(),
                 "Ø Speed km/h": run["speed_kmh"].mean(),
             })
@@ -3006,12 +3006,12 @@ def compute_trust_score(df, spot_top_kmh=None):
     gewertet (kein Abzug). Rückgabe: {'score', 'components', 'note'}.
     """
     if df is None or df.empty or not {"timestamp", "speed_kmh"}.issubset(df.columns):
-        return {"score": None, "components": [], "note": "Zu wenige Daten für eine Bewertung."}
+        return {"score": None, "components": [], "note": "Not enough data for a rating."}
 
     d = df.dropna(subset=["timestamp", "speed_kmh"]).sort_values("timestamp").reset_index(drop=True)
 
     if len(d) < 10:
-        return {"score": None, "components": [], "note": "Aufzeichnung zu kurz für eine Bewertung."}
+        return {"score": None, "components": [], "note": "Recording too short for a rating."}
 
     dt = d["timestamp"].diff().dt.total_seconds()
     dt_valid = dt.where(dt > 0)
@@ -3030,7 +3030,7 @@ def compute_trust_score(df, spot_top_kmh=None):
     pen = _penalty(max_accel, good=4.0, bad=9.0, max_pen=30.0)
     score -= pen
     components.append({
-        "label": "Max. Beschleunigung",
+        "label": "Max. acceleration",
         "value": "–" if max_accel is None else f"{max_accel:.1f} m/s²",
         "status": _status(pen, 30.0),
     })
@@ -3050,7 +3050,7 @@ def compute_trust_score(df, spot_top_kmh=None):
     pen = _penalty(turn_val, good=40.0, bad=150.0, max_pen=25.0)
     score -= pen
     components.append({
-        "label": "Kursänderung bei Speed",
+        "label": "Course change at speed",
         "value": "–" if turn_val is None else f"{turn_val:.0f} °/s",
         "status": _status(pen, 25.0),
     })
@@ -3067,8 +3067,8 @@ def compute_trust_score(df, spot_top_kmh=None):
     pen = _penalty(noise_frac, good=1.0, bad=15.0, max_pen=25.0)
     score -= pen
     components.append({
-        "label": "GPS-Rauschen",
-        "value": "–" if noise_frac is None else f"{noise_frac:.1f} % Ausreißer",
+        "label": "GPS noise",
+        "value": "–" if noise_frac is None else f"{noise_frac:.1f} % outliers",
         "status": _status(pen, 25.0),
     })
 
@@ -3084,8 +3084,8 @@ def compute_trust_score(df, spot_top_kmh=None):
     pen = _penalty(m_per_point, good=15.0, bad=60.0, max_pen=20.0)
     score -= pen
     components.append({
-        "label": "Punktdichte",
-        "value": "–" if m_per_point is None else f"{m_per_point:.0f} m/Punkt",
+        "label": "Point density",
+        "value": "–" if m_per_point is None else f"{m_per_point:.0f} m/point",
         "status": _status(pen, 20.0),
     })
 
@@ -3095,8 +3095,8 @@ def compute_trust_score(df, spot_top_kmh=None):
         pen = _penalty(ratio, good=1.3, bad=2.2, max_pen=20.0)
         score -= pen
         components.append({
-            "label": "Vergleich Spot-Bestwert",
-            "value": f"{ratio * 100:.0f} % des Spot-Tops",
+            "label": "Comparison with spot best",
+            "value": f"{ratio * 100:.0f} % of the spot top",
             "status": _status(pen, 20.0),
         })
 
@@ -3108,7 +3108,7 @@ def render_trust_score(result):
     score = result.get("score")
 
     if score is None:
-        st.caption(f"🔍 Trust Score: {result.get('note', 'nicht verfügbar')}")
+        st.caption(f"🔍 Trust Score: {result.get('note', 'not available')}")
         return
 
     dot = "🟢" if score >= 80 else "🟡" if score >= 55 else "🔴"
@@ -3121,8 +3121,8 @@ def render_trust_score(result):
         st.caption(f"{icons.get(c['status'], '•')} {c['label']}: {c['value']}")
 
     st.caption(
-        "Heuristische Plausibilitätsprüfung der GPS-Daten – kein Betrugsbeweis, "
-        "sondern ein Hinweis auf ungewöhnliche oder verrauschte Aufzeichnungen."
+        "Heuristic plausibility check of the GPS data – not proof of cheating, "
+        "but a hint at unusual or noisy recordings."
     )
 
 
@@ -3142,13 +3142,13 @@ def _trust_badge(score):
 
 def show_map(df):
     if "lat" not in df.columns or "lon" not in df.columns:
-        st.warning("Keine GPS-Daten gefunden.")
+        st.warning("No GPS data found.")
         return
 
     gps_df = df.dropna(subset=["lat", "lon"]).copy()
 
     if gps_df.empty:
-        st.warning("Keine GPS-Daten gefunden.")
+        st.warning("No GPS data found.")
         return
 
     view_state = pdk.ViewState(
@@ -3230,7 +3230,7 @@ def show_map(df):
 
     if has_speed:
         st.caption(
-            f"🟦 langsam → 🟧 schnell · Farbskala {speed_lo:.0f}–{speed_hi:.0f} km/h"
+            f"🟦 slow → 🟧 fast · color scale {speed_lo:.0f}–{speed_hi:.0f} km/h"
         )
 
 
@@ -3241,7 +3241,7 @@ def render_history_overview(record):
         value = record.get(key)
         return None if value is None or pd.isna(value) else float(value)
 
-    st.markdown("## 🌊 Session Übersicht")
+    st.markdown("## 🌊 Session overview")
 
     meta_bits = []
     date_value = record.get("date")
@@ -3266,10 +3266,10 @@ def render_history_overview(record):
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Top 1 s", "–" if best_1s is None else f"{best_1s:.2f} km/h")
     c2.metric("Top 30 s", "–" if best_30s is None else f"{best_30s:.2f} km/h")
-    c3.metric("Gesamtstrecke", "–" if distance_km is None else f"{distance_km:.2f} km")
-    c4.metric("Längster Run", "–" if longest_run_km is None else f"{longest_run_km:.2f} km")
+    c3.metric("Total distance", "–" if distance_km is None else f"{distance_km:.2f} km")
+    c4.metric("Longest run", "–" if longest_run_km is None else f"{longest_run_km:.2f} km")
 
-    st.markdown("## 🌦️ Wetter zur Session")
+    st.markdown("## 🌦️ Weather during session")
 
     wind = num("wind_kmh")
     gust = num("gust_kmh")
@@ -3280,10 +3280,10 @@ def render_history_overview(record):
     has_code = code is not None and pd.notna(code)
 
     if all(v is None for v in (wind, gust, temp, precip)) and not has_code:
-        st.info("Keine Wetterdaten zu dieser Session gespeichert.")
+        st.info("No weather data saved for this session.")
     else:
         emoji, description = (
-            WEATHER_CODES.get(int(code), ("❓", "Unbekannt")) if has_code else ("❓", "Unbekannt")
+            WEATHER_CODES.get(int(code), ("❓", "Unknown")) if has_code else ("❓", "Unknown")
         )
 
         w1, w2, w3, w4 = st.columns(4)
@@ -3291,28 +3291,28 @@ def render_history_overview(record):
         w1.metric(
             "Wind",
             "–" if wind is None else f"{wind:.0f} km/h",
-            None if gust is None else f"Böen {gust:.0f} km/h",
+            None if gust is None else f"Gusts {gust:.0f} km/h",
         )
-        w2.metric("Temperatur", "–" if temp is None else f"{temp:.1f} °C")
-        w3.metric("Niederschlag", "–" if precip is None else f"{precip:.1f} mm")
-        w4.metric("Bedingung", emoji, description, delta_color="off")
+        w2.metric("Temperature", "–" if temp is None else f"{temp:.1f} °C")
+        w3.metric("Precipitation", "–" if precip is None else f"{precip:.1f} mm")
+        w4.metric("Condition", emoji, description, delta_color="off")
 
         if wdir is not None:
             st.caption(
-                f"🧭 Wind aus **{degrees_to_compass(wdir)}** "
+                f"🧭 Wind from **{degrees_to_compass(wdir)}** "
                 f"{wind_arrow(wdir)} ({wdir:.0f}°)"
             )
 
-    st.markdown("## ⚡ Speed-Werte")
+    st.markdown("## ⚡ Speed values")
 
     speed_table = pd.DataFrame([
         {
-            "Wertung": "1 Sekunde",
+            "Category": "1 second",
             "Speed km/h": best_1s,
             "Speed kn": None if best_1s is None else best_1s / 1.852,
         },
         {
-            "Wertung": "30 Sekunden",
+            "Category": "30 seconds",
             "Speed km/h": best_30s,
             "Speed kn": None if best_30s is None else best_30s / 1.852,
         },
@@ -3326,9 +3326,8 @@ def render_history_overview(record):
     )
 
     st.caption(
-        "ℹ️ Karte, einzelne Runs sowie Max-/Ø-Speed sind nur direkt nach dem "
-        "Upload verfügbar – für gespeicherte Sessions werden die abgelegten "
-        "Kennzahlen angezeigt."
+        "ℹ️ The map, individual runs and max/avg speed are only available right "
+        "after the upload – for saved sessions the stored metrics are shown."
     )
 
 
@@ -3375,8 +3374,8 @@ st.markdown(f"""
     <div class="hero-content">
         <div class="logo">{logo_icon} WINDSURF</div>
         <div class="title">SPEED CHALLENGE</div>
-        <p>Tracke deine Sessions. Vergleiche deine Bestleistungen.<br>
-        Die Community. Dein Spot. Dein Speed.</p>
+        <p>Track your sessions. Compare your personal bests.<br>
+        The community. Your spot. Your speed.</p>
         <div class="hero-nav">
             <span>⚡ Speed</span>
             <span>🏆 Ranking</span>
@@ -3398,10 +3397,10 @@ if render_legal_page():
 # =====================================================================
 
 def render_login():
-    st.markdown("## 🔐 Anmeldung")
+    st.markdown("## 🔐 Sign in")
     st.info(
-        "Bitte einloggen oder registrieren. Danach kannst du Gruppen "
-        "beitreten oder eigene anlegen."
+        "Please log in or register. Afterwards you can join groups or "
+        "create your own."
     )
 
     st.markdown(
@@ -3413,14 +3412,14 @@ def render_login():
         unsafe_allow_html=True,
     )
 
-    tab_login, tab_register = st.tabs(["Einloggen", "Registrieren"])
+    tab_login, tab_register = st.tabs(["Log in", "Register"])
 
     with tab_login:
         with st.form("login_form"):
-            username = st.text_input("Benutzername")
-            password = st.text_input("Passwort", type="password")
-            remember = st.checkbox("Angemeldet bleiben", value=True)
-            submitted = st.form_submit_button("Einloggen")
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            remember = st.checkbox("Stay logged in", value=True)
+            submitted = st.form_submit_button("Log in")
 
         if submitted:
             if verify_login(username, password):
@@ -3428,44 +3427,42 @@ def render_login():
                 login_session(user, remember)
                 st.rerun()
             else:
-                st.error("Benutzername oder Passwort falsch.")
+                st.error("Wrong username or password.")
 
     with tab_register:
         with st.form("register_form"):
-            new_username = st.text_input("Benutzername wählen")
-            pwd1 = st.text_input("Passwort (mind. 6 Zeichen)", type="password")
-            pwd2 = st.text_input("Passwort wiederholen", type="password")
+            new_username = st.text_input("Choose a username")
+            pwd1 = st.text_input("Password (at least 6 characters)", type="password")
+            pwd2 = st.text_input("Repeat password", type="password")
 
-            st.markdown("**Einwilligungen**")
+            st.markdown("**Consents**")
 
             consent_save = st.checkbox(
-                "Ich bestätige, dass meine hochgeladenen Sessions im Ranking "
-                "gespeichert werden."
+                "I confirm that my uploaded sessions are stored in the ranking."
             )
             consent_visible = st.checkbox(
-                "Ich bin einverstanden, dass Spot, Datum, Speed und Equipment "
-                "im Ranking sichtbar sind."
+                "I agree that spot, date, speed and equipment are visible in "
+                "the ranking."
             )
             consent_privacy = st.checkbox(
-                "Ich habe die Datenschutzerklärung gelesen und akzeptiere sie."
+                "I have read the Datenschutzerklärung and accept it."
             )
 
             st.caption(
-                "ℹ️ Dein GPS-Track wird nicht gespeichert und niemals öffentlich "
-                "angezeigt – im Ranking erscheinen nur die Kennzahlen. Details in "
-                "der Datenschutzerklärung (Link oben)."
+                "ℹ️ Your GPS track is not stored and never shown publicly – only "
+                "the metrics appear in the ranking. Details in the "
+                "Datenschutzerklärung (link above)."
             )
 
-            submitted = st.form_submit_button("Registrieren")
+            submitted = st.form_submit_button("Register")
 
         if submitted:
             if not (consent_save and consent_visible and consent_privacy):
                 st.error(
-                    "Bitte bestätige alle drei Einwilligungen, um dich zu "
-                    "registrieren."
+                    "Please confirm all three consents to register."
                 )
             elif pwd1 != pwd2:
-                st.error("Die Passwörter stimmen nicht überein.")
+                st.error("The passwords do not match.")
             else:
                 ok, message = register_user(new_username, pwd1)
 
@@ -3486,32 +3483,32 @@ def render_achievements(ach):
         return
 
     st.balloons()
-    st.markdown("### 🏆 Deine Erfolge dieser Session")
+    st.markdown("### 🏆 Your achievements this session")
 
     def fmt(r):
         return f"{r['value']:.{r['decimals']}f} {r['unit']}"
 
     for r in spot:
-        extra = "" if r["previous"] is None else f" – alter Spotrekord: {r['previous']:.{r['decimals']}f}"
-        st.success(f"🏆 **Neuer Spotrekord** an {r['spot']}: {r['label']} {fmt(r)}{extra}")
+        extra = "" if r["previous"] is None else f" – previous spot record: {r['previous']:.{r['decimals']}f}"
+        st.success(f"🏆 **New spot record** at {r['spot']}: {r['label']} {fmt(r)}{extra}")
 
     for r in personal:
         if r["previous"] is None:
-            st.success(f"🏆 **Erste persönliche Bestleistung**: {r['label']} {fmt(r)}")
+            st.success(f"🏆 **First personal best**: {r['label']} {fmt(r)}")
         else:
             st.success(
-                f"🏆 **Persönlicher Rekord**: {r['label']} {fmt(r)} "
-                f"(vorher {r['previous']:.{r['decimals']}f} {r['unit']}) 📈"
+                f"🏆 **Personal record**: {r['label']} {fmt(r)} "
+                f"(previously {r['previous']:.{r['decimals']}f} {r['unit']}) 📈"
             )
 
     for r in year:
-        st.info(f"📅 **Jahresbestleistung {r['year']}**: {r['label']} {fmt(r)}")
+        st.info(f"📅 **Best of {r['year']}**: {r['label']} {fmt(r)}")
 
     for e in [g for g in group_events if g.get("is_record")]:
-        st.success(f"🏆 **Gruppenrekord** in {e['group_name']}: {e['label']} {fmt(e)}")
+        st.success(f"🏆 **Group record** in {e['group_name']}: {e['label']} {fmt(e)}")
 
     for e in [g for g in group_events if not g.get("is_record")]:
-        st.info(f"🏅 Platz {e['rank']} in Gruppe {e['group_name']} bei {e['label']} ({fmt(e)})")
+        st.info(f"🏅 Rank {e['rank']} in group {e['group_name']} for {e['label']} ({fmt(e)})")
 
 
 def render_group_news_banner(user):
@@ -3521,7 +3518,7 @@ def render_group_news_banner(user):
     if not events:
         return
 
-    st.markdown("### 📣 Neues aus deinen Gruppen")
+    st.markdown("### 📣 News from your groups")
 
     for e in events:
         if e.get("rank") == 1:
@@ -3529,7 +3526,7 @@ def render_group_news_banner(user):
         else:
             st.info(e["message"])
 
-    if st.button("✓ Alles gelesen", key="mark_events_seen"):
+    if st.button("✓ Mark all as read", key="mark_events_seen"):
         mark_group_events_seen(user["id"])
         st.rerun()
 
@@ -3540,13 +3537,13 @@ def render_account_sidebar(user):
     with st.sidebar:
         st.markdown(f"### 👤 {user['username']}")
 
-        if st.button("Abmelden", use_container_width=True):
+        if st.button("Log out", use_container_width=True):
             logout_session()
             st.rerun()
 
         st.markdown("---")
-        st.markdown("### 👥 Gruppen")
-        st.caption("Du bist immer Teil der Gruppe **Alle** (alle Ergebnisse sichtbar).")
+        st.markdown("### 👥 Groups")
+        st.caption("You are always part of the group **All** (all results visible).")
 
         groups = list_groups()
         group_by_id = {g["id"]: g for g in groups}
@@ -3562,33 +3559,33 @@ def render_account_sidebar(user):
         ]
 
         if member_groups:
-            st.markdown("**Deine Gruppen**")
+            st.markdown("**Your groups**")
             for g in member_groups:
                 tag = "🔒" if g["is_private"] else "🌍"
                 is_owner = g["owner_id"] == user["id"]
                 cols = st.columns([4, 2])
-                cols[0].write(f"{tag} {g['name']}" + (" · Ersteller" if is_owner else ""))
+                cols[0].write(f"{tag} {g['name']}" + (" · Owner" if is_owner else ""))
                 if not is_owner:
-                    if cols[1].button("Verlassen", key=f"leave_{g['id']}"):
+                    if cols[1].button("Leave", key=f"leave_{g['id']}"):
                         leave_group(user["id"], g["id"])
                         st.rerun()
 
         if pending_groups:
-            st.markdown("**Angefragt (wartet auf Freigabe)**")
+            st.markdown("**Requested (waiting for approval)**")
             for g in pending_groups:
                 st.write(f"⏳ {g['name']}")
 
         joinable = [g for g in groups if g["id"] not in memberships]
 
         if joinable:
-            with st.expander("➕ Gruppe beitreten"):
+            with st.expander("➕ Join a group"):
                 option_map = {
                     f'{"🔒" if g["is_private"] else "🌍"} {g["name"]}': g
                     for g in joinable
                 }
-                choice = st.selectbox("Gruppe", list(option_map.keys()), key="join_select")
+                choice = st.selectbox("Group", list(option_map.keys()), key="join_select")
                 target = option_map[choice]
-                btn_label = "Beitritt anfragen" if target["is_private"] else "Beitreten"
+                btn_label = "Request to join" if target["is_private"] else "Join"
 
                 if st.button(btn_label, key="join_btn", use_container_width=True):
                     ok, message = join_or_request_group(user["id"], target["id"])
@@ -3596,16 +3593,16 @@ def render_account_sidebar(user):
                     if ok:
                         st.rerun()
 
-        with st.expander("🆕 Gruppe erstellen"):
-            grp_name = st.text_input("Gruppenname", key="new_group_name")
+        with st.expander("🆕 Create a group"):
+            grp_name = st.text_input("Group name", key="new_group_name")
             grp_type = st.radio(
-                "Typ",
-                ["Offen (jeder darf beitreten)", "Privat (nur auf Einladung)"],
+                "Type",
+                ["Open (anyone can join)", "Private (invite only)"],
                 key="new_group_type",
             )
 
-            if st.button("Erstellen", key="new_group_btn", use_container_width=True):
-                ok, message = create_group(grp_name, user["id"], grp_type.startswith("Privat"))
+            if st.button("Create", key="new_group_btn", use_container_width=True):
+                ok, message = create_group(grp_name, user["id"], grp_type.startswith("Private"))
                 (st.success if ok else st.warning)(message)
                 if ok:
                     st.rerun()
@@ -3613,7 +3610,7 @@ def render_account_sidebar(user):
         owned_groups = [g for g in member_groups if g["owner_id"] == user["id"]]
 
         if owned_groups:
-            with st.expander("🛠️ Meine Gruppen verwalten"):
+            with st.expander("🛠️ Manage my groups"):
                 for g in owned_groups:
                     tag = "🔒" if g["is_private"] else "🌍"
                     st.markdown(f"**{tag} {g['name']}**")
@@ -3621,7 +3618,7 @@ def render_account_sidebar(user):
                     requests = pending_requests(g["id"])
 
                     if requests:
-                        st.caption("Offene Beitrittsanfragen:")
+                        st.caption("Pending join requests:")
                         for req in requests:
                             rc = st.columns([3, 1, 1])
                             rc[0].write(f"⏳ {req['username']}")
@@ -3632,13 +3629,13 @@ def render_account_sidebar(user):
                                 leave_group(req["user_id"], g["id"])
                                 st.rerun()
                     else:
-                        st.caption("Keine offenen Anfragen.")
+                        st.caption("No pending requests.")
 
                     invite_name = st.text_input(
-                        "Nutzer einladen / freischalten (Benutzername)",
+                        "Invite / approve user (username)",
                         key=f"invite_{g['id']}",
                     )
-                    if st.button("Hinzufügen", key=f"invite_btn_{g['id']}"):
+                    if st.button("Add", key=f"invite_btn_{g['id']}"):
                         ok, message = invite_user(g["id"], invite_name)
                         (st.success if ok else st.warning)(message)
                         if ok:
@@ -3649,12 +3646,12 @@ def render_account_sidebar(user):
 
                     if member_count and member_count > 1:
                         st.caption(
-                            "🗑️ Löschen erst möglich, wenn du allein in der "
-                            "Gruppe bist (Mitglieder/Anfragen zuerst entfernen)."
+                            "🗑️ Deletion is only possible when you are the only "
+                            "one in the group (remove members/requests first)."
                         )
                     else:
                         if st.button(
-                            "🗑️ Gruppe löschen",
+                            "🗑️ Delete group",
                             key=f"del_group_btn_{g['id']}",
                             use_container_width=True,
                         ):
@@ -3667,22 +3664,22 @@ def render_account_sidebar(user):
 
         st.markdown("---")
 
-        with st.expander("⚠️ Konto & Daten löschen"):
+        with st.expander("⚠️ Account & delete data"):
             session_count = count_user_sessions(user["username"])
 
             st.caption(
-                f"Du hast aktuell {session_count} gespeicherte Session(s). "
-                "Gelöscht werden ausschließlich deine eigenen Daten – "
-                "niemals die Ergebnisse anderer Fahrer."
+                f"You currently have {session_count} saved session(s). "
+                "Only your own data is deleted – never the results of other "
+                "riders."
             )
 
             # --- Einzelne Session löschen ---
             rider_sessions = load_rider_sessions(user["username"])
 
             if not rider_sessions.empty and "id" in rider_sessions.columns:
-                st.markdown("**Einzelne Session löschen**")
+                st.markdown("**Delete a single session**")
 
-                del_opts = {"— bitte wählen —": None}
+                del_opts = {"— please choose —": None}
 
                 for i, (_, row) in enumerate(rider_sessions.iterrows()):
                     d = row.get("date")
@@ -3698,71 +3695,70 @@ def render_account_sidebar(user):
                     del_opts[label] = row.get("id")
 
                 pick = st.selectbox(
-                    "Session wählen", list(del_opts.keys()), key="del_one_pick"
+                    "Choose session", list(del_opts.keys()), key="del_one_pick"
                 )
 
-                if pick != "— bitte wählen —":
+                if pick != "— please choose —":
                     confirm_one = st.checkbox(
-                        "Ja, diese Session endgültig löschen.",
+                        "Yes, permanently delete this session.",
                         key=f"confirm_del_one_{del_opts[pick]}",
                     )
 
                     if st.button(
-                        f"🗑️ Session löschen: {pick}",
+                        f"🗑️ Delete session: {pick}",
                         key=f"del_one_btn_{del_opts[pick]}",
                         use_container_width=True,
                         disabled=not confirm_one,
                     ):
                         if delete_session(del_opts[pick], user["username"]):
-                            st.success("Session gelöscht.")
+                            st.success("Session deleted.")
                         else:
-                            st.warning("Session konnte nicht gelöscht werden.")
+                            st.warning("Session could not be deleted.")
                         st.rerun()
 
                 st.markdown("---")
 
             # --- Eigene Sessions löschen (Konto bleibt bestehen) ---
-            st.markdown("**Alle meine Sessions löschen**")
+            st.markdown("**Delete all my sessions**")
             confirm_data = st.checkbox(
-                "Ja, alle meine Sessions endgültig löschen.",
+                "Yes, permanently delete all my sessions.",
                 key="confirm_delete_data",
             )
 
             if st.button(
-                "🗑️ Sessions löschen",
+                "🗑️ Delete sessions",
                 key="delete_data_btn",
                 use_container_width=True,
                 disabled=not confirm_data,
             ):
                 removed = delete_user_sessions(user["username"])
-                st.success(f"{removed} Session(s) gelöscht.")
+                st.success(f"{removed} session(s) deleted.")
                 st.rerun()
 
             st.markdown("---")
 
             # --- Komplettes Konto löschen ---
-            st.markdown("**Konto löschen**")
+            st.markdown("**Delete account**")
             st.caption(
-                "Entfernt dein Konto, alle deine Sessions, dein Profil und die "
-                "von dir erstellten Gruppen. Das kann nicht rückgängig gemacht "
-                "werden."
+                "Removes your account, all your sessions, your profile and the "
+                "groups you created. This cannot be undone."
             )
 
             confirm_name = st.text_input(
-                "Zum Bestätigen deinen Benutzernamen eingeben",
+                "Enter your username to confirm",
                 key="confirm_delete_account_name",
                 placeholder=user["username"],
             )
 
             if st.button(
-                "❌ Konto endgültig löschen",
+                "❌ Permanently delete account",
                 key="delete_account_btn",
                 use_container_width=True,
                 disabled=confirm_name != user["username"],
             ):
                 delete_account(user["id"], user["username"])
                 logout_session()
-                st.success("Dein Konto und alle zugehörigen Daten wurden gelöscht.")
+                st.success("Your account and all associated data have been deleted.")
                 st.rerun()
 
 
@@ -3803,7 +3799,7 @@ if "user" not in st.session_state:
     ):
         st.session_state["_cookie_probed"] = True
         st.markdown(
-            "<div style='text-align:center;margin-top:3rem;opacity:.7;'>⏳ einen Moment…</div>",
+            "<div style='text-align:center;margin-top:3rem;opacity:.7;'>⏳ one moment…</div>",
             unsafe_allow_html=True,
         )
         st.stop()
@@ -3838,7 +3834,7 @@ with st.sidebar:
 # darüber. Beide standardmäßig zu, damit die Sidebar aufgeräumt bleibt.
 with st.sidebar:
     st.markdown("---")
-    sidebar_tab_material = st.expander("🏄 Session hinzufügen", expanded=False)
+    sidebar_tab_material = st.expander("🏄 Add session", expanded=False)
     sidebar_tab_filter = st.expander("🔎 Filter", expanded=False)
 
 
@@ -3904,10 +3900,10 @@ right = st.container()
 
 
 with left:
-    st.markdown("### 👤 1. Session & Material")
+    st.markdown("### 👤 1. Session & equipment")
 
     name = current_user["username"]
-    st.markdown(f"**Fahrer:** `{name}`")
+    st.markdown(f"**Rider:** `{name}`")
 
     profiles = load_profiles()
     rider = profiles.get(name, {})
@@ -3917,44 +3913,44 @@ with left:
     # nicht mehr hier im Material-Tab.
 
     spot_options = rider.get("spots", [])
-    spot_choice = st.selectbox("Surfspot", [NEW_ENTRY] + spot_options)
+    spot_choice = st.selectbox("Surf spot", [NEW_ENTRY] + spot_options)
 
     if spot_choice == NEW_ENTRY:
-        spot = st.text_input("Neuer Surfspot")
+        spot = st.text_input("New surf spot")
     else:
         spot = spot_choice
 
     st.markdown("**Board**")
     board_options = rider.get("boards", [])
-    board_choice = st.selectbox("Board auswählen", [NEW_ENTRY] + board_options)
+    board_choice = st.selectbox("Select board", [NEW_ENTRY] + board_options)
 
     if board_choice == NEW_ENTRY:
-        board_brand = st.text_input("Board-Marke")
-        board_model = st.text_input("Board-Typ / Modell")
-        board_volume = st.number_input("Volumen in Liter", min_value=0, step=1)
+        board_brand = st.text_input("Board brand")
+        board_model = st.text_input("Board type / model")
+        board_volume = st.number_input("Volume in liters", min_value=0, step=1)
         board_display = f"{board_brand.strip()} {board_model.strip()} {board_volume}L".strip()
         board_ok = bool(board_brand.strip() and board_model.strip() and board_volume > 0)
     else:
         board_display = board_choice
         board_ok = True
 
-    st.markdown("**Segel**")
+    st.markdown("**Sail**")
     sail_options = rider.get("sails", [])
-    sail_choice = st.selectbox("Segel auswählen", [NEW_ENTRY] + sail_options)
+    sail_choice = st.selectbox("Select sail", [NEW_ENTRY] + sail_options)
 
     if sail_choice == NEW_ENTRY:
-        sail_brand = st.text_input("Segelhersteller")
-        sail_model = st.text_input("Segelname / Modell")
-        sail_size = st.number_input("Segelgröße in m²", min_value=0.0, step=0.1)
+        sail_brand = st.text_input("Sail brand")
+        sail_model = st.text_input("Sail name / model")
+        sail_size = st.number_input("Sail size in m²", min_value=0.0, step=0.1)
         sail_display = f"{sail_brand.strip()} {sail_model.strip()} {sail_size:.1f} m²".strip()
         sail_ok = bool(sail_brand.strip() and sail_model.strip() and sail_size > 0)
     else:
         sail_display = sail_choice
         sail_ok = True
 
-    st.markdown("### ☁️ 2. Aktivität laden")
+    st.markdown("### ☁️ 2. Load activity")
 
-    st.caption("ℹ️ Aktuell werden nur **Garmin-Uhren** (FIT-Dateien) unterstützt.")
+    st.caption("ℹ️ Currently only **Garmin watches** (FIT files) are supported.")
 
     fit_source = None
     fit_name = None
@@ -3963,33 +3959,34 @@ with left:
     # Server gibt es ausschließlich den Datei-Upload.
     if IS_WINDOWS:
         source = st.radio(
-            "Quelle",
-            ["📁 Datei hochladen", "⌚ Von Uhr (USB)"],
+            "Source",
+            ["📁 Upload file", "⌚ From watch (USB)"],
             horizontal=True,
         )
     else:
-        source = "📁 Datei hochladen"
+        source = "📁 Upload file"
         st.caption(
-            "⌚ **Von der Uhr:** Uhr per USB anschließen, den Ordner "
-            "**GARMIN/Activity** öffnen und die gewünschte **.fit-Datei** "
-            "unten hochladen."
+            "⌚ **From the watch:** connect the watch via USB, open the "
+            "**GARMIN/Activity** folder and upload the desired **.fit file** "
+            "below."
         )
 
-    if source == "📁 Datei hochladen":
-        uploaded_file = st.file_uploader("FIT-Datei hochladen", type=["fit"])
+    if source == "📁 Upload file":
+        uploaded_file = st.file_uploader("Upload FIT file", type=["fit"])
 
         if uploaded_file is not None:
             fit_source = uploaded_file
             fit_name = uploaded_file.name
     else:
         st.caption(
-            "Uhr per USB anschließen. Egal ob als Laufwerk (z.B. ältere Edge) "
-            "oder als Gerät ohne Laufwerksbuchstaben (z.B. Fenix 6 Pro) – die "
-            "Aktivitäten erscheinen automatisch. Optional Ordnerpfad angeben."
+            "Connect the watch via USB. Whether it shows up as a drive (e.g. "
+            "older Edge) or as a device without a drive letter (e.g. Fenix 6 "
+            "Pro) – the activities appear automatically. Optionally enter a "
+            "folder path."
         )
 
         manual_folder = st.text_input(
-            "Optional: Ordnerpfad (z.B. E:\\GARMIN\\Activity)"
+            "Optional: folder path (e.g. E:\\GARMIN\\Activity)"
         )
 
         activities = []
@@ -4022,7 +4019,7 @@ with left:
 
         if not activities:
             st.warning(
-                "Keine FIT-Dateien gefunden. Uhr anschließen oder Ordnerpfad angeben."
+                "No FIT files found. Connect the watch or enter a folder path."
             )
         else:
             labels = {}
@@ -4036,7 +4033,7 @@ with left:
                 labels[label] = activity
 
             choice = st.selectbox(
-                "Aktivität auswählen (neueste zuerst)",
+                "Select activity (newest first)",
                 list(labels.keys()),
             )
 
@@ -4046,7 +4043,7 @@ with left:
                 fit_source = selected["path"]
                 fit_name = selected["name"]
             else:
-                with st.spinner("Datei wird von der Uhr kopiert …"):
+                with st.spinner("Copying file from the watch …"):
                     copied = copy_mtp_file(selected["device"], selected["name"])
 
                 if copied:
@@ -4054,8 +4051,8 @@ with left:
                     fit_name = f"{selected['name']}.fit"
                 else:
                     st.error(
-                        "Die Datei konnte nicht von der Uhr kopiert werden. "
-                        "Uhr neu verbinden und erneut versuchen."
+                        "The file could not be copied from the watch. "
+                        "Reconnect the watch and try again."
                     )
 
 
@@ -4075,12 +4072,12 @@ required_ok = all([
 
 if fit_source is not None:
     if not required_ok:
-        st.warning("Bitte zuerst Surfspot, Board und Segel vollständig eingeben.")
+        st.warning("Please fully enter surf spot, board and sail first.")
 
     df = read_fit_file(fit_source)
 
     if df.empty:
-        st.error("Die Datei enthält keine Record-Daten.")
+        st.error("The file contains no record data.")
         st.stop()
 
     max_speed = None
@@ -4134,7 +4131,7 @@ if fit_source is not None:
     longest_run_km = None
 
     if not runs_df.empty:
-        longest_run_m = runs_df["Distanz m"].max()
+        longest_run_m = runs_df["Distance m"].max()
         longest_run_km = longest_run_m / 1000
 
     # Trust Score: Plausibilität der Aufzeichnung (inkl. Vergleich mit Spot-Bestwert).
@@ -4155,63 +4152,63 @@ if fit_source is not None:
     trust = compute_trust_score(df, spot_top_kmh)
 
     with right:
-        st.markdown("## 🌊 Session Übersicht")
+        st.markdown("## 🌊 Session overview")
 
         c1, c2, c3, c4 = st.columns(4)
 
         c1.metric(
             "Max Speed",
-            "Keine Daten" if max_speed is None else f"{max_speed:.2f} km/h"
+            "No data" if max_speed is None else f"{max_speed:.2f} km/h"
         )
 
         c2.metric(
             "Ø Speed",
-            "Keine Daten" if avg_speed is None else f"{avg_speed:.2f} km/h"
+            "No data" if avg_speed is None else f"{avg_speed:.2f} km/h"
         )
 
         c3.metric(
-            "Gesamtstrecke",
-            "Keine Daten" if distance_km is None else f"{distance_km:.2f} km"
+            "Total distance",
+            "No data" if distance_km is None else f"{distance_km:.2f} km"
         )
 
         c4.metric(
-            "Längster Run",
-            "Keine Daten" if longest_run_km is None else f"{longest_run_km:.2f} km"
+            "Longest run",
+            "No data" if longest_run_km is None else f"{longest_run_km:.2f} km"
         )
 
-        st.markdown("## 🔍 Trust Score (Plausibilität)")
+        st.markdown("## 🔍 Trust Score (plausibility)")
         render_trust_score(trust)
 
-        st.markdown("## 🌦️ Wetter zur Session")
+        st.markdown("## 🌦️ Weather during session")
 
         if weather is None:
             if session_lat is None:
-                st.info("Keine GPS-Daten – Wetter kann nicht abgerufen werden.")
+                st.info("No GPS data – weather cannot be retrieved.")
             else:
-                st.info("Keine Wetterdaten verfügbar (evtl. noch kein Archiv-Eintrag).")
+                st.info("No weather data available (maybe no archive entry yet).")
         else:
-            emoji, description = WEATHER_CODES.get(weather["code"], ("❓", "Unbekannt"))
+            emoji, description = WEATHER_CODES.get(weather["code"], ("❓", "Unknown"))
 
             w1, w2, w3, w4 = st.columns(4)
 
             w1.metric(
                 "Wind",
                 "–" if weather["wind"] is None else f"{weather['wind']:.0f} km/h",
-                None if weather["gust"] is None else f"Böen {weather['gust']:.0f} km/h",
+                None if weather["gust"] is None else f"Gusts {weather['gust']:.0f} km/h",
             )
 
             w2.metric(
-                "Temperatur",
+                "Temperature",
                 "–" if weather["temp"] is None else f"{weather['temp']:.1f} °C",
             )
 
             w3.metric(
-                "Niederschlag",
+                "Precipitation",
                 "–" if weather["precip"] is None else f"{weather['precip']:.1f} mm",
             )
 
             w4.metric(
-                "Bedingung",
+                "Condition",
                 emoji,
                 description,
                 delta_color="off",
@@ -4219,20 +4216,20 @@ if fit_source is not None:
 
             if weather["dir"] is not None:
                 st.caption(
-                    f"🧭 Wind aus **{degrees_to_compass(weather['dir'])}** "
+                    f"🧭 Wind from **{degrees_to_compass(weather['dir'])}** "
                     f"{wind_arrow(weather['dir'])} ({weather['dir']:.0f}°)"
                 )
 
-        st.markdown("## ⚡ Speed-Werte")
+        st.markdown("## ⚡ Speed values")
 
         speed_table = pd.DataFrame([
             {
-                "Wertung": "1 Sekunde",
+                "Category": "1 second",
                 "Speed km/h": best_1s,
                 "Speed kn": None if best_1s is None else best_1s / 1.852,
             },
             {
-                "Wertung": "30 Sekunden",
+                "Category": "30 seconds",
                 "Speed km/h": best_30s,
                 "Speed kn": None if best_30s is None else best_30s / 1.852,
             },
@@ -4245,14 +4242,14 @@ if fit_source is not None:
             height=df_height(len(speed_table)),
         )
 
-        with st.expander("🌊 Erkannte Runs / Einzelstrecken", expanded=False):
+        with st.expander("🌊 Detected runs / individual legs", expanded=False):
             if not runs_df.empty:
                 show_runs = runs_df.copy()
-                show_runs["Distanz m"] = show_runs["Distanz m"].round(2)
-                show_runs["Distanz km"] = show_runs["Distanz km"].round(3)
+                show_runs["Distance m"] = show_runs["Distance m"].round(2)
+                show_runs["Distance km"] = show_runs["Distance km"].round(3)
                 show_runs["Max Speed km/h"] = show_runs["Max Speed km/h"].round(2)
                 show_runs["Ø Speed km/h"] = show_runs["Ø Speed km/h"].round(2)
-                show_runs = show_runs.sort_values("Distanz m", ascending=False).reset_index(drop=True)
+                show_runs = show_runs.sort_values("Distance m", ascending=False).reset_index(drop=True)
                 show_runs.insert(0, "Run", show_runs.index + 1)
 
                 st.dataframe(
@@ -4262,11 +4259,11 @@ if fit_source is not None:
                     height=df_height(len(show_runs)),
                 )
             else:
-                st.info("Keine Runs erkannt. Eventuell Grenzwerte anpassen.")
+                st.info("No runs detected. You may need to adjust the thresholds.")
 
         if st.session_state.get("just_added") == fit_name:
             st.success(
-                f"✅ Session wurde zum Online-Ranking hinzugefügt: **{fit_name}**."
+                f"✅ Session was added to the online ranking: **{fit_name}**."
             )
 
             achievements = st.session_state.get("last_achievements")
@@ -4274,11 +4271,11 @@ if fit_source is not None:
                 render_achievements(achievements)
         elif session_exists(fit_name):
             st.info(
-                f"⚠️ Diese Datei wurde bereits hochgeladen: **{fit_name}**. "
-                "Sie kann kein zweites Mal zum Ranking hinzugefügt werden."
+                f"⚠️ This file has already been uploaded: **{fit_name}**. "
+                "It cannot be added to the ranking a second time."
             )
         elif required_ok and best_30s is not None:
-            if st.button("🏆 Session zum Online-Ranking hinzufügen"):
+            if st.button("🏆 Add session to the online ranking"):
                 entry = {
                     "date": session_date,
                     "name": name.strip(),
@@ -4315,17 +4312,17 @@ if fit_source is not None:
 
                 st.session_state["last_achievements"] = achievements
                 st.session_state["ranking_flash"] = (
-                    "Session wurde im Online-Ranking gespeichert."
+                    "Session was saved in the online ranking."
                 )
                 st.session_state["just_added"] = fit_name
                 st.rerun()
 
     st.markdown("---")
 
-    with st.expander("📍 Track auf Karte", expanded=False):
+    with st.expander("📍 Track on map", expanded=False):
         show_map(df)
 
-    with st.expander("📋 Rohdaten", expanded=False):
+    with st.expander("📋 Raw data", expanded=False):
         st.dataframe(
             df.head(100),
             width="stretch",
@@ -4335,7 +4332,7 @@ if fit_source is not None:
         csv = df.to_csv(index=False).encode("utf-8")
 
         st.download_button(
-            "⬇️ Rohdaten als CSV herunterladen",
+            "⬇️ Download raw data as CSV",
             data=csv,
             file_name="fit_export.csv",
             mime="text/csv",
@@ -4347,35 +4344,35 @@ else:
             render_history_overview(selected_history_record)
         else:
             st.info(
-                "Lade links in der Sidebar im Tab **🏄 Material** eine FIT-Datei "
-                "hoch (Material wählen & hochladen)."
+                "Upload a FIT file in the sidebar on the left in the "
+                "**🏄 Add session** tab (choose equipment & upload)."
             )
-            st.info("Nach dem Upload erscheint hier die Auswertung.")
+            st.info("After the upload the analysis appears here.")
 
 
 st.markdown("---")
 
-with st.expander("🌦️ Spot-Wetter (aktuell & Vorhersage)", expanded=False):
+with st.expander("🌦️ Spot weather (current & forecast)", expanded=False):
     spot_list = all_known_spots()
 
     if not spot_list:
-        st.info("Noch keine Spots hinterlegt. Speichere zuerst eine Session mit Surfspot.")
+        st.info("No spots saved yet. Save a session with a surf spot first.")
     else:
-        selected_spot = st.selectbox("Spot auswählen", spot_list, key="weather_spot")
+        selected_spot = st.selectbox("Select spot", spot_list, key="weather_spot")
 
         spot_lat, spot_lon = resolve_spot_coords(selected_spot)
 
         if spot_lat is None:
             st.warning(
-                f"Für „{selected_spot}\" konnten keine Koordinaten ermittelt werden. "
-                "Speichere eine Session mit GPS an diesem Spot oder benenne ihn eindeutiger."
+                f"No coordinates could be determined for \"{selected_spot}\". "
+                "Save a session with GPS at this spot or give it a more specific name."
             )
         else:
-            st.markdown(f"**Aktuell & Vorhersage** &nbsp; 📍 {spot_lat:.3f}, {spot_lon:.3f}")
+            st.markdown(f"**Current & forecast** &nbsp; 📍 {spot_lat:.3f}, {spot_lon:.3f}")
             render_weather_browser(spot_lat, spot_lon)
             st.caption(
-                "Das Wetter wird direkt in deinem Browser von Open-Meteo geladen "
-                "(über deine eigene IP, unabhängig vom geteilten Server-Limit)."
+                "The weather is loaded directly in your browser from Open-Meteo "
+                "(via your own IP, independent of the shared server limit)."
             )
 
 
@@ -4384,7 +4381,7 @@ st.markdown("---")
 st.markdown(f"""
 <div class="footer">
     <h3 style="color:white;">{logo_icon} WINDSURF SPEED CHALLENGE</h3>
-    <p>Die Community. Dein Spot. Dein Speed.</p>
+    <p>The community. Your spot. Your speed.</p>
     <p style="margin-top:.75rem;">
         <a href="?seite=impressum" target="_self" style="color:#2bd4d9;">Impressum</a>
         &nbsp;·&nbsp;
