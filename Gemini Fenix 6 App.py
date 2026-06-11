@@ -82,6 +82,41 @@ SPOTS_FILE = app_path("spots.json")
 
 NEW_ENTRY = "➕ Add new..."
 
+# --- Sport-Modus (Windsurf / Kitesurf) -------------------------------------
+# Eine DB, eine sessions-Tabelle mit Spalte `sport`. Der aktive Sport kommt aus
+# dem URL-Parameter ?sport= (bleibt so über Reload/Link erhalten). Standard:
+# Windsurf. So bleiben Caching & Performance unverändert – nur ein WHERE mehr.
+SPORTS = ("windsurf", "kitesurf")
+
+SPORT_META = {
+    "windsurf": {
+        "label": "🏄 Windsurf",
+        "title": "WINDSURF",
+        "gear_label": "Sail",                       # 2. Material (neben Board)
+        "gear_type_label": "Foil / Fin",            # Label des gear_type-Felds
+        "gear_type_options": ["Fin", "Foil"],
+        # Profil-Keys (Autovervollständigung). Windsurf nutzt die bestehenden
+        # Schlüssel (Abwärtskompatibilität), Kite eigene.
+        "boards_key": "boards",
+        "gear_key": "sails",
+    },
+    "kitesurf": {
+        "label": "🪁 Kitesurf",
+        "title": "KITESURF",
+        "gear_label": "Kite",
+        "gear_type_label": "Foil / Twintip",
+        "gear_type_options": ["Twintip", "Foil"],
+        "boards_key": "kite_boards",
+        "gear_key": "kites",
+    },
+}
+
+
+def active_sport():
+    """Aktiver Sport aus ?sport= (validiert), Standard 'windsurf'."""
+    s = st.query_params.get("sport", "windsurf")
+    return s if s in SPORTS else "windsurf"
+
 # WMO-Wettercodes -> (Emoji, Beschreibung)
 WEATHER_CODES = {
     0: ("☀️", "Clear"),
@@ -217,19 +252,20 @@ def _bg_uri_cached(path, _mtime):
     return image_data_uri(path)
 
 
-def background_data_uri():
-    """Findet das Hintergrundbild in mehreren Formaten und liefert die Data-URI.
+def background_data_uri(sport="windsurf"):
+    """Findet das Hintergrundbild (je Sport) und liefert die Data-URI.
 
-    Reihenfolge der Kandidaten = Priorität. Du kannst das Bild als
-    assets/background.webp ODER .jpg/.jpeg/.png ablegen (Fallback: header.*).
-    Die Existenz-/mtime-Prüfung läuft ungecacht (billig); nur das Kodieren ist
-    gecacht und invalidiert beim Bildwechsel automatisch.
+    Kitesurf nutzt zuerst assets/background_kite.* und fällt – falls (noch) nicht
+    vorhanden – auf das Windsurf-Bild zurück. Du kannst das Bild als .webp ODER
+    .jpg/.jpeg/.png ablegen (letzter Fallback: header.*). Die Existenz-/mtime-
+    Prüfung läuft ungecacht (billig); nur das Kodieren ist gecacht und
+    invalidiert beim Bildwechsel automatisch.
     """
-    candidates = [
-        ("assets", "background.webp"),
-        ("assets", "background.jpg"),
-        ("assets", "background.jpeg"),
-        ("assets", "background.png"),
+    stems = ["background_kite", "background"] if sport == "kitesurf" else ["background"]
+    exts = [".webp", ".jpg", ".jpeg", ".png"]
+
+    candidates = [("assets", f"{stem}{ext}") for stem in stems for ext in exts]
+    candidates += [
         ("assets", "header.webp"),
         ("assets", "header.jpg"),
         ("assets", "header.jpeg"),
@@ -461,6 +497,7 @@ memberships_table = Table(
 sessions_table = Table(
     "sessions", DB_METADATA,
     Column("id", Integer, primary_key=True),
+    Column("sport", String(20)),  # "windsurf" | "kitesurf" (Altdaten: windsurf)
     Column("name", String(80)),  # = Benutzername des Fahrers
     Column("date", String(20)),
     Column("surfspot", String(200)),
@@ -673,6 +710,13 @@ def ensure_schema():
                     conn.execute(text(
                         f'ALTER TABLE {table.name} ADD COLUMN "{column.name}" {col_type}'
                     ))
+
+        # Altdaten ohne Sport gehören zu Windsurf (war vor dem Kite-Modus die
+        # einzige Variante). Einmaliges, idempotentes Backfill.
+        with engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE sessions SET sport = 'windsurf' WHERE sport IS NULL"
+            ))
     except Exception:
         # Migration ist best-effort; ein Fehler darf die App nicht blockieren.
         pass
@@ -693,9 +737,15 @@ def save_session(entry):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def load_sessions():
+def load_sessions(sport=None):
+    """Sessions als DataFrame. sport=None -> alle Sportarten (z.B. für die
+    geteilte Spot-Liste); sonst nur der angegebene Sport. sport ist Teil des
+    Cache-Keys, damit Windsurf/Kite getrennt gecacht werden."""
     with get_engine().connect() as conn:
-        rows = conn.execute(select(sessions_table)).mappings().all()
+        query = select(sessions_table)
+        if sport:
+            query = query.where(sessions_table.c.sport == sport)
+        rows = conn.execute(query).mappings().all()
 
     if not rows:
         return pd.DataFrame()
@@ -708,7 +758,7 @@ def current_username():
     return user["username"] if user else None
 
 
-def session_exists(filename, name=None):
+def session_exists(filename, name=None, sport=None):
     if not filename:
         return False
 
@@ -725,16 +775,21 @@ def session_exists(filename, name=None):
         if name is not None:
             query = query.where(sessions_table.c.name == name)
 
+        if sport:
+            query = query.where(sessions_table.c.sport == sport)
+
         return bool(conn.execute(query).scalar())
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def load_rider_sessions(name):
-    """Alle gespeicherten Sessions eines Fahrers, neueste zuerst."""
+def load_rider_sessions(name, sport=None):
+    """Alle gespeicherten Sessions eines Fahrers, neueste zuerst (optional auf
+    einen Sport eingegrenzt; sport ist Teil des Cache-Keys)."""
     with get_engine().connect() as conn:
-        rows = conn.execute(
-            select(sessions_table).where(sessions_table.c.name == name)
-        ).mappings().all()
+        query = select(sessions_table).where(sessions_table.c.name == name)
+        if sport:
+            query = query.where(sessions_table.c.sport == sport)
+        rows = conn.execute(query).mappings().all()
 
     if not rows:
         return pd.DataFrame()
@@ -766,9 +821,12 @@ def load_profiles():
     return profiles
 
 
-def update_profile(name, spot, board, sail):
+def update_profile(name, spot, board, gear, sport="windsurf"):
     if not name:
         return
+
+    boards_key = SPORT_META[sport]["boards_key"]
+    gear_key = SPORT_META[sport]["gear_key"]
 
     with get_engine().begin() as conn:
         # Profil-Zeile frisch lesen (nicht aus dem Cache), damit der Merge
@@ -785,9 +843,10 @@ def update_profile(name, spot, board, sail):
                 rider = {}
 
         if not rider:
-            rider = {"spots": [], "boards": [], "sails": []}
+            rider = {}
 
-        for key, value in (("spots", spot), ("boards", board), ("sails", sail)):
+        # Spots sind sportübergreifend geteilt; Board/Sail bzw. Board/Kite je Sport.
+        for key, value in (("spots", spot), (boards_key, board), (gear_key, gear)):
             items = rider.setdefault(key, [])
 
             if value and value not in items:
@@ -945,27 +1004,32 @@ def delete_auth_token(token):
 
 # ---- Konto-/Datenlöschung (immer nur eigene Daten) ----
 
-def count_user_sessions(name):
+def count_user_sessions(name, sport=None):
     if not name:
         return 0
 
     with get_engine().connect() as conn:
-        return conn.execute(
+        query = (
             select(func.count())
             .select_from(sessions_table)
             .where(sessions_table.c.name == name)
-        ).scalar()
+        )
+        if sport:
+            query = query.where(sessions_table.c.sport == sport)
+        return conn.execute(query).scalar()
 
 
-def delete_user_sessions(name):
-    """Löscht alle hochgeladenen Sessions des Fahrers. Gibt die Anzahl zurück."""
+def delete_user_sessions(name, sport=None):
+    """Löscht die hochgeladenen Sessions des Fahrers (optional nur eines Sports).
+    Gibt die Anzahl zurück."""
     if not name:
         return 0
 
     with get_engine().begin() as conn:
-        result = conn.execute(
-            delete(sessions_table).where(sessions_table.c.name == name)
-        )
+        stmt = delete(sessions_table).where(sessions_table.c.name == name)
+        if sport:
+            stmt = stmt.where(sessions_table.c.sport == sport)
+        result = conn.execute(stmt)
 
     clear_data_caches()
 
@@ -1631,7 +1695,7 @@ def mark_group_events_seen(user_id):
 
 def personal_bests(name, spot=None, year=None):
     """Beste Werte je Metrik für einen Fahrer, optional nach Spot/Jahr gefiltert."""
-    df = load_rider_sessions(name)
+    df = load_rider_sessions(name, active_sport())
 
     if df.empty:
         return []
@@ -1740,7 +1804,7 @@ def render_personal_best_filter(name):
     kleine Bestleistungs-Tabelle macht das unkritisch, und so lässt sich der
     Filter frei im Konto-Bereich platzieren.
     """
-    pb_df = load_rider_sessions(name)
+    pb_df = load_rider_sessions(name, active_sport())
 
     with st.expander("🏅 Personal Bests", expanded=False):
         if pb_df.empty:
@@ -1812,9 +1876,10 @@ def render_session_history(name):
     Bereich der Sidebar gerendert (unter „Meine Bestleistungen"). Gibt den für
     die Detailansicht im Hauptfenster gewählten Datensatz zurück (oder None)."""
     selected = None
+    gear_label = SPORT_META[active_sport()]["gear_label"]
 
     with st.expander("📅 View my sessions", expanded=False):
-        history = load_rider_sessions(name)
+        history = load_rider_sessions(name, active_sport())
 
         if history.empty:
             st.info("No saved sessions for this rider yet.")
@@ -1863,7 +1928,7 @@ def render_session_history(name):
                 "date": "Date",
                 "surfspot": "Surf spot",
                 "board": "Board",
-                "sail": "Sail",
+                "sail": gear_label,
                 "speed_30s_kmh": "30s km/h",
                 "speed_1s_kmh": "1s km/h",
                 "longest_run_km": "Run km",
@@ -2461,7 +2526,8 @@ def render_rankings(results_container):
     username = user["username"] if user else None
     preset = load_user_pref(username)
 
-    ranking = load_sessions()
+    sport = active_sport()
+    ranking = load_sessions(sport)
 
     months = [
         "January", "February", "March", "April", "May", "June",
@@ -2475,12 +2541,16 @@ def render_rankings(results_container):
     # Tabellen rendern, BEVOR die Filter-Widgets gebaut werden – die Rankings
     # erscheinen so zuerst, der teurere Optionen-Aufbau der Dropdowns läuft erst
     # danach.
-    group_choice = st.session_state.get("rank_group", preset.get("group") or ALL_GROUP)
-    spot_filter = st.session_state.get("rank_spot", preset.get("spot") or "Overall")
-    year_filter = st.session_state.get("rank_year", preset.get("year") or "All years")
-    month_filter = st.session_state.get("rank_month", preset.get("month") or "Whole year")
-    day_filter = st.session_state.get("rank_day", preset.get("day") or "Whole month")
-    gear_filter = st.session_state.get("rank_gear", preset.get("gear") or "All")
+    # Filter-Keys pro Sport getrennt (z.B. "rank_spot_kitesurf"), sonst würde ein
+    # in Windsurf gewählter Spot beim Wechsel zu Kite einen ungültigen Selectbox-
+    # Wert erzeugen. Der gemeinsame Preset dient als Erstbelegung (ungültige Werte
+    # fängt _preset_index ab).
+    group_choice = st.session_state.get(f"rank_group_{sport}", preset.get("group") or ALL_GROUP)
+    spot_filter = st.session_state.get(f"rank_spot_{sport}", preset.get("spot") or "Overall")
+    year_filter = st.session_state.get(f"rank_year_{sport}", preset.get("year") or "All years")
+    month_filter = st.session_state.get(f"rank_month_{sport}", preset.get("month") or "Whole year")
+    day_filter = st.session_state.get(f"rank_day_{sport}", preset.get("day") or "Whole month")
+    gear_filter = st.session_state.get(f"rank_gear_{sport}", preset.get("gear") or "All")
 
     # ---- Tabellen ZUERST (Hauptinhalt) in den Haupt-Container ----
     # Reine Anzeige (keine Widgets) -> aus dem Fragment in externen Container ok;
@@ -2504,19 +2574,19 @@ def render_rankings(results_container):
 
             if st.button("💾 Save current filters", use_container_width=True):
                 save_user_pref(username, {
-                    "group": st.session_state.get("rank_group", ALL_GROUP),
-                    "spot": st.session_state.get("rank_spot", "Overall"),
-                    "year": st.session_state.get("rank_year", "All years"),
-                    "month": st.session_state.get("rank_month", "Whole year"),
-                    "day": st.session_state.get("rank_day", "Whole month"),
-                    "gear": st.session_state.get("rank_gear", "All"),
+                    "group": st.session_state.get(f"rank_group_{sport}", ALL_GROUP),
+                    "spot": st.session_state.get(f"rank_spot_{sport}", "Overall"),
+                    "year": st.session_state.get(f"rank_year_{sport}", "All years"),
+                    "month": st.session_state.get(f"rank_month_{sport}", "Whole year"),
+                    "day": st.session_state.get(f"rank_day_{sport}", "Whole month"),
+                    "gear": st.session_state.get(f"rank_gear_{sport}", "All"),
                 })
                 st.success("Saved – will be loaded on start from now on.")
 
             if preset and st.button("↺ Reset", use_container_width=True):
                 delete_user_pref(username)
                 for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day", "rank_gear"):
-                    st.session_state.pop(_k, None)
+                    st.session_state.pop(f"{_k}_{sport}", None)
                 st.rerun()
 
         group_options = [ALL_GROUP] + [g["name"] for g in member_groups]
@@ -2524,7 +2594,7 @@ def render_rankings(results_container):
             "👥 Group",
             group_options,
             index=_preset_index(group_options, group_choice),
-            key="rank_group",
+            key=f"rank_group_{sport}",
             help="\"All\" shows every rider. You only see group results as a member.",
         )
 
@@ -2557,25 +2627,25 @@ def render_rankings(results_container):
 
         st.selectbox(
             "📍 Location", spot_options,
-            index=_preset_index(spot_options, spot_filter), key="rank_spot",
+            index=_preset_index(spot_options, spot_filter), key=f"rank_spot_{sport}",
         )
         st.selectbox(
             "📅 Year", year_options,
-            index=_preset_index(year_options, year_filter), key="rank_year",
+            index=_preset_index(year_options, year_filter), key=f"rank_year_{sport}",
         )
         st.selectbox(
             "📆 Month", month_options,
-            index=_preset_index(month_options, month_filter), key="rank_month",
+            index=_preset_index(month_options, month_filter), key=f"rank_month_{sport}",
         )
         st.selectbox(
             "🗓️ Day", day_options,
-            index=_preset_index(day_options, day_filter), key="rank_day",
+            index=_preset_index(day_options, day_filter), key=f"rank_day_{sport}",
         )
 
-        gear_options = ["All", "Fin", "Foil"]
+        gear_options = ["All"] + SPORT_META[sport]["gear_type_options"]
         st.selectbox(
-            "🪙 Foil / Fin", gear_options,
-            index=_preset_index(gear_options, gear_filter), key="rank_gear",
+            f"🪙 {SPORT_META[sport]['gear_type_label']}", gear_options,
+            index=_preset_index(gear_options, gear_filter), key=f"rank_gear_{sport}",
         )
 
 
@@ -2632,6 +2702,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                            spot_filter, year_filter, month_filter, day_filter,
                            gear_filter="All"):
     """Rendert die vier Ranking-Tabellen – reine Anzeige (keine Widgets)."""
+    gear_label = SPORT_META[active_sport()]["gear_label"]  # "Sail" / "Kite"
     st.markdown("## 🏆 Online rankings")
 
     flash = st.session_state.pop("ranking_flash", None)
@@ -2723,7 +2794,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "name": "Name",
             "surfspot": "Surf spot",
             "board": "Board",
-            "sail": "Sail",
+            "sail": gear_label,
             "speed_30s_kmh": "30s km/h",
             "speed_30s_kn": "30s kn",
         })
@@ -2758,7 +2829,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "name": "Name",
             "surfspot": "Surf spot",
             "board": "Board",
-            "sail": "Sail",
+            "sail": gear_label,
             "speed_1s_kmh": "1s km/h",
             "speed_1s_kn": "1s kn",
         })
@@ -2795,7 +2866,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "name": "Name",
             "surfspot": "Surf spot",
             "board": "Board",
-            "sail": "Sail",
+            "sail": gear_label,
             "longest_run_km": "Run km",
             "longest_run_m": "Run m",
         })
@@ -3349,10 +3420,27 @@ load_css(app_path("assets", "style.css"))
 
 logo_img = image_to_base64(app_path("assets", "windsurfer.png"))
 
-# Vollflächiges Hintergrundbild (Wasser/Surfer). Lege dein Wunschfoto als
-# assets/background.webp ODER .jpg/.jpeg/.png ab (Fallback: header.*). Der
-# MIME-Typ wird automatisch passend zur Datei gesetzt.
-bg_uri = background_data_uri()
+# Aktiver Sport (aus ?sport=). Standard: Windsurf.
+sport = active_sport()
+
+# Header-Umschalter Windsurf | Kitesurf (ganz oben). Klick setzt ?sport= in der
+# URL (bleibt über Reload/Link erhalten) und löst einen Rerun aus.
+_sw_cols = st.columns([1, 1, 5])
+for _i, _key in enumerate(SPORTS):
+    if _sw_cols[_i].button(
+        SPORT_META[_key]["label"],
+        key=f"switch_sport_{_key}",
+        use_container_width=True,
+        type="primary" if _key == sport else "secondary",
+    ):
+        if _key != sport:
+            st.query_params["sport"] = _key
+            st.rerun()
+
+# Vollflächiges Hintergrundbild je Sport. Lege dein Wunschfoto als
+# assets/background.webp (Windsurf) bzw. assets/background_kite.webp (Kite) ab
+# (auch .jpg/.jpeg/.png). MIME-Typ wird automatisch passend gesetzt.
+bg_uri = background_data_uri(sport)
 
 if bg_uri:
     st.markdown(
@@ -3375,18 +3463,18 @@ if bg_uri:
         unsafe_allow_html=True,
     )
 
-if logo_img:
+if sport == "windsurf" and logo_img:
     logo_icon = (
         f'<img src="data:image/png;base64,{logo_img}" '
         'style="height:1em;vertical-align:-0.15em;margin-right:.15em;" alt="">'
     )
 else:
-    logo_icon = "🏄"
+    logo_icon = "🪁" if sport == "kitesurf" else "🏄"
 
 st.markdown(f"""
 <div class="hero">
     <div class="hero-content">
-        <div class="logo">{logo_icon} WINDSURF</div>
+        <div class="logo">{logo_icon} {SPORT_META[sport]["title"]}</div>
         <div class="title">SPEED CHALLENGE</div>
         <p>Track your sessions. Compare your personal bests.<br>
         The community. Your spot. Your speed.</p>
@@ -3679,7 +3767,7 @@ def render_account_sidebar(user):
         st.markdown("---")
 
         with st.expander("⚠️ Account & delete data"):
-            session_count = count_user_sessions(user["username"])
+            session_count = count_user_sessions(user["username"], active_sport())
 
             st.caption(
                 f"You currently have {session_count} saved session(s). "
@@ -3688,7 +3776,7 @@ def render_account_sidebar(user):
             )
 
             # --- Einzelne Session löschen ---
-            rider_sessions = load_rider_sessions(user["username"])
+            rider_sessions = load_rider_sessions(user["username"], active_sport())
 
             if not rider_sessions.empty and "id" in rider_sessions.columns:
                 st.markdown("**Delete a single session**")
@@ -3745,7 +3833,7 @@ def render_account_sidebar(user):
                 use_container_width=True,
                 disabled=not confirm_data,
             ):
-                removed = delete_user_sessions(user["username"])
+                removed = delete_user_sessions(user["username"], active_sport())
                 st.success(f"{removed} session(s) deleted.")
                 st.rerun()
 
@@ -3934,35 +4022,48 @@ with left:
     else:
         spot = spot_choice
 
+    gear_meta = SPORT_META[sport]
+    gear_label = gear_meta["gear_label"]  # "Sail" (Windsurf) / "Kite" (Kite)
+
     st.markdown("**Board**")
-    board_options = rider.get("boards", [])
-    board_choice = st.selectbox("Select board", [NEW_ENTRY] + board_options)
+    board_options = rider.get(gear_meta["boards_key"], [])
+    board_choice = st.selectbox(
+        "Select board", [NEW_ENTRY] + board_options, key=f"board_sel_{sport}"
+    )
 
     if board_choice == NEW_ENTRY:
-        board_brand = st.text_input("Board brand")
-        board_model = st.text_input("Board type / model")
-        board_volume = st.number_input("Volume in liters", min_value=0, step=1)
-        board_display = f"{board_brand.strip()} {board_model.strip()} {board_volume}L".strip()
-        board_ok = bool(board_brand.strip() and board_model.strip() and board_volume > 0)
+        board_brand = st.text_input("Board brand", key=f"board_brand_{sport}")
+        board_model = st.text_input("Board type / model", key=f"board_model_{sport}")
+        board_volume = st.number_input(
+            "Volume in liters (optional)", min_value=0, step=1, key=f"board_vol_{sport}"
+        )
+        board_display = f"{board_brand.strip()} {board_model.strip()}".strip()
+        if board_volume > 0:
+            board_display = f"{board_display} {board_volume}L".strip()
+        board_ok = bool(board_brand.strip() and board_model.strip())
     else:
         board_display = board_choice
         board_ok = True
 
     gear_type = st.radio(
-        "Foil / Fin",
-        ["Fin", "Foil"],
+        gear_meta["gear_type_label"],
+        gear_meta["gear_type_options"],
         horizontal=True,
-        key="gear_type_input",
+        key=f"gear_type_input_{sport}",
     )
 
-    st.markdown("**Sail**")
-    sail_options = rider.get("sails", [])
-    sail_choice = st.selectbox("Select sail", [NEW_ENTRY] + sail_options)
+    st.markdown(f"**{gear_label}**")
+    sail_options = rider.get(gear_meta["gear_key"], [])
+    sail_choice = st.selectbox(
+        f"Select {gear_label.lower()}", [NEW_ENTRY] + sail_options, key=f"gear_sel_{sport}"
+    )
 
     if sail_choice == NEW_ENTRY:
-        sail_brand = st.text_input("Sail brand")
-        sail_model = st.text_input("Sail name / model")
-        sail_size = st.number_input("Sail size in m²", min_value=0.0, step=0.1)
+        sail_brand = st.text_input(f"{gear_label} brand", key=f"gear_brand_{sport}")
+        sail_model = st.text_input(f"{gear_label} name / model", key=f"gear_model_{sport}")
+        sail_size = st.number_input(
+            f"{gear_label} size in m²", min_value=0.0, step=0.1, key=f"gear_size_{sport}"
+        )
         sail_display = f"{sail_brand.strip()} {sail_model.strip()} {sail_size:.1f} m²".strip()
         sail_ok = bool(sail_brand.strip() and sail_model.strip() and sail_size > 0)
     else:
@@ -4159,7 +4260,7 @@ if fit_source is not None:
     spot_top_kmh = None
     try:
         _spot = (spot or "").strip()
-        _all = load_sessions()
+        _all = load_sessions(active_sport())
         if _spot and not _all.empty and {"surfspot", "speed_1s_kmh"}.issubset(_all.columns):
             _m = pd.to_numeric(
                 _all.loc[_all["surfspot"].astype(str) == _spot, "speed_1s_kmh"],
@@ -4290,7 +4391,7 @@ if fit_source is not None:
             achievements = st.session_state.get("last_achievements")
             if achievements:
                 render_achievements(achievements)
-        elif session_exists(fit_name):
+        elif session_exists(fit_name, sport=active_sport()):
             st.info(
                 f"⚠️ This file has already been uploaded: **{fit_name}**. "
                 "It cannot be added to the ranking a second time."
@@ -4298,6 +4399,7 @@ if fit_source is not None:
         elif required_ok and best_30s is not None:
             if st.button("🏆 Add session to the online ranking"):
                 entry = {
+                    "sport": active_sport(),
                     "date": session_date,
                     "name": name.strip(),
                     "surfspot": spot.strip(),
@@ -4323,10 +4425,10 @@ if fit_source is not None:
 
                 # Rekorde VOR dem Speichern erkennen (Vergleich mit dem Bestand).
                 member_groups = my_member_groups(current_user["id"])
-                achievements = detect_records(entry, load_sessions(), member_groups)
+                achievements = detect_records(entry, load_sessions(active_sport()), member_groups)
 
                 save_session(entry)
-                update_profile(name.strip(), spot.strip(), board_display, sail_display)
+                update_profile(name.strip(), spot.strip(), board_display, sail_display, active_sport())
                 update_spot_coords(spot.strip(), session_lat, session_lon)
 
                 # Top-3/Rekord-Ereignisse für die Gruppen-Mitglieder hinterlegen.
@@ -4402,7 +4504,7 @@ st.markdown("---")
 
 st.markdown(f"""
 <div class="footer">
-    <h3 style="color:white;">{logo_icon} WINDSURF SPEED CHALLENGE</h3>
+    <h3 style="color:white;">{logo_icon} {SPORT_META[sport]["title"]} SPEED CHALLENGE</h3>
     <p>The community. Your spot. Your speed.</p>
     <p style="margin-top:.75rem;">
         <a href="?seite=impressum" target="_self" style="color:#2bd4d9;">Impressum</a>
