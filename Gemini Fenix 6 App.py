@@ -1806,6 +1806,121 @@ def render_personal_best_table(pb_table, pb_table_caption):
     st.markdown("---")
 
 
+def render_session_history(name):
+    """Verlauf der eigenen Sessions (Tabelle + Detail-Auswahl) – wird im Konto-
+    Bereich der Sidebar gerendert (unter „Meine Bestleistungen"). Gibt den für
+    die Detailansicht im Hauptfenster gewählten Datensatz zurück (oder None)."""
+    selected = None
+
+    with st.expander("📅 Meine Sessions ansehen", expanded=False):
+        history = load_rider_sessions(name)
+
+        if history.empty:
+            st.info("Noch keine gespeicherten Sessions für diesen Fahrer.")
+            return None
+
+        valid_dates = history["date"].dropna() if "date" in history.columns else pd.Series(dtype="datetime64[ns]")
+
+        if not valid_dates.empty:
+            min_date = valid_dates.min().date()
+            max_date = valid_dates.max().date()
+
+            date_range = st.date_input(
+                "Zeitraum filtern",
+                value=(min_date, max_date),
+                min_value=min_date,
+                max_value=max_date,
+                key=f"history_dates_{name}",
+            )
+
+            if isinstance(date_range, (tuple, list)) and len(date_range) == 2:
+                start, end = date_range
+                history = history[
+                    (history["date"].dt.date >= start)
+                    & (history["date"].dt.date <= end)
+                ]
+
+        # Vollständige (datums-gefilterte) Liste behalten – die Tabelle zeigt die
+        # letzten 10, im Dropdown sind aber alle wählbar.
+        history_full = history
+        history = history_full.head(10)
+
+        if history_full.empty:
+            st.info("Keine Sessions im gewählten Zeitraum.")
+        else:
+            columns = [
+                "date", "surfspot", "board", "sail",
+                "speed_30s_kmh", "speed_1s_kmh",
+                "longest_run_km", "total_distance_km",
+            ]
+            show_history = history[[c for c in columns if c in history.columns]].copy()
+
+            if "date" in show_history.columns:
+                show_history["date"] = show_history["date"].dt.strftime("%Y-%m-%d")
+
+            show_history = show_history.rename(columns={
+                "date": "Datum",
+                "surfspot": "Surfspot",
+                "board": "Board",
+                "sail": "Segel",
+                "speed_30s_kmh": "30s km/h",
+                "speed_1s_kmh": "1s km/h",
+                "longest_run_km": "Run km",
+                "total_distance_km": "Strecke km",
+            })
+
+            st.dataframe(
+                show_history,
+                width="stretch",
+                hide_index=True,
+                height=df_height(len(show_history)),
+            )
+
+            if len(history_full) > len(history):
+                st.caption(
+                    f"Tabelle zeigt die letzten {len(history)} – im Dropdown "
+                    f"sind alle {len(history_full)} wählbar. "
+                    "(Löschen unter „Konto & Daten löschen“.)"
+                )
+
+            # Dropdown über ALLE (gefilterten) Sessions, nicht nur die 10 in der
+            # Tabelle. Label mit Speed zur besseren Unterscheidung.
+            record_by_label = {}
+
+            for i, (_, row) in enumerate(history_full.iterrows()):
+                if "date" in history_full.columns and pd.notna(row["date"]):
+                    date_str = row["date"].strftime("%Y-%m-%d")
+                else:
+                    date_str = "?"
+
+                spot_label = str(row.get("surfspot", "") or "")
+                speed_val = row.get("speed_1s_kmh")
+                speed_label = (
+                    "" if speed_val is None or pd.isna(speed_val)
+                    else f" · {float(speed_val):.1f} km/h"
+                )
+                label = (
+                    f"{date_str} · {spot_label}{speed_label}".strip(" ·")
+                    or f"Session {i + 1}"
+                )
+
+                if label in record_by_label:
+                    label = f"{label} ({i + 1})"
+
+                record_by_label[label] = row
+
+            chosen_label = st.selectbox(
+                "Session-Details rechts anzeigen",
+                ["—"] + list(record_by_label.keys()),
+                key=f"history_pick_{name}",
+            )
+
+            if chosen_label != "—":
+                selected = record_by_label[chosen_label]
+
+    return selected
+
+
 def _http_get_json(url, timeout, retries=2):
     """GET einer JSON-API mit explizitem User-Agent und Retry.
 
@@ -3715,13 +3830,16 @@ if st.session_state.get("_pending_token"):
 with st.sidebar:
     st.markdown("---")
     pb_table, pb_table_caption = render_personal_best_filter(current_user["username"])
+    selected_history_record = render_session_history(current_user["username"])
 
 
-# Linke Sidebar: Konto/Gruppen sind oben bereits gerendert. Darunter zwei Tabs
-# für Filter und Material – so bleibt die Mitte komplett für Ergebnisse frei.
+# Linke Sidebar: Konto/Gruppen sind oben bereits gerendert. Darunter zwei
+# einklappbare Bereiche (Expander) – konsistent mit Bestleistungen/Sessions
+# darüber. Beide standardmäßig zu, damit die Sidebar aufgeräumt bleibt.
 with st.sidebar:
     st.markdown("---")
-    sidebar_tab_filter, sidebar_tab_material = st.tabs(["🔎 Filter", "🏄 Material"])
+    sidebar_tab_material = st.expander("🏄 Session hinzufügen", expanded=False)
+    sidebar_tab_filter = st.expander("🔎 Filter", expanded=False)
 
 
 def autocollapse_sidebar():
@@ -3780,7 +3898,9 @@ st.markdown("---")
 left = sidebar_tab_material
 right = st.container()
 
-selected_history_record = None
+# selected_history_record wird oben im Konto-Bereich gesetzt
+# (render_session_history); hier NICHT erneut auf None setzen, sonst ginge die
+# Auswahl verloren.
 
 
 with left:
@@ -3792,115 +3912,9 @@ with left:
     profiles = load_profiles()
     rider = profiles.get(name, {})
 
-    if name:
-        with st.expander("📅 Meine Sessions ansehen", expanded=False):
-            history = load_rider_sessions(name)
-
-            if history.empty:
-                st.info("Noch keine gespeicherten Sessions für diesen Fahrer.")
-            else:
-                valid_dates = history["date"].dropna() if "date" in history.columns else pd.Series(dtype="datetime64[ns]")
-
-                if not valid_dates.empty:
-                    min_date = valid_dates.min().date()
-                    max_date = valid_dates.max().date()
-
-                    date_range = st.date_input(
-                        "Zeitraum filtern",
-                        value=(min_date, max_date),
-                        min_value=min_date,
-                        max_value=max_date,
-                        key=f"history_dates_{name}",
-                    )
-
-                    if isinstance(date_range, (tuple, list)) and len(date_range) == 2:
-                        start, end = date_range
-                        history = history[
-                            (history["date"].dt.date >= start)
-                            & (history["date"].dt.date <= end)
-                        ]
-
-                # Vollständige (datums-gefilterte) Liste behalten – die Tabelle
-                # zeigt die letzten 10, gelöscht werden kann aber jede Session.
-                history_full = history
-                history = history_full.head(10)
-
-                if history_full.empty:
-                    st.info("Keine Sessions im gewählten Zeitraum.")
-                else:
-                    columns = [
-                        "date", "surfspot", "board", "sail",
-                        "speed_30s_kmh", "speed_1s_kmh",
-                        "longest_run_km", "total_distance_km",
-                    ]
-                    show_history = history[[c for c in columns if c in history.columns]].copy()
-
-                    if "date" in show_history.columns:
-                        show_history["date"] = show_history["date"].dt.strftime("%Y-%m-%d")
-
-                    show_history = show_history.rename(columns={
-                        "date": "Datum",
-                        "surfspot": "Surfspot",
-                        "board": "Board",
-                        "sail": "Segel",
-                        "speed_30s_kmh": "30s km/h",
-                        "speed_1s_kmh": "1s km/h",
-                        "longest_run_km": "Run km",
-                        "total_distance_km": "Strecke km",
-                    })
-
-                    st.dataframe(
-                        show_history,
-                        width="stretch",
-                        hide_index=True,
-                        height=df_height(len(show_history)),
-                    )
-
-                    if len(history_full) > len(history):
-                        st.caption(
-                            f"Tabelle zeigt die letzten {len(history)} – im Dropdown "
-                            f"sind alle {len(history_full)} wählbar. "
-                            "(Löschen unter „Konto & Daten löschen“.)"
-                        )
-
-                    # Dropdown über ALLE (gefilterten) Sessions, nicht nur die 10
-                    # in der Tabelle. Label mit Speed zur besseren Unterscheidung.
-                    record_by_label = {}
-
-                    for i, (_, row) in enumerate(history_full.iterrows()):
-                        if "date" in history_full.columns and pd.notna(row["date"]):
-                            date_str = row["date"].strftime("%Y-%m-%d")
-                        else:
-                            date_str = "?"
-
-                        spot_label = str(row.get("surfspot", "") or "")
-                        speed_val = row.get("speed_1s_kmh")
-                        speed_label = (
-                            "" if speed_val is None or pd.isna(speed_val)
-                            else f" · {float(speed_val):.1f} km/h"
-                        )
-                        label = (
-                            f"{date_str} · {spot_label}{speed_label}".strip(" ·")
-                            or f"Session {i + 1}"
-                        )
-
-                        if label in record_by_label:
-                            label = f"{label} ({i + 1})"
-
-                        record_by_label[label] = row
-
-                    chosen_label = st.selectbox(
-                        "Session-Details rechts anzeigen",
-                        ["—"] + list(record_by_label.keys()),
-                        key=f"history_pick_{name}",
-                    )
-
-                    if chosen_label != "—":
-                        selected_history_record = record_by_label[chosen_label]
-
-    # „🏅 Meine Bestleistungen": Der Filter sitzt im Konto-Bereich der Sidebar
-    # (unter „Konto & Daten löschen"), die Tabelle im Hauptfenster – siehe
-    # render_personal_best_filter / render_personal_best_table.
+    # Verlauf („Meine Sessions ansehen") und Bestleistungen liegen jetzt im
+    # Konto-Bereich der Sidebar (render_session_history / render_personal_best_*),
+    # nicht mehr hier im Material-Tab.
 
     spot_options = rider.get("spots", [])
     spot_choice = st.selectbox("Surfspot", [NEW_ENTRY] + spot_options)
