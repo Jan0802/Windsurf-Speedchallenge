@@ -466,6 +466,7 @@ sessions_table = Table(
     Column("surfspot", String(200)),
     Column("board", String(200)),
     Column("sail", String(200)),
+    Column("gear_type", String(10)),  # "Fin" oder "Foil"
     Column("filename", String(255)),
     Column("total_distance_km", Float),
     Column("longest_run_km", Float),
@@ -2479,6 +2480,7 @@ def render_rankings(results_container):
     year_filter = st.session_state.get("rank_year", preset.get("year") or "All years")
     month_filter = st.session_state.get("rank_month", preset.get("month") or "Whole year")
     day_filter = st.session_state.get("rank_day", preset.get("day") or "Whole month")
+    gear_filter = st.session_state.get("rank_gear", preset.get("gear") or "All")
 
     # ---- Tabellen ZUERST (Hauptinhalt) in den Haupt-Container ----
     # Reine Anzeige (keine Widgets) -> aus dem Fragment in externen Container ok;
@@ -2486,7 +2488,7 @@ def render_rankings(results_container):
     with results_container.container():
         _render_ranking_tables(
             ranking, group_choice, member_groups, months,
-            spot_filter, year_filter, month_filter, day_filter,
+            spot_filter, year_filter, month_filter, day_filter, gear_filter,
         )
 
     # ---- Filter-UI DANACH am Fragment-Anker (= Sidebar-Tab „Filter") ----
@@ -2507,12 +2509,13 @@ def render_rankings(results_container):
                     "year": st.session_state.get("rank_year", "All years"),
                     "month": st.session_state.get("rank_month", "Whole year"),
                     "day": st.session_state.get("rank_day", "Whole month"),
+                    "gear": st.session_state.get("rank_gear", "All"),
                 })
                 st.success("Saved – will be loaded on start from now on.")
 
             if preset and st.button("↺ Reset", use_container_width=True):
                 delete_user_pref(username)
-                for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day"):
+                for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day", "rank_gear"):
                     st.session_state.pop(_k, None)
                 st.rerun()
 
@@ -2569,6 +2572,12 @@ def render_rankings(results_container):
             index=_preset_index(day_options, day_filter), key="rank_day",
         )
 
+        gear_options = ["All", "Fin", "Foil"]
+        st.selectbox(
+            "🪙 Foil / Fin", gear_options,
+            index=_preset_index(gear_options, gear_filter), key="rank_gear",
+        )
+
 
 @st.cache_data(show_spinner=False, max_entries=64)
 def _enrich_ranking(ranking):
@@ -2620,7 +2629,8 @@ def df_height(n_rows, max_rows=15):
 
 
 def _render_ranking_tables(ranking, group_choice, member_groups, months,
-                           spot_filter, year_filter, month_filter, day_filter):
+                           spot_filter, year_filter, month_filter, day_filter,
+                           gear_filter="All"):
     """Rendert die vier Ranking-Tabellen – reine Anzeige (keine Widgets)."""
     st.markdown("## 🏆 Online rankings")
 
@@ -2636,7 +2646,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     if "date" not in ranking.columns:
         ranking["date"] = ""
 
-    for column in ("wind_kmh", "wind_dir_deg", "temp_c", "weather_code", "trust_score"):
+    for column in ("wind_kmh", "wind_dir_deg", "temp_c", "weather_code", "trust_score", "gear_type"):
         if column not in ranking.columns:
             ranking[column] = None
 
@@ -2664,6 +2674,10 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
 
         if day_filter != "Whole month":
             ranking = ranking[ranking["_date"].dt.day == int(day_filter)]
+
+    if gear_filter and gear_filter != "All":
+        # Ältere Sessions ohne gear_type (None) fallen bei Fin/Foil-Auswahl raus.
+        ranking = ranking[ranking["gear_type"].astype(str) == gear_filter]
 
     ranking = ranking.copy()
 
@@ -3934,6 +3948,13 @@ with left:
         board_display = board_choice
         board_ok = True
 
+    gear_type = st.radio(
+        "Foil / Fin",
+        ["Fin", "Foil"],
+        horizontal=True,
+        key="gear_type_input",
+    )
+
     st.markdown("**Sail**")
     sail_options = rider.get("sails", [])
     sail_choice = st.selectbox("Select sail", [NEW_ENTRY] + sail_options)
@@ -4282,6 +4303,7 @@ if fit_source is not None:
                     "surfspot": spot.strip(),
                     "board": board_display,
                     "sail": sail_display,
+                    "gear_type": gear_type,
                     "filename": fit_name,
                     "total_distance_km": None if distance_km is None else round(distance_km, 2),
                     "longest_run_km": None if longest_run_km is None else round(longest_run_km, 3),
