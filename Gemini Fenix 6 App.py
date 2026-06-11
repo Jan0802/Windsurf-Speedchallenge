@@ -1729,24 +1729,22 @@ def personal_best_table(df, spot="Alle", year="Alle", board="Alle", max_bft=None
     return out, caption
 
 
-@st.fragment
-def render_personal_bests(name, results_container):
-    """Bestleistungs-Filter (in der Sidebar) + Top-10-Tabelle (im Hauptfenster).
+def render_personal_best_filter(name):
+    """Bestleistungs-Filter (Spot/Jahr/Board/Wind) – wird im Konto-Bereich der
+    Sidebar gerendert (unter „Konto & Daten löschen", einfacher zu finden).
 
-    Als Fragment gekapselt: Ändert der Nutzer Spot/Jahr/Board/Wind, läuft NUR
-    diese Funktion neu. Wie render_rankings IN der Sidebar verankert (Aufruf via
-    `with sidebar_tab_filter:`), weil ein Fragment Widgets nur an seinem eigenen
-    Anker erzeugen darf. Die Tabelle (keine Widgets) schreiben wir in den
-    übergebenen `results_container` (ein `st.empty()` im Hauptfenster), dessen
-    `.container()` den Inhalt bei jedem Rerun sauber ersetzt.
+    Gibt (Anzeige-DataFrame, Caption) zurück; die eigentliche Tabelle wird separat
+    im Hauptfenster über render_personal_best_table() angezeigt. Bewusst KEIN
+    Fragment mehr (eine Filteränderung löst einen normalen Rerun aus) – die
+    kleine Bestleistungs-Tabelle macht das unkritisch, und so lässt sich der
+    Filter frei im Konto-Bereich platzieren.
     """
     pb_df = load_rider_sessions(name)
 
     with st.expander("🏅 Meine Bestleistungen", expanded=False):
         if pb_df.empty:
             st.info("Noch keine Sessions – lade eine FIT-Datei hoch.")
-            results_container.empty()
-            return
+            return None, ""
 
         pb_spots = sorted(
             {str(s) for s in pb_df["surfspot"].dropna().astype(str) if str(s).strip()}
@@ -1786,18 +1784,26 @@ def render_personal_bests(name, results_container):
         )
         st.caption("➡️ Deine Top-10-Speedtabelle siehst du im Hauptfenster.")
 
-    with results_container.container():
-        st.markdown("## 🏅 Meine Bestleistungen")
+    return pb_table, pb_table_caption
 
-        if pb_table.empty:
-            st.info("Keine Sessions für diese Auswahl.")
-        else:
-            if pb_table_caption:
-                st.caption(pb_table_caption)
 
-            st.dataframe(pb_table, width="stretch", hide_index=True, height=df_height(len(pb_table)))
+def render_personal_best_table(pb_table, pb_table_caption):
+    """Zeigt die Top-10-Bestleistungs-Tabelle im Hauptfenster (gefiltert über
+    den Filter im Konto-Bereich)."""
+    if pb_table is None:
+        return
 
-        st.markdown("---")
+    st.markdown("## 🏅 Meine Bestleistungen")
+
+    if pb_table.empty:
+        st.info("Keine Sessions für diese Auswahl.")
+    else:
+        if pb_table_caption:
+            st.caption(pb_table_caption)
+
+        st.dataframe(pb_table, width="stretch", hide_index=True, height=df_height(len(pb_table)))
+
+    st.markdown("---")
 
 
 def _http_get_json(url, timeout, retries=2):
@@ -3703,6 +3709,14 @@ if st.session_state.get("_pending_token"):
     st.session_state.pop("_pending_token", None)
 
 
+# Bestleistungs-Filter direkt unter „Konto & Daten löschen" (Konto-Bereich der
+# Sidebar, ÜBER den Tabs) – dort einfacher zu finden. Die zugehörige Tabelle
+# erscheint im Hauptfenster (render_personal_best_table weiter unten).
+with st.sidebar:
+    st.markdown("---")
+    pb_table, pb_table_caption = render_personal_best_filter(current_user["username"])
+
+
 # Linke Sidebar: Konto/Gruppen sind oben bereits gerendert. Darunter zwei Tabs
 # für Filter und Material – so bleibt die Mitte komplett für Ergebnisse frei.
 with st.sidebar:
@@ -3884,9 +3898,9 @@ with left:
                     if chosen_label != "—":
                         selected_history_record = record_by_label[chosen_label]
 
-    # „🏅 Meine Bestleistungen" (Filter + Tabelle) ist jetzt ein eigenes
-    # Fragment (render_personal_bests) – weiter unten verankert, damit ein
-    # Filterklick nicht das ganze Skript neu ausführt.
+    # „🏅 Meine Bestleistungen": Der Filter sitzt im Konto-Bereich der Sidebar
+    # (unter „Konto & Daten löschen"), die Tabelle im Hauptfenster – siehe
+    # render_personal_best_filter / render_personal_best_table.
 
     spot_options = rider.get("spots", [])
     spot_choice = st.selectbox("Surfspot", [NEW_ENTRY] + spot_options)
@@ -4034,9 +4048,8 @@ with left:
 # Bestleistungen als Fragment: Filter in der Sidebar (Filter-Tab, unter den
 # Ranking-Filtern), Tabelle oben im Hauptfenster-Container `right`. Ein
 # Filterklick rerunt nur dieses Fragment.
-pb_results = right.empty()
-with sidebar_tab_filter:
-    render_personal_bests(current_user["username"], pb_results)
+with right:
+    render_personal_best_table(pb_table, pb_table_caption)
 
 
 required_ok = all([
