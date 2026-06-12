@@ -86,28 +86,43 @@ NEW_ENTRY = "➕ Add new..."
 # Eine DB, eine sessions-Tabelle mit Spalte `sport`. Der aktive Sport kommt aus
 # dem URL-Parameter ?sport= (bleibt so über Reload/Link erhalten). Standard:
 # Windsurf. So bleiben Caching & Performance unverändert – nur ein WHERE mehr.
-SPORTS = ("windsurf", "kitesurf")
+SPORTS = ("windsurf", "kitesurf", "wingsurf")
 
 SPORT_META = {
     "windsurf": {
         "label": "🏄 Windsurf",
+        "emoji": "🏄",
         "title": "WINDSURF",
         "gear_label": "Sail",                       # 2. Material (neben Board)
         "gear_type_label": "Foil / Fin",            # Label des gear_type-Felds
         "gear_type_options": ["Fin", "Foil"],
         # Profil-Keys (Autovervollständigung). Windsurf nutzt die bestehenden
-        # Schlüssel (Abwärtskompatibilität), Kite eigene.
+        # Schlüssel (Abwärtskompatibilität), die anderen eigene.
         "boards_key": "boards",
         "gear_key": "sails",
+        "bg_stem": "background",                    # assets/background.*
     },
     "kitesurf": {
         "label": "🪁 Kitesurf",
+        "emoji": "🪁",
         "title": "KITESURF",
         "gear_label": "Kite",
         "gear_type_label": "Foil / Twintip",
         "gear_type_options": ["Twintip", "Foil"],
         "boards_key": "kite_boards",
         "gear_key": "kites",
+        "bg_stem": "background_kite",               # assets/background_kite.*
+    },
+    "wingsurf": {
+        "label": "🪽 Wingsurf",
+        "emoji": "🪽",
+        "title": "WINGSURF",
+        "gear_label": "Wing",
+        "gear_type_label": "Foil / Fin",
+        "gear_type_options": ["Foil", "Fin"],
+        "boards_key": "wing_boards",
+        "gear_key": "wings",
+        "bg_stem": "background_wing",               # assets/background_wing.*
     },
 }
 
@@ -261,7 +276,8 @@ def background_data_uri(sport="windsurf"):
     Prüfung läuft ungecacht (billig); nur das Kodieren ist gecacht und
     invalidiert beim Bildwechsel automatisch.
     """
-    stems = ["background_kite", "background"] if sport == "kitesurf" else ["background"]
+    stem = SPORT_META.get(sport, {}).get("bg_stem", "background")
+    stems = [stem] if stem == "background" else [stem, "background"]
     exts = [".webp", ".jpg", ".jpeg", ".png"]
 
     candidates = [("assets", f"{stem}{ext}") for stem in stems for ext in exts]
@@ -3425,7 +3441,7 @@ sport = active_sport()
 
 # Header-Umschalter Windsurf | Kitesurf (ganz oben). Klick setzt ?sport= in der
 # URL (bleibt über Reload/Link erhalten) und löst einen Rerun aus.
-_sw_cols = st.columns([1, 1, 5])
+_sw_cols = st.columns([2] * len(SPORTS) + [1])
 for _i, _key in enumerate(SPORTS):
     if _sw_cols[_i].button(
         SPORT_META[_key]["label"],
@@ -3469,7 +3485,7 @@ if sport == "windsurf" and logo_img:
         'style="height:1em;vertical-align:-0.15em;margin-right:.15em;" alt="">'
     )
 else:
-    logo_icon = "🪁" if sport == "kitesurf" else "🏄"
+    logo_icon = SPORT_META[sport]["emoji"]
 
 st.markdown(f"""
 <div class="hero">
