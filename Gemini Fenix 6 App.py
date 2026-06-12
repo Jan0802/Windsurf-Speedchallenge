@@ -3730,15 +3730,10 @@ else:
 st.markdown(f"""
 <div class="hero">
     <div class="hero-content">
-        <div class="logo">🌊 MyWaterSessions</div>
-        <div class="title">{logo_icon} {SPORT_META[sport]["title"]}</div>
-        <p>The home for everyone active on the water.</p>
-        <div class="hero-nav">
-            <span>⚡ Speed</span>
-            <span>🏆 Ranking</span>
-            <span>📍 Spots</span>
-            <span>👥 Community</span>
-        </div>
+        <div class="logo">MyWaterSessions<span class="logo-dot">.</span></div>
+        <div class="logo-rule"></div>
+        <div class="title">{SPORT_META[sport]["title"]}</div>
+        <p>The home for everyone active on the water</p>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -4947,8 +4942,8 @@ st.markdown("---")
 
 st.markdown(f"""
 <div class="footer">
-    <h3 style="color:white;">🌊 MyWaterSessions · {logo_icon} {SPORT_META[sport]["title"]}</h3>
-    <p>The home for everyone active on the water.</p>
+    <h3 style="color:white;font-weight:800;letter-spacing:-0.4px;">MyWaterSessions<span style="color:#2bd4d9;">.</span></h3>
+    <p style="text-transform:uppercase;letter-spacing:2px;font-size:12px;opacity:.8;">{SPORT_META[sport]["title"]} · The home for everyone active on the water</p>
     <p style="margin-top:.75rem;">
         <a href="?seite=impressum" target="_self" style="color:#2bd4d9;">Impressum</a>
         &nbsp;·&nbsp;
