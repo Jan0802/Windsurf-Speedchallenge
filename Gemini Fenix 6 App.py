@@ -2963,16 +2963,19 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 st.info(f"The group \"{group_choice}\" has no sessions yet.")
                 return
 
-    if spot_filter != "Overall":
+    # Defensiv gegen veraltete/ungültige Filterwerte (z.B. ein altes Preset mit
+    # deutschen Sentinels „Alle Jahre"/„Ganzes Jahr"): ungültige Werte werden wie
+    # „kein Filter" behandelt statt zu crashen.
+    if spot_filter and spot_filter != "Overall":
         ranking = ranking[ranking["surfspot"].astype(str) == spot_filter]
 
-    if year_filter != "All years":
+    if str(year_filter).isdigit():
         ranking = ranking[ranking["_date"].dt.year == int(year_filter)]
 
-    if month_filter != "Whole year":
+    if month_filter in months:
         ranking = ranking[ranking["_date"].dt.month == months.index(month_filter) + 1]
 
-        if day_filter != "Whole month":
+        if str(day_filter).isdigit():
             ranking = ranking[ranking["_date"].dt.day == int(day_filter)]
 
     if gear_filter and gear_filter != "All":
