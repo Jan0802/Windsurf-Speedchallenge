@@ -86,7 +86,7 @@ NEW_ENTRY = "➕ Add new..."
 # Eine DB, eine sessions-Tabelle mit Spalte `sport`. Der aktive Sport kommt aus
 # dem URL-Parameter ?sport= (bleibt so über Reload/Link erhalten). Standard:
 # Windsurf. So bleiben Caching & Performance unverändert – nur ein WHERE mehr.
-SPORTS = ("windsurf", "kitesurf", "wingsurf")
+SPORTS = ("windsurf", "kitesurf", "wingsurf", "sup")
 
 SPORT_META = {
     "windsurf": {
@@ -94,6 +94,7 @@ SPORT_META = {
         "emoji": "🏄",
         "title": "WINDSURF",
         "gear_label": "Sail",                       # 2. Material (neben Board)
+        "gear_size_unit": "m²",                     # Größeneinheit des 2. Materials
         "gear_type_label": "Foil / Fin",            # Label des gear_type-Felds
         "gear_type_options": ["Fin", "Foil"],
         # Profil-Keys (Autovervollständigung). Windsurf nutzt die bestehenden
@@ -107,6 +108,7 @@ SPORT_META = {
         "emoji": "🪁",
         "title": "KITESURF",
         "gear_label": "Kite",
+        "gear_size_unit": "m²",
         "gear_type_label": "Foil / Twintip",
         "gear_type_options": ["Twintip", "Foil"],
         "boards_key": "kite_boards",
@@ -118,11 +120,24 @@ SPORT_META = {
         "emoji": "🪽",
         "title": "WINGSURF",
         "gear_label": "Wing",
+        "gear_size_unit": "m²",
         "gear_type_label": "Foil / Fin",
         "gear_type_options": ["Foil", "Fin"],
         "boards_key": "wing_boards",
         "gear_key": "wings",
         "bg_stem": "background_wing",               # assets/background_wing.*
+    },
+    "sup": {
+        "label": "🛶 SUP",
+        "emoji": "🛶",
+        "title": "SUP",
+        "gear_label": "Paddle",
+        "gear_size_unit": "",                       # Paddel hat keine m²-Größe
+        "gear_type_label": "Foil / Fin",
+        "gear_type_options": ["Fin", "Foil"],
+        "boards_key": "sup_boards",
+        "gear_key": "paddles",
+        "bg_stem": "background_sup",                # assets/background_sup.*
     },
 }
 
@@ -4074,14 +4089,24 @@ with left:
         f"Select {gear_label.lower()}", [NEW_ENTRY] + sail_options, key=f"gear_sel_{sport}"
     )
 
+    gear_unit = gear_meta.get("gear_size_unit", "m²")
+
     if sail_choice == NEW_ENTRY:
         sail_brand = st.text_input(f"{gear_label} brand", key=f"gear_brand_{sport}")
         sail_model = st.text_input(f"{gear_label} name / model", key=f"gear_model_{sport}")
-        sail_size = st.number_input(
-            f"{gear_label} size in m²", min_value=0.0, step=0.1, key=f"gear_size_{sport}"
-        )
-        sail_display = f"{sail_brand.strip()} {sail_model.strip()} {sail_size:.1f} m²".strip()
-        sail_ok = bool(sail_brand.strip() and sail_model.strip() and sail_size > 0)
+
+        if gear_unit:
+            sail_size = st.number_input(
+                f"{gear_label} size in {gear_unit}", min_value=0.0, step=0.1,
+                key=f"gear_size_{sport}",
+            )
+            size_str = f" {sail_size:.1f} {gear_unit}" if sail_size > 0 else ""
+            sail_display = f"{sail_brand.strip()} {sail_model.strip()}{size_str}".strip()
+            sail_ok = bool(sail_brand.strip() and sail_model.strip() and sail_size > 0)
+        else:
+            # z.B. SUP-Paddel: keine m²-Größe.
+            sail_display = f"{sail_brand.strip()} {sail_model.strip()}".strip()
+            sail_ok = bool(sail_brand.strip() and sail_model.strip())
     else:
         sail_display = sail_choice
         sail_ok = True
