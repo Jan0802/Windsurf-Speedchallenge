@@ -3967,69 +3967,87 @@ def render_user_profile(user):
                 return list(kept) + [item]
             return list(kept)
 
-        # Drei eigenständige Formulare -> Board, {Gear} und Spot getrennt
-        # speicherbar (eigener Speichern-Button je Kategorie).
+        def _equip_open(label, key):
+            """Aufklappbare Sektion (Standard: eingeklappt). Ersatz für einen
+            Expander – verschachtelte Expander sind in Streamlit nicht erlaubt
+            (Equipment liegt bereits im „My profile"-Expander), daher ein
+            Button-Toggle mit ▸/▾-Indikator. Liefert True, wenn ausgeklappt."""
+            st.session_state.setdefault(key, False)
+            count = label[1] if isinstance(label, tuple) else None
+            text = label[0] if isinstance(label, tuple) else label
+            arrow = "▾" if st.session_state[key] else "▸"
+            suffix = f"  ({count})" if count is not None else ""
+            if st.button(
+                f"{arrow}  {text}{suffix}",
+                key=f"toggle_{key}", use_container_width=True,
+            ):
+                st.session_state[key] = not st.session_state[key]
+                st.rerun()
+            return st.session_state[key]
+
+        # Drei eigenständige, einzeln aufklappbare Sektionen -> Spot, Board und
+        # {Gear} getrennt speicherbar (eigener Speichern-Button je Kategorie).
 
         # --- Spots (geteilt) ---
-        with st.form(f"equip_spots_{user['id']}_{sport}"):
-            st.markdown("**📍 Spots (shared)**")
-            keep_spots = st.multiselect(
-                "Current spots", spots, default=spots, label_visibility="collapsed"
-            )
-            new_spot = st.text_input("➕ Add spot")
-            if st.form_submit_button("Save spots", use_container_width=True):
-                set_profile_list(user["username"], "spots", _merge(keep_spots, new_spot))
-                st.success("Spots updated.")
-                st.rerun()
+        if _equip_open(("📍 Spots (shared)", len(spots)), f"sec_spots_{user['id']}_{sport}"):
+            with st.form(f"equip_spots_{user['id']}_{sport}"):
+                keep_spots = st.multiselect(
+                    "Current spots", spots, default=spots, label_visibility="collapsed"
+                )
+                new_spot = st.text_input("➕ Add spot")
+                if st.form_submit_button("Save spots", use_container_width=True):
+                    set_profile_list(user["username"], "spots", _merge(keep_spots, new_spot))
+                    st.success("Spots updated.")
+                    st.rerun()
 
         # --- Boards (je Sport) ---
-        with st.form(f"equip_boards_{user['id']}_{sport}"):
-            st.markdown("**🛹 Boards**")
-            keep_boards = st.multiselect(
-                "Current boards", boards, default=boards, label_visibility="collapsed"
-            )
-            nb_brand = st.text_input("Board brand", key=f"pf_board_brand_{sport}")
-            nb_model = st.text_input("Board type / model", key=f"pf_board_model_{sport}")
-            nb_vol = st.number_input(
-                "Volume in liters (optional)", min_value=0, step=1,
-                key=f"pf_board_vol_{sport}",
-            )
-            if st.form_submit_button("Save boards", use_container_width=True):
-                new_board = (
-                    format_board(nb_brand, nb_model, nb_vol)
-                    if nb_brand.strip() and nb_model.strip() else ""
+        if _equip_open(("🛹 Boards", len(boards)), f"sec_boards_{user['id']}_{sport}"):
+            with st.form(f"equip_boards_{user['id']}_{sport}"):
+                keep_boards = st.multiselect(
+                    "Current boards", boards, default=boards, label_visibility="collapsed"
                 )
-                set_profile_list(
-                    user["username"], gear_meta["boards_key"], _merge(keep_boards, new_board)
+                nb_brand = st.text_input("Board brand", key=f"pf_board_brand_{sport}")
+                nb_model = st.text_input("Board type / model", key=f"pf_board_model_{sport}")
+                nb_vol = st.number_input(
+                    "Volume in liters (optional)", min_value=0, step=1,
+                    key=f"pf_board_vol_{sport}",
                 )
-                st.success("Boards updated.")
-                st.rerun()
+                if st.form_submit_button("Save boards", use_container_width=True):
+                    new_board = (
+                        format_board(nb_brand, nb_model, nb_vol)
+                        if nb_brand.strip() and nb_model.strip() else ""
+                    )
+                    set_profile_list(
+                        user["username"], gear_meta["boards_key"], _merge(keep_boards, new_board)
+                    )
+                    st.success("Boards updated.")
+                    st.rerun()
 
         # --- 2. Material: Sail/Kite/Wing/Paddle (je Sport) ---
-        with st.form(f"equip_gear_{user['id']}_{sport}"):
-            st.markdown(f"**🎽 {gear_word}s**")
-            keep_gear = st.multiselect(
-                f"Current {gear_word.lower()}s", gear, default=gear,
-                label_visibility="collapsed",
-            )
-            ng_brand = st.text_input(f"{gear_word} brand", key=f"pf_gear_brand_{sport}")
-            ng_model = st.text_input(f"{gear_word} name / model", key=f"pf_gear_model_{sport}")
-            ng_size = 0.0
-            if gear_unit:
-                ng_size = st.number_input(
-                    f"{gear_word} size in {gear_unit} (optional)", min_value=0.0, step=0.1,
-                    key=f"pf_gear_size_{sport}",
+        if _equip_open((f"🎽 {gear_word}s", len(gear)), f"sec_gear_{user['id']}_{sport}"):
+            with st.form(f"equip_gear_{user['id']}_{sport}"):
+                keep_gear = st.multiselect(
+                    f"Current {gear_word.lower()}s", gear, default=gear,
+                    label_visibility="collapsed",
                 )
-            if st.form_submit_button(f"Save {gear_word.lower()}s", use_container_width=True):
-                new_gear = (
-                    format_gear(ng_brand, ng_model, ng_size, gear_unit)
-                    if ng_brand.strip() and ng_model.strip() else ""
-                )
-                set_profile_list(
-                    user["username"], gear_meta["gear_key"], _merge(keep_gear, new_gear)
-                )
-                st.success(f"{gear_word}s updated.")
-                st.rerun()
+                ng_brand = st.text_input(f"{gear_word} brand", key=f"pf_gear_brand_{sport}")
+                ng_model = st.text_input(f"{gear_word} name / model", key=f"pf_gear_model_{sport}")
+                ng_size = 0.0
+                if gear_unit:
+                    ng_size = st.number_input(
+                        f"{gear_word} size in {gear_unit} (optional)", min_value=0.0, step=0.1,
+                        key=f"pf_gear_size_{sport}",
+                    )
+                if st.form_submit_button(f"Save {gear_word.lower()}s", use_container_width=True):
+                    new_gear = (
+                        format_gear(ng_brand, ng_model, ng_size, gear_unit)
+                        if ng_brand.strip() and ng_model.strip() else ""
+                    )
+                    set_profile_list(
+                        user["username"], gear_meta["gear_key"], _merge(keep_gear, new_gear)
+                    )
+                    st.success(f"{gear_word}s updated.")
+                    st.rerun()
 
 
 def render_account_sidebar(user):
