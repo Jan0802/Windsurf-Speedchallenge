@@ -758,30 +758,43 @@ def ensure_schema():
 
     try:
         inspector = inspect(engine)
+    except Exception:
+        logging.exception("Schema-Inspektion fehlgeschlagen")
+        return True
 
-        for table in DB_METADATA.tables.values():
+    # WICHTIG: jede ALTER-Anweisung in EIGENEM try – sonst blockiert ein einzelner
+    # Fehler alle weiteren Spalten (z.B. die users-Spalten, die zuerst drankommen).
+    for table in DB_METADATA.tables.values():
+        try:
             existing = {c["name"] for c in inspector.get_columns(table.name)}
+        except Exception:
+            logging.exception("get_columns fehlgeschlagen: %s", table.name)
+            continue
 
-            for column in table.columns:
-                if column.name in existing:
-                    continue
+        for column in table.columns:
+            if column.name in existing:
+                continue
 
-                col_type = column.type.compile(engine.dialect)
+            col_type = column.type.compile(engine.dialect)
 
+            try:
                 with engine.begin() as conn:
                     conn.execute(text(
                         f'ALTER TABLE {table.name} ADD COLUMN "{column.name}" {col_type}'
                     ))
+            except Exception:
+                logging.exception(
+                    "ALTER fehlgeschlagen: %s.%s (%s)", table.name, column.name, col_type
+                )
 
-        # Altdaten ohne Sport gehören zu Windsurf (war vor dem Kite-Modus die
-        # einzige Variante). Einmaliges, idempotentes Backfill.
+    # Altdaten ohne Sport gehören zu Windsurf. Idempotent, eigener try-Block.
+    try:
         with engine.begin() as conn:
             conn.execute(text(
                 "UPDATE sessions SET sport = 'windsurf' WHERE sport IS NULL"
             ))
     except Exception:
-        # Migration ist best-effort; ein Fehler darf die App nicht blockieren.
-        pass
+        logging.exception("Sport-Backfill fehlgeschlagen")
 
     return True
 
