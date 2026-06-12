@@ -147,6 +147,32 @@ def active_sport():
     s = st.query_params.get("sport", "windsurf")
     return s if s in SPORTS else "windsurf"
 
+
+def format_board(brand, model, volume=0):
+    """Einheitlicher Anzeige-String fürs Board (Session-Upload UND Profil), damit
+    identische Eingaben denselben String ergeben (keine Duplikate)."""
+    s = f"{(brand or '').strip()} {(model or '').strip()}".strip()
+    try:
+        vol = float(volume or 0)
+    except (TypeError, ValueError):
+        vol = 0
+    if vol > 0:
+        s = f"{s} {int(vol)}L".strip()
+    return s
+
+
+def format_gear(brand, model, size=0.0, unit="m²"):
+    """Einheitlicher Anzeige-String fürs 2. Material (Sail/Kite/Wing/Paddle)."""
+    s = f"{(brand or '').strip()} {(model or '').strip()}".strip()
+    try:
+        sz = float(size or 0)
+    except (TypeError, ValueError):
+        sz = 0
+    if unit and sz > 0:
+        s = f"{s} {sz:.1f} {unit}".strip()
+    return s
+
+
 # WMO-Wettercodes -> (Emoji, Beschreibung)
 WEATHER_CODES = {
     0: ("☀️", "Clear"),
@@ -503,6 +529,9 @@ users_table = Table(
     Column("username", String(80), unique=True, nullable=False),
     Column("password_hash", String(255), nullable=False),
     Column("salt", String(64), nullable=False),
+    Column("email", String(255)),       # Pflicht bei Neu-Registrierung
+    Column("weight_kg", Float),         # optionales Profilfeld
+    Column("height_cm", Float),         # optionales Profilfeld
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -961,11 +990,24 @@ def get_user(username):
     return dict(row) if row else None
 
 
-def register_user(username, password):
+def _valid_email(email):
+    """Einfache, pragmatische E-Mail-Prüfung (kein voller RFC-Check)."""
+    email = (email or "").strip()
+    if "@" not in email or len(email) < 5:
+        return False
+    local, _, domain = email.partition("@")
+    return bool(local) and "." in domain and not domain.startswith(".") and not domain.endswith(".")
+
+
+def register_user(username, password, email=""):
     username = (username or "").strip()
+    email = (email or "").strip()
 
     if not username or not password:
         return False, "Username and password must not be empty."
+
+    if not _valid_email(email):
+        return False, "Please enter a valid email address."
 
     if len(password) < 6:
         return False, "The password must be at least 6 characters long."
@@ -980,9 +1022,97 @@ def register_user(username, password):
             username=username,
             password_hash=_hash_password(password, salt),
             salt=salt,
+            email=email,
         ))
 
     return True, "Registration successful – you can now log in."
+
+
+def update_user_account(user_id, email=None, weight_kg=None, height_cm=None):
+    """Aktualisiert E-Mail/Gewicht/Größe eines Users (nur übergebene Felder)."""
+    if user_id is None:
+        return
+
+    values = {}
+    if email is not None:
+        values["email"] = email.strip()
+    if weight_kg is not None:
+        values["weight_kg"] = float(weight_kg) if weight_kg else None
+    if height_cm is not None:
+        values["height_cm"] = float(height_cm) if height_cm else None
+
+    if not values:
+        return
+
+    with get_engine().begin() as conn:
+        conn.execute(
+            update(users_table).where(users_table.c.id == int(user_id)).values(**values)
+        )
+
+
+def change_password(user_id, old_password, new_password):
+    """Ändert das Passwort, wenn das alte stimmt. (ok, message)."""
+    if user_id is None:
+        return False, "Not logged in."
+
+    if not new_password or len(new_password) < 6:
+        return False, "The new password must be at least 6 characters long."
+
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(users_table.c.password_hash, users_table.c.salt)
+            .where(users_table.c.id == int(user_id))
+        ).mappings().first()
+
+    if not row:
+        return False, "User not found."
+
+    if not secrets.compare_digest(
+        _hash_password(old_password, row["salt"]), row["password_hash"]
+    ):
+        return False, "The current password is incorrect."
+
+    salt = secrets.token_hex(16)
+    with get_engine().begin() as conn:
+        conn.execute(
+            update(users_table).where(users_table.c.id == int(user_id)).values(
+                password_hash=_hash_password(new_password, salt),
+                salt=salt,
+            )
+        )
+
+    return True, "Password changed."
+
+
+def set_profile_list(name, key, values):
+    """Überschreibt eine Profil-Liste (z.B. Spots/Boards/Sails) – zum Entfernen
+    von Einträgen im Profil-Bereich. Andere Keys bleiben unangetastet."""
+    if not name:
+        return
+
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            select(profiles_table.c.data).where(profiles_table.c.name == name)
+        ).first()
+
+        rider = {}
+        if row and row[0]:
+            try:
+                rider = json.loads(row[0])
+            except Exception:
+                rider = {}
+
+        rider[key] = list(values)
+        data = json.dumps(rider, ensure_ascii=False)
+
+        if row:
+            conn.execute(
+                update(profiles_table).where(profiles_table.c.name == name).values(data=data)
+            )
+        else:
+            conn.execute(insert(profiles_table).values(name=name, data=data))
+
+    clear_data_caches()
 
 
 def verify_login(username, password):
@@ -3565,6 +3695,7 @@ def render_login():
     with tab_register:
         with st.form("register_form"):
             new_username = st.text_input("Choose a username")
+            new_email = st.text_input("Email")
             pwd1 = st.text_input("Password (at least 6 characters)", type="password")
             pwd2 = st.text_input("Repeat password", type="password")
 
@@ -3597,7 +3728,7 @@ def render_login():
             elif pwd1 != pwd2:
                 st.error("The passwords do not match.")
             else:
-                ok, message = register_user(new_username, pwd1)
+                ok, message = register_user(new_username, pwd1, new_email)
 
                 if ok:
                     st.success(message)
@@ -3666,6 +3797,147 @@ def render_group_news_banner(user):
     st.markdown("---")
 
 
+def render_user_profile(user):
+    """Profilbereich: E-Mail/Gewicht/Größe bearbeiten, Passwort ändern und das
+    Equipment (für den aktiven Sport) pflegen. Rendert im aktuellen Kontext."""
+    sport = active_sport()
+    gear_meta = SPORT_META[sport]
+
+    with st.expander("👤 My profile", expanded=False):
+        # Profildaten einmal pro Sitzung lesen (get_user ist NICHT gecacht; sonst
+        # liefe pro Rerun eine zusätzliche DB-Abfrage – auch bei eingeklapptem
+        # Expander). Nach dem Speichern wird der Cache aktualisiert.
+        _profile_key = f"_profile_full_{user['id']}"
+        if _profile_key not in st.session_state:
+            st.session_state[_profile_key] = get_user(user["username"]) or {}
+        full = st.session_state[_profile_key]
+
+        # --- Account-Daten ---
+        st.markdown("**Account details**")
+        with st.form(f"profile_form_{user['id']}"):
+            email = st.text_input("Email", value=full.get("email") or "")
+            weight = st.number_input(
+                "Weight (kg)", min_value=0.0, max_value=300.0, step=0.5,
+                value=float(full.get("weight_kg") or 0.0),
+                help="0 = not set",
+            )
+            height = st.number_input(
+                "Height (cm)", min_value=0.0, max_value=260.0, step=0.5,
+                value=float(full.get("height_cm") or 0.0),
+                help="0 = not set",
+            )
+
+            if st.form_submit_button("Save profile", use_container_width=True):
+                if email and not _valid_email(email):
+                    st.error("Please enter a valid email address.")
+                else:
+                    update_user_account(
+                        user["id"], email=email,
+                        weight_kg=weight or None, height_cm=height or None,
+                    )
+                    st.session_state[_profile_key] = get_user(user["username"]) or {}
+                    st.success("Profile saved.")
+
+        # --- Passwort ändern ---
+        st.markdown("**Change password**")
+        with st.form(f"pw_form_{user['id']}"):
+            old_pw = st.text_input("Current password", type="password")
+            new_pw1 = st.text_input("New password (min. 6 characters)", type="password")
+            new_pw2 = st.text_input("Repeat new password", type="password")
+
+            if st.form_submit_button("Change password", use_container_width=True):
+                if new_pw1 != new_pw2:
+                    st.error("The new passwords do not match.")
+                else:
+                    ok, msg = change_password(user["id"], old_pw, new_pw1)
+                    (st.success if ok else st.error)(msg)
+
+        # --- Equipment (aktiver Sport; Spots sind sportübergreifend) ---
+        st.markdown(f"**Equipment · {gear_meta['label']}**")
+        st.caption(
+            "Add or remove gear per category (each section saves on its own) so "
+            "the session upload is faster. Spots are shared across sports."
+        )
+        rider = load_profiles().get(user["username"], {})
+        spots = rider.get("spots", [])
+        boards = rider.get(gear_meta["boards_key"], [])
+        gear = rider.get(gear_meta["gear_key"], [])
+
+        gear_word = gear_meta["gear_label"]  # Sail/Kite/Wing/Paddle
+        gear_unit = gear_meta.get("gear_size_unit", "m²")
+
+        def _merge(kept, item):
+            """Behaltene Auswahl + neuer Eintrag, ohne Duplikate/Leereinträge."""
+            item = (item or "").strip()
+            if item and item not in kept:
+                return list(kept) + [item]
+            return list(kept)
+
+        # Drei eigenständige Formulare -> Board, {Gear} und Spot getrennt
+        # speicherbar (eigener Speichern-Button je Kategorie).
+
+        # --- Spots (geteilt) ---
+        with st.form(f"equip_spots_{user['id']}_{sport}"):
+            st.markdown("**📍 Spots (shared)**")
+            keep_spots = st.multiselect(
+                "Current spots", spots, default=spots, label_visibility="collapsed"
+            )
+            new_spot = st.text_input("➕ Add spot")
+            if st.form_submit_button("Save spots", use_container_width=True):
+                set_profile_list(user["username"], "spots", _merge(keep_spots, new_spot))
+                st.success("Spots updated.")
+                st.rerun()
+
+        # --- Boards (je Sport) ---
+        with st.form(f"equip_boards_{user['id']}_{sport}"):
+            st.markdown("**🛹 Boards**")
+            keep_boards = st.multiselect(
+                "Current boards", boards, default=boards, label_visibility="collapsed"
+            )
+            nb_brand = st.text_input("Board brand", key=f"pf_board_brand_{sport}")
+            nb_model = st.text_input("Board type / model", key=f"pf_board_model_{sport}")
+            nb_vol = st.number_input(
+                "Volume in liters (optional)", min_value=0, step=1,
+                key=f"pf_board_vol_{sport}",
+            )
+            if st.form_submit_button("Save boards", use_container_width=True):
+                new_board = (
+                    format_board(nb_brand, nb_model, nb_vol)
+                    if nb_brand.strip() and nb_model.strip() else ""
+                )
+                set_profile_list(
+                    user["username"], gear_meta["boards_key"], _merge(keep_boards, new_board)
+                )
+                st.success("Boards updated.")
+                st.rerun()
+
+        # --- 2. Material: Sail/Kite/Wing/Paddle (je Sport) ---
+        with st.form(f"equip_gear_{user['id']}_{sport}"):
+            st.markdown(f"**🎽 {gear_word}s**")
+            keep_gear = st.multiselect(
+                f"Current {gear_word.lower()}s", gear, default=gear,
+                label_visibility="collapsed",
+            )
+            ng_brand = st.text_input(f"{gear_word} brand", key=f"pf_gear_brand_{sport}")
+            ng_model = st.text_input(f"{gear_word} name / model", key=f"pf_gear_model_{sport}")
+            ng_size = 0.0
+            if gear_unit:
+                ng_size = st.number_input(
+                    f"{gear_word} size in {gear_unit} (optional)", min_value=0.0, step=0.1,
+                    key=f"pf_gear_size_{sport}",
+                )
+            if st.form_submit_button(f"Save {gear_word.lower()}s", use_container_width=True):
+                new_gear = (
+                    format_gear(ng_brand, ng_model, ng_size, gear_unit)
+                    if ng_brand.strip() and ng_model.strip() else ""
+                )
+                set_profile_list(
+                    user["username"], gear_meta["gear_key"], _merge(keep_gear, new_gear)
+                )
+                st.success(f"{gear_word}s updated.")
+                st.rerun()
+
+
 def render_account_sidebar(user):
     with st.sidebar:
         st.markdown(f"### 👤 {user['username']}")
@@ -3673,6 +3945,9 @@ def render_account_sidebar(user):
         if st.button("Log out", use_container_width=True):
             logout_session()
             st.rerun()
+
+        st.markdown("---")
+        render_user_profile(user)
 
         st.markdown("---")
         st.markdown("### 👥 Groups")
@@ -4068,9 +4343,7 @@ with left:
         board_volume = st.number_input(
             "Volume in liters (optional)", min_value=0, step=1, key=f"board_vol_{sport}"
         )
-        board_display = f"{board_brand.strip()} {board_model.strip()}".strip()
-        if board_volume > 0:
-            board_display = f"{board_display} {board_volume}L".strip()
+        board_display = format_board(board_brand, board_model, board_volume)
         board_ok = bool(board_brand.strip() and board_model.strip())
     else:
         board_display = board_choice
@@ -4100,12 +4373,11 @@ with left:
                 f"{gear_label} size in {gear_unit}", min_value=0.0, step=0.1,
                 key=f"gear_size_{sport}",
             )
-            size_str = f" {sail_size:.1f} {gear_unit}" if sail_size > 0 else ""
-            sail_display = f"{sail_brand.strip()} {sail_model.strip()}{size_str}".strip()
+            sail_display = format_gear(sail_brand, sail_model, sail_size, gear_unit)
             sail_ok = bool(sail_brand.strip() and sail_model.strip() and sail_size > 0)
         else:
             # z.B. SUP-Paddel: keine m²-Größe.
-            sail_display = f"{sail_brand.strip()} {sail_model.strip()}".strip()
+            sail_display = format_gear(sail_brand, sail_model, unit="")
             sail_ok = bool(sail_brand.strip() and sail_model.strip())
     else:
         sail_display = sail_choice
