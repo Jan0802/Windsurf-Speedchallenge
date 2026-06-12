@@ -1903,15 +1903,18 @@ def personal_best_table(df, spot="All", year="All", board="All", max_bft=None, l
         bft = wind.apply(lambda v: kmh_to_beaufort(v) if pd.notna(v) else float("nan"))
         data = data[bft <= max_bft]  # NaN <= x ist False -> Sessions ohne Wind raus
 
+    # Gesamtzahl der Sessions in dieser Filter-Auswahl (vor Top-10-Begrenzung).
+    total = len(data)
+
     if "speed_1s_kmh" not in data.columns:
-        return pd.DataFrame(), ""
+        return pd.DataFrame(), "", total
 
     data = data.copy()
     data["_s1"] = pd.to_numeric(data["speed_1s_kmh"], errors="coerce")
     data = data.dropna(subset=["_s1"]).sort_values("_s1", ascending=False).head(limit)
 
     if data.empty:
-        return pd.DataFrame(), ""
+        return pd.DataFrame(), "", total
 
     out = pd.DataFrame()
     out["Rank"] = range(1, len(data) + 1)
@@ -1952,7 +1955,7 @@ def personal_best_table(df, spot="All", year="All", board="All", max_bft=None, l
         parts.append(f"≤ {max_bft} Bft")
     caption = " · ".join(parts) if parts else "All spots · all years"
 
-    return out, caption
+    return out, caption, total
 
 
 def render_personal_best_filter(name):
@@ -1970,7 +1973,7 @@ def render_personal_best_filter(name):
     with st.expander("🏅 Personal Bests", expanded=False):
         if pb_df.empty:
             st.info("No sessions yet – upload a FIT file.")
-            return None, ""
+            return None, "", 0
 
         pb_spots = sorted(
             {str(s) for s in pb_df["surfspot"].dropna().astype(str) if str(s).strip()}
@@ -2005,21 +2008,22 @@ def render_personal_best_filter(name):
         )
         max_bft_pb = None if wind_pb == "All" else int(wind_pb.split()[1])
 
-        pb_table, pb_table_caption = personal_best_table(
+        pb_table, pb_table_caption, pb_total = personal_best_table(
             pb_df, spot_pb, year_pb, board_pb, max_bft_pb
         )
         st.caption("➡️ Your top 10 speed table is shown in the main window.")
 
-    return pb_table, pb_table_caption
+    return pb_table, pb_table_caption, pb_total
 
 
-def render_personal_best_table(pb_table, pb_table_caption):
+def render_personal_best_table(pb_table, pb_table_caption, total=0):
     """Zeigt die Top-10-Bestleistungs-Tabelle im Hauptfenster (gefiltert über
-    den Filter im Konto-Bereich)."""
+    den Filter im Konto-Bereich). `total` = Anzahl Sessions in der Auswahl."""
     if pb_table is None:
         return
 
     st.markdown("## 🏅 Personal Bests")
+    st.caption(f"📊 {total} session{'' if total == 1 else 's'} in this selection")
 
     if pb_table.empty:
         st.info("No sessions for this selection.")
@@ -4233,7 +4237,7 @@ if st.session_state.get("_pending_token"):
 # erscheint im Hauptfenster (render_personal_best_table weiter unten).
 with st.sidebar:
     st.markdown("---")
-    pb_table, pb_table_caption = render_personal_best_filter(current_user["username"])
+    pb_table, pb_table_caption, pb_total = render_personal_best_filter(current_user["username"])
     selected_history_record = render_session_history(current_user["username"])
 
 
@@ -4495,7 +4499,7 @@ with left:
 # Ranking-Filtern), Tabelle oben im Hauptfenster-Container `right`. Ein
 # Filterklick rerunt nur dieses Fragment.
 with right:
-    render_personal_best_table(pb_table, pb_table_caption)
+    render_personal_best_table(pb_table, pb_table_caption, pb_total)
 
 
 required_ok = all([
