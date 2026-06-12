@@ -249,7 +249,7 @@ def kmh_to_beaufort(kmh):
 
 
 st.set_page_config(
-    page_title="Windsurf Speed Challenge",
+    page_title="MyWaterSessions",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -3639,10 +3639,9 @@ else:
 st.markdown(f"""
 <div class="hero">
     <div class="hero-content">
-        <div class="logo">{logo_icon} {SPORT_META[sport]["title"]}</div>
-        <div class="title">SPEED CHALLENGE</div>
-        <p>Track your sessions. Compare your personal bests.<br>
-        The community. Your spot. Your speed.</p>
+        <div class="logo">🌊 MyWaterSessions</div>
+        <div class="title">{logo_icon} {SPORT_META[sport]["title"]}</div>
+        <p>The home for everyone active on the water.</p>
         <div class="hero-nav">
             <span>⚡ Speed</span>
             <span>🏆 Ranking</span>
@@ -4821,8 +4820,8 @@ st.markdown("---")
 
 st.markdown(f"""
 <div class="footer">
-    <h3 style="color:white;">{logo_icon} {SPORT_META[sport]["title"]} SPEED CHALLENGE</h3>
-    <p>The community. Your spot. Your speed.</p>
+    <h3 style="color:white;">🌊 MyWaterSessions · {logo_icon} {SPORT_META[sport]["title"]}</h3>
+    <p>The home for everyone active on the water.</p>
     <p style="margin-top:.75rem;">
         <a href="?seite=impressum" target="_self" style="color:#2bd4d9;">Impressum</a>
         &nbsp;·&nbsp;
