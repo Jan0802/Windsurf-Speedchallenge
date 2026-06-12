@@ -563,7 +563,9 @@ sessions_table = Table(
     Column("surfspot", String(200)),
     Column("board", String(200)),
     Column("sail", String(200)),
-    Column("gear_type", String(10)),  # "Fin" oder "Foil"
+    Column("gear_type", String(10)),  # "Fin" / "Foil" / "Twintip"
+    Column("fin_size_cm", Float),         # optional, nur bei gear_type == "Fin"
+    Column("foil_front_cm2", Float),      # optional, nur bei gear_type == "Foil"
     Column("filename", String(255)),
     Column("total_distance_km", Float),
     Column("longest_run_km", Float),
@@ -861,6 +863,18 @@ def load_rider_sessions(name, sport=None):
         df = df.sort_values("date", ascending=False)
 
     return df.reset_index(drop=True)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_user_weights():
+    """{username: weight_kg} für den Gewichts-Filter in den Rankings (nur User
+    mit hinterlegtem Gewicht)."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(users_table.c.username, users_table.c.weight_kg)
+        ).mappings().all()
+
+    return {r["username"]: r["weight_kg"] for r in rows if r["weight_kg"] is not None}
 
 
 # ---- Profile (Spots/Boards/Segel je Fahrer) ----
@@ -2717,13 +2731,26 @@ def render_rankings(results_container):
     day_filter = st.session_state.get(f"rank_day_{sport}", preset.get("day") or "Whole month")
     gear_filter = st.session_state.get(f"rank_gear_{sport}", preset.get("gear") or "All")
 
+    # Erweiterte (optionale) Filter – 0 bzw. (0,0) bedeutet „aus".
+    front_max = st.session_state.get(f"rank_front_{sport}", 0)
+    fin_max = st.session_state.get(f"rank_finmax_{sport}", 0.0)
+    weight_from = st.session_state.get(f"rank_wfrom_{sport}", 0.0)
+    weight_to = st.session_state.get(f"rank_wto_{sport}", 0.0)
+
+    extra = {
+        "front_max": front_max,
+        "fin_max": fin_max,
+        "weight_from": weight_from,
+        "weight_to": weight_to,
+    }
+
     # ---- Tabellen ZUERST (Hauptinhalt) in den Haupt-Container ----
     # Reine Anzeige (keine Widgets) -> aus dem Fragment in externen Container ok;
     # .container() im st.empty()-Platzhalter ersetzt den Inhalt bei jedem Rerun.
     with results_container.container():
         _render_ranking_tables(
             ranking, group_choice, member_groups, months,
-            spot_filter, year_filter, month_filter, day_filter, gear_filter,
+            spot_filter, year_filter, month_filter, day_filter, gear_filter, extra,
         )
 
     # ---- Filter-UI DANACH am Fragment-Anker (= Sidebar-Tab „Filter") ----
@@ -2750,7 +2777,8 @@ def render_rankings(results_container):
 
             if preset and st.button("↺ Reset", use_container_width=True):
                 delete_user_pref(username)
-                for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day", "rank_gear"):
+                for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day",
+                           "rank_gear", "rank_front", "rank_finmax", "rank_wfrom", "rank_wto"):
                     st.session_state.pop(f"{_k}_{sport}", None)
                 st.rerun()
 
@@ -2813,6 +2841,27 @@ def render_rankings(results_container):
             index=_preset_index(gear_options, gear_filter), key=f"rank_gear_{sport}",
         )
 
+        # --- Erweiterte Filter (optional; 0 = aus) ---
+        st.caption("Advanced filters (0 = off)")
+        st.number_input(
+            "Max. front wing (cm²)", min_value=0, step=10,
+            key=f"rank_front_{sport}",
+            help="Only foil sessions with a front wing size up to this value.",
+        )
+        st.number_input(
+            "Max. fin (cm)", min_value=0.0, step=0.5,
+            key=f"rank_finmax_{sport}",
+            help="Only fin sessions with a fin size up to this value.",
+        )
+        wcol1, wcol2 = st.columns(2)
+        wcol1.number_input(
+            "Weight from (kg)", min_value=0.0, step=1.0, key=f"rank_wfrom_{sport}",
+            help="Filter riders by their profile weight (0 = no limit).",
+        )
+        wcol2.number_input(
+            "Weight to (kg)", min_value=0.0, step=1.0, key=f"rank_wto_{sport}",
+        )
+
 
 @st.cache_data(show_spinner=False, max_entries=64)
 def _enrich_ranking(ranking):
@@ -2865,8 +2914,9 @@ def df_height(n_rows, max_rows=15):
 
 def _render_ranking_tables(ranking, group_choice, member_groups, months,
                            spot_filter, year_filter, month_filter, day_filter,
-                           gear_filter="All"):
+                           gear_filter="All", extra=None):
     """Rendert die vier Ranking-Tabellen – reine Anzeige (keine Widgets)."""
+    extra = extra or {}
     gear_label = SPORT_META[active_sport()]["gear_label"]  # "Sail" / "Kite"
     st.markdown("## 🏆 Online rankings")
 
@@ -2882,7 +2932,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     if "date" not in ranking.columns:
         ranking["date"] = ""
 
-    for column in ("wind_kmh", "wind_dir_deg", "temp_c", "weather_code", "trust_score", "gear_type"):
+    for column in ("wind_kmh", "wind_dir_deg", "temp_c", "weather_code", "trust_score",
+                   "gear_type", "fin_size_cm", "foil_front_cm2"):
         if column not in ranking.columns:
             ranking[column] = None
 
@@ -2914,6 +2965,30 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     if gear_filter and gear_filter != "All":
         # Ältere Sessions ohne gear_type (None) fallen bei Fin/Foil-Auswahl raus.
         ranking = ranking[ranking["gear_type"].astype(str) == gear_filter]
+
+    # --- Erweiterte Filter (Frontwing / Finne / Gewicht). Sessions ohne den
+    # jeweiligen Wert fallen bei aktivem Filter raus (NaN-Vergleich = False). ---
+    front_max = extra.get("front_max") or 0
+    if front_max:
+        fw = pd.to_numeric(ranking["foil_front_cm2"], errors="coerce")
+        ranking = ranking[fw <= front_max]
+
+    fin_max = extra.get("fin_max") or 0
+    if fin_max:
+        fs = pd.to_numeric(ranking["fin_size_cm"], errors="coerce")
+        ranking = ranking[fs <= fin_max]
+
+    weight_from = extra.get("weight_from") or 0
+    weight_to = extra.get("weight_to") or 0
+    if weight_from or weight_to:
+        weights = load_user_weights()
+        w = pd.to_numeric(ranking["name"].astype(str).map(weights), errors="coerce")
+        mask = w.notna()
+        if weight_from:
+            mask &= w >= weight_from
+        if weight_to:
+            mask &= w <= weight_to
+        ranking = ranking[mask]
 
     ranking = ranking.copy()
 
@@ -4359,6 +4434,22 @@ with left:
         key=f"gear_type_input_{sport}",
     )
 
+    # Je nach gear_type ein optionales Größenfeld (für späteres Filtern).
+    fin_size_cm = None
+    foil_front_cm2 = None
+    if gear_type == "Fin":
+        _fin = st.number_input(
+            "Fin size in cm (optional)", min_value=0.0, step=0.5,
+            key=f"fin_size_{sport}",
+        )
+        fin_size_cm = _fin or None
+    elif gear_type == "Foil":
+        _front = st.number_input(
+            "Front wing size in cm² (optional)", min_value=0, step=10,
+            key=f"foil_front_{sport}",
+        )
+        foil_front_cm2 = _front or None
+
     st.markdown(f"**{gear_label}**")
     sail_options = rider.get(gear_meta["gear_key"], [])
     sail_choice = st.selectbox(
@@ -4722,6 +4813,8 @@ if fit_source is not None:
                     "board": board_display,
                     "sail": sail_display,
                     "gear_type": gear_type,
+                    "fin_size_cm": fin_size_cm,
+                    "foil_front_cm2": foil_front_cm2,
                     "filename": fit_name,
                     "total_distance_km": None if distance_km is None else round(distance_km, 2),
                     "longest_run_km": None if longest_run_km is None else round(longest_run_km, 3),
