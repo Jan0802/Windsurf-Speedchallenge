@@ -817,6 +817,50 @@ def ensure_schema():
     return True
 
 
+_WATCH_COLUMNS = {
+    "jumps": "INTEGER",
+    "max_airtime_s": "DOUBLE PRECISION",
+    "max_jump_m": "DOUBLE PRECISION",
+    "strokes": "INTEGER",
+    "cadence_spm": "INTEGER",
+    "duration_s": "INTEGER",
+    "source": "VARCHAR(20)",
+}
+
+_watch_columns_ready = False
+
+
+def ensure_watch_columns():
+    """Ergaenzt die von der WaterSession-Uhr genutzten sessions-Spalten.
+
+    Notwendig, weil ensure_schema() per @st.cache_resource gegated ist und nach
+    einem reinen Code-Deploy nicht zuverlaessig erneut laeuft; create_all legt
+    zudem nur fehlende TABELLEN an, keine fehlenden SPALTEN. Wird ueber ein
+    einfaches Modul-Flag genau einmal pro Prozess ausgefuehrt (bewusst KEIN
+    Streamlit-Cache, der ein Deploy ueberdauern koennte). Postgres nutzt
+    ADD COLUMN IF NOT EXISTS; lokales SQLite erledigt ensure_schema selbst.
+    """
+    global _watch_columns_ready
+    if _watch_columns_ready:
+        return
+
+    engine = get_engine()
+    if engine.dialect.name == "sqlite":
+        _watch_columns_ready = True
+        return
+
+    for name, coltype in _WATCH_COLUMNS.items():
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    f'ALTER TABLE sessions ADD COLUMN IF NOT EXISTS "{name}" {coltype}'
+                ))
+        except Exception:
+            logging.exception("ALTER sessions ADD %s fehlgeschlagen", name)
+
+    _watch_columns_ready = True
+
+
 # ---- Sessions ----
 
 def save_session(entry):
@@ -4383,6 +4427,8 @@ def render_account_sidebar(user):
 
 # Fehlende Tabellen anlegen (z.B. nach Deploy mit neuen Tabellen) – vor jedem DB-Zugriff.
 ensure_schema()
+# Uhr-Spalten ungecacht nachziehen (ensure_schema ist @st.cache_resource-gegated).
+ensure_watch_columns()
 
 # Login aus „Angemeldet bleiben"-Cookie wiederherstellen.
 # st.context.cookies liefert auf der Streamlit Community Cloud leider nichts,
