@@ -1210,8 +1210,20 @@ def delete_auth_token(token):
 
 # ---- Geraete-Tokens (Upload von der WaterSession-Uhr) ----
 
+def _ensure_device_tokens_table():
+    """Legt die device_tokens-Tabelle bei Bedarf an. Notwendig, weil die
+    Schema-Migration in @st.cache_resource-gecachten Funktionen (get_engine/
+    ensure_schema) nach einem reinen Code-Deploy nicht zuverlaessig erneut
+    laeuft. checkfirst=True macht den Aufruf idempotent und billig."""
+    try:
+        device_tokens_table.create(get_engine(), checkfirst=True)
+    except Exception:
+        logging.exception("device_tokens-Tabelle konnte nicht angelegt werden")
+
+
 def get_or_create_device_token(user_id):
     """Liefert den bestehenden Geraete-Token des Users oder legt einen an."""
+    _ensure_device_tokens_table()
     with get_engine().begin() as conn:
         row = conn.execute(
             select(device_tokens_table.c.token)
@@ -1228,6 +1240,7 @@ def get_or_create_device_token(user_id):
 
 def regenerate_device_token(user_id):
     """Verwirft alte Geraete-Tokens des Users und erzeugt einen neuen."""
+    _ensure_device_tokens_table()
     with get_engine().begin() as conn:
         conn.execute(
             delete(device_tokens_table).where(device_tokens_table.c.user_id == user_id)
