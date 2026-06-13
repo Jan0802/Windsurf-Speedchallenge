@@ -581,6 +581,14 @@ sessions_table = Table(
     Column("precip_mm", Float),
     Column("weather_code", Integer),
     Column("trust_score", Float),
+    # Von der WaterSession-Uhr gelieferte Zusatzwerte (NULL bei FIT-Uploads):
+    Column("jumps", Integer),            # Sprungzahl (Wind)
+    Column("max_airtime_s", Float),      # laengste Airtime in Sekunden
+    Column("max_jump_m", Float),         # geschaetzte hoechste Sprunghoehe (m)
+    Column("strokes", Integer),          # Paddelschlaege (SUP)
+    Column("cadence_spm", Integer),      # Paddelkadenz (Schlaege/Minute)
+    Column("duration_s", Integer),       # Aufzeichnungsdauer in Sekunden
+    Column("source", String(20)),        # Herkunft, z.B. "watch"
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -599,6 +607,16 @@ spots_table = Table(
 
 auth_tokens_table = Table(
     "auth_tokens", DB_METADATA,
+    Column("token", String(64), primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
+# Langlebige Geraete-Tokens fuer den Upload von der WaterSession-Uhr. Bewusst
+# getrennt von auth_tokens, da Letztere beim Logout geloescht werden – ein
+# Geraete-Token soll den Logout ueberleben.
+device_tokens_table = Table(
+    "device_tokens", DB_METADATA,
     Column("token", String(64), primary_key=True),
     Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("created_at", DateTime, server_default=func.now()),
@@ -1190,6 +1208,35 @@ def delete_auth_token(token):
         conn.execute(delete(auth_tokens_table).where(auth_tokens_table.c.token == token))
 
 
+# ---- Geraete-Tokens (Upload von der WaterSession-Uhr) ----
+
+def get_or_create_device_token(user_id):
+    """Liefert den bestehenden Geraete-Token des Users oder legt einen an."""
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            select(device_tokens_table.c.token)
+            .where(device_tokens_table.c.user_id == user_id)
+            .limit(1)
+        ).first()
+        if row:
+            return row[0]
+
+        token = secrets.token_urlsafe(32)
+        conn.execute(insert(device_tokens_table).values(token=token, user_id=user_id))
+        return token
+
+
+def regenerate_device_token(user_id):
+    """Verwirft alte Geraete-Tokens des Users und erzeugt einen neuen."""
+    with get_engine().begin() as conn:
+        conn.execute(
+            delete(device_tokens_table).where(device_tokens_table.c.user_id == user_id)
+        )
+        token = secrets.token_urlsafe(32)
+        conn.execute(insert(device_tokens_table).values(token=token, user_id=user_id))
+        return token
+
+
 # ---- Konto-/Datenlöschung (immer nur eigene Daten) ----
 
 def count_user_sessions(name, sport=None):
@@ -1254,6 +1301,9 @@ def delete_account(user_id, username):
         conn.execute(delete(profiles_table).where(profiles_table.c.name == username))
         conn.execute(
             delete(auth_tokens_table).where(auth_tokens_table.c.user_id == user_id)
+        )
+        conn.execute(
+            delete(device_tokens_table).where(device_tokens_table.c.user_id == user_id)
         )
         conn.execute(
             delete(memberships_table).where(memberships_table.c.user_id == user_id)
@@ -3666,6 +3716,29 @@ def render_history_overview(record):
         height=df_height(len(speed_table)),
     )
 
+    # --- Sprünge / SUP (nur wenn von der Uhr geliefert) ---
+    jumps = record.get("jumps")
+    max_air = num("max_airtime_s")
+    max_jump = num("max_jump_m")
+    strokes = record.get("strokes")
+    cadence = record.get("cadence_spm")
+
+    def _has(value):
+        return value is not None and pd.notna(value) and value
+
+    if _has(jumps) or max_air or max_jump:
+        st.markdown("## 🪂 Jumps")
+        j1, j2, j3 = st.columns(3)
+        j1.metric("Jumps", "–" if not _has(jumps) else f"{int(jumps)}")
+        j2.metric("Max airtime", "–" if max_air is None else f"{max_air:.1f} s")
+        j3.metric("Highest jump", "–" if max_jump is None else f"{max_jump:.1f} m")
+
+    if _has(strokes) or _has(cadence):
+        st.markdown("## 🛶 Paddling")
+        p1, p2 = st.columns(2)
+        p1.metric("Strokes", "–" if not _has(strokes) else f"{int(strokes)}")
+        p2.metric("Cadence", "–" if not _has(cadence) else f"{int(cadence)} spm")
+
     st.caption(
         "ℹ️ The map, individual runs and max/avg speed are only available right "
         "after the upload – for saved sessions the stored metrics are shown."
@@ -3940,6 +4013,24 @@ def render_user_profile(user):
                 else:
                     ok, msg = change_password(user["id"], old_pw, new_pw1)
                     (st.success if ok else st.error)(msg)
+
+        # --- Geräte-Token für den Upload von der WaterSession-Uhr ---
+        st.markdown("**⌚ Watch upload (WaterSession)**")
+        st.caption(
+            "Enter this token in the watch app settings (Garmin Connect Mobile → "
+            "WaterSession → Settings → Device Token), together with the server URL "
+            "of your ingest service. Sessions then upload wirelessly after you "
+            "stop recording – no USB needed."
+        )
+        _tok_key = f"_device_token_{user['id']}"
+        if _tok_key not in st.session_state:
+            st.session_state[_tok_key] = get_or_create_device_token(user["id"])
+        st.code(st.session_state[_tok_key], language=None)
+        if st.button("Regenerate token", key=f"regen_token_{user['id']}",
+                     use_container_width=True):
+            st.session_state[_tok_key] = regenerate_device_token(user["id"])
+            st.success("New token generated – update it in the watch app.")
+            st.rerun()
 
         # --- Equipment (aktiver Sport; Spots sind sportübergreifend) ---
         st.markdown(f"**Equipment · {gear_meta['label']}**")
