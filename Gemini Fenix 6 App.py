@@ -835,27 +835,21 @@ _WATCH_COLUMNS = {
     "track": "TEXT",
 }
 
-_watch_columns_ready = False
-
-
+@st.cache_resource(show_spinner=False)
 def ensure_watch_columns():
     """Ergaenzt die von der WaterSession-Uhr genutzten sessions-Spalten.
 
-    Notwendig, weil ensure_schema() per @st.cache_resource gegated ist und nach
-    einem reinen Code-Deploy nicht zuverlaessig erneut laeuft; create_all legt
-    zudem nur fehlende TABELLEN an, keine fehlenden SPALTEN. Wird ueber ein
-    einfaches Modul-Flag genau einmal pro Prozess ausgefuehrt (bewusst KEIN
-    Streamlit-Cache, der ein Deploy ueberdauern koennte). Postgres nutzt
-    ADD COLUMN IF NOT EXISTS; lokales SQLite erledigt ensure_schema selbst.
+    PERFORMANCE: @st.cache_resource -> laeuft genau EINMAL pro Prozess, nicht bei
+    jedem Rerun. (Frueher per Modul-Flag abgesichert -> das wird bei Streamlits
+    Skript-Reruns zurueckgesetzt, sodass die 7 ALTER-Roundtrips zur Neon-DB bei
+    JEDEM Klick liefen = deutliche Verlangsamung.) Nach einem neuen Deploy laeuft
+    ein frischer Prozess -> einmaliges Nachziehen. Zusaetzliche Absicherung: der
+    Ingest-Dienst legt dieselben Spalten per ADD COLUMN IF NOT EXISTS an.
+    Postgres nutzt ADD COLUMN IF NOT EXISTS; lokales SQLite erledigt ensure_schema.
     """
-    global _watch_columns_ready
-    if _watch_columns_ready:
-        return
-
     engine = get_engine()
     if engine.dialect.name == "sqlite":
-        _watch_columns_ready = True
-        return
+        return True
 
     for name, coltype in _WATCH_COLUMNS.items():
         try:
@@ -866,7 +860,7 @@ def ensure_watch_columns():
         except Exception:
             logging.exception("ALTER sessions ADD %s fehlgeschlagen", name)
 
-    _watch_columns_ready = True
+    return True
 
 
 # ---- Sessions ----
@@ -1277,15 +1271,16 @@ def delete_auth_token(token):
 
 # ---- Geraete-Tokens (Upload von der WaterSession-Uhr) ----
 
+@st.cache_resource(show_spinner=False)
 def _ensure_device_tokens_table():
-    """Legt die device_tokens-Tabelle bei Bedarf an. Notwendig, weil die
-    Schema-Migration in @st.cache_resource-gecachten Funktionen (get_engine/
-    ensure_schema) nach einem reinen Code-Deploy nicht zuverlaessig erneut
-    laeuft. checkfirst=True macht den Aufruf idempotent und billig."""
+    """Legt die device_tokens-Tabelle bei Bedarf an. @st.cache_resource ->
+    genau einmal pro Prozess (checkfirst macht sonst pro Aufruf einen
+    DB-Roundtrip). Nach einem neuen Deploy laeuft ein frischer Prozess."""
     try:
         device_tokens_table.create(get_engine(), checkfirst=True)
     except Exception:
         logging.exception("device_tokens-Tabelle konnte nicht angelegt werden")
+    return True
 
 
 def get_or_create_device_token(user_id):
