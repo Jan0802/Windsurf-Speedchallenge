@@ -658,6 +658,12 @@ SESSION_FIELDS = [
     c.name for c in sessions_table.columns if c.name not in ("id", "created_at")
 ]
 
+# track (GPS-Route als JSON) ist potenziell gross und wird nur in der Einzel-
+# Detailansicht (Karte) gebraucht. Daher in den Massen-Ladevorgaengen (Rankings,
+# Fahrer-Sessions) NICHT mitladen -> weniger Transfer/Speicher/Kopien. In der
+# Detailansicht wird sie per ID nachgeholt (load_session_track).
+_SESSION_COLS_NO_TRACK = [c for c in sessions_table.c if c.name != "track"]
+
 
 def _database_url():
     try:
@@ -896,7 +902,7 @@ def load_sessions(sport=None):
     geteilte Spot-Liste); sonst nur der angegebene Sport. sport ist Teil des
     Cache-Keys, damit Windsurf/Kite getrennt gecacht werden."""
     with get_engine().connect() as conn:
-        query = select(sessions_table)
+        query = select(*_SESSION_COLS_NO_TRACK)
         if sport:
             query = query.where(sessions_table.c.sport == sport)
         rows = conn.execute(query).mappings().all()
@@ -905,6 +911,21 @@ def load_sessions(sport=None):
         return pd.DataFrame()
 
     return pd.DataFrame([dict(r) for r in rows])
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_session_track(session_id):
+    """Holt die (potenziell grosse) GPS-Route einer einzelnen Session per ID –
+    bewusst getrennt von den Massen-Ladevorgaengen, nur fuer die Detailkarte."""
+    if session_id is None:
+        return None
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(sessions_table.c.track).where(
+                sessions_table.c.id == int(session_id)
+            )
+        ).first()
+    return row[0] if row else None
 
 
 def current_username():
@@ -940,7 +961,7 @@ def load_rider_sessions(name, sport=None):
     """Alle gespeicherten Sessions eines Fahrers, neueste zuerst (optional auf
     einen Sport eingegrenzt; sport ist Teil des Cache-Keys)."""
     with get_engine().connect() as conn:
-        query = select(sessions_table).where(sessions_table.c.name == name)
+        query = select(*_SESSION_COLS_NO_TRACK).where(sessions_table.c.name == name)
         if sport:
             query = query.where(sessions_table.c.sport == sport)
         rows = conn.execute(query).mappings().all()
@@ -3909,8 +3930,8 @@ def render_history_overview(record):
         p2.metric("Max cadence", "–" if not _has(max_cadence) else f"{int(max_cadence)} spm")
         p3.metric("Cadence (end)", "–" if not _has(cadence) else f"{int(cadence)} spm")
 
-    # Karte aus der von der Uhr gesendeten Route (falls vorhanden).
-    track_pts = _parse_track(record.get("track"))
+    # Karte aus der von der Uhr gesendeten Route (per ID nachgeladen, falls da).
+    track_pts = _parse_track(load_session_track(record.get("id")))
     if track_pts:
         st.markdown("## 🗺️ Track")
         show_map(pd.DataFrame(track_pts, columns=["lat", "lon"]))
