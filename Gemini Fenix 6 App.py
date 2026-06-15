@@ -589,6 +589,9 @@ sessions_table = Table(
     Column("cadence_spm", Integer),      # Paddelkadenz (Schlaege/Minute)
     Column("duration_s", Integer),       # Aufzeichnungsdauer in Sekunden
     Column("source", String(20)),        # Herkunft, z.B. "watch"
+    Column("start_lat", Float),          # Startposition (von der Uhr)
+    Column("start_lon", Float),
+    Column("track", String),             # GPS-Route als JSON [[lat,lon],...]
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -825,6 +828,9 @@ _WATCH_COLUMNS = {
     "cadence_spm": "INTEGER",
     "duration_s": "INTEGER",
     "source": "VARCHAR(20)",
+    "start_lat": "DOUBLE PRECISION",
+    "start_lon": "DOUBLE PRECISION",
+    "track": "TEXT",
 }
 
 _watch_columns_ready = False
@@ -870,6 +876,21 @@ def save_session(entry):
     with get_engine().begin() as conn:
         conn.execute(insert(sessions_table).values(**values))
 
+    clear_data_caches()
+
+
+def update_session(session_id, fields):
+    """Aktualisiert einzelne Felder einer Session (z.B. Spot/Board/Segel beim
+    Nachpflegen einer von der Uhr hochgeladenen Session)."""
+    clean = {k: _py(v) for k, v in fields.items() if k in SESSION_FIELDS}
+    if not clean:
+        return
+    with get_engine().begin() as conn:
+        conn.execute(
+            update(sessions_table)
+            .where(sessions_table.c.id == int(session_id))
+            .values(**clean)
+        )
     clear_data_caches()
 
 
@@ -1988,9 +2009,29 @@ def mark_group_events_seen(user_id):
             ))
 
 
+# Pflichtfelder, damit eine Session im Ranking/in den Personal Bests zählt.
+RANKING_REQUIRED = ["surfspot", "board", "sail"]
+
+
+def complete_sessions(df):
+    """Nur Sessions, die fürs Ranking vollständig sind: Spot + Board + Segel/
+    Kite gesetzt. Unvollständige (z.B. frisch von der Uhr, ohne Equipment)
+    bleiben aus Ranking & Personal Bests draußen, bis sie nachgepflegt wurden."""
+    if df is None or df.empty:
+        return df
+    if not all(col in df.columns for col in RANKING_REQUIRED):
+        return df.iloc[0:0]
+    mask = pd.Series(True, index=df.index)
+    for col in RANKING_REQUIRED:
+        s = df[col].astype(str).str.strip()
+        mask &= s.ne("") & ~s.str.lower().isin(["none", "nan", "null"])
+    return df[mask]
+
+
 def personal_bests(name, spot=None, year=None):
     """Beste Werte je Metrik für einen Fahrer, optional nach Spot/Jahr gefiltert."""
     df = load_rider_sessions(name, active_sport())
+    df = complete_sessions(df)
 
     if df.empty:
         return []
@@ -2021,7 +2062,7 @@ def personal_best_table(df, spot="All", year="All", board="All", max_bft=None, l
     (Anzeige-DataFrame, Filter-Beschriftung) zurück; der DataFrame ist leer, wenn
     keine passenden Sessions vorhanden sind.
     """
-    data = df.copy()
+    data = complete_sessions(df.copy())
 
     if spot and spot != "All" and "surfspot" in data.columns:
         data = data[data["surfspot"].astype(str) == spot]
@@ -2826,7 +2867,7 @@ def render_rankings(results_container):
     preset = load_user_pref(username)
 
     sport = active_sport()
-    ranking = load_sessions(sport)
+    ranking = complete_sessions(load_sessions(sport))
 
     months = [
         "January", "February", "March", "April", "May", "June",
@@ -3682,6 +3723,29 @@ def show_map(df):
         )
 
 
+def _parse_track(raw):
+    """JSON-Track ([[lat,lon],...]) -> Liste von (lat, lon)-Tupeln oder None."""
+    if raw is None:
+        return None
+    if isinstance(raw, float) and pd.isna(raw):
+        return None
+    data = raw
+    if isinstance(raw, str):
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            return None
+    pts = []
+    if isinstance(data, list):
+        for p in data:
+            if isinstance(p, (list, tuple)) and len(p) >= 2:
+                try:
+                    pts.append((float(p[0]), float(p[1])))
+                except (TypeError, ValueError):
+                    continue
+    return pts or None
+
+
 def render_history_overview(record):
     """Session-Übersicht aus den gespeicherten Ranking-Werten (ohne Roh-FIT)."""
 
@@ -3796,9 +3860,16 @@ def render_history_overview(record):
         p1.metric("Strokes", "–" if not _has(strokes) else f"{int(strokes)}")
         p2.metric("Cadence", "–" if not _has(cadence) else f"{int(cadence)} spm")
 
+    # Karte aus der von der Uhr gesendeten Route (falls vorhanden).
+    track_pts = _parse_track(record.get("track"))
+    if track_pts:
+        st.markdown("## 🗺️ Track")
+        show_map(pd.DataFrame(track_pts, columns=["lat", "lon"]))
+
     st.caption(
-        "ℹ️ The map, individual runs and max/avg speed are only available right "
-        "after the upload – for saved sessions the stored metrics are shown."
+        "ℹ️ Individual runs and max/avg speed are only available right after the "
+        "upload – for saved sessions the stored metrics (and the track, if the "
+        "watch sent one) are shown."
     )
 
 
@@ -4014,6 +4085,107 @@ def render_group_news_banner(user):
         st.rerun()
 
     st.markdown("---")
+
+
+def _session_is_complete(spot, board, sail):
+    def ok(v):
+        v = str(v or "").strip().lower()
+        return v != "" and v not in ("none", "nan", "null")
+    return ok(spot) and ok(board) and ok(sail)
+
+
+def render_session_editor(user):
+    """Eigene Sessions nachpflegen: Spot/Board/Segel ergänzen, damit sie ins
+    Ranking aufgenommen werden (Pflicht: Spot + Board + Segel/Kite). Zeigt auch
+    unvollständige, von der Uhr hochgeladene Sessions an."""
+    if not user:
+        return
+
+    sport = active_sport()
+    gear_meta = SPORT_META[sport]
+    gear_word = gear_meta["gear_label"]
+    df = load_rider_sessions(user["username"], sport)
+
+    with st.expander("✏️ Edit / complete my sessions", expanded=False):
+        st.caption(
+            "Sessions only appear in the ranking once spot, board and "
+            f"{gear_word.lower()} are filled in. Watch uploads start incomplete (⚠️)."
+        )
+
+        if df is None or df.empty:
+            st.info("No sessions yet for this sport.")
+            return
+
+        if "date" in df.columns:
+            df = df.sort_values("date", ascending=False)
+
+        # Auswahlliste (neueste zuerst); Status-Markierung vollständig/unvollständig.
+        labels = []
+        row_by_label = {}
+        for _, row in df.iterrows():
+            sid = int(row["id"])
+            complete = _session_is_complete(
+                row.get("surfspot"), row.get("board"), row.get("sail")
+            )
+            mark = "✅" if complete else "⚠️"
+            spot = str(row.get("surfspot") or "").strip() or "no spot"
+            label = f"{mark} {row.get('date')} · {spot}  [#{sid}]"
+            labels.append(label)
+            row_by_label[label] = row
+
+        choice = st.selectbox("Session", labels, key=f"edit_sess_sel_{sport}")
+        row = row_by_label[choice]
+        sid = int(row["id"])
+
+        rider = load_profiles().get(user["username"], {})
+        spots = rider.get("spots", [])
+        boards = rider.get(gear_meta["boards_key"], [])
+        gears = rider.get(gear_meta["gear_key"], [])
+
+        def _opts_index(opts, current):
+            current = str(current or "").strip()
+            lst = ["(empty)"] + list(opts)
+            if current and current.lower() not in ("none", "nan", "null") and current not in lst:
+                lst.insert(1, current)
+            idx = lst.index(current) if current in lst else 0
+            return lst, idx
+
+        with st.form(f"edit_sess_form_{sid}"):
+            spot_lst, spot_idx = _opts_index(spots, row.get("surfspot"))
+            spot_sel = st.selectbox("📍 Spot", spot_lst, index=spot_idx, key=f"es_spot_{sid}")
+            spot_new = st.text_input("…or new spot", key=f"es_spot_new_{sid}")
+
+            board_lst, board_idx = _opts_index(boards, row.get("board"))
+            board_sel = st.selectbox("🏄 Board", board_lst, index=board_idx, key=f"es_board_{sid}")
+
+            gear_lst, gear_idx = _opts_index(gears, row.get("sail"))
+            gear_sel = st.selectbox(f"🎽 {gear_word}", gear_lst, index=gear_idx, key=f"es_gear_{sid}")
+
+            type_opts = ["(empty)", "Fin", "Foil", "Twintip"]
+            cur_type = str(row.get("gear_type") or "").strip()
+            type_idx = type_opts.index(cur_type) if cur_type in type_opts else 0
+            type_sel = st.selectbox("Type", type_opts, index=type_idx, key=f"es_type_{sid}")
+
+            if st.form_submit_button("Save session", use_container_width=True):
+                def _pick(sel, new=None):
+                    if new is not None and new.strip():
+                        return new.strip()
+                    return None if sel == "(empty)" else sel
+
+                fields = {
+                    "surfspot": _pick(spot_sel, spot_new),
+                    "board": _pick(board_sel),
+                    "sail": _pick(gear_sel),
+                    "gear_type": _pick(type_sel),
+                }
+                update_session(sid, fields)
+
+                if _session_is_complete(fields["surfspot"], fields["board"], fields["sail"]):
+                    st.success("Saved – this session now counts in the ranking. ✅")
+                else:
+                    st.warning("Saved, but still incomplete – spot, board and "
+                               f"{gear_word.lower()} are required for the ranking.")
+                st.rerun()
 
 
 def render_user_profile(user):
@@ -4550,6 +4722,9 @@ with sidebar_tab_filter:
 
 with news_slot.container():
     render_group_news_banner(current_user)
+
+if current_user:
+    render_session_editor(current_user)
 
 st.markdown("---")
 
