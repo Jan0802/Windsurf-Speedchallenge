@@ -586,7 +586,8 @@ sessions_table = Table(
     Column("max_airtime_s", Float),      # laengste Airtime in Sekunden
     Column("max_jump_m", Float),         # geschaetzte hoechste Sprunghoehe (m)
     Column("strokes", Integer),          # Paddelschlaege (SUP)
-    Column("cadence_spm", Integer),      # Paddelkadenz (Schlaege/Minute)
+    Column("cadence_spm", Integer),      # Paddelkadenz beim Stoppen (Schlaege/Minute)
+    Column("max_cadence_spm", Integer),  # hoechste Kadenz der Session
     Column("duration_s", Integer),       # Aufzeichnungsdauer in Sekunden
     Column("source", String(20)),        # Herkunft, z.B. "watch"
     Column("start_lat", Float),          # Startposition (von der Uhr)
@@ -826,6 +827,7 @@ _WATCH_COLUMNS = {
     "max_jump_m": "DOUBLE PRECISION",
     "strokes": "INTEGER",
     "cadence_spm": "INTEGER",
+    "max_cadence_spm": "INTEGER",
     "duration_s": "INTEGER",
     "source": "VARCHAR(20)",
     "start_lat": "DOUBLE PRECISION",
@@ -3095,7 +3097,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
 
     for column in ("wind_kmh", "wind_dir_deg", "temp_c", "weather_code", "trust_score",
                    "gear_type", "fin_size_cm", "foil_front_cm2",
-                   "max_airtime_s", "max_jump_m"):
+                   "max_airtime_s", "max_jump_m", "strokes", "max_cadence_spm"):
         if column not in ranking.columns:
             ranking[column] = None
 
@@ -3302,41 +3304,54 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
 
         st.dataframe(rtotal, width="stretch", hide_index=True, height=df_height(len(rtotal)))
 
-    # Sprung-Rankings nur fuer Windsportarten (nicht SUP). Daten kommen von der
-    # Uhr (max_airtime_s / max_jump_m); Sessions ohne Sprungdaten fallen raus.
-    if active_sport() != "sup":
-        def _jump_table(metric, title, col_label, decimals=1):
-            tbl = ranking[[
-                "date", "name", metric, "surfspot", "board", "sail", "Weather", "Trust",
-            ]].copy()
-            tbl[metric] = pd.to_numeric(tbl[metric], errors="coerce")
-            tbl = tbl[tbl[metric] > 0].dropna(subset=[metric])
-            tbl = (
-                tbl.sort_values(metric, ascending=False)
-                .drop_duplicates(subset="name", keep="first")
-                .reset_index(drop=True)
-            )
-            st.markdown(title)
-            if tbl.empty:
-                st.caption("No jump data yet – record a session with jumps on the watch.")
-                return
-            tbl.insert(0, "Rank", tbl.index + 1)
+    # Zusatz-Rankings aus den Uhr-Daten: Wind -> Sprünge, SUP -> Paddeln.
+    # Sessions ohne die jeweiligen Werte fallen raus.
+    def _metric_table(metric, title, col_label, decimals=1, empty_msg="No data yet."):
+        tbl = ranking[[
+            "date", "name", metric, "surfspot", "board", "sail", "Weather", "Trust",
+        ]].copy()
+        tbl[metric] = pd.to_numeric(tbl[metric], errors="coerce")
+        tbl = tbl[tbl[metric] > 0].dropna(subset=[metric])
+        tbl = (
+            tbl.sort_values(metric, ascending=False)
+            .drop_duplicates(subset="name", keep="first")
+            .reset_index(drop=True)
+        )
+        st.markdown(title)
+        if tbl.empty:
+            st.caption(empty_msg)
+            return
+        tbl.insert(0, "Rank", tbl.index + 1)
+        if decimals == 0:
+            tbl[metric] = tbl[metric].round(0).astype(int)
+        else:
             tbl[metric] = tbl[metric].round(decimals)
-            tbl = tbl.rename(columns={
-                "date": "Date",
-                "name": "Name",
-                "surfspot": "Surf spot",
-                "board": "Board",
-                "sail": gear_label,
-                metric: col_label,
-            })
-            st.dataframe(tbl, width="stretch", hide_index=True, height=df_height(len(tbl)))
+        tbl = tbl.rename(columns={
+            "date": "Date",
+            "name": "Name",
+            "surfspot": "Surf spot",
+            "board": "Board",
+            "sail": gear_label,
+            metric: col_label,
+        })
+        st.dataframe(tbl, width="stretch", hide_index=True, height=df_height(len(tbl)))
 
+    if active_sport() == "sup":
+        scol1, scol2 = st.columns(2)
+        with scol1:
+            _metric_table("strokes", "### 🛶 Most paddle strokes", "Strokes",
+                          decimals=0, empty_msg="No paddle data yet.")
+        with scol2:
+            _metric_table("max_cadence_spm", "### ⏱️ Max strokes / minute", "Max spm",
+                          decimals=0, empty_msg="No paddle data yet.")
+    else:
         jcol1, jcol2 = st.columns(2)
         with jcol1:
-            _jump_table("max_airtime_s", "### 🪂 Best airtime", "Airtime s")
+            _metric_table("max_airtime_s", "### 🪂 Best airtime", "Airtime s",
+                          empty_msg="No jump data yet – record a session with jumps on the watch.")
         with jcol2:
-            _jump_table("max_jump_m", "### 🚀 Highest jump", "Jump m")
+            _metric_table("max_jump_m", "### 🚀 Highest jump", "Jump m",
+                          empty_msg="No jump data yet – record a session with jumps on the watch.")
 
 
 def semicircles_to_degrees(value):
@@ -3880,6 +3895,7 @@ def render_history_overview(record):
     max_jump = num("max_jump_m")
     strokes = record.get("strokes")
     cadence = record.get("cadence_spm")
+    max_cadence = record.get("max_cadence_spm")
 
     def _has(value):
         return value is not None and pd.notna(value) and value
@@ -3891,11 +3907,12 @@ def render_history_overview(record):
         j2.metric("Max airtime", "–" if max_air is None else f"{max_air:.1f} s")
         j3.metric("Highest jump", "–" if max_jump is None else f"{max_jump:.1f} m")
 
-    if _has(strokes) or _has(cadence):
+    if _has(strokes) or _has(cadence) or _has(max_cadence):
         st.markdown("## 🛶 Paddling")
-        p1, p2 = st.columns(2)
+        p1, p2, p3 = st.columns(3)
         p1.metric("Strokes", "–" if not _has(strokes) else f"{int(strokes)}")
-        p2.metric("Cadence", "–" if not _has(cadence) else f"{int(cadence)} spm")
+        p2.metric("Max cadence", "–" if not _has(max_cadence) else f"{int(max_cadence)} spm")
+        p3.metric("Cadence (end)", "–" if not _has(cadence) else f"{int(cadence)} spm")
 
     # Karte aus der von der Uhr gesendeten Route (falls vorhanden).
     track_pts = _parse_track(record.get("track"))
