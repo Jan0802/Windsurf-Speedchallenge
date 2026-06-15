@@ -3094,7 +3094,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         ranking["date"] = ""
 
     for column in ("wind_kmh", "wind_dir_deg", "temp_c", "weather_code", "trust_score",
-                   "gear_type", "fin_size_cm", "foil_front_cm2"):
+                   "gear_type", "fin_size_cm", "foil_front_cm2",
+                   "max_airtime_s", "max_jump_m"):
         if column not in ranking.columns:
             ranking[column] = None
 
@@ -3300,6 +3301,42 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         })
 
         st.dataframe(rtotal, width="stretch", hide_index=True, height=df_height(len(rtotal)))
+
+    # Sprung-Rankings nur fuer Windsportarten (nicht SUP). Daten kommen von der
+    # Uhr (max_airtime_s / max_jump_m); Sessions ohne Sprungdaten fallen raus.
+    if active_sport() != "sup":
+        def _jump_table(metric, title, col_label, decimals=1):
+            tbl = ranking[[
+                "date", "name", metric, "surfspot", "board", "sail", "Weather", "Trust",
+            ]].copy()
+            tbl[metric] = pd.to_numeric(tbl[metric], errors="coerce")
+            tbl = tbl[tbl[metric] > 0].dropna(subset=[metric])
+            tbl = (
+                tbl.sort_values(metric, ascending=False)
+                .drop_duplicates(subset="name", keep="first")
+                .reset_index(drop=True)
+            )
+            st.markdown(title)
+            if tbl.empty:
+                st.caption("No jump data yet – record a session with jumps on the watch.")
+                return
+            tbl.insert(0, "Rank", tbl.index + 1)
+            tbl[metric] = tbl[metric].round(decimals)
+            tbl = tbl.rename(columns={
+                "date": "Date",
+                "name": "Name",
+                "surfspot": "Surf spot",
+                "board": "Board",
+                "sail": gear_label,
+                metric: col_label,
+            })
+            st.dataframe(tbl, width="stretch", hide_index=True, height=df_height(len(tbl)))
+
+        jcol1, jcol2 = st.columns(2)
+        with jcol1:
+            _jump_table("max_airtime_s", "### 🪂 Best airtime", "Airtime s")
+        with jcol2:
+            _jump_table("max_jump_m", "### 🚀 Highest jump", "Jump m")
 
 
 def semicircles_to_degrees(value):
