@@ -4,6 +4,7 @@ pydeck
 fitparse
 SQLAlchemy
 extra-streamlit-components
+qrcode[pil]
 
 # Postgres-Treiber – nur fürs Cloud-/Server-Deployment (Linux) nötig,
 # wenn DATABASE_URL auf eine Postgres-DB zeigt (z.B. Neon/Supabase).

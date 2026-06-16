@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+import io
 
 import numpy as np
 import pandas as pd
@@ -38,6 +39,15 @@ from sqlalchemy import (
     text,
     update,
 )
+
+# QR-Code fuer das Spot-TV ("Join today's ranking"). Optionales Paket – fehlt
+# es, zeigt das Dashboard stattdessen den Beitritts-Link als Text.
+try:
+    import qrcode
+
+    QR_AVAILABLE = True
+except ImportError:
+    QR_AVAILABLE = False
 
 # MTP-Zugriff (Garmin-Uhren ohne Laufwerksbuchstaben, z.B. Fenix 6 Pro).
 # Nur unter Windows mit pywin32 verfügbar – auf einem Server fällt das
@@ -2961,6 +2971,19 @@ def render_rankings(results_container):
                     st.session_state.pop(f"{_k}_{sport}", None)
                 st.rerun()
 
+            # Einstieg ins Spot-TV (Vollbild-Live-Screen) fuer den aktuellen Spot.
+            st.markdown("---")
+            if spot_filter and spot_filter != "Overall":
+                _tv_url = "?" + urlencode(
+                    {"tv": "1", "sport": sport, "spot": spot_filter, "mode": "today"}
+                )
+                st.link_button(
+                    f"📺 Open Spot TV · {spot_filter}", _tv_url, use_container_width=True
+                )
+                st.caption("Full-screen live screen for café/shop. Open in a new tab, then F11.")
+            else:
+                st.caption("📺 Spot TV: pick a Location first – the live-screen link appears here.")
+
         group_options = [ALL_GROUP] + [g["name"] for g in member_groups]
         st.selectbox(
             "👥 Group",
@@ -3791,6 +3814,274 @@ def show_map(df):
         )
 
 
+# =====================================================================
+#  Spot Live Dashboard ("Spot TV") – Vollbild-Ansicht fuer Cafe/Shop/Club.
+#  Aufruf per Query-Parameter, z.B.:
+#    ?tv=1&spot=Koeln&mode=today&sport=windsurf
+#    &period=week&group=MeinClub&sponsor=Surfshop%20XY&logo=https://...&event=...
+# =====================================================================
+
+_TV_CSS = """
+<style>
+  [data-testid="stSidebar"], [data-testid="stHeader"], #MainMenu, footer {display:none !important;}
+  .block-container {padding-top:1rem !important; max-width:100% !important;}
+  .tv-header {display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;}
+  .tv-header .title {font-size:46px; font-weight:900; line-height:1.05;}
+  .tv-header .event {font-size:24px; opacity:.92; margin-top:4px;}
+  .tv-header .sponsor {font-size:20px; opacity:.92; text-align:right;}
+  .tv-header .sponsor img {max-height:60px; display:block; margin:0 0 4px auto;}
+  .tv-cards {display:flex; flex-wrap:wrap; gap:16px; margin:6px 0 18px;}
+  .tv-card {flex:1 1 200px; background:rgba(255,255,255,.08);
+            border:1px solid rgba(255,255,255,.18); border-radius:18px; padding:14px 20px;}
+  .tv-card .lbl {font-size:19px; opacity:.85;}
+  .tv-card .val {font-size:56px; font-weight:800; line-height:1.1;}
+  .tv-card .sub {font-size:18px; opacity:.8; min-height:1em;}
+  .tv-rank-title {font-size:28px; font-weight:800; margin:12px 0 8px;}
+  .tv-table {width:100%; border-collapse:collapse; font-size:32px;}
+  .tv-table td {padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.15);}
+  .tv-table td.r {width:80px; text-align:center;}
+  .tv-table td.v {text-align:right; font-weight:800; white-space:nowrap;}
+  .tv-table td.v .u {font-size:18px; opacity:.7;}
+  .tv-update {font-size:20px; opacity:.8; margin-top:12px;}
+  .tv-msg {font-size:26px; opacity:.85; padding:24px 0;}
+</style>
+"""
+
+
+def _spot_tv_config():
+    """Liest die Spot-TV-Parameter aus der URL. None, wenn kein TV-Modus."""
+    qp = st.query_params
+    if "tv" not in qp:
+        return None
+    try:
+        trust = float(qp.get("trust", "0") or 0)
+    except ValueError:
+        trust = 0.0
+    return {
+        "spot": qp.get("spot", ""),
+        "mode": qp.get("mode", "today"),       # today | week | group
+        "period": qp.get("period", "week"),    # week | month | year
+        "group": qp.get("group", ""),
+        "sport": active_sport(),
+        "sponsor": qp.get("sponsor", ""),
+        "logo": qp.get("logo", ""),
+        "event": qp.get("event", ""),
+        "trust": trust,
+        "base": qp.get("base", "https://mywatersessions.streamlit.app"),
+    }
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _spot_coords(name):
+    if not name:
+        return None
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(spots_table.c.lat, spots_table.c.lon).where(spots_table.c.name == name)
+        ).first()
+    if row and row[0] is not None and row[1] is not None:
+        return (float(row[0]), float(row[1]))
+    return None
+
+
+def _tv_card(label, value, sub=""):
+    return (f"<div class='tv-card'><div class='lbl'>{label}</div>"
+            f"<div class='val'>{value}</div><div class='sub'>{sub}</div></div>")
+
+
+def _tv_period_scope(df, now, period):
+    """Sessions im gewuenschten Zeitraum (Woche ab Montag / Monat / Jahr)."""
+    if period == "year":
+        start = now.normalize().replace(month=1, day=1)
+    elif period == "month":
+        start = now.normalize().replace(day=1)
+    else:
+        start = (now - pd.Timedelta(days=int(now.dayofweek))).normalize()
+    return df[df["_date"] >= start]
+
+
+def _tv_ranking_table(scope):
+    if scope is None or scope.empty or "speed_1s_kmh" not in scope.columns:
+        return "<div class='tv-msg'>No entries yet.</div>"
+    t = scope.copy()
+    t["_s"] = pd.to_numeric(t["speed_1s_kmh"], errors="coerce")
+    t = t.dropna(subset=["_s"]).sort_values("_s", ascending=False)
+    t = t.drop_duplicates(subset="name", keep="first").head(8)
+    if t.empty:
+        return "<div class='tv-msg'>No entries yet.</div>"
+    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+    rows = ""
+    for i, (_, r) in enumerate(t.iterrows(), start=1):
+        kn = pd.to_numeric(pd.Series([r.get("speed_1s_kn")]), errors="coerce").iloc[0]
+        kn_s = f" · {kn:.1f} kn" if pd.notna(kn) else ""
+        rows += (f"<tr><td class='r'>{medals.get(i, i)}</td>"
+                 f"<td>{r.get('name', '')}</td>"
+                 f"<td class='v'>{r['_s']:.1f} <span class='u'>km/h</span>{kn_s}</td></tr>")
+    return f"<table class='tv-table'>{rows}</table>"
+
+
+def _join_url(cfg):
+    params = {"sport": cfg["sport"], "spot": cfg["spot"], "join": "1"}
+    return cfg["base"].rstrip("/") + "/?" + urlencode(params)
+
+
+def _render_join_qr(cfg):
+    url = _join_url(cfg)
+    st.markdown("<div class='tv-rank-title'>📲 Join today’s ranking</div>", unsafe_allow_html=True)
+    if QR_AVAILABLE:
+        img = qrcode.make(url)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        st.image(buf.getvalue(), width=200)
+    else:
+        st.markdown(f"<div class='tv-update'>{url}</div>", unsafe_allow_html=True)
+
+
+def _tv_weather_html(lat, lon):
+    html = """
+<!DOCTYPE html><html><head><meta charset='utf-8'><style>
+ html,body{background:transparent!important;margin:0;color:#eaf4ff;
+   font-family:system-ui,-apple-system,sans-serif;}
+ .row{display:flex;gap:16px;}
+ .c{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);
+    border-radius:18px;padding:10px 20px;flex:1;}
+ .c .l{font-size:17px;opacity:.8;} .c .v{font-size:44px;font-weight:800;}
+</style></head><body>
+<div id='w' class='row'>…</div>
+<script>
+const LAT=__LAT__,LON=__LON__;
+const C=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const W={0:"☀️",1:"🌤️",2:"⛅",3:"☁️",45:"🌫️",51:"🌦️",61:"🌦️",63:"🌧️",65:"🌧️",80:"🌦️",81:"🌧️",95:"⛈️"};
+function comp(d){return d==null?"":C[Math.round(d/22.5)%16];}
+fetch("https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+"&current=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=kmh&timezone=auto")
+.then(r=>r.json()).then(d=>{const c=d.current||{};
+ document.getElementById('w').innerHTML=
+ "<div class='c'><div class='l'>🌬️ Wind</div><div class='v'>"+Math.round(c.wind_speed_10m)+" km/h</div><div class='l'>Gusts "+Math.round(c.wind_gusts_10m)+" km/h · "+comp(c.wind_direction_10m)+"</div></div>"+
+ "<div class='c'><div class='l'>🌡️ Temperature</div><div class='v'>"+(Math.round(c.temperature_2m*10)/10)+" °C</div><div class='l'>"+(W[c.weather_code]||"")+"</div></div>";
+}).catch(e=>{document.getElementById('w').innerHTML="<div class='c'>Weather unavailable</div>";});
+</script></body></html>
+"""
+    return html.replace("__LAT__", str(lat)).replace("__LON__", str(lon))
+
+
+@st.fragment(run_every=30)
+def _spot_tv_live(cfg):
+    """Dynamischer Teil des Dashboards – aktualisiert sich alle 30 s selbst."""
+    sport = cfg["sport"]
+    spot = cfg["spot"]
+
+    df = load_sessions(sport)
+    if df is None or df.empty or "surfspot" not in df.columns:
+        st.markdown("<div class='tv-msg'>No sessions yet for this spot.</div>", unsafe_allow_html=True)
+        return
+
+    df = df[df["surfspot"].astype(str) == spot].copy()
+
+    # Trust-Filter: NULL (Uhr-Sessions ohne Trust) gilt als ok.
+    if cfg["trust"] > 0 and "trust_score" in df.columns:
+        ts = pd.to_numeric(df["trust_score"], errors="coerce")
+        df = df[ts.isna() | (ts >= cfg["trust"])]
+
+    df["_date"] = pd.to_datetime(df.get("date"), errors="coerce")
+    if "created_at" in df.columns:
+        df["_created"] = pd.to_datetime(df["created_at"], errors="coerce")
+
+    now = pd.Timestamp(datetime.now())
+    today = now.normalize()
+    today_df = df[df["_date"].dt.normalize() == today]
+
+    def _mx(d, col):
+        if col not in d.columns:
+            return None
+        v = pd.to_numeric(d[col], errors="coerce").max()
+        return None if pd.isna(v) else float(v)
+
+    top1 = _mx(today_df, "speed_1s_kmh")
+    top1kn = _mx(today_df, "speed_1s_kn")
+    top30 = _mx(today_df, "speed_30s_kmh")
+    n_sessions = len(today_df)
+    n_riders = today_df["name"].nunique() if "name" in today_df.columns else 0
+
+    rotd = "–"
+    if not today_df.empty and "speed_1s_kmh" in today_df.columns:
+        t = today_df.copy()
+        t["_s"] = pd.to_numeric(t["speed_1s_kmh"], errors="coerce")
+        t = t.dropna(subset=["_s"])
+        if not t.empty:
+            rotd = str(t.loc[t["_s"].idxmax(), "name"])
+
+    last_txt = "–"
+    if "_created" in today_df.columns and not today_df["_created"].dropna().empty:
+        mins = int(max(0, (now - today_df["_created"].max()).total_seconds() // 60))
+        last_txt = "just now" if mins == 0 else f"{mins} min ago"
+
+    cards = "".join([
+        _tv_card("🏆 Top 1s today", f"{top1:.1f}" if top1 else "–",
+                 ("km/h" + (f" · {top1kn:.1f} kn" if top1kn else "")) if top1 else ""),
+        _tv_card("🔥 Top 30s today", f"{top30:.1f}" if top30 else "–", "km/h" if top30 else ""),
+        _tv_card("🏄 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
+        _tv_card("👑 Rider of the Day", rotd),
+        _tv_card("🧭 Last activity", last_txt),
+    ])
+    st.markdown(f"<div class='tv-cards'>{cards}</div>", unsafe_allow_html=True)
+
+    coords = _spot_coords(spot)
+    if coords:
+        components.html(_tv_weather_html(coords[0], coords[1]), height=130)
+
+    # Ranking je nach Modus
+    mode = cfg["mode"]
+    period = cfg["period"]
+    if mode == "today":
+        scope, scope_title = today_df, "Today"
+    elif mode == "group" and cfg["group"]:
+        scope = _tv_period_scope(df, now, period)
+        gid = next((g["id"] for g in list_groups() if g["name"] == cfg["group"]), None)
+        members = set(group_member_names(gid)) if gid else set()
+        scope = scope[scope["name"].astype(str).isin(members)]
+        scope_title = f"{cfg['group']} · {period}"
+    else:
+        scope = _tv_period_scope(df, now, period)
+        scope_title = period.capitalize()
+
+    st.markdown(f"<div class='tv-rank-title'>🏁 {scope_title} ranking · Top 1s</div>",
+                unsafe_allow_html=True)
+    st.markdown(_tv_ranking_table(scope), unsafe_allow_html=True)
+
+    qcol, icol = st.columns([1, 3])
+    with qcol:
+        _render_join_qr(cfg)
+    with icol:
+        st.markdown(f"<div class='tv-update'>⏱️ Last update: {now.strftime('%H:%M')} · "
+                    f"auto-refresh 30 s</div>", unsafe_allow_html=True)
+
+
+def render_spot_tv(cfg):
+    """Vollbild-Dashboard fuer einen Spot. Statischer Kopf + Live-Fragment."""
+    st.markdown(_TV_CSS, unsafe_allow_html=True)
+
+    sponsor = ""
+    if cfg["logo"]:
+        sponsor += f"<img src='{cfg['logo']}' alt='sponsor'/>"
+    if cfg["sponsor"]:
+        sponsor += f"<div>Presented by <b>{cfg['sponsor']}</b></div>"
+    event = f"<div class='event'>🏁 {cfg['event']}</div>" if cfg["event"] else ""
+    title = cfg["spot"] or "Spot TV"
+
+    st.markdown(
+        f"<div class='tv-header'><div><div class='title'>📺 {title}</div>{event}</div>"
+        f"<div class='sponsor'>{sponsor}</div></div>",
+        unsafe_allow_html=True,
+    )
+
+    if not cfg["spot"]:
+        st.markdown("<div class='tv-msg'>Add <code>&spot=YourSpot</code> to the URL "
+                    "to choose a spot for this screen.</div>", unsafe_allow_html=True)
+        return
+
+    _spot_tv_live(cfg)
+
+
 def _parse_track(raw):
     """JSON-Track ([[lat,lon],...]) -> Liste von (lat, lon)-Tupeln oder None."""
     if raw is None:
@@ -3944,6 +4235,15 @@ def render_history_overview(record):
 
 
 load_css(app_path("assets", "style.css"))
+
+# Spot-TV-Vollbildmodus (Cafe/Shop/Club-Screen): wird per ?tv=... aufgerufen und
+# rendert eine eigene, grossflaechige Ansicht statt der normalen Seite.
+_tv_cfg = _spot_tv_config()
+if _tv_cfg is not None:
+    ensure_schema()
+    ensure_watch_columns()
+    render_spot_tv(_tv_cfg)
+    st.stop()
 
 logo_img = image_to_base64(app_path("assets", "windsurfer.png"))
 
