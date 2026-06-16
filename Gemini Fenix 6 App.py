@@ -3853,6 +3853,28 @@ _TV_CSS = """
   .tv-rk .sp small {font-size:16px; opacity:.6; font-weight:600;}
   .tv-update {font-size:20px; opacity:.8; margin-top:12px;}
   .tv-msg {font-size:26px; opacity:.85; padding:24px 0;}
+
+  /* Sanfter Einblende-Effekt bei jedem Live-Refresh (Kacheln + Ranking). */
+  @keyframes tvFade {from {opacity:0; transform:translateY(10px);} to {opacity:1; transform:none;}}
+  @keyframes tvPop  {from {opacity:0; transform:scale(.95);} to {opacity:1; transform:scale(1);}}
+  .tv-cards {animation: tvFade .45s ease both;}
+  .tv-card  {animation: tvPop .5s cubic-bezier(.2,.7,.3,1) both;}
+  .tv-card:nth-child(2){animation-delay:.06s;}
+  .tv-card:nth-child(3){animation-delay:.12s;}
+  .tv-card:nth-child(4){animation-delay:.18s;}
+  .tv-card:nth-child(5){animation-delay:.24s;}
+  .tv-rank-title {animation: tvFade .45s ease both;}
+  .tv-grid {animation: tvFade .5s ease both;}
+  .tv-rk {animation: tvFade .45s ease both;}
+  .tv-rk:nth-child(2){animation-delay:.04s;}
+  .tv-rk:nth-child(3){animation-delay:.08s;}
+  .tv-rk:nth-child(4){animation-delay:.12s;}
+  .tv-rk:nth-child(5){animation-delay:.16s;}
+  .tv-rk:nth-child(6){animation-delay:.20s;}
+  .tv-rk:nth-child(7){animation-delay:.24s;}
+  .tv-rk:nth-child(8){animation-delay:.28s;}
+  .tv-rk:nth-child(9){animation-delay:.32s;}
+  .tv-rk:nth-child(10){animation-delay:.36s;}
 </style>
 """
 
@@ -4071,7 +4093,9 @@ def _spot_tv_live(cfg):
         _tv_card("👑 Rider of the Day", rotd),
         _tv_card("🧭 Last activity", last_txt),
     ])
-    st.markdown(f"<div class='tv-cards' translate='no'>{cards}</div>", unsafe_allow_html=True)
+    rk = now.strftime("%H%M%S")  # wechselt je Refresh -> erzwingt Re-Mount (Animation)
+    st.markdown(f"<div class='tv-cards' translate='no' data-r='{rk}'>{cards}</div>",
+                unsafe_allow_html=True)
 
     # Ranking je nach Modus (Zeitraum) + optionalem Gruppenfilter
     mode = cfg["mode"]
@@ -4092,8 +4116,9 @@ def _spot_tv_live(cfg):
     st.markdown(
         f"<div class='tv-rank-title' translate='no'>🏁 {scope_title} ranking · Top 1s &amp; 30s</div>",
         unsafe_allow_html=True)
-    st.markdown(_tv_ranking_table(scope, skip_winner=(mode == "today")),
-                unsafe_allow_html=True)
+    st.markdown(f"<div data-r='{rk}'>"
+                + _tv_ranking_table(scope, skip_winner=(mode == "today"))
+                + "</div>", unsafe_allow_html=True)
 
     st.markdown(f"<div class='tv-update' translate='no'>⏱️ Last update: "
                 f"{now.strftime('%H:%M')} · auto-refresh 30 s</div>", unsafe_allow_html=True)
