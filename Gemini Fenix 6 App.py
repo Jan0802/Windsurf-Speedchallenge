@@ -3859,8 +3859,7 @@ def _spot_tv_config():
         trust = 0.0
     return {
         "spot": qp.get("spot", ""),
-        "mode": qp.get("mode", "today"),       # today | week | group
-        "period": qp.get("period", "week"),    # week | month | year
+        "mode": qp.get("mode", "today"),       # today | week | month | year
         "group": qp.get("group", ""),
         "sport": active_sport(),
         "sponsor": qp.get("sponsor", ""),
@@ -3869,6 +3868,15 @@ def _spot_tv_config():
         "trust": trust,
         "base": qp.get("base", "https://mywatersessions.streamlit.app"),
     }
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _all_spot_names():
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(spots_table.c.name).order_by(spots_table.c.name)
+        ).all()
+    return [r[0] for r in rows if r[0]]
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -4029,20 +4037,21 @@ def _spot_tv_live(cfg):
     if coords:
         components.html(_tv_weather_html(coords[0], coords[1]), height=130)
 
-    # Ranking je nach Modus
+    # Ranking je nach Modus (Zeitraum) + optionalem Gruppenfilter
     mode = cfg["mode"]
-    period = cfg["period"]
     if mode == "today":
-        scope, scope_title = today_df, "Today"
-    elif mode == "group" and cfg["group"]:
-        scope = _tv_period_scope(df, now, period)
+        scope = today_df
+        scope_title = "Today"
+    else:
+        scope = _tv_period_scope(df, now, mode)
+        scope_title = {"week": "This week", "month": "This month",
+                       "year": "This year"}.get(mode, mode.capitalize())
+
+    if cfg["group"]:
         gid = next((g["id"] for g in list_groups() if g["name"] == cfg["group"]), None)
         members = set(group_member_names(gid)) if gid else set()
         scope = scope[scope["name"].astype(str).isin(members)]
-        scope_title = f"{cfg['group']} · {period}"
-    else:
-        scope = _tv_period_scope(df, now, period)
-        scope_title = period.capitalize()
+        scope_title += f" · {cfg['group']}"
 
     st.markdown(f"<div class='tv-rank-title'>🏁 {scope_title} ranking · Top 1s</div>",
                 unsafe_allow_html=True)
@@ -4054,6 +4063,53 @@ def _spot_tv_live(cfg):
     with icol:
         st.markdown(f"<div class='tv-update'>⏱️ Last update: {now.strftime('%H:%M')} · "
                     f"auto-refresh 30 s</div>", unsafe_allow_html=True)
+
+
+def _spot_tv_controls(cfg):
+    """Auf dem Screen verdrahtete Bedienung: Zeitraum, Spot, Gruppe, Exit.
+    Aenderungen schreiben in die URL (?mode/?spot/?group) -> bookmarkbar."""
+    modes = [("today", "Today"), ("week", "Week"), ("month", "Month"), ("year", "Year")]
+    spots = _all_spot_names()
+    spot_opts = list(spots)
+    if not cfg["spot"]:
+        spot_opts = ["– Spot –"] + spot_opts
+    elif cfg["spot"] not in spot_opts:
+        spot_opts = [cfg["spot"]] + spot_opts
+    groups = ["All"] + [g["name"] for g in list_groups()]
+
+    cols = st.columns([1, 1, 1, 1, 2, 2, 1.3])
+    for i, (mkey, mlabel) in enumerate(modes):
+        if cols[i].button(mlabel, key=f"tvmode_{mkey}", use_container_width=True,
+                          type="primary" if cfg["mode"] == mkey else "secondary"):
+            st.query_params["mode"] = mkey
+            st.rerun()
+
+    with cols[4]:
+        idx = spot_opts.index(cfg["spot"]) if cfg["spot"] in spot_opts else 0
+        sel = st.selectbox("Spot", spot_opts, index=idx,
+                           label_visibility="collapsed", key="tv_spot_sel")
+        if sel and sel != "– Spot –" and sel != cfg["spot"]:
+            st.query_params["spot"] = sel
+            st.rerun()
+
+    with cols[5]:
+        gidx = groups.index(cfg["group"]) if cfg["group"] in groups else 0
+        gsel = st.selectbox("Group", groups, index=gidx,
+                            label_visibility="collapsed", key="tv_group_sel")
+        newg = "" if gsel == "All" else gsel
+        if newg != cfg["group"]:
+            if newg:
+                st.query_params["group"] = newg
+            elif "group" in st.query_params:
+                del st.query_params["group"]
+            st.rerun()
+
+    with cols[6]:
+        if st.button("← Exit", use_container_width=True, key="tv_exit"):
+            for k in ("tv", "mode", "group"):
+                if k in st.query_params:
+                    del st.query_params[k]
+            st.rerun()
 
 
 def render_spot_tv(cfg):
@@ -4073,6 +4129,8 @@ def render_spot_tv(cfg):
         f"<div class='sponsor'>{sponsor}</div></div>",
         unsafe_allow_html=True,
     )
+
+    _spot_tv_controls(cfg)
 
     if not cfg["spot"]:
         st.markdown("<div class='tv-msg'>Add <code>&spot=YourSpot</code> to the URL "
