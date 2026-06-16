@@ -3829,6 +3829,7 @@ _TV_CSS = """
               gap:12px; margin-bottom:12px;}
   .tv-brand {font-size:30px; font-weight:900; letter-spacing:-0.4px; white-space:nowrap;}
   .tv-brand .dot {color:#2bd4d9;}
+  .tv-logo {max-height:70px; max-width:340px; display:block;}
   .tv-spot {text-align:center;}
   .tv-spot .name {font-size:52px; font-weight:900; line-height:1.0;}
   .tv-spot .event {font-size:22px; opacity:.9; margin-top:4px;}
@@ -4159,9 +4160,16 @@ def render_spot_tv(cfg):
     event = f"<div class='event'>🏁 {cfg['event']}</div>" if cfg["event"] else ""
     title = cfg["spot"] or "Spot TV"
 
+    # Logo oben links: eigenes Bild (assets/tv_logo.png), sonst Text-Markenname.
+    logo_b64 = image_to_base64(app_path("assets", "tv_logo.png"))
+    if logo_b64:
+        brand = f"<img class='tv-logo' src='data:image/png;base64,{logo_b64}' alt='MyWaterSessions'/>"
+    else:
+        brand = "MyWaterSessions<span class='dot'>.</span>"
+
     st.markdown(
         "<div class='tv-header'>"
-        "<div class='tv-brand'>MyWaterSessions<span class='dot'>.</span></div>"
+        f"<div class='tv-brand'>{brand}</div>"
         f"<div class='tv-spot'><div class='name'>{title}</div>{event}</div>"
         f"<div class='sponsor'>{sponsor}</div>"
         "</div>",
