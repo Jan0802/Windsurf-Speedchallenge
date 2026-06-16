@@ -3960,7 +3960,7 @@ def _tv_ranking_table(scope, skip_winner=False):
                   f"<span class='nm'>{r['name']}</span>"
                   f"<span class='sp'><b>{r['s1']:.1f}</b> <small>1s</small>{s30} "
                   f"<small>km/h</small></span></div>")
-    return f"<div class='tv-grid'>{cells}</div>"
+    return f"<div class='tv-grid' translate='no'>{cells}</div>"
 
 
 def _join_url(cfg):
@@ -3996,12 +3996,15 @@ const LAT=__LAT__,LON=__LON__;
 const C=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const W={0:"☀️",1:"🌤️",2:"⛅",3:"☁️",45:"🌫️",51:"🌦️",61:"🌦️",63:"🌧️",65:"🌧️",80:"🌦️",81:"🌧️",95:"⛈️"};
 function comp(d){return d==null?"":C[Math.round(d/22.5)%16];}
+function load(){
 fetch("https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+"&current=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=kmh&timezone=auto")
 .then(r=>r.json()).then(d=>{const c=d.current||{};
  document.getElementById('w').innerHTML=
  "<div class='c'><div class='l'>🌬️ Wind</div><div class='v'>"+Math.round(c.wind_speed_10m)+" km/h</div><div class='l'>Gusts "+Math.round(c.wind_gusts_10m)+" km/h · "+comp(c.wind_direction_10m)+"</div></div>"+
  "<div class='c'><div class='l'>🌡️ Temperature</div><div class='v'>"+(Math.round(c.temperature_2m*10)/10)+" °C</div><div class='l'>"+(W[c.weather_code]||"")+"</div></div>";
 }).catch(e=>{document.getElementById('w').innerHTML="<div class='c'>Weather unavailable</div>";});
+}
+load(); setInterval(load, 600000);
 </script></body></html>
 """
     return html.replace("__LAT__", str(lat)).replace("__LON__", str(lon))
@@ -4066,11 +4069,7 @@ def _spot_tv_live(cfg):
         _tv_card("👑 Rider of the Day", rotd),
         _tv_card("🧭 Last activity", last_txt),
     ])
-    st.markdown(f"<div class='tv-cards'>{cards}</div>", unsafe_allow_html=True)
-
-    coords = _spot_coords(spot)
-    if coords:
-        components.html(_tv_weather_html(coords[0], coords[1]), height=130)
+    st.markdown(f"<div class='tv-cards' translate='no'>{cards}</div>", unsafe_allow_html=True)
 
     # Ranking je nach Modus (Zeitraum) + optionalem Gruppenfilter
     mode = cfg["mode"]
@@ -4088,17 +4087,14 @@ def _spot_tv_live(cfg):
         scope = scope[scope["name"].astype(str).isin(members)]
         scope_title += f" · {cfg['group']}"
 
-    st.markdown(f"<div class='tv-rank-title'>🏁 {scope_title} ranking · Top 1s &amp; 30s</div>",
-                unsafe_allow_html=True)
+    st.markdown(
+        f"<div class='tv-rank-title' translate='no'>🏁 {scope_title} ranking · Top 1s &amp; 30s</div>",
+        unsafe_allow_html=True)
     st.markdown(_tv_ranking_table(scope, skip_winner=(mode == "today")),
                 unsafe_allow_html=True)
 
-    qcol, icol = st.columns([1, 3])
-    with qcol:
-        _render_join_qr(cfg)
-    with icol:
-        st.markdown(f"<div class='tv-update'>⏱️ Last update: {now.strftime('%H:%M')} · "
-                    f"auto-refresh 30 s</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='tv-update' translate='no'>⏱️ Last update: "
+                f"{now.strftime('%H:%M')} · auto-refresh 30 s</div>", unsafe_allow_html=True)
 
 
 def _spot_tv_controls(cfg):
@@ -4183,7 +4179,17 @@ def render_spot_tv(cfg):
                     "to choose a spot for this screen.</div>", unsafe_allow_html=True)
         return
 
+    # Wetter (iFrame) statisch zeichnen – NICHT im 30s-Refresh, sonst wird der
+    # iFrame staendig neu erzeugt (React removeChild-Fehler). Es aktualisiert
+    # sich ueber sein eigenes JS.
+    coords = _spot_coords(cfg["spot"])
+    if coords:
+        components.html(_tv_weather_html(coords[0], coords[1]), height=130)
+
     _spot_tv_live(cfg)
+
+    # QR ebenfalls statisch (aendert sich nicht alle 30 s).
+    _render_join_qr(cfg)
 
 
 def _parse_track(raw):
