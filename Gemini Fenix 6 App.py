@@ -3837,11 +3837,13 @@ _TV_CSS = """
   .tv-card .val {font-size:56px; font-weight:800; line-height:1.1;}
   .tv-card .sub {font-size:18px; opacity:.8; min-height:1em;}
   .tv-rank-title {font-size:28px; font-weight:800; margin:12px 0 8px;}
-  .tv-table {width:100%; border-collapse:collapse; font-size:32px;}
-  .tv-table td {padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.15);}
-  .tv-table td.r {width:80px; text-align:center;}
-  .tv-table td.v {text-align:right; font-weight:800; white-space:nowrap;}
-  .tv-table td.v .u {font-size:18px; opacity:.7;}
+  .tv-grid {display:grid; grid-template-columns:repeat(2, 1fr); gap:6px 30px;}
+  .tv-rk {display:flex; align-items:center; gap:14px; padding:8px 10px;
+          border-bottom:1px solid rgba(255,255,255,.12); font-size:27px;}
+  .tv-rk .pos {min-width:48px; text-align:center; font-weight:800; opacity:.9;}
+  .tv-rk .nm {flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .tv-rk .sp {white-space:nowrap; font-weight:800;}
+  .tv-rk .sp small {font-size:16px; opacity:.6; font-weight:600;}
   .tv-update {font-size:20px; opacity:.8; margin-top:12px;}
   .tv-msg {font-size:26px; opacity:.85; padding:24px 0;}
 </style>
@@ -3922,24 +3924,38 @@ def _tv_period_scope(df, now, period):
     return df[df["_date"] >= start]
 
 
-def _tv_ranking_table(scope):
+def _tv_ranking_table(scope, skip_winner=False):
+    """Top 10 (best 1s je Fahrer), 2-spaltig, mit 1s- UND 30s-Bestwert.
+    skip_winner=True laesst Platz 1 weg (steht oben als 'Rider of the Day')."""
     if scope is None or scope.empty or "speed_1s_kmh" not in scope.columns:
         return "<div class='tv-msg'>No entries yet.</div>"
     t = scope.copy()
-    t["_s"] = pd.to_numeric(t["speed_1s_kmh"], errors="coerce")
-    t = t.dropna(subset=["_s"]).sort_values("_s", ascending=False)
-    t = t.drop_duplicates(subset="name", keep="first").head(8)
-    if t.empty:
+    for c in ("speed_1s_kmh", "speed_1s_kn", "speed_30s_kmh"):
+        t[c] = pd.to_numeric(t[c], errors="coerce") if c in t.columns else float("nan")
+    g = t.groupby("name", as_index=False).agg(
+        s1=("speed_1s_kmh", "max"),
+        s1kn=("speed_1s_kn", "max"),
+        s30=("speed_30s_kmh", "max"),
+    )
+    g = g.dropna(subset=["s1"]).sort_values("s1", ascending=False).reset_index(drop=True)
+    if g.empty:
         return "<div class='tv-msg'>No entries yet.</div>"
+
+    start = 1 if skip_winner else 0
+    g = g.iloc[start:start + 10]
+    if g.empty:
+        return "<div class='tv-msg'>Only the leader so far – more riders welcome!</div>"
+
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-    rows = ""
-    for i, (_, r) in enumerate(t.iterrows(), start=1):
-        kn = pd.to_numeric(pd.Series([r.get("speed_1s_kn")]), errors="coerce").iloc[0]
-        kn_s = f" · {kn:.1f} kn" if pd.notna(kn) else ""
-        rows += (f"<tr><td class='r'>{medals.get(i, i)}</td>"
-                 f"<td>{r.get('name', '')}</td>"
-                 f"<td class='v'>{r['_s']:.1f} <span class='u'>km/h</span>{kn_s}</td></tr>")
-    return f"<table class='tv-table'>{rows}</table>"
+    cells = ""
+    for i, (_, r) in enumerate(g.iterrows(), start=start + 1):
+        pos = medals.get(i, str(i))
+        s30 = f" · <b>{r['s30']:.1f}</b> <small>30s</small>" if pd.notna(r["s30"]) else ""
+        cells += (f"<div class='tv-rk'><span class='pos'>{pos}</span>"
+                  f"<span class='nm'>{r['name']}</span>"
+                  f"<span class='sp'><b>{r['s1']:.1f}</b> <small>1s</small>{s30} "
+                  f"<small>km/h</small></span></div>")
+    return f"<div class='tv-grid'>{cells}</div>"
 
 
 def _join_url(cfg):
@@ -4067,9 +4083,10 @@ def _spot_tv_live(cfg):
         scope = scope[scope["name"].astype(str).isin(members)]
         scope_title += f" · {cfg['group']}"
 
-    st.markdown(f"<div class='tv-rank-title'>🏁 {scope_title} ranking · Top 1s</div>",
+    st.markdown(f"<div class='tv-rank-title'>🏁 {scope_title} ranking · Top 1s &amp; 30s</div>",
                 unsafe_allow_html=True)
-    st.markdown(_tv_ranking_table(scope), unsafe_allow_html=True)
+    st.markdown(_tv_ranking_table(scope, skip_winner=(mode == "today")),
+                unsafe_allow_html=True)
 
     qcol, icol = st.columns([1, 3])
     with qcol:
