@@ -3827,14 +3827,16 @@ _TV_CSS = """
   .block-container {padding-top:1rem !important; max-width:100% !important;}
   .tv-header {display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
               gap:12px; margin-bottom:12px;}
-  .tv-brand {font-size:30px; font-weight:900; letter-spacing:-0.4px; white-space:nowrap;}
+  .tv-brand {font-size:34px; font-weight:900; letter-spacing:-0.4px; white-space:nowrap;}
   .tv-brand .dot {color:#2bd4d9;}
-  .tv-logo {max-height:70px; max-width:340px; display:block;}
   .tv-spot {text-align:center;}
   .tv-spot .name {font-size:52px; font-weight:900; line-height:1.0;}
   .tv-spot .event {font-size:22px; opacity:.9; margin-top:4px;}
-  .tv-header .sponsor {font-size:20px; opacity:.92; text-align:right;}
-  .tv-header .sponsor img {max-height:60px; display:block; margin:0 0 4px auto;}
+  .tv-header .sponsor {text-align:right;}
+  .tv-sponsor-chip {display:inline-block; background:#ffffff; border-radius:14px;
+                    padding:8px 16px; box-shadow:0 2px 10px rgba(0,0,0,.3);}
+  .tv-sponsor-chip img {max-height:56px; max-width:300px; display:block;}
+  .tv-presented {font-size:16px; opacity:.85; margin-top:5px;}
   .tv-cards {display:flex; flex-wrap:wrap; gap:16px; margin:6px 0 18px;}
   .tv-card {flex:1 1 200px; background:rgba(255,255,255,.08);
             border:1px solid rgba(255,255,255,.18); border-radius:18px; padding:14px 20px;}
@@ -4148,24 +4150,25 @@ def render_spot_tv(cfg):
     """Vollbild-Dashboard fuer einen Spot. Statischer Kopf + Live-Fragment."""
     st.markdown(_TV_CSS, unsafe_allow_html=True)
 
-    sponsor = ""
-    if cfg["logo"]:
-        sponsor += f"<img src='{cfg['logo']}' alt='sponsor'/>"
-    if cfg["sponsor"]:
-        sponsor += f"<div>Presented by <b>{cfg['sponsor']}</b></div>"
     event = f"<div class='event'>🏁 {cfg['event']}</div>" if cfg["event"] else ""
     title = cfg["spot"] or "Spot TV"
 
-    # Logo oben links: eigenes Bild (assets/tv_logo.png), sonst Text-Markenname.
-    logo_b64 = image_to_base64(app_path("assets", "tv_logo.png"))
-    if logo_b64:
-        brand = f"<img class='tv-logo' src='data:image/png;base64,{logo_b64}' alt='MyWaterSessions'/>"
+    # Sponsor/Werbung oben rechts auf hellem Chip (dunkle Logos bleiben so
+    # sichtbar). Externe URL (?logo=) hat Vorrang, sonst das mitgelieferte
+    # Telstar-Logo (assets/tv_logo.png).
+    if cfg["logo"]:
+        ad_img = f"<img src='{cfg['logo']}' alt='sponsor'/>"
     else:
-        brand = "MyWaterSessions<span class='dot'>.</span>"
+        ad_b64 = image_to_base64(app_path("assets", "tv_logo.png"))
+        ad_img = f"<img src='data:image/png;base64,{ad_b64}' alt='sponsor'/>" if ad_b64 else ""
+
+    sponsor = f"<div class='tv-sponsor-chip'>{ad_img}</div>" if ad_img else ""
+    if cfg["sponsor"]:
+        sponsor += f"<div class='tv-presented'>Presented by <b>{cfg['sponsor']}</b></div>"
 
     st.markdown(
         "<div class='tv-header'>"
-        f"<div class='tv-brand'>{brand}</div>"
+        "<div class='tv-brand'>MyWaterSessions<span class='dot'>.</span></div>"
         f"<div class='tv-spot'><div class='name'>{title}</div>{event}</div>"
         f"<div class='sponsor'>{sponsor}</div>"
         "</div>",
