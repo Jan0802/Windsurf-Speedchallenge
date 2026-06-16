@@ -3825,9 +3825,13 @@ _TV_CSS = """
 <style>
   [data-testid="stSidebar"], [data-testid="stHeader"], #MainMenu, footer {display:none !important;}
   .block-container {padding-top:1rem !important; max-width:100% !important;}
-  .tv-header {display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;}
-  .tv-header .title {font-size:46px; font-weight:900; line-height:1.05;}
-  .tv-header .event {font-size:24px; opacity:.92; margin-top:4px;}
+  .tv-header {display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
+              gap:12px; margin-bottom:12px;}
+  .tv-brand {font-size:30px; font-weight:900; letter-spacing:-0.4px; white-space:nowrap;}
+  .tv-brand .dot {color:#2bd4d9;}
+  .tv-spot {text-align:center;}
+  .tv-spot .name {font-size:52px; font-weight:900; line-height:1.0;}
+  .tv-spot .event {font-size:22px; opacity:.9; margin-top:4px;}
   .tv-header .sponsor {font-size:20px; opacity:.92; text-align:right;}
   .tv-header .sponsor img {max-height:60px; display:block; margin:0 0 4px auto;}
   .tv-cards {display:flex; flex-wrap:wrap; gap:16px; margin:6px 0 18px;}
@@ -4156,8 +4160,11 @@ def render_spot_tv(cfg):
     title = cfg["spot"] or "Spot TV"
 
     st.markdown(
-        f"<div class='tv-header'><div><div class='title'>📺 {title}</div>{event}</div>"
-        f"<div class='sponsor'>{sponsor}</div></div>",
+        "<div class='tv-header'>"
+        "<div class='tv-brand'>MyWaterSessions<span class='dot'>.</span></div>"
+        f"<div class='tv-spot'><div class='name'>{title}</div>{event}</div>"
+        f"<div class='sponsor'>{sponsor}</div>"
+        "</div>",
         unsafe_allow_html=True,
     )
 
