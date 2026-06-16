@@ -3879,6 +3879,20 @@ def _all_spot_names():
     return [r[0] for r in rows if r[0]]
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def _tv_load_sessions(sport):
+    """Eigener Loader fuers Live-Dashboard mit kurzer TTL (30 s), damit neue
+    Sessions (Uhr-Uploads, Demo) zeitnah erscheinen – der normale load_sessions
+    cached 1 h und ist fuer einen Live-Screen ungeeignet. Ohne track-Spalte."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(*_SESSION_COLS_NO_TRACK).where(sessions_table.c.sport == sport)
+        ).mappings().all()
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame([dict(r) for r in rows])
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def _spot_coords(name):
     if not name:
@@ -3978,7 +3992,7 @@ def _spot_tv_live(cfg):
     sport = cfg["sport"]
     spot = cfg["spot"]
 
-    df = load_sessions(sport)
+    df = _tv_load_sessions(sport)
     if df is None or df.empty or "surfspot" not in df.columns:
         st.markdown("<div class='tv-msg'>No sessions yet for this spot.</div>", unsafe_allow_html=True)
         return
