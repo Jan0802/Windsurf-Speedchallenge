@@ -4216,6 +4216,22 @@ def render_spot_tv(cfg):
     """Vollbild-Dashboard fuer einen Spot. Statischer Kopf + Live-Fragment."""
     st.markdown(_TV_CSS, unsafe_allow_html=True)
 
+    # Browser-Auto-Uebersetzung (z.B. Chrome -> Deutsch) fuer die ganze Seite
+    # abschalten, damit die Beschriftungen englisch bleiben UND die 30s-Refreshes
+    # stabil laufen (uebersetzte Textknoten -> React removeChild-Fehler).
+    components.html(
+        """
+        <script>
+          try {
+            var d = window.parent.document;
+            d.documentElement.setAttribute('translate', 'no');
+            d.documentElement.classList.add('notranslate');
+          } catch (e) {}
+        </script>
+        """,
+        height=0,
+    )
+
     event = f"<div class='event'>🏁 {cfg['event']}</div>" if cfg["event"] else ""
     title = cfg["spot"] or "Spot TV"
 
