@@ -4099,6 +4099,47 @@ def _spot_tv_live(cfg):
                 f"{now.strftime('%H:%M')} · auto-refresh 30 s</div>", unsafe_allow_html=True)
 
 
+# Sponsor je Spot. logo = Dateiname in assets/, name/url optional.
+# Erweiterbar: hier Eintraege ergaenzen ODER einfach assets/sponsor_<slug>.png
+# ablegen (slug = klein, Leerzeichen->_, Umlaute ae/oe/ue, z.B. "Strand Horst"
+# -> sponsor_strand_horst.png).
+SPOT_SPONSORS = {
+    "Strand Horst": {"logo": "tv_logo.png", "name": "Telstar Surf",
+                     "url": "https://www.telstar-surf.com"},
+    # "Brouwersdam": {"logo": "sponsor_brouwersdam.png", "name": "Surfshop XY"},
+}
+
+
+def _slug(s):
+    s = (s or "").lower().strip()
+    for a, b in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
+        s = s.replace(a, b)
+    out = "".join(ch if ch.isalnum() else "_" for ch in s)
+    while "__" in out:
+        out = out.replace("__", "_")
+    return out.strip("_")
+
+
+def _spot_sponsor_img(cfg):
+    """(img_src, name) fuer die Sponsor-Anzeige des Spots, sonst (None, name).
+    Prioritaet: ?logo= URL > SPOT_SPONSORS[spot] > Konvention sponsor_<slug>.png."""
+    if cfg["logo"]:
+        return cfg["logo"], (cfg["sponsor"] or None)
+
+    entry = SPOT_SPONSORS.get(cfg["spot"], {})
+    name = entry.get("name") or (cfg["sponsor"] or None)
+    logo_file = entry.get("logo")
+    if not logo_file:
+        cand = "sponsor_" + _slug(cfg["spot"]) + ".png"
+        if os.path.exists(app_path("assets", cand)):
+            logo_file = cand
+    if logo_file:
+        b64 = image_to_base64(app_path("assets", logo_file))
+        if b64:
+            return f"data:image/png;base64,{b64}", name
+    return None, name
+
+
 def _spot_tv_controls(cfg):
     """Auf dem Screen verdrahtete Bedienung: Zeitraum, Spot, Gruppe, Exit.
     Aenderungen schreiben in die URL (?mode/?spot/?group) -> bookmarkbar."""
@@ -4153,18 +4194,15 @@ def render_spot_tv(cfg):
     event = f"<div class='event'>🏁 {cfg['event']}</div>" if cfg["event"] else ""
     title = cfg["spot"] or "Spot TV"
 
-    # Sponsor/Werbung oben rechts auf hellem Chip (dunkle Logos bleiben so
-    # sichtbar). Externe URL (?logo=) hat Vorrang, sonst das mitgelieferte
-    # Telstar-Logo (assets/tv_logo.png).
-    if cfg["logo"]:
-        ad_img = f"<img src='{cfg['logo']}' alt='sponsor'/>"
+    # Sponsor/Werbung oben rechts, je Spot (auf hellem Chip, damit dunkle Logos
+    # sichtbar bleiben). Logo wenn vorhanden, sonst "Presented by <Name>".
+    ad_src, ad_name = _spot_sponsor_img(cfg)
+    if ad_src:
+        sponsor = f"<div class='tv-sponsor-chip'><img src='{ad_src}' alt='sponsor'/></div>"
+    elif ad_name:
+        sponsor = f"<div class='tv-presented'>Presented by <b>{ad_name}</b></div>"
     else:
-        ad_b64 = image_to_base64(app_path("assets", "tv_logo.png"))
-        ad_img = f"<img src='data:image/png;base64,{ad_b64}' alt='sponsor'/>" if ad_b64 else ""
-
-    sponsor = f"<div class='tv-sponsor-chip'>{ad_img}</div>" if ad_img else ""
-    if cfg["sponsor"]:
-        sponsor += f"<div class='tv-presented'>Presented by <b>{cfg['sponsor']}</b></div>"
+        sponsor = ""
 
     st.markdown(
         "<div class='tv-header'>"
