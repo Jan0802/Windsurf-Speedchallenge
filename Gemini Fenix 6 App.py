@@ -4335,7 +4335,13 @@ def render_history_overview(record):
     date_value = record.get("date")
 
     if date_value is not None and pd.notna(date_value):
-        meta_bits.append(f"📅 {pd.to_datetime(date_value):%Y-%m-%d}")
+        _dt = pd.to_datetime(date_value, errors="coerce")
+        if pd.notna(_dt):
+            # Uhrzeit nur zeigen, wenn vorhanden (Uhr-Sessions); Altdaten nur Datum.
+            if _dt.hour or _dt.minute or _dt.second:
+                meta_bits.append(f"📅 {_dt:%Y-%m-%d %H:%M}")
+            else:
+                meta_bits.append(f"📅 {_dt:%Y-%m-%d}")
 
     for icon, key in (("📍", "surfspot"), ("🏄", "board"), ("⛵", "sail")):
         value = record.get(key)
