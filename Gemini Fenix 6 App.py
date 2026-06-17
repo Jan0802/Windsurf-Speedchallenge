@@ -4060,21 +4060,26 @@ def _spot_tv_live(cfg):
     today = now.normalize()
     today_df = df[df["_date"].dt.normalize() == today]
 
+    # Fuer Bestzeiten/Rangliste nur VOLLSTAENDIGE Sessions (Spot+Board+Segel).
+    # Die Aktivitaets-Kacheln (Sessions/Rider/letzte Aktivitaet) zaehlen alle.
+    ranked = complete_sessions(df)
+    today_ranked = ranked[ranked["_date"].dt.normalize() == today] if not ranked.empty else ranked
+
     def _mx(d, col):
         if col not in d.columns:
             return None
         v = pd.to_numeric(d[col], errors="coerce").max()
         return None if pd.isna(v) else float(v)
 
-    top1 = _mx(today_df, "speed_1s_kmh")
-    top1kn = _mx(today_df, "speed_1s_kn")
-    top30 = _mx(today_df, "speed_30s_kmh")
+    top1 = _mx(today_ranked, "speed_1s_kmh")
+    top1kn = _mx(today_ranked, "speed_1s_kn")
+    top30 = _mx(today_ranked, "speed_30s_kmh")
     n_sessions = len(today_df)
     n_riders = today_df["name"].nunique() if "name" in today_df.columns else 0
 
     rotd = "–"
-    if not today_df.empty and "speed_1s_kmh" in today_df.columns:
-        t = today_df.copy()
+    if not today_ranked.empty and "speed_1s_kmh" in today_ranked.columns:
+        t = today_ranked.copy()
         t["_s"] = pd.to_numeric(t["speed_1s_kmh"], errors="coerce")
         t = t.dropna(subset=["_s"])
         if not t.empty:
@@ -4100,10 +4105,10 @@ def _spot_tv_live(cfg):
     # Ranking je nach Modus (Zeitraum) + optionalem Gruppenfilter
     mode = cfg["mode"]
     if mode == "today":
-        scope = today_df
+        scope = today_ranked
         scope_title = "Today"
     else:
-        scope = _tv_period_scope(df, now, mode)
+        scope = _tv_period_scope(ranked, now, mode)
         scope_title = {"week": "This week", "month": "This month",
                        "year": "This year"}.get(mode, mode.capitalize())
 
@@ -5285,9 +5290,6 @@ with sidebar_tab_filter:
 with news_slot.container():
     render_group_news_banner(current_user)
 
-if current_user:
-    render_session_editor(current_user)
-
 st.markdown("---")
 
 
@@ -5506,6 +5508,9 @@ with left:
 # Filterklick rerunt nur dieses Fragment.
 with right:
     render_personal_best_table(pb_table, pb_table_caption, pb_total)
+    # Session-Editor dezent unter den Personal Bests (statt prominent oben).
+    if current_user:
+        render_session_editor(current_user)
 
 
 required_ok = all([
