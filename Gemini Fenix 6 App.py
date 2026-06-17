@@ -3854,6 +3854,20 @@ _TV_CSS = """
   .tv-update {font-size:20px; opacity:.8; margin-top:12px;}
   .tv-msg {font-size:26px; opacity:.85; padding:24px 0;}
 
+  /* Balken-Leaderboard: links Plaetze 1..N/2, rechts der Rest. */
+  .lb {display:grid; grid-template-columns:1fr 1fr; gap:0 44px; margin-top:4px;}
+  .lb-col {display:flex; flex-direction:column;}
+  .lb-row {display:flex; align-items:center; gap:14px; padding:9px 6px; font-size:30px;
+           border-bottom:1px solid rgba(255,255,255,.08); animation: tvFade .45s ease both;}
+  .lb-pos {min-width:54px; text-align:center; font-weight:800;}
+  .lb-name {flex:0 0 210px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+            font-weight:700;}
+  .lb-bar {flex:1; height:18px; background:rgba(255,255,255,.12); border-radius:10px;
+           overflow:hidden;}
+  .lb-fill {display:block; height:100%; border-radius:10px;}
+  .lb-val {flex:0 0 150px; text-align:right; font-weight:800; white-space:nowrap;}
+  .lb-val small {font-size:16px; opacity:.6; font-weight:600;}
+
   /* Sanfter Einblende-Effekt bei jedem Live-Refresh (Kacheln + Ranking). */
   @keyframes tvFade {from {opacity:0; transform:translateY(10px);} to {opacity:1; transform:none;}}
   @keyframes tvPop  {from {opacity:0; transform:scale(.95);} to {opacity:1; transform:scale(1);}}
@@ -3953,38 +3967,39 @@ def _tv_period_scope(df, now, period):
     return df[df["_date"] >= start]
 
 
-def _tv_ranking_table(scope, skip_winner=False):
-    """Top 10 (best 1s je Fahrer), 2-spaltig, mit 1s- UND 30s-Bestwert.
-    skip_winner=True laesst Platz 1 weg (steht oben als 'Rider of the Day')."""
-    if scope is None or scope.empty or "speed_1s_kmh" not in scope.columns:
+def _tv_leaderboard(scope, metric):
+    """Balken-Leaderboard (Top 10, best <metric> je Fahrer), 2-spaltig:
+    Plaetze 1..N/2 links, der Rest rechts. metric = '1s' oder '30s'."""
+    kmh_col = "speed_1s_kmh" if metric == "1s" else "speed_30s_kmh"
+    if scope is None or scope.empty or kmh_col not in scope.columns:
         return "<div class='tv-msg'>No entries yet.</div>"
     t = scope.copy()
-    for c in ("speed_1s_kmh", "speed_1s_kn", "speed_30s_kmh"):
-        t[c] = pd.to_numeric(t[c], errors="coerce") if c in t.columns else float("nan")
-    g = t.groupby("name", as_index=False).agg(
-        s1=("speed_1s_kmh", "max"),
-        s1kn=("speed_1s_kn", "max"),
-        s30=("speed_30s_kmh", "max"),
-    )
-    g = g.dropna(subset=["s1"]).sort_values("s1", ascending=False).reset_index(drop=True)
+    t["_v"] = pd.to_numeric(t[kmh_col], errors="coerce")
+    g = (t.groupby("name", as_index=False).agg(v=("_v", "max"))
+         .dropna(subset=["v"]).sort_values("v", ascending=False)
+         .reset_index(drop=True).head(10))
     if g.empty:
         return "<div class='tv-msg'>No entries yet.</div>"
 
-    start = 1 if skip_winner else 0
-    g = g.iloc[start:start + 10]
-    if g.empty:
-        return "<div class='tv-msg'>Only the leader so far – more riders welcome!</div>"
-
+    maxv = float(g["v"].iloc[0]) or 1.0
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-    cells = ""
-    for i, (_, r) in enumerate(g.iterrows(), start=start + 1):
+    colors = {1: "#f4c430", 2: "#cfd4da", 3: "#cd7f32"}
+    rows = []
+    for i, (_, r) in enumerate(g.iterrows(), start=1):
         pos = medals.get(i, str(i))
-        s30 = f" · <b>{r['s30']:.1f}</b> <small>30s</small>" if pd.notna(r["s30"]) else ""
-        cells += (f"<div class='tv-rk'><span class='pos'>{pos}</span>"
-                  f"<span class='nm'>{r['name']}</span>"
-                  f"<span class='sp'><b>{r['s1']:.1f}</b> <small>1s</small>{s30} "
-                  f"<small>km/h</small></span></div>")
-    return f"<div class='tv-grid' translate='no'>{cells}</div>"
+        col = colors.get(i, "#3aa0ff")
+        w = max(5, round(r["v"] / maxv * 100))
+        rows.append(
+            f"<div class='lb-row'><span class='lb-pos'>{pos}</span>"
+            f"<span class='lb-name'>{r['name']}</span>"
+            f"<span class='lb-bar'><span class='lb-fill' style='width:{w}%;background:{col}'></span></span>"
+            f"<span class='lb-val'>{r['v']:.1f}<small> km/h</small></span></div>"
+        )
+    half = (len(rows) + 1) // 2  # 8 -> links 1-4 / rechts 5-8; 10 -> 1-5 / 6-10
+    left = "".join(rows[:half])
+    right = "".join(rows[half:])
+    return (f"<div class='lb' translate='no'><div class='lb-col'>{left}</div>"
+            f"<div class='lb-col'>{right}</div></div>")
 
 
 def _join_url(cfg):
@@ -4060,52 +4075,15 @@ def _spot_tv_live(cfg):
     today = now.normalize()
     today_df = df[df["_date"].dt.normalize() == today]
 
-    # Fuer Bestzeiten/Rangliste nur VOLLSTAENDIGE Sessions (Spot+Board+Segel).
-    # Die Aktivitaets-Kacheln (Sessions/Rider/letzte Aktivitaet) zaehlen alle.
+    # Nur VOLLSTAENDIGE Sessions (Spot+Board+Segel) zaehlen fuer Bestzeiten/Rangliste.
     ranked = complete_sessions(df)
-    today_ranked = ranked[ranked["_date"].dt.normalize() == today] if not ranked.empty else ranked
 
-    def _mx(d, col):
-        if col not in d.columns:
-            return None
-        v = pd.to_numeric(d[col], errors="coerce").max()
-        return None if pd.isna(v) else float(v)
-
-    top1 = _mx(today_ranked, "speed_1s_kmh")
-    top1kn = _mx(today_ranked, "speed_1s_kn")
-    top30 = _mx(today_ranked, "speed_30s_kmh")
-    n_sessions = len(today_df)
-    n_riders = today_df["name"].nunique() if "name" in today_df.columns else 0
-
-    rotd = "–"
-    if not today_ranked.empty and "speed_1s_kmh" in today_ranked.columns:
-        t = today_ranked.copy()
-        t["_s"] = pd.to_numeric(t["speed_1s_kmh"], errors="coerce")
-        t = t.dropna(subset=["_s"])
-        if not t.empty:
-            rotd = str(t.loc[t["_s"].idxmax(), "name"])
-
-    last_txt = "–"
-    if "_created" in today_df.columns and not today_df["_created"].dropna().empty:
-        mins = int(max(0, (now - today_df["_created"].max()).total_seconds() // 60))
-        last_txt = "just now" if mins == 0 else f"{mins} min ago"
-
-    cards = "".join([
-        _tv_card("🏆 Top 1s today", f"{top1:.1f}" if top1 else "–",
-                 ("km/h" + (f" · {top1kn:.1f} kn" if top1kn else "")) if top1 else ""),
-        _tv_card("🔥 Top 30s today", f"{top30:.1f}" if top30 else "–", "km/h" if top30 else ""),
-        _tv_card("🏄 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
-        _tv_card("👑 Rider of the Day", rotd),
-        _tv_card("🧭 Last activity", last_txt),
-    ])
-    rk = now.strftime("%H%M%S")  # wechselt je Refresh -> erzwingt Re-Mount (Animation)
-    st.markdown(f"<div class='tv-cards' translate='no' data-r='{rk}'>{cards}</div>",
-                unsafe_allow_html=True)
-
-    # Ranking je nach Modus (Zeitraum) + optionalem Gruppenfilter
+    # Zeitraum (mode) bestimmt Header-Kacheln UND Leaderboard.
     mode = cfg["mode"]
+    period_word = {"today": "today", "week": "this week",
+                   "month": "this month", "year": "this year"}.get(mode, "today")
     if mode == "today":
-        scope = today_ranked
+        scope = ranked[ranked["_date"].dt.normalize() == today] if not ranked.empty else ranked
         scope_title = "Today"
     else:
         scope = _tv_period_scope(ranked, now, mode)
@@ -4118,15 +4096,57 @@ def _spot_tv_live(cfg):
         scope = scope[scope["name"].astype(str).isin(members)]
         scope_title += f" · {cfg['group']}"
 
-    st.markdown(
-        f"<div class='tv-rank-title' translate='no'>🏁 {scope_title} ranking · Top 1s &amp; 30s</div>",
-        unsafe_allow_html=True)
-    st.markdown(f"<div data-r='{rk}'>"
-                + _tv_ranking_table(scope, skip_winner=(mode == "today"))
-                + "</div>", unsafe_allow_html=True)
+    def _mx(d, col):
+        if col not in d.columns:
+            return None
+        v = pd.to_numeric(d[col], errors="coerce").max()
+        return None if pd.isna(v) else float(v)
 
-    st.markdown(f"<div class='tv-update' translate='no'>⏱️ Last update: "
-                f"{now.strftime('%H:%M')} · auto-refresh 30 s</div>", unsafe_allow_html=True)
+    # Header-Bestwerte aus dem gewaehlten Zeitraum.
+    top1 = _mx(scope, "speed_1s_kmh")
+    top1kn = _mx(scope, "speed_1s_kn")
+    top30 = _mx(scope, "speed_30s_kmh")
+
+    leader = "–"
+    if not scope.empty and "speed_1s_kmh" in scope.columns:
+        t = scope.copy()
+        t["_s"] = pd.to_numeric(t["speed_1s_kmh"], errors="coerce")
+        t = t.dropna(subset=["_s"])
+        if not t.empty:
+            leader = str(t.loc[t["_s"].idxmax(), "name"])
+
+    # Aktivitaets-Kacheln zaehlen ALLE heutigen Sessions (auch unvollstaendige).
+    n_sessions = len(today_df)
+    n_riders = today_df["name"].nunique() if "name" in today_df.columns else 0
+    last_txt = "–"
+    if "_created" in today_df.columns and not today_df["_created"].dropna().empty:
+        mins = int(max(0, (now - today_df["_created"].max()).total_seconds() // 60))
+        last_txt = "just now" if mins == 0 else f"{mins} min ago"
+
+    leader_label = "👑 Rider of the Day" if mode == "today" else f"👑 Top rider {period_word}"
+    cards = "".join([
+        _tv_card(f"🏆 Top 1s {period_word}", f"{top1:.1f}" if top1 else "–",
+                 ("km/h" + (f" · {top1kn:.1f} kn" if top1kn else "")) if top1 else ""),
+        _tv_card(f"🔥 Top 30s {period_word}", f"{top30:.1f}" if top30 else "–", "km/h" if top30 else ""),
+        _tv_card("🏄 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
+        _tv_card(leader_label, leader),
+        _tv_card("🧭 Last activity", last_txt),
+    ])
+    rk = now.strftime("%H%M%S")  # wechselt je Refresh -> erzwingt Re-Mount (Animation)
+    st.markdown(f"<div class='tv-cards' translate='no' data-r='{rk}'>{cards}</div>",
+                unsafe_allow_html=True)
+
+    # Leaderboard zeigt 1s ODER 30s und wechselt automatisch (~alle 30 s).
+    metric = "30s" if (int(now.timestamp()) // 30) % 2 else "1s"
+    metric_lbl = "Top 1 s" if metric == "1s" else "Top 30 s"
+    st.markdown(
+        f"<div class='tv-rank-title' translate='no'>🏁 {scope_title} leaderboard · {metric_lbl}</div>",
+        unsafe_allow_html=True)
+    st.markdown(f"<div data-r='{rk}{metric}'>" + _tv_leaderboard(scope, metric) + "</div>",
+                unsafe_allow_html=True)
+
+    st.markdown(f"<div class='tv-update' translate='no'>⏱️ Last update: {now.strftime('%H:%M')} "
+                f"· auto-refresh 30 s · switches 1 s / 30 s</div>", unsafe_allow_html=True)
 
 
 # Sponsor je Spot. logo = Dateiname in assets/, name/url optional.
