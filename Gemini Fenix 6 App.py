@@ -2002,8 +2002,10 @@ def record_group_events(username, group_events):
         conn.execute(insert(group_events_table), rows)
 
 
+@st.cache_data(ttl=60, show_spinner=False)
 def unseen_group_events(user_id, username):
-    """Noch ungelesene Gruppen-Ereignisse (nicht die eigenen) für das Banner."""
+    """Noch ungelesene Gruppen-Ereignisse (nicht die eigenen) für das Banner.
+    Kurz gecacht (60 s), damit nicht jeder Rerun 2 DB-Abfragen ausloest."""
     group_ids = [g["id"] for g in my_member_groups(user_id)]
 
     if not group_ids:
@@ -2048,6 +2050,9 @@ def mark_group_events_seen(user_id):
             conn.execute(insert(event_reads_table).values(
                 user_id=user_id, last_seen_event_id=max_id
             ))
+
+    # Cache leeren, damit der Banner nach "gelesen" sofort verschwindet.
+    unseen_group_events.clear()
 
 
 # Pflichtfelder, damit eine Session im Ranking/in den Personal Bests zählt.
@@ -5336,14 +5341,26 @@ autocollapse_sidebar()
 # News-Banner und seine DB-Abfrage erst danach. Mit einem Platzhalter (news_slot)
 # bleibt das Banner optisch oben, wird aber erst nach den Rankings befüllt – so
 # erscheinen die Rankings als Erstes auf dem Bildschirm.
+# Schlanker Profiler: misst die Dauer der Hauptbereiche. Anzeige nur mit ?perf=1.
+_PERF = []
+
+
+def _perf(label, fn, *a, **k):
+    _t = time.perf_counter()
+    try:
+        return fn(*a, **k)
+    finally:
+        _PERF.append((label, (time.perf_counter() - _t) * 1000.0))
+
+
 news_slot = st.empty()
 
 ranking_results = st.empty()
 with sidebar_tab_filter:
-    render_rankings(ranking_results)
+    _perf("rankings", render_rankings, ranking_results)
 
 with news_slot.container():
-    render_group_news_banner(current_user)
+    _perf("news", render_group_news_banner, current_user)
 
 st.markdown("---")
 
@@ -5562,10 +5579,15 @@ with left:
 # Ranking-Filtern), Tabelle oben im Hauptfenster-Container `right`. Ein
 # Filterklick rerunt nur dieses Fragment.
 with right:
-    render_personal_best_table(pb_table, pb_table_caption, pb_total)
+    _perf("pb_table", render_personal_best_table, pb_table, pb_table_caption, pb_total)
     # Session-Editor dezent unter den Personal Bests (statt prominent oben).
     if current_user:
-        render_session_editor(current_user)
+        _perf("editor", render_session_editor, current_user)
+
+# Profiler-Ausgabe (nur mit ?perf=1): zeigt die Dauer der Hauptbereiche.
+if st.query_params.get("perf") and _PERF:
+    st.caption("⏱ " + " · ".join(f"{lbl}: {ms:.0f} ms" for lbl, ms in _PERF)
+               + f"  (Σ {sum(ms for _, ms in _PERF):.0f} ms)")
 
 
 required_ok = all([
