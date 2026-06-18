@@ -989,7 +989,7 @@ def load_rider_sessions(name, sport=None):
     df = pd.DataFrame([dict(r) for r in rows])
 
     if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df["date"] = pd.to_datetime(df["date"], errors="coerce", format="mixed")
         df = df.sort_values("date", ascending=False)
 
     return df.reset_index(drop=True)
@@ -1881,7 +1881,7 @@ def detect_records(entry, all_sessions, member_groups):
         names = df["name"].astype(str) if "name" in df.columns else None
         spots = df["surfspot"].astype(str) if "surfspot" in df.columns else None
         years = (
-            pd.to_datetime(df["date"], errors="coerce").dt.year
+            pd.to_datetime(df["date"], errors="coerce", format="mixed").dt.year
             if "date" in df.columns else None
         )
     else:
@@ -2075,7 +2075,7 @@ def personal_bests(name, spot=None, year=None):
         df = df[df["surfspot"].astype(str) == spot]
 
     if year and year != "All" and "date" in df.columns:
-        df = df[pd.to_datetime(df["date"], errors="coerce").dt.year == int(year)]
+        df = df[pd.to_datetime(df["date"], errors="coerce", format="mixed").dt.year == int(year)]
 
     return [
         {
@@ -2103,7 +2103,7 @@ def personal_best_table(df, spot="All", year="All", board="All", max_bft=None, l
         data = data[data["surfspot"].astype(str) == spot]
 
     if year and year != "All" and "date" in data.columns:
-        data = data[pd.to_datetime(data["date"], errors="coerce").dt.year == int(year)]
+        data = data[pd.to_datetime(data["date"], errors="coerce", format="mixed").dt.year == int(year)]
 
     if board and board != "All" and "board" in data.columns:
         data = data[data["board"].astype(str) == board]
@@ -2132,7 +2132,7 @@ def personal_best_table(df, spot="All", year="All", board="All", max_bft=None, l
     if "date" in data.columns:
         out["Date"] = [
             "" if pd.isna(d) else d.strftime("%Y-%m-%d")
-            for d in pd.to_datetime(data["date"], errors="coerce")
+            for d in pd.to_datetime(data["date"], errors="coerce", format="mixed")
         ]
     if "surfspot" in data.columns:
         out["Spot"] = data["surfspot"].astype(str).values
@@ -2190,7 +2190,7 @@ def render_personal_best_filter(name):
             if "surfspot" in pb_df.columns else set()
         )
         pb_years = sorted(
-            {int(y) for y in pd.to_datetime(pb_df["date"], errors="coerce").dt.year.dropna()}
+            {int(y) for y in pd.to_datetime(pb_df["date"], errors="coerce", format="mixed").dt.year.dropna()}
             if "date" in pb_df.columns else set(),
             reverse=True,
         )
@@ -3004,7 +3004,7 @@ def render_rankings(results_container):
         if not ranking.empty:
             opt_df = ranking.copy()
             opt_df["_date"] = (
-                pd.to_datetime(opt_df["date"], errors="coerce")
+                pd.to_datetime(opt_df["date"], errors="coerce", format="mixed")
                 if "date" in opt_df.columns else pd.NaT
             )
 
@@ -3147,7 +3147,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         if column not in ranking.columns:
             ranking[column] = None
 
-    ranking["_date"] = pd.to_datetime(ranking["date"], errors="coerce")
+    ranking["_date"] = pd.to_datetime(ranking["date"], errors="coerce", format="mixed")
 
     if group_choice != ALL_GROUP:
         group_id = next((g["id"] for g in member_groups if g["name"] == group_choice), None)
@@ -4074,7 +4074,7 @@ def _spot_tv_live(cfg):
         ts = pd.to_numeric(df["trust_score"], errors="coerce")
         df = df[ts.isna() | (ts >= cfg["trust"])]
 
-    df["_date"] = pd.to_datetime(df.get("date"), errors="coerce")
+    df["_date"] = pd.to_datetime(df.get("date"), errors="coerce", format="mixed")
     if "created_at" in df.columns:
         df["_created"] = pd.to_datetime(df["created_at"], errors="coerce")
 
