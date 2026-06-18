@@ -927,7 +927,13 @@ def load_sessions(sport=None):
     if not rows:
         return pd.DataFrame()
 
-    return pd.DataFrame([dict(r) for r in rows])
+    df = pd.DataFrame([dict(r) for r in rows])
+    # Datum EINMAL hier (gecacht) in datetime wandeln -> die vielen
+    # pd.to_datetime-Aufrufe weiter unten laufen dann auf datetime (schnell),
+    # statt bei jedem Rerun Strings mit format="mixed" zu parsen.
+    if "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"], errors="coerce", format="mixed")
+    return df
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -973,7 +979,7 @@ def session_exists(filename, name=None, sport=None):
         return bool(conn.execute(query).scalar())
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_rider_sessions(name, sport=None):
     """Alle gespeicherten Sessions eines Fahrers, neueste zuerst (optional auf
     einen Sport eingegrenzt; sport ist Teil des Cache-Keys)."""
@@ -3942,7 +3948,10 @@ def _tv_load_sessions(sport):
         ).mappings().all()
     if not rows:
         return pd.DataFrame()
-    return pd.DataFrame([dict(r) for r in rows])
+    df = pd.DataFrame([dict(r) for r in rows])
+    if "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"], errors="coerce", format="mixed")
+    return df
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
