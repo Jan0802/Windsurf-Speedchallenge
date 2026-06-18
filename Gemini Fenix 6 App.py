@@ -906,6 +906,13 @@ def update_session(session_id, fields):
     clear_data_caches()
 
 
+def delete_session(session_id):
+    """Loescht eine einzelne Session (z.B. fehlerhafte/Test-Sessions)."""
+    with get_engine().begin() as conn:
+        conn.execute(delete(sessions_table).where(sessions_table.c.id == int(session_id)))
+    clear_data_caches()
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_sessions(sport=None):
     """Sessions als DataFrame. sport=None -> alle Sportarten (z.B. für die
@@ -966,7 +973,7 @@ def session_exists(filename, name=None, sport=None):
         return bool(conn.execute(query).scalar())
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=120, show_spinner=False)
 def load_rider_sessions(name, sport=None):
     """Alle gespeicherten Sessions eines Fahrers, neueste zuerst (optional auf
     einen Sport eingegrenzt; sport ist Teil des Cache-Keys)."""
@@ -4705,6 +4712,11 @@ def render_session_editor(user):
             f"{gear_word.lower()} are filled in. Watch uploads start incomplete (⚠️)."
         )
 
+        if st.button("🔄 Refresh (show new uploads)", key="es_refresh",
+                     use_container_width=True):
+            clear_data_caches()
+            st.rerun()
+
         if df is None or df.empty:
             st.info("No sessions yet for this sport.")
             return
@@ -4779,6 +4791,14 @@ def render_session_editor(user):
                     st.warning("Saved, but still incomplete – spot, board and "
                                f"{gear_word.lower()} are required for the ranking.")
                 st.rerun()
+
+        # Session löschen (z.B. fehlerhafte NaT-/Test-Sessions). Mit Bestätigung.
+        confirm_del = st.checkbox("Confirm delete", key=f"es_delconf_{sid}")
+        if st.button("🗑 Delete this session", key=f"es_del_{sid}",
+                     use_container_width=True, disabled=not confirm_del):
+            delete_session(sid)
+            st.success("Session deleted.")
+            st.rerun()
 
 
 def render_user_profile(user):
