@@ -4513,25 +4513,30 @@ for _i, _key in enumerate(SPORTS):
 # (auch .jpg/.jpeg/.png). MIME-Typ wird automatisch passend gesetzt.
 bg_uri = background_data_uri(sport)
 
-if bg_uri:
-    st.markdown(
-        f"""
-<style>
-.stApp {{
-    /* cover = bildschirmfüllend; bei hochkantigem Bild auf Querformat-Schirm
-       wird der mittlere Ausschnitt gezeigt (center center). Füllt komplett,
-       keine Balken. */
-    background-color: #02162b;
-    background-image: linear-gradient(rgba(2,22,43,.45), rgba(2,22,43,.62)),
-                      url("{bg_uri}");
-    background-position: center center;
-    background-size: cover;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-}}
-</style>
-""",
-        unsafe_allow_html=True,
+# Hintergrund nur EINMAL pro Session/Sport setzen. Frueher wurde das ~200 KB
+# grosse base64-Bild bei JEDEM Rerun via st.markdown erneut uebertragen -> traege.
+# Jetzt schreiben wir es per JS einmalig in einen <style> im Eltern-Dokument;
+# bei normalen Reruns wird nichts erneut gesendet (Bremse weg).
+if bg_uri and st.session_state.get("_bg_sport") != sport:
+    st.session_state["_bg_sport"] = sport
+    components.html(
+        """
+        <script>
+        (function () {
+          try {
+            var d = window.parent.document;
+            var el = d.getElementById("ws-bg");
+            if (!el) { el = d.createElement("style"); el.id = "ws-bg"; d.head.appendChild(el); }
+            el.textContent = '.stApp { background-color:#02162b;'
+              + ' background-image: linear-gradient(rgba(2,22,43,.45), rgba(2,22,43,.62)),'
+              + ' url("__BG__");'
+              + ' background-position:center center; background-size:cover;'
+              + ' background-repeat:no-repeat; background-attachment:fixed; }';
+          } catch (e) {}
+        })();
+        </script>
+        """.replace("__BG__", bg_uri),
+        height=0,
     )
 
 if sport == "windsurf" and logo_img:
