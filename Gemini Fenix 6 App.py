@@ -636,6 +636,15 @@ device_tokens_table = Table(
     Column("created_at", DateTime, server_default=func.now()),
 )
 
+# Freigabe-Codes zum Teilen des Equipments (Spots/Boards/Segel) zwischen
+# Konten – z.B. Familie, die dasselbe Material nutzt. Code -> Besitzer.
+equip_shares_table = Table(
+    "equip_shares", DB_METADATA,
+    Column("code", String(32), primary_key=True),
+    Column("owner", String(80), nullable=False),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
 # Gruppen-Ereignisse (Rekorde / Top-3) – andere Mitglieder sehen sie beim
 # nächsten Öffnen als Banner. Wird von create_all automatisch angelegt.
 group_events_table = Table(
@@ -1263,6 +1272,105 @@ def set_profile_list(name, key, values):
             conn.execute(insert(profiles_table).values(name=name, data=data))
 
     clear_data_caches()
+
+
+# ---- Equipment teilen (Freigabe-Code) ----
+
+@st.cache_resource(show_spinner=False)
+def _ensure_equip_shares_table():
+    try:
+        equip_shares_table.create(get_engine(), checkfirst=True)
+    except Exception:
+        logging.exception("equip_shares-Tabelle konnte nicht angelegt werden")
+    return True
+
+
+def get_or_create_share_code(username):
+    """Liefert den bestehenden Freigabe-Code des Nutzers oder legt einen an."""
+    _ensure_equip_shares_table()
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            select(equip_shares_table.c.code)
+            .where(equip_shares_table.c.owner == username).limit(1)
+        ).first()
+        if row:
+            return row[0]
+        code = secrets.token_hex(4)   # 8 Zeichen, leicht abzutippen
+        conn.execute(insert(equip_shares_table).values(code=code, owner=username))
+        return code
+
+
+def regenerate_share_code(username):
+    """Verwirft den alten Code (entzieht damit Zugriff) und erzeugt einen neuen."""
+    _ensure_equip_shares_table()
+    with get_engine().begin() as conn:
+        conn.execute(delete(equip_shares_table).where(equip_shares_table.c.owner == username))
+        code = secrets.token_hex(4)
+        conn.execute(insert(equip_shares_table).values(code=code, owner=username))
+        return code
+
+
+def owner_for_share_code(code):
+    if not code:
+        return None
+    _ensure_equip_shares_table()
+    code = code.strip().lower()
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(equip_shares_table.c.owner).where(equip_shares_table.c.code == code)
+        ).first()
+    return row[0] if row else None
+
+
+def copy_equipment(from_name, to_name):
+    """Führt das Equipment (alle Listen: Spots/Boards/Segel/… aller Sportarten)
+    von from_name in to_name zusammen – ohne Duplikate. Gibt die Anzahl neu
+    hinzugefügter Einträge zurück."""
+    if not from_name or not to_name or from_name == to_name:
+        return 0
+    with get_engine().begin() as conn:
+        src_row = conn.execute(
+            select(profiles_table.c.data).where(profiles_table.c.name == from_name)
+        ).first()
+        if not src_row or not src_row[0]:
+            return 0
+        try:
+            src = json.loads(src_row[0])
+        except Exception:
+            return 0
+
+        dst_row = conn.execute(
+            select(profiles_table.c.data).where(profiles_table.c.name == to_name)
+        ).first()
+        dst = {}
+        if dst_row and dst_row[0]:
+            try:
+                dst = json.loads(dst_row[0])
+            except Exception:
+                dst = {}
+
+        added = 0
+        for key, vals in src.items():
+            if isinstance(vals, list):
+                existing = dst.get(key)
+                if not isinstance(existing, list):
+                    existing = []
+                for v in vals:
+                    if v and v not in existing:
+                        existing.append(v)
+                        added += 1
+                dst[key] = existing
+
+        data = json.dumps(dst, ensure_ascii=False)
+        if dst_row:
+            conn.execute(
+                update(profiles_table).where(profiles_table.c.name == to_name).values(data=data)
+            )
+        else:
+            conn.execute(insert(profiles_table).values(name=to_name, data=data))
+
+    clear_data_caches()
+    return added
 
 
 def verify_login(username, password):
@@ -4892,6 +5000,38 @@ def render_user_profile(user):
             st.session_state[_tok_key] = regenerate_device_token(user["id"])
             st.success("New token generated – update it in the watch app.")
             st.rerun()
+
+        # --- Equipment teilen / übernehmen (gleiches Material über Konten) ---
+        st.markdown("**🔗 Share equipment (family / friends)**")
+        st.caption(
+            "Use the same gear across accounts without typing it three times. Give "
+            "YOUR code to others so they can import your equipment (spots, boards, "
+            "sails…) – or enter someone's code below to import theirs. Only works "
+            "when both sides act (= mutual consent)."
+        )
+        _share_key = f"_share_code_{user['id']}"
+        if _share_key not in st.session_state:
+            st.session_state[_share_key] = get_or_create_share_code(user["username"])
+        st.caption("Your share code:")
+        st.code(st.session_state[_share_key], language=None)
+        if st.button("Regenerate share code", key=f"regen_share_{user['id']}",
+                     use_container_width=True):
+            st.session_state[_share_key] = regenerate_share_code(user["username"])
+            st.success("New code generated – the old one no longer works.")
+            st.rerun()
+
+        with st.form(f"import_equip_{user['id']}"):
+            other_code = st.text_input("Import equipment with someone's code")
+            if st.form_submit_button("📥 Import equipment", use_container_width=True):
+                owner = owner_for_share_code(other_code)
+                if not owner:
+                    st.error("Unknown code.")
+                elif owner == user["username"]:
+                    st.warning("That's your own code.")
+                else:
+                    added = copy_equipment(owner, user["username"])
+                    st.success(f"Imported {added} item(s) from {owner}. ✅")
+                    st.rerun()
 
         # --- Equipment (aktiver Sport; Spots sind sportübergreifend) ---
         st.markdown(f"**Equipment · {gear_meta['label']}**")
