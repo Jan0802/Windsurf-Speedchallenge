@@ -1961,7 +1961,7 @@ def delete_user_pref(username):
 
 # Alle vier Wertungen – jeweils „höher ist besser".
 RECORD_METRICS = [
-    {"key": "speed_1s_kmh", "label": "Top speed 1 s", "unit": "km/h", "decimals": 2},
+    {"key": "speed_1s_kmh", "label": "Top speed 2 s", "unit": "km/h", "decimals": 2},
     {"key": "speed_30s_kmh", "label": "Top speed 30 s", "unit": "km/h", "decimals": 2},
     {"key": "longest_run_km", "label": "Longest run", "unit": "km", "decimals": 3},
     {"key": "total_distance_km", "label": "Total distance", "unit": "km", "decimals": 2},
@@ -2265,8 +2265,8 @@ def personal_best_table(df, spot="All", year="All", board="All", max_bft=None, l
             None if pd.isna(v) else kmh_to_beaufort(v) for v in wind
         ]
 
-    out["Top 1 s (km/h)"] = data["_s1"].round(2).values
-    out["1 s (kn)"] = (data["_s1"] / 1.852).round(2).values
+    out["Top 2 s (km/h)"] = data["_s1"].round(2).values
+    out["2 s (kn)"] = (data["_s1"] / 1.852).round(2).values
 
     if "speed_30s_kmh" in data.columns:
         s30 = pd.to_numeric(data["speed_30s_kmh"], errors="coerce")
@@ -2424,7 +2424,7 @@ def render_session_history(name):
                 "board": "Board",
                 "sail": gear_label,
                 "speed_30s_kmh": "30s km/h",
-                "speed_1s_kmh": "1s km/h",
+                "speed_1s_kmh": "2s km/h",
                 "longest_run_km": "Run km",
                 "total_distance_km": "Distance km",
             })
@@ -3374,7 +3374,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         st.dataframe(r30, width="stretch", hide_index=True, height=df_height(len(r30)))
 
     with rcol2:
-        st.markdown("### ⚡ Top speed 1 second")
+        st.markdown("### ⚡ Top speed 2 seconds")
 
         r1 = ranking[[
             "date",
@@ -3402,8 +3402,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "surfspot": "Surf spot",
             "board": "Board",
             "sail": gear_label,
-            "speed_1s_kmh": "1s km/h",
-            "speed_1s_kn": "1s kn",
+            "speed_1s_kmh": "2s km/h",
+            "speed_1s_kn": "2s kn",
         })
 
         st.dataframe(r1, width="stretch", hide_index=True, height=df_height(len(r1)))
@@ -4254,7 +4254,7 @@ def _spot_tv_live(cfg):
 
     leader_label = "👑 Rider of the Day" if mode == "today" else f"👑 Top rider {period_word}"
     cards = "".join([
-        _tv_card(f"🏆 Top 1s {period_word}", f"{top1:.1f}" if top1 else "–",
+        _tv_card(f"🏆 Top 2s {period_word}", f"{top1:.1f}" if top1 else "–",
                  ("km/h" + (f" · {top1kn:.1f} kn" if top1kn else "")) if top1 else ""),
         _tv_card(f"🔥 Top 30s {period_word}", f"{top30:.1f}" if top30 else "–", "km/h" if top30 else ""),
         _tv_card("🏄 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
@@ -4267,7 +4267,7 @@ def _spot_tv_live(cfg):
 
     # Leaderboard zeigt 1s ODER 30s und wechselt automatisch (~alle 30 s).
     metric = "30s" if (int(now.timestamp()) // 30) % 2 else "1s"
-    metric_lbl = "Top 1 s" if metric == "1s" else "Top 30 s"
+    metric_lbl = "Top 2 s" if metric == "1s" else "Top 30 s"
     st.markdown(
         f"<div class='tv-rank-title' translate='no'>🏁 {scope_title} leaderboard · {metric_lbl}</div>",
         unsafe_allow_html=True)
@@ -4487,7 +4487,7 @@ def render_history_overview(record):
     longest_run_km = num("longest_run_km")
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Top 1 s", "–" if best_1s is None else f"{best_1s:.2f} km/h")
+    c1.metric("Top 2 s", "–" if best_1s is None else f"{best_1s:.2f} km/h")
     c2.metric("Top 30 s", "–" if best_30s is None else f"{best_30s:.2f} km/h")
     c3.metric("Total distance", "–" if distance_km is None else f"{distance_km:.2f} km")
     c4.metric("Longest run", "–" if longest_run_km is None else f"{longest_run_km:.2f} km")
@@ -4530,7 +4530,7 @@ def render_history_overview(record):
 
     speed_table = pd.DataFrame([
         {
-            "Category": "1 second",
+            "Category": "2 seconds",
             "Speed km/h": best_1s,
             "Speed kn": None if best_1s is None else best_1s / 1.852,
         },
@@ -5896,7 +5896,7 @@ if fit_source is not None:
 
         speed_table = pd.DataFrame([
             {
-                "Category": "1 second",
+                "Category": "2 seconds",
                 "Speed km/h": best_1s,
                 "Speed kn": None if best_1s is None else best_1s / 1.852,
             },
