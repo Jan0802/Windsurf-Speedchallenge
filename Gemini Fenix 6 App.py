@@ -4634,15 +4634,17 @@ def _render_join_qr(cfg):
         # Wrapper steuert den Abstand per flex-gap -> keine versteckten Eigenmargen.
         ".tv-join-wrap{display:flex;flex-direction:column;gap:0.35cm;margin-top:6px;}"
         ".tv-join-title{font-size:28px;font-weight:800;margin:0;line-height:1.1;}"
-        # Reihe OBEN ausgerichtet -> QR sitzt direkt unter dem Titel (sonst sinkt
-        # der kuerzere QR ab, wenn der Produktblock hoeher ist).
-        ".tv-join-row{display:flex;gap:22px;align-items:flex-start;margin:0;}"
+        # Beide Spalten auf gleiche Hoehe strecken -> untere Kanten von QR-Kaestchen
+        # und Produktkarten liegen gleich. QR bleibt oben (Gap zum Titel), das weisse
+        # Kaestchen waechst nach unten bis zur Kartenunterkante.
+        ".tv-join-row{display:flex;gap:22px;align-items:stretch;margin:0;}"
         ".tv-join-qr{flex:0 0 auto;background:#fff;border-radius:16px;padding:10px;"
         "line-height:0;box-shadow:0 6px 18px rgba(0,0,0,.18);}"
         ".tv-join-qr img{width:200px;height:200px;display:block;}"
         ".tv-join-qr-text{line-height:1.3;padding:14px;color:#111;max-width:220px;"
         "word-break:break-all;font-size:13px;}"
-        ".tv-deals{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;}"
+        ".tv-deals{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;"
+        "justify-content:space-between;}"
         ".tv-deals-head{text-align:center;font-size:22px;font-weight:800;color:#eaf4ff;"
         "margin:0 0 10px;}"
         ".tv-deals-cards{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;}"
