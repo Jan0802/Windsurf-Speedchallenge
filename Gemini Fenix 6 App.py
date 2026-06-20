@@ -101,6 +101,15 @@ NEW_ENTRY = "➕ Add new..."
 # Windsurf. So bleiben Caching & Performance unverändert – nur ein WHERE mehr.
 SPORTS = ("windsurf", "kitesurf", "wingsurf", "sup")
 
+# Beta-Hinweis neben dem Logo: verirrte Besucher sollen wissen, dass die Seite
+# noch im Aufbau ist (volle Geschwindigkeit erst nach Umzug auf einen Pay-Server).
+# em-basiert -> bleibt relativ zum jeweiligen Logo klein, weiss, dezent.
+BETA_BADGE = (
+    "<span style=\"font-size:.34em;font-weight:700;color:#fff;opacity:.85;"
+    "vertical-align:super;margin-left:.45em;letter-spacing:0;white-space:nowrap;\">"
+    "Beta 0.7</span>"
+)
+
 SPORT_META = {
     "windsurf": {
         "label": "🏄 Windsurf",
@@ -4931,7 +4940,7 @@ def render_spot_tv(cfg):
 
     st.markdown(
         "<div class='tv-header'>"
-        "<div class='tv-brand'>MyWaterSessions<span class='dot'>.</span></div>"
+        f"<div class='tv-brand'>MyWaterSessions<span class='dot'>.</span>{BETA_BADGE}</div>"
         f"<div class='tv-spot'><div class='name'>{title}</div>{event}</div>"
         f"<div class='sponsor'>{sponsor}</div>"
         "</div>",
@@ -5522,7 +5531,7 @@ else:
 st.markdown(f"""
 <div class="hero">
     <div class="hero-content">
-        <div class="logo">MyWaterSessions<span class="logo-dot">.</span></div>
+        <div class="logo">MyWaterSessions<span class="logo-dot">.</span>{BETA_BADGE}</div>
         <div class="logo-rule"></div>
         <div class="title">{SPORT_META[sport]["title"]}</div>
         <p>The home for everyone active on the water</p>
@@ -5541,7 +5550,7 @@ if render_legal_page():
 # =====================================================================
 
 def render_login():
-    st.markdown("## 🔐 Sign in")
+    st.markdown(f"## 🔐 Sign in {BETA_BADGE}", unsafe_allow_html=True)
     st.info(
         "Please log in or register. Afterwards you can join groups or "
         "create your own."
@@ -6920,7 +6929,7 @@ st.markdown("---")
 
 st.markdown(f"""
 <div class="footer">
-    <h3 style="color:white;font-weight:800;letter-spacing:-0.4px;">MyWaterSessions<span style="color:#2bd4d9;">.</span></h3>
+    <h3 style="color:white;font-weight:800;letter-spacing:-0.4px;">MyWaterSessions<span style="color:#2bd4d9;">.</span>{BETA_BADGE}</h3>
     <p style="text-transform:uppercase;letter-spacing:2px;font-size:12px;opacity:.8;">{SPORT_META[sport]["title"]} · The home for everyone active on the water</p>
     <p style="margin-top:.75rem;">
         <a href="?seite=impressum" target="_self" style="color:#2bd4d9;">Impressum</a>
