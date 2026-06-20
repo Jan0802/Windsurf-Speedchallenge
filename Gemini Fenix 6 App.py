@@ -4604,7 +4604,6 @@ def _join_url(cfg):
 
 def _render_join_qr(cfg):
     url = _join_url(cfg)
-    st.markdown("<div class='tv-rank-title'>📲 Join today’s ranking</div>", unsafe_allow_html=True)
 
     # QR als data-URI (statt st.image), damit er in DERSELBEN Flex-Reihe wie die
     # Produktkarten sitzt -> Produkte direkt rechts neben dem QR, dann Umbruch.
@@ -4632,8 +4631,10 @@ def _render_join_qr(cfg):
 
     st.markdown(
         "<style>"
+        # Titel direkt ueber dem QR (gleicher Block -> kein Streamlit-Abstand).
+        ".tv-join-title{font-size:28px;font-weight:800;margin:6px 0 6px;}"
         # Reihe unten ausgerichtet -> Produktkarten schliessen mit dem QR-Code ab.
-        ".tv-join-row{display:flex;gap:22px;align-items:flex-end;margin-top:6px;}"
+        ".tv-join-row{display:flex;gap:22px;align-items:flex-end;margin-top:0;}"
         ".tv-join-qr{flex:0 0 auto;background:#fff;border-radius:16px;padding:10px;"
         "line-height:0;box-shadow:0 6px 18px rgba(0,0,0,.18);}"
         ".tv-join-qr img{width:200px;height:200px;display:block;}"
@@ -4651,6 +4652,7 @@ def _render_join_qr(cfg):
         ".tv-prod-title{padding:10px 12px 2px;font-weight:700;font-size:18px;line-height:1.2;}"
         ".tv-prod-price{padding:0 12px 12px;color:#0a7;font-weight:800;font-size:18px;}"
         "</style>"
+        "<div class='tv-join-title'>📲 Join today’s ranking</div>"
         f"<div class='tv-join-row'>{qr_html}{deals_html}</div>",
         unsafe_allow_html=True,
     )
