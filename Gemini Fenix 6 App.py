@@ -4632,7 +4632,7 @@ def _render_join_qr(cfg):
     st.markdown(
         "<style>"
         # Titel direkt ueber dem QR (gleicher Block -> kein Streamlit-Abstand).
-        ".tv-join-title{font-size:28px;font-weight:800;margin:6px 0 6px;}"
+        ".tv-join-title{font-size:28px;font-weight:800;margin:6px 0 0.5cm;}"
         # Reihe unten ausgerichtet -> Produktkarten schliessen mit dem QR-Code ab.
         ".tv-join-row{display:flex;gap:22px;align-items:flex-end;margin-top:0;}"
         ".tv-join-qr{flex:0 0 auto;background:#fff;border-radius:16px;padding:10px;"
