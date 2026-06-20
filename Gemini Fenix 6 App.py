@@ -4461,15 +4461,31 @@ def _render_join_qr(cfg):
         qr_html = f"<div class='tv-join-qr tv-join-qr-text'>{url}</div>"
 
     cards = _product_cards_html(cfg["spot"])
+    deals_html = ""
+    if cards:
+        ad = load_spot_ad(cfg["spot"]) or {}
+        sponsor = ad.get("sponsor_name")
+        head = f"{sponsor} · Top Deals" if sponsor else "Top Deals"
+        deals_html = (
+            "<div class='tv-deals'>"
+            f"<div class='tv-deals-head'>{head}</div>"
+            f"<div class='tv-deals-cards'>{''.join(cards)}</div>"
+            "</div>"
+        )
 
     st.markdown(
         "<style>"
-        ".tv-join-row{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;margin-top:6px;}"
-        ".tv-join-qr{background:#fff;border-radius:16px;padding:10px;line-height:0;"
-        "box-shadow:0 6px 18px rgba(0,0,0,.18);}"
+        # Reihe unten ausgerichtet -> Produktkarten schliessen mit dem QR-Code ab.
+        ".tv-join-row{display:flex;gap:22px;align-items:flex-end;margin-top:6px;}"
+        ".tv-join-qr{flex:0 0 auto;background:#fff;border-radius:16px;padding:10px;"
+        "line-height:0;box-shadow:0 6px 18px rgba(0,0,0,.18);}"
         ".tv-join-qr img{width:200px;height:200px;display:block;}"
         ".tv-join-qr-text{line-height:1.3;padding:14px;color:#111;max-width:220px;"
         "word-break:break-all;font-size:13px;}"
+        ".tv-deals{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;}"
+        ".tv-deals-head{text-align:center;font-size:24px;font-weight:800;color:#eaf4ff;"
+        "margin:0 0 12px;}"
+        ".tv-deals-cards{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;}"
         ".tv-prod-card{width:200px;background:#ffffff;border-radius:16px;overflow:hidden;"
         "box-shadow:0 6px 18px rgba(0,0,0,.18);text-decoration:none;color:#111;display:block;}"
         ".tv-prod-img{height:150px;background-size:cover;background-position:center;}"
@@ -4478,7 +4494,7 @@ def _render_join_qr(cfg):
         ".tv-prod-title{padding:10px 12px 2px;font-weight:700;font-size:18px;line-height:1.2;}"
         ".tv-prod-price{padding:0 12px 12px;color:#0a7;font-weight:800;font-size:18px;}"
         "</style>"
-        f"<div class='tv-join-row'>{qr_html}{''.join(cards)}</div>",
+        f"<div class='tv-join-row'>{qr_html}{deals_html}</div>",
         unsafe_allow_html=True,
     )
 
