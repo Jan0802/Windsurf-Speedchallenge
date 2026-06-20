@@ -4638,8 +4638,10 @@ def _render_join_qr(cfg):
         # und Produktkarten liegen gleich. QR bleibt oben (Gap zum Titel), das weisse
         # Kaestchen waechst nach unten bis zur Kartenunterkante.
         ".tv-join-row{display:flex;gap:22px;align-items:stretch;margin:0;}"
-        ".tv-join-qr{flex:0 0 auto;background:#fff;border-radius:16px;padding:10px;"
-        "line-height:0;box-shadow:0 6px 18px rgba(0,0,0,.18);}"
+        # align-self:flex-start -> QR-Kaestchen streckt sich NICHT auf Kartenhoehe,
+        # bleibt oben am Titel und so hoch wie der QR selbst (kein Leerraum unten).
+        ".tv-join-qr{flex:0 0 auto;align-self:flex-start;background:#fff;"
+        "border-radius:16px;padding:10px;line-height:0;box-shadow:0 6px 18px rgba(0,0,0,.18);}"
         ".tv-join-qr img{width:200px;height:200px;display:block;}"
         ".tv-join-qr-text{line-height:1.3;padding:14px;color:#111;max-width:220px;"
         "word-break:break-all;font-size:13px;}"
