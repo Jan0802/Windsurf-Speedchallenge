@@ -26,6 +26,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     MetaData,
     String,
     Table,
@@ -642,6 +643,36 @@ equip_shares_table = Table(
     "equip_shares", DB_METADATA,
     Column("code", String(32), primary_key=True),
     Column("owner", String(80), nullable=False),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
+# Werbung/Sponsor je Spot fuers Spot-TV – im Admin-Backoffice verwaltet. Logo
+# als Bytes IN der DB, weil das Streamlit-Cloud-Dateisystem fluechtig ist
+# (assets/-Uploads ueberleben keinen Neustart).
+spot_ads_table = Table(
+    "spot_ads", DB_METADATA,
+    Column("spot", String(200), primary_key=True),
+    Column("sponsor_name", String(200)),
+    Column("sponsor_url", String(500)),
+    Column("logo", LargeBinary),         # Bilddaten (PNG/JPG/WebP)
+    Column("logo_mime", String(50)),     # z.B. image/png
+    Column("active", Boolean, nullable=False, default=True),
+    Column("updated_at", DateTime, server_default=func.now()),
+)
+
+# Beworbene Produkte/Angebote je Spot (Shop/Cafe), mit Bild + Link. Werden auf
+# dem Spot-TV als Leiste ausgespielt.
+spot_products_table = Table(
+    "spot_products", DB_METADATA,
+    Column("id", Integer, primary_key=True),
+    Column("spot", String(200), nullable=False),
+    Column("title", String(200), nullable=False),
+    Column("price", String(40)),
+    Column("url", String(500)),
+    Column("image", LargeBinary),
+    Column("image_mime", String(50)),
+    Column("active", Boolean, nullable=False, default=True),
+    Column("sort_order", Integer, default=0),
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -1462,6 +1493,284 @@ def regenerate_device_token(user_id):
         token = secrets.token_urlsafe(32)
         conn.execute(insert(device_tokens_table).values(token=token, user_id=user_id))
         return token
+
+
+# ---- Spot-Werbung (Admin-Backoffice) ----
+
+@st.cache_resource(show_spinner=False)
+def _ensure_ad_tables():
+    try:
+        spot_ads_table.create(get_engine(), checkfirst=True)
+        spot_products_table.create(get_engine(), checkfirst=True)
+    except Exception:
+        logging.exception("Werbe-Tabellen konnten nicht angelegt werden")
+    return True
+
+
+def _clear_ad_caches():
+    for fn in (load_spot_ad, load_spot_products):
+        try:
+            fn.clear()
+        except Exception:
+            pass
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_spot_ad(spot):
+    """Sponsor-Eintrag eines Spots (oder None)."""
+    if not spot:
+        return None
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(spot_ads_table).where(spot_ads_table.c.spot == spot)
+        ).mappings().first()
+    return dict(row) if row else None
+
+
+def save_spot_ad(spot, sponsor_name, sponsor_url, active,
+                 logo_bytes=None, logo_mime=None, clear_logo=False):
+    if not spot:
+        return
+    _ensure_ad_tables()
+    values = {
+        "sponsor_name": (sponsor_name or "").strip() or None,
+        "sponsor_url": (sponsor_url or "").strip() or None,
+        "active": bool(active),
+    }
+    if clear_logo:
+        values["logo"] = None
+        values["logo_mime"] = None
+    elif logo_bytes is not None:
+        values["logo"] = logo_bytes
+        values["logo_mime"] = logo_mime or "image/png"
+
+    with get_engine().begin() as conn:
+        exists = conn.execute(
+            select(spot_ads_table.c.spot).where(spot_ads_table.c.spot == spot)
+        ).first()
+        if exists:
+            conn.execute(
+                update(spot_ads_table).where(spot_ads_table.c.spot == spot).values(**values)
+            )
+        else:
+            conn.execute(insert(spot_ads_table).values(spot=spot, **values))
+    _clear_ad_caches()
+
+
+def delete_spot_ad(spot):
+    _ensure_ad_tables()
+    with get_engine().begin() as conn:
+        conn.execute(delete(spot_ads_table).where(spot_ads_table.c.spot == spot))
+    _clear_ad_caches()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_spot_products(spot, only_active=False):
+    if not spot:
+        return []
+    _ensure_ad_tables()
+    query = select(spot_products_table).where(spot_products_table.c.spot == spot)
+    if only_active:
+        query = query.where(spot_products_table.c.active == True)  # noqa: E712
+    query = query.order_by(spot_products_table.c.sort_order, spot_products_table.c.id)
+    with get_engine().connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def save_spot_product(product_id, spot, title, price, url, active, sort_order,
+                      image_bytes=None, image_mime=None, clear_image=False):
+    _ensure_ad_tables()
+    values = {
+        "spot": spot,
+        "title": (title or "").strip(),
+        "price": (price or "").strip() or None,
+        "url": (url or "").strip() or None,
+        "active": bool(active),
+        "sort_order": int(sort_order or 0),
+    }
+    if clear_image:
+        values["image"] = None
+        values["image_mime"] = None
+    elif image_bytes is not None:
+        values["image"] = image_bytes
+        values["image_mime"] = image_mime or "image/png"
+
+    with get_engine().begin() as conn:
+        if product_id:
+            conn.execute(
+                update(spot_products_table)
+                .where(spot_products_table.c.id == int(product_id))
+                .values(**values)
+            )
+        else:
+            conn.execute(insert(spot_products_table).values(**values))
+    _clear_ad_caches()
+
+
+def delete_spot_product(product_id):
+    _ensure_ad_tables()
+    with get_engine().begin() as conn:
+        conn.execute(
+            delete(spot_products_table).where(spot_products_table.c.id == int(product_id))
+        )
+    _clear_ad_caches()
+
+
+def _bytes_to_data_uri(data, mime):
+    if not data:
+        return None
+    # Postgres (Neon) liefert bytea als memoryview -> in bytes wandeln.
+    b64 = base64.b64encode(bytes(data)).decode("ascii")
+    return f"data:{mime or 'image/png'};base64,{b64}"
+
+
+# ---- Admin: Profil-/Konto-Verwaltung (fremde Daten – nur Backoffice) ----
+
+def list_all_users():
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(users_table.c.id, users_table.c.username, users_table.c.email)
+            .order_by(users_table.c.username)
+        ).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def get_device_token(user_id):
+    """Aktuellen Geraete-Token eines Users lesen (ohne anzulegen)."""
+    _ensure_device_tokens_table()
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(device_tokens_table.c.token)
+            .where(device_tokens_table.c.user_id == int(user_id)).limit(1)
+        ).first()
+    return row[0] if row else None
+
+
+def admin_set_device_token(user_id, token):
+    """Setzt einen bestimmten Geraete-Token fuer einen User (z.B. den fest in der
+    Uhr hinterlegten). Entfernt den Token von einem evtl. anderen Besitzer."""
+    token = (token or "").strip()
+    if not token:
+        return False, "Token must not be empty."
+    _ensure_device_tokens_table()
+    with get_engine().begin() as conn:
+        conn.execute(delete(device_tokens_table).where(device_tokens_table.c.token == token))
+        conn.execute(
+            delete(device_tokens_table).where(device_tokens_table.c.user_id == int(user_id))
+        )
+        conn.execute(insert(device_tokens_table).values(token=token, user_id=int(user_id)))
+    return True, "Token assigned."
+
+
+def admin_set_password(user_id, new_password):
+    if not new_password or len(new_password) < 6:
+        return False, "The password must be at least 6 characters long."
+    salt = secrets.token_hex(16)
+    with get_engine().begin() as conn:
+        conn.execute(
+            update(users_table).where(users_table.c.id == int(user_id)).values(
+                password_hash=_hash_password(new_password, salt), salt=salt
+            )
+        )
+    return True, "Password updated."
+
+
+def admin_rename_profile(old_name, new_name):
+    """Benennt einen Fahrer/ein Konto um – inkl. aller verknuepften Zeilen, die
+    ueber den Namen (statt user_id) referenzieren."""
+    old_name = (old_name or "").strip()
+    new_name = (new_name or "").strip()
+    if not old_name or not new_name or old_name == new_name:
+        return False, "Choose a different new name."
+    with get_engine().begin() as conn:
+        clash = conn.execute(
+            select(users_table.c.id).where(users_table.c.username == new_name)
+        ).first()
+        if clash:
+            return False, "A user with that name already exists."
+        conn.execute(
+            update(users_table).where(users_table.c.username == old_name).values(username=new_name)
+        )
+        conn.execute(
+            update(sessions_table).where(sessions_table.c.name == old_name).values(name=new_name)
+        )
+        prow = conn.execute(
+            select(profiles_table.c.data).where(profiles_table.c.name == old_name)
+        ).first()
+        if prow:
+            conn.execute(delete(profiles_table).where(profiles_table.c.name == new_name))
+            conn.execute(
+                update(profiles_table).where(profiles_table.c.name == old_name).values(name=new_name)
+            )
+        conn.execute(
+            update(equip_shares_table).where(equip_shares_table.c.owner == old_name)
+            .values(owner=new_name)
+        )
+        conn.execute(
+            update(user_prefs_table).where(user_prefs_table.c.username == old_name)
+            .values(username=new_name)
+        )
+        conn.execute(
+            update(group_events_table).where(group_events_table.c.username == old_name)
+            .values(username=new_name)
+        )
+    clear_data_caches()
+    return True, f"Renamed '{old_name}' to '{new_name}'."
+
+
+def admin_delete_profile(name):
+    """Loescht ein Profil/Konto samt aller eigenen Daten (Admin – auch fremde)."""
+    if not name:
+        return False
+    with get_engine().begin() as conn:
+        urow = conn.execute(
+            select(users_table.c.id).where(users_table.c.username == name)
+        ).first()
+        user_id = urow[0] if urow else None
+
+        conn.execute(delete(sessions_table).where(sessions_table.c.name == name))
+        conn.execute(delete(profiles_table).where(profiles_table.c.name == name))
+        conn.execute(delete(equip_shares_table).where(equip_shares_table.c.owner == name))
+        conn.execute(delete(user_prefs_table).where(user_prefs_table.c.username == name))
+        conn.execute(delete(group_events_table).where(group_events_table.c.username == name))
+
+        if user_id is not None:
+            conn.execute(delete(auth_tokens_table).where(auth_tokens_table.c.user_id == user_id))
+            conn.execute(delete(device_tokens_table).where(device_tokens_table.c.user_id == user_id))
+            conn.execute(delete(memberships_table).where(memberships_table.c.user_id == user_id))
+            owned = [
+                r[0] for r in conn.execute(
+                    select(groups_table.c.id).where(groups_table.c.owner_id == user_id)
+                ).all()
+            ]
+            if owned:
+                conn.execute(delete(memberships_table).where(memberships_table.c.group_id.in_(owned)))
+                conn.execute(delete(group_events_table).where(group_events_table.c.group_id.in_(owned)))
+                conn.execute(delete(groups_table).where(groups_table.c.id.in_(owned)))
+            conn.execute(delete(users_table).where(users_table.c.id == user_id))
+    clear_data_caches()
+    return True
+
+
+def admin_merge_profiles(from_name, to_name):
+    """Verschiebt Sessions + Equipment von from_name nach to_name und loescht
+    danach das Quellprofil. Gibt (verschobene_sessions, meldung) zurueck."""
+    from_name = (from_name or "").strip()
+    to_name = (to_name or "").strip()
+    if not from_name or not to_name or from_name == to_name:
+        return 0, "Choose two different profiles."
+    copy_equipment(from_name, to_name)
+    with get_engine().begin() as conn:
+        res = conn.execute(
+            update(sessions_table).where(sessions_table.c.name == from_name)
+            .values(name=to_name)
+        )
+    moved = res.rowcount or 0
+    admin_delete_profile(from_name)
+    clear_data_caches()
+    return moved, f"Merged '{from_name}' into '{to_name}' ({moved} sessions moved)."
 
 
 # ---- Konto-/Datenlöschung (immer nur eigene Daten) ----
@@ -4301,9 +4610,19 @@ def _slug(s):
 
 def _spot_sponsor_img(cfg):
     """(img_src, name) fuer die Sponsor-Anzeige des Spots, sonst (None, name).
-    Prioritaet: ?logo= URL > SPOT_SPONSORS[spot] > Konvention sponsor_<slug>.png."""
+    Prioritaet: ?logo= URL > DB (Admin-Backoffice) > SPOT_SPONSORS > sponsor_<slug>.png."""
     if cfg["logo"]:
         return cfg["logo"], (cfg["sponsor"] or None)
+
+    # Im Backoffice gepflegter Eintrag hat Vorrang (sofern aktiv).
+    ad = load_spot_ad(cfg["spot"])
+    if ad and ad.get("active", True):
+        name = ad.get("sponsor_name") or (cfg["sponsor"] or None)
+        uri = _bytes_to_data_uri(ad.get("logo"), ad.get("logo_mime"))
+        if uri:
+            return uri, name
+        if name:
+            return None, name
 
     entry = SPOT_SPONSORS.get(cfg["spot"], {})
     name = entry.get("name") or (cfg["sponsor"] or None)
@@ -4392,8 +4711,11 @@ def render_spot_tv(cfg):
     # Sponsor/Werbung oben rechts, je Spot (auf hellem Chip, damit dunkle Logos
     # sichtbar bleiben). Logo wenn vorhanden, sonst "Presented by <Name>".
     ad_src, ad_name = _spot_sponsor_img(cfg)
+    ad_row = load_spot_ad(cfg["spot"]) or {}
+    ad_url = ad_row.get("sponsor_url") or ""
     if ad_src:
-        sponsor = f"<div class='tv-sponsor-chip'><img src='{ad_src}' alt='sponsor'/></div>"
+        chip = f"<div class='tv-sponsor-chip'><img src='{ad_src}' alt='sponsor'/></div>"
+        sponsor = f"<a href='{ad_url}' target='_blank' rel='noopener'>{chip}</a>" if ad_url else chip
     elif ad_name:
         sponsor = f"<div class='tv-presented'>Presented by <b>{ad_name}</b></div>"
     else:
@@ -4426,6 +4748,57 @@ def render_spot_tv(cfg):
 
     # QR ebenfalls statisch (aendert sich nicht alle 30 s).
     _render_join_qr(cfg)
+
+    # Beworbene Produkte/Angebote des Spots (Shop/Cafe) – statische Leiste unten.
+    _tv_products_strip(cfg)
+
+
+def _tv_products_strip(cfg):
+    """Zeigt die im Backoffice gepflegten, aktiven Produkte eines Spots als
+    Karten-Leiste (Bild + Titel + Preis), jeweils verlinkt zum Shop/Cafe."""
+    products = load_spot_products(cfg["spot"], only_active=True)
+    if not products:
+        return
+
+    cards = []
+    for p in products:
+        img = _bytes_to_data_uri(p.get("image"), p.get("image_mime"))
+        img_html = (
+            f"<div class='tv-prod-img' style=\"background-image:url('{img}')\"></div>"
+            if img else "<div class='tv-prod-img tv-prod-noimg'>🛍️</div>"
+        )
+        price = f"<div class='tv-prod-price'>{p['price']}</div>" if p.get("price") else ""
+        inner = (
+            f"{img_html}"
+            f"<div class='tv-prod-title'>{p['title']}</div>"
+            f"{price}"
+        )
+        if p.get("url"):
+            cards.append(
+                f"<a class='tv-prod-card' href='{p['url']}' target='_blank' "
+                f"rel='noopener'>{inner}</a>"
+            )
+        else:
+            cards.append(f"<div class='tv-prod-card'>{inner}</div>")
+
+    st.markdown(
+        "<style>"
+        ".tv-prod-strip{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;"
+        "margin:26px 0 8px;}"
+        ".tv-prod-card{width:200px;background:#ffffff;border-radius:16px;overflow:hidden;"
+        "box-shadow:0 6px 18px rgba(0,0,0,.18);text-decoration:none;color:#111;"
+        "display:block;}"
+        ".tv-prod-img{height:130px;background-size:cover;background-position:center;}"
+        ".tv-prod-noimg{display:flex;align-items:center;justify-content:center;"
+        "font-size:48px;background:#eef2f6;}"
+        ".tv-prod-title{padding:10px 12px 2px;font-weight:700;font-size:18px;line-height:1.2;}"
+        ".tv-prod-price{padding:0 12px 12px;color:#0a7;font-weight:800;font-size:18px;}"
+        "</style>"
+        "<div class='tv-prod-header' style='text-align:center;font-size:20px;"
+        "font-weight:700;opacity:.85;margin-top:18px;'>Angebote am Spot</div>"
+        f"<div class='tv-prod-strip'>{''.join(cards)}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _parse_track(raw):
@@ -4586,6 +4959,259 @@ def render_history_overview(record):
     )
 
 
+# =====================================================================
+#  Admin-Backoffice (Werbung pro Spot + Profil-Verwaltung)
+#  Aufruf per ?admin=1, geschuetzt durch ADMIN_PASSWORD aus den Secrets.
+# =====================================================================
+
+def _admin_password():
+    try:
+        pw = st.secrets.get("ADMIN_PASSWORD")
+    except Exception:
+        pw = None
+    return pw or os.environ.get("ADMIN_PASSWORD")
+
+
+def _admin_flash(msg):
+    st.session_state["_admin_flash"] = msg
+    st.rerun()
+
+
+def render_admin():
+    st.markdown("# 🔧 Backoffice")
+
+    admin_pw = _admin_password()
+    if not admin_pw:
+        st.error(
+            "Kein **ADMIN_PASSWORD** gesetzt. Lege es in den Streamlit-Secrets an "
+            "(oder als Umgebungsvariable), dann ist das Backoffice nutzbar."
+        )
+        st.code('ADMIN_PASSWORD = "dein-geheimes-passwort"', language="toml")
+        if st.button("← Zurück zur App"):
+            st.query_params.clear()
+            st.rerun()
+        return
+
+    if not st.session_state.get("is_admin"):
+        st.caption("Bitte mit dem Admin-Passwort anmelden.")
+        with st.form("admin_login"):
+            pw = st.text_input("Admin-Passwort", type="password")
+            ok = st.form_submit_button("Anmelden")
+        if ok:
+            if pw == admin_pw:
+                st.session_state["is_admin"] = True
+                st.rerun()
+            else:
+                st.error("Falsches Passwort.")
+        if st.button("← Zurück zur App", key="admin_back_login"):
+            st.query_params.clear()
+            st.rerun()
+        return
+
+    flash = st.session_state.pop("_admin_flash", None)
+    if flash:
+        st.success(flash)
+
+    top = st.columns([1.4, 1.4, 5])
+    if top[0].button("← Zurück zur App", key="admin_back"):
+        st.query_params.clear()
+        st.rerun()
+    if top[1].button("Admin abmelden", key="admin_logout"):
+        st.session_state["is_admin"] = False
+        st.rerun()
+
+    tab_ads, tab_profiles = st.tabs(["📣 Werbung pro Spot", "👤 Profile"])
+    with tab_ads:
+        render_admin_ads()
+    with tab_profiles:
+        render_admin_profiles()
+
+
+def render_admin_ads():
+    st.caption(
+        "Sponsor-Logo/Name und Produkte (verlinkt zu Shop oder Café) verwalten, "
+        "die auf dem Spot-TV erscheinen."
+    )
+    spots = _all_spot_names()
+
+    col_a, col_b = st.columns(2)
+    choice = col_a.selectbox("Spot wählen", ["– auswählen –"] + spots, key="admin_ad_spot")
+    new_spot = col_b.text_input("…oder neuer Spot-Name", key="admin_ad_newspot").strip()
+    spot = new_spot or (choice if choice != "– auswählen –" else "")
+
+    if not spot:
+        st.info("Spot wählen oder eingeben, um die Werbung zu verwalten.")
+        return
+
+    ad = load_spot_ad(spot) or {}
+
+    st.markdown(f"### Sponsor für **{spot}**")
+    if ad.get("logo"):
+        st.image(bytes(ad["logo"]), width=200, caption="aktuelles Logo")
+    with st.form(f"ad_form_{spot}"):
+        name = st.text_input("Sponsor-Name", value=ad.get("sponsor_name") or "")
+        url = st.text_input("Link (Shop/Café-Webseite)", value=ad.get("sponsor_url") or "")
+        active = st.checkbox("Aktiv (auf dem TV anzeigen)", value=bool(ad.get("active", True)))
+        logo_up = st.file_uploader("Logo (PNG/JPG/WebP)", type=["png", "jpg", "jpeg", "webp"])
+        clear_logo = st.checkbox("Aktuelles Logo entfernen") if ad.get("logo") else False
+        saved = st.form_submit_button("💾 Sponsor speichern")
+    if saved:
+        save_spot_ad(
+            spot, name, url, active,
+            logo_bytes=logo_up.getvalue() if logo_up else None,
+            logo_mime=logo_up.type if logo_up else None,
+            clear_logo=clear_logo,
+        )
+        _admin_flash(f"Sponsor für {spot} gespeichert.")
+    if ad and st.button("🗑️ Sponsor-Eintrag löschen", key=f"del_ad_{spot}"):
+        delete_spot_ad(spot)
+        _admin_flash(f"Sponsor für {spot} gelöscht.")
+
+    st.markdown("### Produkte / Angebote")
+    for prod in load_spot_products(spot):
+        flag = "✅" if prod.get("active") else "⛔"
+        price = f" · {prod['price']}" if prod.get("price") else ""
+        with st.expander(f"{flag} {prod['title']}{price}"):
+            _product_editor(spot, prod)
+    st.markdown("#### ➕ Neues Produkt")
+    _product_editor(spot, None)
+
+
+def _product_editor(spot, prod):
+    pid = prod["id"] if prod else None
+    suffix = pid if pid else "new"
+    if prod and prod.get("image"):
+        st.image(bytes(prod["image"]), width=160)
+    with st.form(f"prod_form_{spot}_{suffix}"):
+        title = st.text_input("Titel", value=(prod or {}).get("title") or "")
+        c1, c2 = st.columns(2)
+        price = c1.text_input("Preis (optional, z.B. €499)", value=(prod or {}).get("price") or "")
+        sort_order = c2.number_input(
+            "Reihenfolge", value=int((prod or {}).get("sort_order") or 0), step=1
+        )
+        url = st.text_input("Link (Shop/Café)", value=(prod or {}).get("url") or "")
+        active = st.checkbox("Aktiv", value=bool((prod or {}).get("active", True)))
+        img_up = st.file_uploader(
+            "Bild (PNG/JPG/WebP)", type=["png", "jpg", "jpeg", "webp"],
+            key=f"img_{spot}_{suffix}",
+        )
+        clear_img = (
+            st.checkbox("Aktuelles Bild entfernen", key=f"clr_{spot}_{suffix}")
+            if (prod and prod.get("image")) else False
+        )
+        save = st.form_submit_button("💾 Produkt speichern")
+    if save:
+        if not title.strip():
+            st.error("Titel ist erforderlich.")
+        else:
+            save_spot_product(
+                pid, spot, title, price, url, active, sort_order,
+                image_bytes=img_up.getvalue() if img_up else None,
+                image_mime=img_up.type if img_up else None,
+                clear_image=clear_img,
+            )
+            _admin_flash("Produkt gespeichert.")
+    if prod and st.button("🗑️ Produkt löschen", key=f"delprod_{pid}"):
+        delete_spot_product(pid)
+        _admin_flash("Produkt gelöscht.")
+
+
+def render_admin_profiles():
+    users = list_all_users()
+    profiles = load_profiles()
+    names = sorted({u["username"] for u in users} | set(profiles.keys()))
+    if not names:
+        st.info("Noch keine Profile vorhanden.")
+        return
+
+    name = st.selectbox("Profil / Fahrer", names, key="admin_prof_sel")
+    user = next((u for u in users if u["username"] == name), None)
+    rider = profiles.get(name, {})
+
+    if user:
+        st.caption(f"Konto-ID {user['id']} · {user.get('email') or 'keine E-Mail'}")
+    else:
+        st.caption("Profil ohne verknüpftes Konto (nur aus Sessions).")
+
+    # ---- Equipment ----
+    st.markdown("### Equipment")
+    edit_keys = [("Spots (geteilt)", "spots")]
+    for sp in SPORTS:
+        meta = SPORT_META[sp]
+        edit_keys.append((f"{meta['label']} – Boards", meta["boards_key"]))
+        edit_keys.append((f"{meta['label']} – {meta['gear_key']}", meta["gear_key"]))
+
+    with st.form(f"equip_{name}"):
+        st.caption("Ein Eintrag pro Zeile. Leere Zeilen werden ignoriert.")
+        new_vals = {}
+        for label, key in edit_keys:
+            cur = rider.get(key, []) or []
+            txt = st.text_area(label, value="\n".join(cur), height=90, key=f"eq_{name}_{key}")
+            new_vals[key] = [ln.strip() for ln in txt.splitlines() if ln.strip()]
+        if st.form_submit_button("💾 Equipment speichern"):
+            for key, vals in new_vals.items():
+                set_profile_list(name, key, vals)
+            _admin_flash("Equipment gespeichert.")
+
+    # ---- Konto-Aktionen ----
+    st.markdown("### Konto")
+
+    if user:
+        st.markdown("**Geräte-Token (Uhr-Upload)**")
+        cur_tok = get_device_token(user["id"]) or ""
+        with st.form(f"tok_{name}"):
+            tok_in = st.text_input(
+                "Token zuweisen (z.B. der in der Uhr fest hinterlegte)", value=cur_tok
+            )
+            tc1, tc2 = st.columns(2)
+            set_tok = tc1.form_submit_button("Token zuweisen")
+            gen_tok = tc2.form_submit_button("Neuen Token erzeugen")
+        if set_tok:
+            ok, msg = admin_set_device_token(user["id"], tok_in)
+            if ok:
+                _admin_flash(msg)
+            else:
+                st.error(msg)
+        if gen_tok:
+            regenerate_device_token(user["id"])
+            _admin_flash("Neuer Geräte-Token erzeugt.")
+
+        st.markdown("**Passwort zurücksetzen**")
+        with st.form(f"pwd_{name}"):
+            new_pw = st.text_input("Neues Passwort (min. 6 Zeichen)", type="password")
+            if st.form_submit_button("Passwort setzen"):
+                ok, msg = admin_set_password(user["id"], new_pw)
+                if ok:
+                    _admin_flash(msg)
+                else:
+                    st.error(msg)
+
+    st.markdown("**Umbenennen**")
+    with st.form(f"rename_{name}"):
+        new_name = st.text_input("Neuer Name")
+        if st.form_submit_button("Umbenennen"):
+            ok, msg = admin_rename_profile(name, new_name)
+            if ok:
+                _admin_flash(msg)
+            else:
+                st.error(msg)
+
+    others = [n for n in names if n != name]
+    if others:
+        st.markdown("**Zusammenführen** (verschiebt Sessions+Equipment, löscht dann die Quelle)")
+        with st.form(f"merge_{name}"):
+            target = st.selectbox("Zusammenführen in", others)
+            if st.form_submit_button(f"'{name}' → Ziel zusammenführen"):
+                _moved, msg = admin_merge_profiles(name, target)
+                _admin_flash(msg)
+
+    st.markdown("**Gefahrenzone**")
+    confirm = st.checkbox(f"Ja, '{name}' und alle zugehörigen Daten löschen", key=f"cfm_{name}")
+    if st.button("🗑️ Profil löschen", disabled=not confirm, key=f"delprof_{name}"):
+        admin_delete_profile(name)
+        _admin_flash(f"Profil '{name}' gelöscht.")
+
+
 load_css(app_path("assets", "style.css"))
 
 # Spot-TV-Vollbildmodus (Cafe/Shop/Club-Screen): wird per ?tv=... aufgerufen und
@@ -4595,6 +5221,14 @@ if _tv_cfg is not None:
     ensure_schema()
     ensure_watch_columns()
     render_spot_tv(_tv_cfg)
+    st.stop()
+
+# Admin-Backoffice (Werbung + Profile) – per ?admin=1, eigenes Login. Vor dem
+# normalen App-Login, damit man unabhaengig vom Nutzerkonto hineinkommt.
+if "admin" in st.query_params:
+    ensure_schema()
+    ensure_watch_columns()
+    render_admin()
     st.stop()
 
 logo_img = image_to_base64(app_path("assets", "windsurfer.png"))
