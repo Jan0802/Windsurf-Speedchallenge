@@ -4783,7 +4783,7 @@ def _spot_tv_live(cfg):
                 unsafe_allow_html=True)
 
     st.markdown(f"<div class='tv-update' translate='no'>⏱️ Last update: {now.strftime('%H:%M')} "
-                f"· auto-refresh 30 s · switches 1 s / 30 s</div>", unsafe_allow_html=True)
+                f"· auto-refresh 30 s · switches 2 s / 30 s</div>", unsafe_allow_html=True)
 
 
 # Sponsor je Spot. logo = Dateiname in assets/, name/url optional.
