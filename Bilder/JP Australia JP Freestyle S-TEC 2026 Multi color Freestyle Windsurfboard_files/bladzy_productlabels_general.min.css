@@ -1,0 +1,913 @@
+.bladzy_productlabels {
+  background: url(data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7);
+}
+.bladzy_productlabels.bladzy-container {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0px;
+  left: 0px;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label {
+  --bladzy-base-transform: translate(0, 0);
+  --bladzy-stack-shift-x: 0%;
+  --bladzy-stack-shift-y: 0%;
+  --bladzy-shape-color: #F59E0B;
+  --bladzy-shape-aspect-ratio: 1 / 1;
+  --bladzy-shape-margin-top: 0%;
+  --bladzy-shape-margin-right: 0%;
+  --bladzy-shape-margin-bottom: 0%;
+  --bladzy-shape-margin-left: 0%;
+  position: absolute;
+  overflow: hidden;
+  opacity: 0.95;
+  filter: alpha(opacity=95);
+  text-align: center;
+  transform: var(--bladzy-base-transform) translate(var(--bladzy-stack-shift-x), var(--bladzy-stack-shift-y));
+  display: flex;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label .img {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label .img img {
+  max-height: 100%;
+  max-width: 100%;
+  flex-shrink: 0;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label .text {
+  position: absolute;
+  white-space: nowrap;
+  text-align: center;
+  font-weight: bold;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  box-sizing: border-box;
+  --bladzy-text-scale: 1;
+  --bladzy-text-padding-top-base: 0%;
+  --bladzy-text-padding-right-base: 0%;
+  --bladzy-text-padding-bottom-base: 0%;
+  --bladzy-text-padding-left-base: 0%;
+  --bladzy-text-padding-top-adjust: 0%;
+  --bladzy-text-padding-right-adjust: 0%;
+  --bladzy-text-padding-bottom-adjust: 0%;
+  --bladzy-text-padding-left-adjust: 0%;
+  padding-top: max(0px, var(--bladzy-text-padding-top-custom, calc(var(--bladzy-text-padding-top-base, 0%) + var(--bladzy-text-padding-top-adjust, 0%))));
+  padding-right: max(0px, var(--bladzy-text-padding-right-custom, calc(var(--bladzy-text-padding-right-base, 0%) + var(--bladzy-text-padding-right-adjust, 0%))));
+  padding-bottom: max(0px, var(--bladzy-text-padding-bottom-custom, calc(var(--bladzy-text-padding-bottom-base, 0%) + var(--bladzy-text-padding-bottom-adjust, 0%))));
+  padding-left: max(0px, var(--bladzy-text-padding-left-custom, calc(var(--bladzy-text-padding-left-base, 0%) + var(--bladzy-text-padding-left-adjust, 0%))));
+}
+.bladzy_productlabels.bladzy-container .bladzy-label .text:before {
+  content: '';
+  display: inline-block;
+  height: 100%;
+  vertical-align: middle;
+  margin-right: -0.25em;
+  /* Adjusts for spacing */
+}
+.bladzy_productlabels.bladzy-container .bladzy-label .text span {
+  display: inline-block;
+  vertical-align: middle;
+  max-width: none;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label .tooltip {
+  display: none;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.label-type-shape {
+  background: var(--bladzy-shape-color, #F59E0B);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.label-type-shape .text {
+  --bladzy-text-padding-top-base: 0%;
+  --bladzy-text-padding-right-base: 10%;
+  --bladzy-text-padding-bottom-base: 0%;
+  --bladzy-text-padding-left-base: 10%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-circle {
+  border-radius: 999px;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-rounded {
+  border-radius: 18%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-pill {
+  border-radius: 999px;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-diamond {
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-hexagon {
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-octagon {
+  clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-tag {
+  clip-path: polygon(0 0, 78% 0, 100% 50%, 78% 100%, 0 100%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-parallelogram {
+  clip-path: polygon(14% 0, 100% 0, 86% 100%, 0 100%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-shield {
+  clip-path: polygon(50% 0, 88% 14%, 88% 55%, 50% 100%, 12% 55%, 12% 14%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-star {
+  clip-path: polygon(50% 0, 62% 34%, 98% 35%, 69% 57%, 79% 92%, 50% 72%, 21% 92%, 31% 57%, 2% 35%, 38% 34%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-ribbon {
+  clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-triangle {
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-trapezoid {
+  clip-path: polygon(18% 0, 82% 0, 100% 100%, 0 100%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-chevron {
+  clip-path: polygon(0 0, 78% 0, 100% 50%, 78% 100%, 0 100%, 14% 50%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-bookmark {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 76%, 0 100%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-ticket {
+  clip-path: polygon(0 20%, 8% 20%, 8% 0, 92% 0, 92% 20%, 100% 20%, 100% 80%, 92% 80%, 92% 100%, 8% 100%, 8% 80%, 0 80%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-house {
+  clip-path: polygon(50% 0, 100% 35%, 100% 100%, 0 100%, 0 35%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-burst {
+  clip-path: polygon(25% 0, 50% 10%, 75% 0, 90% 25%, 100% 50%, 90% 75%, 75% 100%, 50% 90%, 25% 100%, 10% 75%, 0 50%, 10% 25%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-pentagon {
+  clip-path: polygon(50% 0, 100% 38%, 82% 100%, 18% 100%, 0 38%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-flag {
+  clip-path: polygon(0 0, 100% 0, 82% 48%, 100% 100%, 0 100%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-arrow {
+  clip-path: polygon(0 18%, 62% 18%, 62% 0, 100% 50%, 62% 100%, 62% 82%, 0 82%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-message {
+  clip-path: polygon(0 0, 100% 0, 100% 76%, 62% 76%, 50% 100%, 38% 76%, 0 76%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-crown {
+  clip-path: polygon(0 28%, 16% 28%, 28% 0, 50% 26%, 72% 0, 84% 28%, 100% 28%, 90% 100%, 10% 100%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-tab {
+  clip-path: polygon(0 18%, 26% 18%, 38% 0, 100% 0, 100% 100%, 0 100%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-notch {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 64% 100%, 50% 82%, 36% 100%, 0 100%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-gem {
+  clip-path: polygon(18% 0, 82% 0, 100% 32%, 82% 100%, 18% 100%, 0 32%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-cross {
+  clip-path: polygon(34% 0, 66% 0, 66% 24%, 100% 24%, 100% 76%, 66% 76%, 66% 100%, 34% 100%, 34% 76%, 0 76%, 0 24%, 34% 24%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-castle {
+  clip-path: polygon(0 24%, 12% 24%, 12% 0, 32% 0, 32% 24%, 68% 24%, 68% 0, 88% 0, 88% 24%, 100% 24%, 100% 100%, 0 100%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-bracket {
+  clip-path: polygon(0 0, 18% 0, 18% 20%, 82% 20%, 82% 0, 100% 0, 100% 100%, 82% 100%, 82% 80%, 18% 80%, 18% 100%, 0 100%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-medal {
+  clip-path: polygon(24% 0, 76% 0, 92% 20%, 92% 56%, 100% 100%, 50% 82%, 0 100%, 8% 56%, 8% 20%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-cloud {
+  clip-path: polygon(12% 72%, 4% 58%, 8% 38%, 24% 26%, 38% 10%, 60% 10%, 74% 24%, 90% 28%, 100% 44%, 96% 62%, 84% 72%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-fishtail {
+  clip-path: polygon(0 0, 100% 0, 88% 50%, 100% 100%, 0 100%, 12% 50%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-pointer {
+  clip-path: polygon(0 18%, 36% 18%, 50% 0, 64% 18%, 100% 18%, 100% 100%, 0 100%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-rounded,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-ribbon,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-trapezoid,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-message,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-bookmark,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-notch,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-pointer {
+  --bladzy-shape-aspect-ratio: 1.25 / 1;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-pill {
+  --bladzy-shape-aspect-ratio: 1.7 / 1;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-tag,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-parallelogram,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-chevron,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-ticket,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-flag,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-arrow,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-tab,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-bracket,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-cloud,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-fishtail {
+  --bladzy-shape-aspect-ratio: 1.45 / 1;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-crown,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-castle {
+  --bladzy-shape-aspect-ratio: 1.2 / 1;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-medal {
+  --bladzy-shape-aspect-ratio: 1.1 / 1;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-tag .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-parallelogram .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-octagon .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-chevron .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-ticket .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-flag .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-arrow .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-tab .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-gem .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-fishtail .text {
+  --bladzy-text-padding-top-base: 0%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 0%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-shield .text {
+  --bladzy-text-padding-top-base: 10%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 18%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-star .text {
+  --bladzy-text-padding-top-base: 16%;
+  --bladzy-text-padding-right-base: 18%;
+  --bladzy-text-padding-bottom-base: 16%;
+  --bladzy-text-padding-left-base: 18%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-triangle .text {
+  --bladzy-text-padding-top-base: 22%;
+  --bladzy-text-padding-right-base: 18%;
+  --bladzy-text-padding-bottom-base: 10%;
+  --bladzy-text-padding-left-base: 18%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-bookmark .text {
+  --bladzy-text-padding-top-base: 10%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 24%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-house .text {
+  --bladzy-text-padding-top-base: 18%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 8%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-burst .text {
+  --bladzy-text-padding-top-base: 18%;
+  --bladzy-text-padding-right-base: 18%;
+  --bladzy-text-padding-bottom-base: 18%;
+  --bladzy-text-padding-left-base: 18%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-message .text {
+  --bladzy-text-padding-top-base: 10%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 22%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-crown .text {
+  --bladzy-text-padding-top-base: 22%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 8%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-notch .text {
+  --bladzy-text-padding-top-base: 10%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 18%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-cross .text {
+  --bladzy-text-padding-top-base: 18%;
+  --bladzy-text-padding-right-base: 18%;
+  --bladzy-text-padding-bottom-base: 18%;
+  --bladzy-text-padding-left-base: 18%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-castle .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-pointer .text {
+  --bladzy-text-padding-top-base: 18%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 8%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-bracket .text {
+  --bladzy-text-padding-top-base: 12%;
+  --bladzy-text-padding-right-base: 16%;
+  --bladzy-text-padding-bottom-base: 12%;
+  --bladzy-text-padding-left-base: 16%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-medal .text {
+  --bladzy-text-padding-top-base: 10%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 20%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-cloud .text {
+  --bladzy-text-padding-top-base: 14%;
+  --bladzy-text-padding-right-base: 16%;
+  --bladzy-text-padding-bottom-base: 10%;
+  --bladzy-text-padding-left-base: 16%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.top_left {
+  top: var(--bladzy-shape-margin-top, 0%);
+  left: var(--bladzy-shape-margin-left, 0%);
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.top_left .img {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.top_left .text {
+  top: 0;
+  left: 0;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.top_middle {
+  top: var(--bladzy-shape-margin-top, 0%);
+  left: calc(50% + ((var(--bladzy-shape-margin-left, 0%) - var(--bladzy-shape-margin-right, 0%)) / 2));
+  --bladzy-base-transform: translate(-50%, 0);
+  justify-content: center;
+  align-items: flex-start;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.top_middle .img {
+  justify-content: center;
+  align-items: flex-start;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.top_middle .text {
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, 0);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.top_right {
+  top: var(--bladzy-shape-margin-top, 0%);
+  right: var(--bladzy-shape-margin-right, 0%);
+  justify-content: flex-end;
+  align-items: flex-start;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.top_right .img {
+  justify-content: flex-end;
+  align-items: flex-start;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.top_right .text {
+  top: 0;
+  right: 0;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.middle_left {
+  top: calc(50% + ((var(--bladzy-shape-margin-top, 0%) - var(--bladzy-shape-margin-bottom, 0%)) / 2));
+  left: var(--bladzy-shape-margin-left, 0%);
+  --bladzy-base-transform: translate(0, -50%);
+  justify-content: flex-start;
+  align-items: center;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.middle_left .img {
+  justify-content: flex-start;
+  align-items: center;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.middle_left .text {
+  left: 0;
+  top: 50%;
+  transform: translate(0, -50%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.middle_middle {
+  top: calc(50% + ((var(--bladzy-shape-margin-top, 0%) - var(--bladzy-shape-margin-bottom, 0%)) / 2));
+  left: calc(50% + ((var(--bladzy-shape-margin-left, 0%) - var(--bladzy-shape-margin-right, 0%)) / 2));
+  --bladzy-base-transform: translate(-50%, -50%);
+  justify-content: center;
+  align-items: center;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.middle_middle .img {
+  justify-content: center;
+  align-items: center;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.middle_middle .text {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.middle_right {
+  top: calc(50% + ((var(--bladzy-shape-margin-top, 0%) - var(--bladzy-shape-margin-bottom, 0%)) / 2));
+  right: var(--bladzy-shape-margin-right, 0%);
+  --bladzy-base-transform: translate(0, -50%);
+  justify-content: flex-end;
+  align-items: center;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.middle_right .img {
+  justify-content: flex-end;
+  align-items: center;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.middle_right .text {
+  right: 0;
+  top: 50%;
+  transform: translate(0, -50%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.bottom_left {
+  bottom: var(--bladzy-shape-margin-bottom, 0%);
+  left: var(--bladzy-shape-margin-left, 0%);
+  justify-content: flex-start;
+  align-items: flex-end;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.bottom_left .img {
+  justify-content: flex-start;
+  align-items: flex-end;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.bottom_left .text {
+  left: 0;
+  bottom: 0;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.bottom_middle {
+  bottom: var(--bladzy-shape-margin-bottom, 0%);
+  left: calc(50% + ((var(--bladzy-shape-margin-left, 0%) - var(--bladzy-shape-margin-right, 0%)) / 2));
+  --bladzy-base-transform: translate(-50%, 0);
+  justify-content: center;
+  align-items: flex-end;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.bottom_middle .img {
+  justify-content: center;
+  align-items: flex-end;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.bottom_middle .text {
+  bottom: 0;
+  left: 50%;
+  transform: translate(-50%, 0);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.bottom_right {
+  bottom: var(--bladzy-shape-margin-bottom, 0%);
+  right: var(--bladzy-shape-margin-right, 0%);
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.bottom_right .img {
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.bottom_right .text {
+  bottom: 0;
+  right: 0;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.custom {
+  top: 0;
+  left: 0;
+  margin-top: var(--bladzy-shape-margin-top, 0%);
+  margin-right: var(--bladzy-shape-margin-right, 0%);
+  margin-bottom: var(--bladzy-shape-margin-bottom, 0%);
+  margin-left: var(--bladzy-shape-margin-left, 0%);
+  justify-content: center;
+  align-items: center;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.custom .img {
+  justify-content: center;
+  align-items: center;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.custom .text {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto .img {
+  width: auto;
+  height: auto;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto .text {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  display: flex;
+  width: auto;
+  height: auto;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  transform: none;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto .text:before {
+  display: none;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto .text span {
+  transform: none;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-text .text {
+  --bladzy-text-padding-top-base: 0.35em;
+  --bladzy-text-padding-right-base: 0.75em;
+  --bladzy-text-padding-bottom-base: 0.35em;
+  --bladzy-text-padding-left-base: 0.75em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.8em;
+  min-height: 2.4em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape .text {
+  --bladzy-text-padding-top-base: 0.6em;
+  --bladzy-text-padding-right-base: 1.05em;
+  --bladzy-text-padding-bottom-base: 0.6em;
+  --bladzy-text-padding-left-base: 1.05em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-circle {
+  aspect-ratio: 1 / 1;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-circle .text {
+  --bladzy-text-padding-top-base: 0.7em;
+  --bladzy-text-padding-right-base: 0.7em;
+  --bladzy-text-padding-bottom-base: 0.7em;
+  --bladzy-text-padding-left-base: 0.7em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-pill {
+  min-width: 3.4em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-star .text {
+  --bladzy-text-padding-top-base: 0.95em;
+  --bladzy-text-padding-right-base: 1.15em;
+  --bladzy-text-padding-bottom-base: 0.95em;
+  --bladzy-text-padding-left-base: 1.15em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-shield .text {
+  --bladzy-text-padding-top-base: 0.8em;
+  --bladzy-text-padding-right-base: 1em;
+  --bladzy-text-padding-bottom-base: 1.2em;
+  --bladzy-text-padding-left-base: 1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-triangle .text {
+  --bladzy-text-padding-top-base: 1em;
+  --bladzy-text-padding-right-base: 1em;
+  --bladzy-text-padding-bottom-base: 0.55em;
+  --bladzy-text-padding-left-base: 1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-bookmark .text {
+  --bladzy-text-padding-top-base: 0.75em;
+  --bladzy-text-padding-right-base: 0.95em;
+  --bladzy-text-padding-bottom-base: 1.25em;
+  --bladzy-text-padding-left-base: 0.95em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-arrow,
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-flag,
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-tab {
+  min-width: 3.35em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-message .text {
+  --bladzy-text-padding-top-base: 0.7em;
+  --bladzy-text-padding-right-base: 0.95em;
+  --bladzy-text-padding-bottom-base: 1.15em;
+  --bladzy-text-padding-left-base: 0.95em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-crown .text {
+  --bladzy-text-padding-top-base: 1em;
+  --bladzy-text-padding-right-base: 0.95em;
+  --bladzy-text-padding-bottom-base: 0.55em;
+  --bladzy-text-padding-left-base: 0.95em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-notch .text {
+  --bladzy-text-padding-top-base: 0.7em;
+  --bladzy-text-padding-right-base: 0.95em;
+  --bladzy-text-padding-bottom-base: 1em;
+  --bladzy-text-padding-left-base: 0.95em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-gem,
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-fishtail {
+  min-width: 3.2em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-cross {
+  min-width: 3.2em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-cross .text {
+  --bladzy-text-padding-top-base: 0.85em;
+  --bladzy-text-padding-right-base: 1em;
+  --bladzy-text-padding-bottom-base: 0.85em;
+  --bladzy-text-padding-left-base: 1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-castle {
+  min-width: 3.15em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-castle .text {
+  --bladzy-text-padding-top-base: 1em;
+  --bladzy-text-padding-right-base: 1em;
+  --bladzy-text-padding-bottom-base: 0.55em;
+  --bladzy-text-padding-left-base: 1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-bracket,
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-cloud {
+  min-width: 3.35em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-bracket .text {
+  --bladzy-text-padding-top-base: 0.75em;
+  --bladzy-text-padding-right-base: 1.1em;
+  --bladzy-text-padding-bottom-base: 0.75em;
+  --bladzy-text-padding-left-base: 1.1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-medal {
+  min-width: 3.1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-medal .text {
+  --bladzy-text-padding-top-base: 0.75em;
+  --bladzy-text-padding-right-base: 1em;
+  --bladzy-text-padding-bottom-base: 1.1em;
+  --bladzy-text-padding-left-base: 1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-cloud .text {
+  --bladzy-text-padding-top-base: 0.8em;
+  --bladzy-text-padding-right-base: 1.15em;
+  --bladzy-text-padding-bottom-base: 0.65em;
+  --bladzy-text-padding-left-base: 1.15em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-pointer {
+  min-width: 3.25em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-pointer .text {
+  --bladzy-text-padding-top-base: 0.95em;
+  --bladzy-text-padding-right-base: 1em;
+  --bladzy-text-padding-bottom-base: 0.55em;
+  --bladzy-text-padding-left-base: 1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-relative {
+  height: auto;
+  min-height: 0;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-relative .img {
+  width: auto;
+  height: auto;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-relative .text {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  display: flex;
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  transform: none;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-relative .text:before {
+  display: none;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-relative .text span {
+  transform: none;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-relative.label-type-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-relative.label-type-text .text {
+  height: auto;
+  --bladzy-text-padding-top-base: 0.35em;
+  --bladzy-text-padding-right-base: 0.75em;
+  --bladzy-text-padding-bottom-base: 0.35em;
+  --bladzy-text-padding-left-base: 0.75em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-relative.label-type-shape {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: var(--bladzy-shape-aspect-ratio, 1 / 1);
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-relative.label-type-shape .text {
+  height: 100%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.label-type-shape .text {
+  --bladzy-text-padding-top-base: 0%;
+  --bladzy-text-padding-right-base: 10%;
+  --bladzy-text-padding-bottom-base: 0%;
+  --bladzy-text-padding-left-base: 10%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-tag .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-parallelogram .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-octagon .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-chevron .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-ticket .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-flag .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-arrow .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-tab .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-gem .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-fishtail .text {
+  --bladzy-text-padding-top-base: 0%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 0%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-shield .text {
+  --bladzy-text-padding-top-base: 10%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 18%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-star .text {
+  --bladzy-text-padding-top-base: 16%;
+  --bladzy-text-padding-right-base: 18%;
+  --bladzy-text-padding-bottom-base: 16%;
+  --bladzy-text-padding-left-base: 18%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-triangle .text {
+  --bladzy-text-padding-top-base: 22%;
+  --bladzy-text-padding-right-base: 18%;
+  --bladzy-text-padding-bottom-base: 10%;
+  --bladzy-text-padding-left-base: 18%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-bookmark .text {
+  --bladzy-text-padding-top-base: 10%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 24%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-house .text {
+  --bladzy-text-padding-top-base: 18%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 8%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-burst .text {
+  --bladzy-text-padding-top-base: 18%;
+  --bladzy-text-padding-right-base: 18%;
+  --bladzy-text-padding-bottom-base: 18%;
+  --bladzy-text-padding-left-base: 18%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-message .text {
+  --bladzy-text-padding-top-base: 10%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 22%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-crown .text {
+  --bladzy-text-padding-top-base: 22%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 8%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-notch .text {
+  --bladzy-text-padding-top-base: 10%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 18%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-cross .text {
+  --bladzy-text-padding-top-base: 18%;
+  --bladzy-text-padding-right-base: 18%;
+  --bladzy-text-padding-bottom-base: 18%;
+  --bladzy-text-padding-left-base: 18%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-castle .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-pointer .text {
+  --bladzy-text-padding-top-base: 18%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 8%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-bracket .text {
+  --bladzy-text-padding-top-base: 12%;
+  --bladzy-text-padding-right-base: 16%;
+  --bladzy-text-padding-bottom-base: 12%;
+  --bladzy-text-padding-left-base: 16%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-medal .text {
+  --bladzy-text-padding-top-base: 10%;
+  --bladzy-text-padding-right-base: 14%;
+  --bladzy-text-padding-bottom-base: 20%;
+  --bladzy-text-padding-left-base: 14%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.shape-cloud .text {
+  --bladzy-text-padding-top-base: 14%;
+  --bladzy-text-padding-right-base: 16%;
+  --bladzy-text-padding-bottom-base: 10%;
+  --bladzy-text-padding-left-base: 16%;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-text .text,
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-relative.label-type-text .text {
+  --bladzy-text-padding-top-base: 0.35em;
+  --bladzy-text-padding-right-base: 0.75em;
+  --bladzy-text-padding-bottom-base: 0.35em;
+  --bladzy-text-padding-left-base: 0.75em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape .text {
+  --bladzy-text-padding-top-base: 0.6em;
+  --bladzy-text-padding-right-base: 1.05em;
+  --bladzy-text-padding-bottom-base: 0.6em;
+  --bladzy-text-padding-left-base: 1.05em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-circle .text {
+  --bladzy-text-padding-top-base: 0.7em;
+  --bladzy-text-padding-right-base: 0.7em;
+  --bladzy-text-padding-bottom-base: 0.7em;
+  --bladzy-text-padding-left-base: 0.7em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-star .text {
+  --bladzy-text-padding-top-base: 0.95em;
+  --bladzy-text-padding-right-base: 1.15em;
+  --bladzy-text-padding-bottom-base: 0.95em;
+  --bladzy-text-padding-left-base: 1.15em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-shield .text {
+  --bladzy-text-padding-top-base: 0.8em;
+  --bladzy-text-padding-right-base: 1em;
+  --bladzy-text-padding-bottom-base: 1.2em;
+  --bladzy-text-padding-left-base: 1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-triangle .text {
+  --bladzy-text-padding-top-base: 1em;
+  --bladzy-text-padding-right-base: 1em;
+  --bladzy-text-padding-bottom-base: 0.55em;
+  --bladzy-text-padding-left-base: 1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-bookmark .text {
+  --bladzy-text-padding-top-base: 0.75em;
+  --bladzy-text-padding-right-base: 0.95em;
+  --bladzy-text-padding-bottom-base: 1.25em;
+  --bladzy-text-padding-left-base: 0.95em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-message .text {
+  --bladzy-text-padding-top-base: 0.7em;
+  --bladzy-text-padding-right-base: 0.95em;
+  --bladzy-text-padding-bottom-base: 1.15em;
+  --bladzy-text-padding-left-base: 0.95em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-crown .text {
+  --bladzy-text-padding-top-base: 1em;
+  --bladzy-text-padding-right-base: 0.95em;
+  --bladzy-text-padding-bottom-base: 0.55em;
+  --bladzy-text-padding-left-base: 0.95em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-notch .text {
+  --bladzy-text-padding-top-base: 0.7em;
+  --bladzy-text-padding-right-base: 0.95em;
+  --bladzy-text-padding-bottom-base: 1em;
+  --bladzy-text-padding-left-base: 0.95em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-cross .text {
+  --bladzy-text-padding-top-base: 0.85em;
+  --bladzy-text-padding-right-base: 1em;
+  --bladzy-text-padding-bottom-base: 0.85em;
+  --bladzy-text-padding-left-base: 1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-castle .text {
+  --bladzy-text-padding-top-base: 1em;
+  --bladzy-text-padding-right-base: 1em;
+  --bladzy-text-padding-bottom-base: 0.55em;
+  --bladzy-text-padding-left-base: 1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-bracket .text {
+  --bladzy-text-padding-top-base: 0.75em;
+  --bladzy-text-padding-right-base: 1.1em;
+  --bladzy-text-padding-bottom-base: 0.75em;
+  --bladzy-text-padding-left-base: 1.1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-medal .text {
+  --bladzy-text-padding-top-base: 0.75em;
+  --bladzy-text-padding-right-base: 1em;
+  --bladzy-text-padding-bottom-base: 1.1em;
+  --bladzy-text-padding-left-base: 1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-cloud .text {
+  --bladzy-text-padding-top-base: 0.8em;
+  --bladzy-text-padding-right-base: 1.15em;
+  --bladzy-text-padding-bottom-base: 0.65em;
+  --bladzy-text-padding-left-base: 1.15em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label.size-mode-auto.label-type-shape.shape-pointer .text {
+  --bladzy-text-padding-top-base: 0.95em;
+  --bladzy-text-padding-right-base: 1em;
+  --bladzy-text-padding-bottom-base: 0.55em;
+  --bladzy-text-padding-left-base: 1em;
+}
+.bladzy_productlabels.bladzy-container .bladzy-label .text {
+  padding-top: max(0px, var(--bladzy-text-padding-top-custom, calc(var(--bladzy-text-padding-top-base, 0%) + var(--bladzy-text-padding-top-adjust, 0%))));
+  padding-right: max(0px, var(--bladzy-text-padding-right-custom, calc(var(--bladzy-text-padding-right-base, 0%) + var(--bladzy-text-padding-right-adjust, 0%))));
+  padding-bottom: max(0px, var(--bladzy-text-padding-bottom-custom, calc(var(--bladzy-text-padding-bottom-base, 0%) + var(--bladzy-text-padding-bottom-adjust, 0%))));
+  padding-left: max(0px, var(--bladzy-text-padding-left-custom, calc(var(--bladzy-text-padding-left-base, 0%) + var(--bladzy-text-padding-left-adjust, 0%))));
+}
+.label_tooltip {
+  padding: 0 8px 8px;
+  background: white;
+  border-radius: 5px;
+  margin: 10px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 14px;
+  font-stretch: condensed;
+  text-decoration: none;
+  -webkit-box-shadow: 0 0 5px #aaa;
+  box-shadow: 0 0 5px #aaa;
+}
+.label_tooltip p:last-child {
+  display: inline;
+}

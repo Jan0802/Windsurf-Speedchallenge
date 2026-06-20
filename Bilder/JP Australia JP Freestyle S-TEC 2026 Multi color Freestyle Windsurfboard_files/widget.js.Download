@@ -1,0 +1,50 @@
+"use strict"
+  ;(function (d, t) {
+    var p = d.getElementsByTagName(t)[0];
+    var c = function(src, cb) {
+      var s = d.createElement(t);
+      if (cb) {
+        s.onload = cb
+      }
+      s.defer = true;
+      s.type = 'text/javascript';
+      s.src = src;
+      p.parentNode.insertBefore(s, p);
+    }
+
+    function init() {
+      c('https://cdn.belco.io/v2/react~widget.d6fe66193b6640ec0e95.js');
+      c('https://cdn.belco.io/v2/vendors~widget.07166bdf4e9ddf184d4b.js');
+      c('https://cdn.belco.io/v2/widget.12a0e9d39d6a0f4cbeb8.js');
+    }
+
+    var f = window.belcoFunction || 'Belco'
+    if (!window[f] || !window[f]._q) { // fallback for legacy init code
+      window[f] = function (method) {
+        if (window[f][method] === undefined) {
+          throw new Error('Unknown method');
+        }
+        return window[f][method].apply(window[f], Array.prototype.slice.call(arguments, 1));
+      };
+      window[f]._q = []
+      var methods = ['init', 'sync', 'track', 'page', 'open', 'close', 'toggle', 'on', 'once', 'off', 'anonymousId', 'customer', 'reset', 'sendMessage', 'getConversationId'];
+      var factory = function (method) {
+        return function () {
+          var args = Array.prototype.slice.call(arguments);
+          args.unshift(method);
+          window[f]._q.push(args);
+          return window[f];
+        };
+      };
+      for (var i = 0; i < methods.length; i++) {
+        var method = methods[i];
+        window[f][method] = factory(method);
+      }
+    }
+
+    if (typeof window.Promise === 'undefined' || typeof Object.assign === 'undefined' || typeof window.Map === 'undefined') {
+      c('https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?version=3.111.0&features=Array.prototype.map%2CMap%2CWeakMap%2CPromise%2CObject.assign%2CSet', init);
+    } else {
+      init()
+    }
+  })(document, 'script')

@@ -4448,13 +4448,39 @@ def _join_url(cfg):
 def _render_join_qr(cfg):
     url = _join_url(cfg)
     st.markdown("<div class='tv-rank-title'>📲 Join today’s ranking</div>", unsafe_allow_html=True)
+
+    # QR als data-URI (statt st.image), damit er in DERSELBEN Flex-Reihe wie die
+    # Produktkarten sitzt -> Produkte direkt rechts neben dem QR, dann Umbruch.
     if QR_AVAILABLE:
         img = qrcode.make(url)
         buf = io.BytesIO()
         img.save(buf, format="PNG")
-        st.image(buf.getvalue(), width=200)
+        qr_uri = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+        qr_html = f"<div class='tv-join-qr'><img src='{qr_uri}' alt='QR'/></div>"
     else:
-        st.markdown(f"<div class='tv-update'>{url}</div>", unsafe_allow_html=True)
+        qr_html = f"<div class='tv-join-qr tv-join-qr-text'>{url}</div>"
+
+    cards = _product_cards_html(cfg["spot"])
+
+    st.markdown(
+        "<style>"
+        ".tv-join-row{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;margin-top:6px;}"
+        ".tv-join-qr{background:#fff;border-radius:16px;padding:10px;line-height:0;"
+        "box-shadow:0 6px 18px rgba(0,0,0,.18);}"
+        ".tv-join-qr img{width:200px;height:200px;display:block;}"
+        ".tv-join-qr-text{line-height:1.3;padding:14px;color:#111;max-width:220px;"
+        "word-break:break-all;font-size:13px;}"
+        ".tv-prod-card{width:200px;background:#ffffff;border-radius:16px;overflow:hidden;"
+        "box-shadow:0 6px 18px rgba(0,0,0,.18);text-decoration:none;color:#111;display:block;}"
+        ".tv-prod-img{height:150px;background-size:cover;background-position:center;}"
+        ".tv-prod-noimg{display:flex;align-items:center;justify-content:center;"
+        "font-size:48px;background:#eef2f6;}"
+        ".tv-prod-title{padding:10px 12px 2px;font-weight:700;font-size:18px;line-height:1.2;}"
+        ".tv-prod-price{padding:0 12px 12px;color:#0a7;font-weight:800;font-size:18px;}"
+        "</style>"
+        f"<div class='tv-join-row'>{qr_html}{''.join(cards)}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _tv_weather_html(lat, lon):
@@ -4746,33 +4772,21 @@ def render_spot_tv(cfg):
 
     _spot_tv_live(cfg)
 
-    # QR ebenfalls statisch (aendert sich nicht alle 30 s).
+    # QR-Code + beworbene Produkte zusammen in EINER umbrechenden Reihe (statisch).
     _render_join_qr(cfg)
 
-    # Beworbene Produkte/Angebote des Spots (Shop/Cafe) – statische Leiste unten.
-    _tv_products_strip(cfg)
 
-
-def _tv_products_strip(cfg):
-    """Zeigt die im Backoffice gepflegten, aktiven Produkte eines Spots als
-    Karten-Leiste (Bild + Titel + Preis), jeweils verlinkt zum Shop/Cafe."""
-    products = load_spot_products(cfg["spot"], only_active=True)
-    if not products:
-        return
-
+def _product_cards_html(spot):
+    """HTML-Karten (Bild + Titel + Preis, je Shop/Cafe-Link) der aktiven Produkte."""
     cards = []
-    for p in products:
+    for p in load_spot_products(spot, only_active=True):
         img = _bytes_to_data_uri(p.get("image"), p.get("image_mime"))
         img_html = (
             f"<div class='tv-prod-img' style=\"background-image:url('{img}')\"></div>"
             if img else "<div class='tv-prod-img tv-prod-noimg'>🛍️</div>"
         )
         price = f"<div class='tv-prod-price'>{p['price']}</div>" if p.get("price") else ""
-        inner = (
-            f"{img_html}"
-            f"<div class='tv-prod-title'>{p['title']}</div>"
-            f"{price}"
-        )
+        inner = f"{img_html}<div class='tv-prod-title'>{p['title']}</div>{price}"
         if p.get("url"):
             cards.append(
                 f"<a class='tv-prod-card' href='{p['url']}' target='_blank' "
@@ -4780,25 +4794,7 @@ def _tv_products_strip(cfg):
             )
         else:
             cards.append(f"<div class='tv-prod-card'>{inner}</div>")
-
-    st.markdown(
-        "<style>"
-        ".tv-prod-strip{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;"
-        "margin:26px 0 8px;}"
-        ".tv-prod-card{width:200px;background:#ffffff;border-radius:16px;overflow:hidden;"
-        "box-shadow:0 6px 18px rgba(0,0,0,.18);text-decoration:none;color:#111;"
-        "display:block;}"
-        ".tv-prod-img{height:130px;background-size:cover;background-position:center;}"
-        ".tv-prod-noimg{display:flex;align-items:center;justify-content:center;"
-        "font-size:48px;background:#eef2f6;}"
-        ".tv-prod-title{padding:10px 12px 2px;font-weight:700;font-size:18px;line-height:1.2;}"
-        ".tv-prod-price{padding:0 12px 12px;color:#0a7;font-weight:800;font-size:18px;}"
-        "</style>"
-        "<div class='tv-prod-header' style='text-align:center;font-size:20px;"
-        "font-weight:700;opacity:.85;margin-top:18px;'>Angebote am Spot</div>"
-        f"<div class='tv-prod-strip'>{''.join(cards)}</div>",
-        unsafe_allow_html=True,
-    )
+    return cards
 
 
 def _parse_track(raw):

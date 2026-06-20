@@ -1,0 +1,316 @@
+.bladzy-pickupstore {
+    clear: both;
+}
+
+.bladzy-pickupstore h5,
+.bladzy-address h5 {
+    text-transform: initial;
+    margin: 0;
+    padding-top: 10px;
+    padding-bottom: 5px;
+}
+
+.bladzy-pickupstore .store-location-list {
+    font-size: 12px;
+    font-family: "Raleway", "Helvetica Neue", Verdana, Arial, sans-serif;
+    font-weight: 600;
+    color: #666;
+}
+
+.bladzy-pickupstore .stock-present .store-location-list tr.stock-missing {
+    display: none;
+}
+
+.bladzy-pickupstore .store-location-list tr td {
+    padding: 3px 2px;
+}
+
+.bladzy-pickupstore .store-location-list tr {
+
+}
+
+.bladzy-pickupstore .store-location-list tr.location-information td {
+    vertical-align: top;
+}
+
+.bladzy-pickupstore .store-location-list .location {
+    width: 190px;
+    cursor: pointer;
+}
+
+.bladzy-pickupstore .store-location-list .location .address,
+.bladzy-pickupstore .store-location-list .location .phone,
+.bladzy-pickupstore .store-location-list .location .email,
+.bladzy-pickupstore .store-location-list .hours{
+    padding-left: 5px;
+    font-size: 85%;
+    font-weight: bold;
+    font-style: italic;
+}
+
+.bladzy-pickupstore-popup .bladzy-pickupstore .store-location-list .location {
+    width: 260px;
+}
+
+.bladzy-pickupstore .store-location-list .map,
+.bladzy-address .map {
+    height: 180px;
+    width: 180px;
+}
+
+.bladzy-pickupstore .store-location-list .stock {
+    width: 140px;
+}
+
+.bladzy-pickupstore .store-location-list .stock .present {
+    color: #00b200;
+}
+
+.bladzy-pickupstore .store-location-list .stock .missing {
+    color: #FF7F00;
+}
+
+.bladzy-pickupstore .store-location-list .pickup {
+    width: 120px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.bladzy-pickupstore .next {
+    font-weight: bold;
+    font-size: 16px;
+    line-height: 13px;
+    color: #FF7F00;
+    display: inline;
+}
+
+.bladzy-pickupstore .postcode-wrap {
+    position: relative;
+    display: table;
+    border-collapse: separate;
+    margin: 10px 0;
+}
+
+.bladzy-pickupstore .postcode-wrap input,
+.bladzy-pickupstore .postcode-wrap input:focus {
+    height: 35px;
+    line-height: 35px;
+    width: auto;
+    border: 1px solid #666;
+    padding: 0 5px;
+}
+
+.bladzy-pickupstore .postcode-wrap .input-group-btn {
+    white-space: nowrap;
+    vertical-align: middle;
+    display: table-cell;
+}
+
+.bladzy-pickupstore .postcode-wrap .input-group-btn button {
+    height: 35px;
+    line-height: 35px;
+    padding: 0 5px;
+    border: 0;
+}
+
+.bladzy-pickupstore-popup .bladzy-pickupstore {
+    padding: 10px;
+}
+
+.bladzy-loading-mask {
+    display: none;
+}
+
+.bladzy-loading-mask img {
+    display: block;
+    margin: 0 auto;
+}
+
+.bladzy-loading-mask.popup {
+    height: 476px;
+    position: relative;
+}
+
+.bladzy-loading-mask.popup img {
+    position: absolute;
+    top: 42%;
+    left: 45%;
+
+}
+
+.bladzy-pickupstore .content {
+    border: 1px solid #cccccc;
+    border-top: 0;
+    padding: 10px;
+    overflow: auto;
+    height: 430px;
+}
+
+
+.bladzy-pickupstore-popup .bladzy-address .action {
+    text-decoration: underline;
+}
+
+.bladzy-tabs.data.items {
+    position: relative;
+    z-index: 1;
+    border-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
+}
+.bladzy-tabs.data.items:before,
+.bladzy-tabs.data.items:after {
+    content: '';
+    display: table;
+}
+.bladzy-tabs.data.items:after {
+    clear: both;
+}
+.bladzy-tabs.data.items .item.title {
+    float: left;
+    width: auto;
+}
+.bladzy-tabs.data.items .item.title > .switch {
+    height: 20px;
+    display: block;
+    position: relative;
+    z-index: 2;
+}
+.bladzy-tabs.data.items .item.content {
+    margin-top: 20px;
+    box-sizing: border-box;
+    float: right;
+    margin-left: -100%;
+    width: 100%;
+}
+.bladzy-tabs.data.items .item.content:before,
+.bladzy-tabs.data.items .item.content:after {
+    content: '';
+    display: table;
+}
+.bladzy-tabs.data.items .item.content:after {
+    clear: both;
+}
+.bladzy-tabs.data.items .item.content.active {
+    display: block;
+}
+.bladzy-tabs.data.items .item.title {
+    margin: 0 -1px 0 0;
+}
+.bladzy-tabs.data.items .item.title .switch {
+    font-weight: 400;
+    line-height: 40px;
+    font-size: 1.4rem;
+    color: #7d7d7d;
+    text-decoration: none;
+    background: #f6f6f6;
+    border: 1px solid #cccccc;
+    border-bottom: none;
+    height: 40px;
+    padding: 1px 35px 1px 35px;
+}
+.bladzy-tabs.data.items .item.title .switch:visited {
+    color: #7d7d7d;
+    text-decoration: none;
+}
+.bladzy-tabs.data.items .item.title .switch:hover {
+    color: #7d7d7d;
+    text-decoration: none;
+}
+.bladzy-tabs.data.items .item.title .switch:active {
+    color: #333333;
+    text-decoration: none;
+}
+.bladzy-tabs.data.items .item.title:not(.disabled) .switch:focus,
+.bladzy-tabs.data.items .item.title:not(.disabled) .switch:hover {
+    background: #ffffff;
+}
+.bladzy-tabs.data.items .item.title:not(.disabled) .switch:active,
+.bladzy-tabs.data.items .item.title.active .switch,
+.bladzy-tabs.data.items .item.title.active .switch:focus,
+.bladzy-tabs.data.items .item.title.active .switch:hover {
+    background: #ffffff;
+    color: #333333;
+}
+.bladzy-tabs.data.items .item.title.active .switch,
+.bladzy-tabs.data.items .item.title.active .switch:focus,
+.bladzy-tabs.data.items .item.title.active .switch:hover {
+    padding-bottom: 2px;
+}
+.bladzy-tabs.data.items .item.content {
+    background: #ffffff;
+    margin-top: 43px;
+    padding: 35px 35px 35px 35px;
+    border: 1px solid #cccccc;
+}
+.bladzy-tabs.data.items .item.title a:after {
+    display: none;
+}
+
+.bladzy-pickupstore-modal-custom .store-location-list td.location {
+    text-decoration: underline;
+}
+
+.store-location-list td.pickup:hover {
+    text-decoration: underline;
+}
+
+
+
+
+#error-message .modal-popup .modal-inner-wrap {
+    position: absolute;
+    top: 30%;
+    margin-left: auto;
+    margin-right: auto;
+
+
+    width: 30%;
+}
+
+.bladzy-pickupstore-modal-custom {
+    width: 50%;
+    margin: 0 auto;
+}
+
+.bladzy-select-store a.block-link {
+    cursor: pointer;
+}
+
+.bladzy-address {
+    padding-left: 10px;
+}
+.bladzy-address div.action{
+    margin-left: -10px;
+    cursor: pointer;
+    text-decoration: underline;
+    color: #0a6c9f;
+}
+
+
+@media only screen and (max-width: 768px) {
+    .bladzy-pickupstore-modal-custom.modal-popup.modal-slide {
+        top: 10px;
+        bottom: 10px;
+        left: 10px;
+        right: 10px;
+        height: auto;
+        width: auto;
+        overflow: auto;
+
+        /* left: 44px; */
+        z-index: 900;
+    }
+
+    .bladzy-pickupstore .postcode-wrap .input-group-btn {
+        display: block;
+        margin-top: 1px;
+    }
+
+    .bladzy-loading-mask.popup {
+        height: auto;
+    }
+}
+
+
+

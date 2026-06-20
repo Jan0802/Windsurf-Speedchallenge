@@ -1,0 +1,86 @@
+@CHARSET "UTF-8";
+
+.ec-gtm-cookie-directive 
+{ 
+	position: fixed; 
+	bottom:20px; 
+	left: 0; 
+	right: 0; 
+	text-align: center; 
+	z-index:9999; 
+	-ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=95)";
+	filter: alpha(opacity=95);
+	-moz-opacity: 0.95;
+	-khtml-opacity: 0.95;
+	opacity: 0.95;
+}
+
+.ec-gtm-cookie-directive > div 
+{ 
+	position:relative;
+	display: inline-block; 
+	text-align: left;  
+	background:#fff;
+	padding:20px; 
+	color:#000; 
+	min-width:300px;
+	max-width: 70%;
+	-webkit-box-shadow: 0px 0px 8px 1px rgba(0,0,0,0.1);
+	-moz-box-shadow: 0px 0px 8px 1px rgba(0,0,0,0.21);
+	box-shadow: 0px 0px 8px 1px rgba(0,0,0,0.1);
+	-webkit-border-radius: 8px;
+	-moz-border-radius: 8px;
+	-ms-border-radius: 8px;
+	-o-border-radius: 8px;
+	border-radius: 8px;
+	background-clip: padding-box;
+}
+
+.ec-gtm-cookie-directive > div > div { float:left; }
+.ec-gtm-cookie-directive > div > div > div:before,
+.ec-gtm-cookie-directive > div > div > div:after { content: " ";display: table; }
+.ec-gtm-cookie-directive > div > div > div:after { clear: both; }
+.ec-gtm-cookie-directive > div > div > div p { display:block; padding:5px; margin:0px; line-height:22px; letter-spacing: .3px }
+.ec-gtm-cookie-directive > div > div > div a { cursor:pointer; color:#8e8e8e; }
+.ec-gtm-cookie-directive > div > div > div a.action { display:block; text-align:left; margin-right:10px; margin-left:5px; margin-top:20px; float:left; }
+.ec-gtm-cookie-directive > div > div > div a.action.accept { display:none; color:#8bc53f; font-weight:bold; }
+.ec-gtm-cookie-directive > div > div > div a.action.accept-all { color:#8bc53f; font-weight:bold; }
+.ec-gtm-cookie-directive > div > div > div a.action.close { display:none; position:absolute; top:10px; right:10px; width:24px; height:24px; z-index:10000; margin:0px; }
+.ec-gtm-cookie-directive > div > div > div a.action.customize { color:#8bc53f; font-weight:normal; }
+
+
+.ec-gtm-cookie-directive .consent-logo { display:flex; align-items:center; justify-content:center; position:absolute; top:0px; left:0px; width:200px; height:calc(100%); overflow:hidden; padding:10px;  }
+.ec-gtm-cookie-directive .consent-logo svg { display:block; margin:auto; }
+
+
+
+.ec-gtm-cookie-directive-customize { display:none; }
+
+.ec-gtm-cookie-directive-segments { background:#f7f7f7; margin:10px -20px 10px -20px; padding:10px 25px 10px 25px; }
+.ec-gtm-cookie-directive-segments > div { position:relative; padding:5px 0px 5px 0px; }
+
+.ec-gtm-cookie-directive-segments > div input[type="checkbox"] { display: none; }
+.ec-gtm-cookie-directive-segments > div input[type="checkbox"] + label { display: block; position: relative; padding-left: 35px; cursor: pointer; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
+.ec-gtm-cookie-directive-segments > div input[type="checkbox"] + label:before { content: ''; display: block; width: 20px; height: 20px; border: 1px solid #000; position: absolute; left: 0; top: 0; opacity: 1; -webkit-transition: all .12s, border-color .08s; transition: all .12s, border-color .08s; }
+.ec-gtm-cookie-directive-segments > div input[type="checkbox"]:checked + label:before { width: 10px;top: -5px;left: 5px;border-radius: 0;opacity: 1;border-top-color: transparent;border-left-color: transparent; -webkit-transform: rotate(45deg); transform: rotate(45deg);}
+	
+.ec-gtm-cookie-directive small { display:block; padding:20px 20px 20px 5px; font-size:12px; }
+.ec-gtm-cookie-directive .ec-gtm-cookie-directive-segments small { display:block; padding:20px 20px 20px 60px; font-size:12px; }
+
+.ec-gtm-cookie-directive > div > div > div .ec-gtm-cookie-directive-note { display:none; margin:0px -25px 0px -25px;  }
+.ec-gtm-cookie-directive > div > div > div .ec-gtm-cookie-directive-note .consent-cookie-entity { padding:2px 0px 5px 0px; }
+.ec-gtm-cookie-directive > div > div > div .ec-gtm-cookie-directive-note-toggle { display:block; margin:5px 0px 5px 35px; color:#8bc53f; font-size:12px; cursor:pointer; }
+
+.ec-gtm-cookie-directive-customize { display:none; }
+.ec-gtm-cookie-directive-customize-toggle { position:relative; display:block; margin:10px 0px 10px 5px; font-size:12px; cursor:pointer; }
+
+main .ec-gtm-cookie-directive { position:relative; }
+main .ec-gtm-cookie-directive > div { -webkit-box-shadow:none; -moz-box-shadow:none; box-shadow: none; max-width:100%; padding:0px; }
+main .ec-gtm-cookie-directive-segments { margin:10px 0px 20px 0px; background:none; padding:0px; }
+
+@media (max-width:480px)  
+{ 
+	.ec-gtm-cookie-directive > div  { max-width:90%; }
+	.ec-gtm-cookie-directive > div p { font-size:12px; }
+	.ec-gtm-cookie-directive > div > div > div a.action { font-size:12px; margin:5px; }
+}
