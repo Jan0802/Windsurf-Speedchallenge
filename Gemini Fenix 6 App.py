@@ -4,12 +4,14 @@ import hashlib
 import json
 import logging
 import os
+import re
 import secrets
 import tempfile
 import time
 from datetime import datetime, timedelta
+from html import unescape
 from urllib.error import HTTPError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 import io
 
@@ -1624,6 +1626,157 @@ def _bytes_to_data_uri(data, mime):
     # Postgres (Neon) liefert bytea als memoryview -> in bytes wandeln.
     b64 = base64.b64encode(bytes(data)).decode("ascii")
     return f"data:{mime or 'image/png'};base64,{b64}"
+
+
+# ---- Produkt-Metadaten aus einer Shop-URL ziehen (Open Graph / JSON-LD) ----
+
+_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/*;q=0.8,*/*;q=0.7",
+    "Accept-Language": "de,en;q=0.8",
+}
+
+
+def _http_get(url, max_bytes=3_000_000, timeout=12):
+    req = Request(url, headers=_BROWSER_HEADERS)
+    with urlopen(req, timeout=timeout) as resp:
+        ctype = resp.headers.get("Content-Type", "") or ""
+        data = resp.read(max_bytes)
+    return data, ctype
+
+
+def _clean_text(value):
+    if value is None:
+        return None
+    text = unescape(str(value)).strip()
+    text = re.sub(r"\s+", " ", text)
+    return text or None
+
+
+def _format_price(price, currency):
+    if price in (None, ""):
+        return ""
+    try:
+        val = float(str(price).replace(",", "."))
+        num = str(int(val)) if val == int(val) else f"{val:.2f}"
+    except (TypeError, ValueError):
+        num = str(price).strip()
+    symbol = {"EUR": "€", "USD": "$", "GBP": "£", "CHF": "CHF "}.get((currency or "").upper())
+    if symbol:
+        return f"{symbol}{num}"
+    return f"{num} {currency}".strip() if currency else num
+
+
+def _iter_jsonld_products(data):
+    """Sucht (rekursiv) alle schema.org-Product-Knoten in JSON-LD-Daten."""
+    found = []
+
+    def walk(node):
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+        elif isinstance(node, dict):
+            if "@graph" in node:
+                walk(node["@graph"])
+            types = node.get("@type")
+            types = types if isinstance(types, list) else [types]
+            if any(isinstance(t, str) and "product" in t.lower() for t in types):
+                found.append(node)
+
+    walk(data)
+    return found
+
+
+def _jsonld_image(img):
+    if isinstance(img, list) and img:
+        img = img[0]
+    if isinstance(img, dict):
+        return img.get("url")
+    return img if isinstance(img, str) else None
+
+
+def fetch_product_meta(url):
+    """Liest Titel, Hauptbild und (falls vorhanden) Preis aus einer Produktseite.
+    Reihenfolge: JSON-LD (schema.org Product) > Open-Graph/Meta > <title>."""
+    url = (url or "").strip()
+    if not url.lower().startswith(("http://", "https://")):
+        return {"error": "Bitte eine vollständige URL mit http(s):// angeben."}
+
+    try:
+        raw, _ctype = _http_get(url)
+    except Exception as exc:  # noqa: BLE001 – Netzwerk-/Parse-Fehler sauber melden
+        return {"error": f"Seite nicht erreichbar ({type(exc).__name__})."}
+
+    page = raw.decode("utf-8", errors="replace")
+    title = price = currency = image_url = None
+
+    # 1) JSON-LD (zuverlaessigste Quelle fuer Preis)
+    for block in re.findall(
+        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        page, re.S | re.I,
+    ):
+        try:
+            data = json.loads(block.strip())
+        except Exception:
+            continue
+        for node in _iter_jsonld_products(data):
+            title = title or _clean_text(node.get("name"))
+            image_url = image_url or _jsonld_image(node.get("image"))
+            offers = node.get("offers")
+            offer = offers[0] if isinstance(offers, list) and offers else offers
+            if isinstance(offer, dict):
+                if price is None and offer.get("price") is not None:
+                    price = offer.get("price")
+                currency = currency or offer.get("priceCurrency")
+
+    # 2) Open Graph / Meta-Tags
+    def meta(prop):
+        m = re.search(
+            r'<meta[^>]+(?:property|name)=["\']' + re.escape(prop) + r'["\'][^>]*>',
+            page, re.I,
+        )
+        if not m:
+            return None
+        c = re.search(r'content=["\'](.*?)["\']', m.group(0), re.I | re.S)
+        return _clean_text(c.group(1)) if c else None
+
+    title = title or meta("og:title") or meta("twitter:title")
+    image_url = (image_url or meta("og:image") or meta("og:image:secure_url")
+                 or meta("twitter:image") or meta("twitter:image:src"))
+    if price is None:
+        price = meta("product:price:amount") or meta("og:price:amount")
+    currency = currency or meta("product:price:currency") or meta("og:price:currency")
+
+    # 3) <title> als letzter Ausweg
+    if not title:
+        tm = re.search(r"<title[^>]*>(.*?)</title>", page, re.S | re.I)
+        if tm:
+            title = _clean_text(tm.group(1))
+
+    if image_url:
+        image_url = urljoin(url, _clean_text(image_url) or "")
+
+    return {
+        "title": title or "",
+        "price": _format_price(price, currency),
+        "image_url": image_url or "",
+    }
+
+
+def download_image_bytes(url):
+    """Laedt ein Bild herunter -> (bytes, mime) oder (None, None)."""
+    url = (url or "").strip()
+    if not url.lower().startswith(("http://", "https://")):
+        return None, None
+    try:
+        data, ctype = _http_get(url, max_bytes=8_000_000)
+    except Exception:
+        return None, None
+    mime = ctype.split(";")[0].strip().lower() if ctype else ""
+    if not mime.startswith("image/"):
+        mime = "image/jpeg"
+    return data, mime
 
 
 # ---- Admin: Profil-/Konto-Verwaltung (fremde Daten – nur Backoffice) ----
@@ -5092,19 +5245,65 @@ def render_admin_ads():
 def _product_editor(spot, prod):
     pid = prod["id"] if prod else None
     suffix = pid if pid else "new"
-    if prod and prod.get("image"):
+    prefill_key = f"prodprefill_{spot}_{suffix}"
+    prefill = st.session_state.get(prefill_key, {})
+
+    # --- Auto-Befuellung aus einer Produkt-URL (ausserhalb des Formulars) ---
+    auto_cols = st.columns([4, 1.5])
+    auto_url = auto_cols[0].text_input(
+        "Produkt-URL für Auto-Befüllung",
+        value=prefill.get("url") or (prod or {}).get("url") or "",
+        key=f"autourl_{spot}_{suffix}",
+        placeholder="https://shop.example/produkt/…",
+    )
+    if auto_cols[1].button("🔗 Aus URL ziehen", key=f"fetch_{spot}_{suffix}",
+                           use_container_width=True):
+        with st.spinner("Lade Produktdaten…"):
+            meta = fetch_product_meta(auto_url)
+        if meta.get("error"):
+            st.error(meta["error"])
+        else:
+            img_bytes, img_mime = (None, None)
+            if meta.get("image_url"):
+                img_bytes, img_mime = download_image_bytes(meta["image_url"])
+            st.session_state[prefill_key] = {
+                "url": auto_url,
+                "title": meta.get("title") or "",
+                "price": meta.get("price") or "",
+                "image_bytes": img_bytes,
+                "image_mime": img_mime,
+            }
+            note = "Daten übernommen."
+            if not meta.get("price"):
+                note += " Preis nicht gefunden – bitte eintragen."
+            if not img_bytes:
+                note += " Bild nicht gefunden – bitte hochladen."
+            st.success(note)
+            st.rerun()
+
+    fetched_img = prefill.get("image_bytes")
+    if fetched_img:
+        st.image(bytes(fetched_img), width=160, caption="aus URL geladen")
+    elif prod and prod.get("image"):
         st.image(bytes(prod["image"]), width=160)
+
     with st.form(f"prod_form_{spot}_{suffix}"):
-        title = st.text_input("Titel", value=(prod or {}).get("title") or "")
+        title = st.text_input(
+            "Titel", value=prefill.get("title") or (prod or {}).get("title") or ""
+        )
         c1, c2 = st.columns(2)
-        price = c1.text_input("Preis (optional, z.B. €499)", value=(prod or {}).get("price") or "")
+        price = c1.text_input(
+            "Preis (z.B. €499)", value=prefill.get("price") or (prod or {}).get("price") or ""
+        )
         sort_order = c2.number_input(
             "Reihenfolge", value=int((prod or {}).get("sort_order") or 0), step=1
         )
-        url = st.text_input("Link (Shop/Café)", value=(prod or {}).get("url") or "")
+        url = st.text_input(
+            "Link (Shop/Café)", value=prefill.get("url") or (prod or {}).get("url") or ""
+        )
         active = st.checkbox("Aktiv", value=bool((prod or {}).get("active", True)))
         img_up = st.file_uploader(
-            "Bild (PNG/JPG/WebP)", type=["png", "jpg", "jpeg", "webp"],
+            "Bild überschreiben (optional)", type=["png", "jpg", "jpeg", "webp"],
             key=f"img_{spot}_{suffix}",
         )
         clear_img = (
@@ -5112,16 +5311,22 @@ def _product_editor(spot, prod):
             if (prod and prod.get("image")) else False
         )
         save = st.form_submit_button("💾 Produkt speichern")
+
     if save:
         if not title.strip():
             st.error("Titel ist erforderlich.")
         else:
+            if img_up:
+                img_bytes, img_mime = img_up.getvalue(), img_up.type
+            elif fetched_img:
+                img_bytes, img_mime = fetched_img, prefill.get("image_mime")
+            else:
+                img_bytes, img_mime = None, None
             save_spot_product(
                 pid, spot, title, price, url, active, sort_order,
-                image_bytes=img_up.getvalue() if img_up else None,
-                image_mime=img_up.type if img_up else None,
-                clear_image=clear_img,
+                image_bytes=img_bytes, image_mime=img_mime, clear_image=clear_img,
             )
+            st.session_state.pop(prefill_key, None)
             _admin_flash("Produkt gespeichert.")
     if prod and st.button("🗑️ Produkt löschen", key=f"delprod_{pid}"):
         delete_spot_product(pid)
