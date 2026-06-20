@@ -687,6 +687,18 @@ spot_products_table = Table(
     Column("created_at", DateTime, server_default=func.now()),
 )
 
+# Spot-Infos fuers Spot-TV (unten): Beschreibungstext + Bild (Bytes) ODER eine
+# Webcam-/Bild-URL. Im Admin-Backoffice editierbar.
+spot_info_table = Table(
+    "spot_info", DB_METADATA,
+    Column("spot", String(200), primary_key=True),
+    Column("description", String),
+    Column("image", LargeBinary),
+    Column("image_mime", String(50)),
+    Column("webcam_url", String(500)),
+    Column("updated_at", DateTime, server_default=func.now()),
+)
+
 # Gruppen-Ereignisse (Rekorde / Top-3) – andere Mitglieder sehen sie beim
 # nächsten Öffnen als Banner. Wird von create_all automatisch angelegt.
 group_events_table = Table(
@@ -1513,13 +1525,14 @@ def _ensure_ad_tables():
     try:
         spot_ads_table.create(get_engine(), checkfirst=True)
         spot_products_table.create(get_engine(), checkfirst=True)
+        spot_info_table.create(get_engine(), checkfirst=True)
     except Exception:
         logging.exception("Werbe-Tabellen konnten nicht angelegt werden")
     return True
 
 
 def _clear_ad_caches():
-    for fn in (load_spot_ad, load_spot_products):
+    for fn in (load_spot_ad, load_spot_products, load_spot_info):
         try:
             fn.clear()
         except Exception:
@@ -1627,6 +1640,52 @@ def delete_spot_product(product_id):
             delete(spot_products_table).where(spot_products_table.c.id == int(product_id))
         )
     _clear_ad_caches()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_spot_info(spot):
+    if not spot:
+        return None
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(spot_info_table).where(spot_info_table.c.spot == spot)
+        ).mappings().first()
+    return dict(row) if row else None
+
+
+def save_spot_info(spot, description, webcam_url,
+                   image_bytes=None, image_mime=None, clear_image=False):
+    if not spot:
+        return
+    _ensure_ad_tables()
+    values = {
+        "description": (description or "").strip() or None,
+        "webcam_url": (webcam_url or "").strip() or None,
+    }
+    if clear_image:
+        values["image"] = None
+        values["image_mime"] = None
+    elif image_bytes is not None:
+        values["image"] = image_bytes
+        values["image_mime"] = image_mime or "image/jpeg"
+
+    with get_engine().begin() as conn:
+        exists = conn.execute(
+            select(spot_info_table.c.spot).where(spot_info_table.c.spot == spot)
+        ).first()
+        if exists:
+            conn.execute(
+                update(spot_info_table).where(spot_info_table.c.spot == spot).values(**values)
+            )
+        else:
+            conn.execute(insert(spot_info_table).values(spot=spot, **values))
+    _clear_ad_caches()
+
+
+def _is_image_url(url):
+    """True, wenn die URL direkt auf ein Bild zeigt (Snapshot-Webcam)."""
+    return bool(re.search(r"\.(jpe?g|png|webp|gif)(\?|$)", (url or "").split("#")[0], re.I))
 
 
 def _bytes_to_data_uri(data, mime):
@@ -1786,6 +1845,39 @@ def download_image_bytes(url):
     if not mime.startswith("image/"):
         mime = "image/jpeg"
     return data, mime
+
+
+def fetch_page_description(url):
+    """Holt einen Beschreibungstext von einer Seite (og:description / meta
+    description / erster laengerer Absatz) – fuer die Spot-Info-Vorbefuellung."""
+    url = (url or "").strip()
+    if not url.lower().startswith(("http://", "https://")):
+        return {"error": "Bitte eine vollständige URL mit http(s):// angeben."}
+    try:
+        raw, _ctype = _http_get(url)
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"Seite nicht erreichbar ({type(exc).__name__})."}
+
+    page = raw.decode("utf-8", errors="replace")
+
+    def meta(prop):
+        m = re.search(
+            r'<meta[^>]+(?:property|name)=["\']' + re.escape(prop) + r'["\'][^>]*>',
+            page, re.I,
+        )
+        if not m:
+            return None
+        c = re.search(r'content=["\'](.*?)["\']', m.group(0), re.I | re.S)
+        return _clean_text(c.group(1)) if c else None
+
+    desc = meta("og:description") or meta("description") or meta("twitter:description")
+    if not desc:
+        for para in re.findall(r"<p[^>]*>(.*?)</p>", page, re.S | re.I):
+            txt = _clean_text(re.sub(r"<[^>]+>", "", para))
+            if txt and len(txt) > 60:
+                desc = txt
+                break
+    return {"description": desc or ""}
 
 
 # ---- Admin: Profil-/Konto-Verwaltung (fremde Daten – nur Backoffice) ----
@@ -4966,6 +5058,59 @@ def render_spot_tv(cfg):
     # QR-Code + beworbene Produkte zusammen in EINER umbrechenden Reihe (statisch).
     _render_join_qr(cfg)
 
+    # Ganz unten: Spot-Infos (Beschreibung links, Webcam/Bild rechts).
+    _tv_spot_info(cfg)
+
+
+def _tv_spot_info(cfg):
+    """Spot-Infobereich am unteren Rand des TV: Text + Webcam/Bild."""
+    info = load_spot_info(cfg["spot"])
+    if not info:
+        return
+    desc = (info.get("description") or "").strip()
+    webcam = (info.get("webcam_url") or "").strip()
+    img_uri = _bytes_to_data_uri(info.get("image"), info.get("image_mime"))
+    if not desc and not webcam and not img_uri:
+        return
+
+    st.markdown(
+        "<style>"
+        ".tv-info-title{font-size:26px;font-weight:800;margin:30px 0 10px;}"
+        ".tv-info-text{font-size:20px;line-height:1.5;opacity:.92;}"
+        ".tv-info-img{width:100%;border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.18);"
+        "display:block;}"
+        "</style>"
+        f"<div class='tv-info-title'>ℹ️ {cfg['spot']}</div>",
+        unsafe_allow_html=True,
+    )
+
+    col_text, col_media = st.columns([1.3, 1])
+    with col_text:
+        if desc:
+            st.markdown(f"<div class='tv-info-text'>{desc}</div>", unsafe_allow_html=True)
+    with col_media:
+        if webcam and _is_image_url(webcam):
+            # Snapshot-Webcam: Bild alle 60 s mit Cache-Buster neu laden.
+            components.html(
+                f"<img id='cam' src='{webcam}' "
+                "style='width:100%;height:240px;object-fit:cover;border-radius:16px;display:block;'>"
+                "<script>setInterval(function(){var c=document.getElementById('cam');"
+                "var u=c.src.split('?')[0];c.src=u+'?t='+Date.now();},60000);</script>",
+                height=248,
+            )
+        elif webcam:
+            # Einbettbare Seite (YouTube-Live/Windy/…): als iFrame.
+            components.html(
+                f"<iframe src='{webcam}' allow='autoplay; fullscreen' "
+                "style='width:100%;height:240px;border:0;border-radius:16px;'></iframe>",
+                height=248,
+            )
+        elif img_uri:
+            st.markdown(
+                f"<img class='tv-info-img' src='{img_uri}' alt='Spot'>",
+                unsafe_allow_html=True,
+            )
+
 
 def _product_cards_html(spot):
     """HTML-Karten (Bild + Titel + Preis, je Shop/Cafe-Link) der aktiven Produkte."""
@@ -5262,6 +5407,62 @@ def render_admin_ads():
             _product_editor(spot, prod)
     st.markdown("#### ➕ Neues Produkt")
     _product_editor(spot, None)
+
+    # --- Spot-Info (unten auf dem TV: Text links, Webcam/Bild rechts) ---
+    st.markdown("### Spot-Info (unten auf dem TV)")
+    info = load_spot_info(spot) or {}
+    info_prefill_key = f"spotinfoprefill_{spot}"
+    info_prefill = st.session_state.get(info_prefill_key)
+
+    src_cols = st.columns([4, 1.5])
+    src_url = src_cols[0].text_input(
+        "Info-Quelle (URL, optional) – Text automatisch holen",
+        key=f"infosrc_{spot}",
+        placeholder="https://… (z.B. Wikipedia/Spot-Guide)",
+    )
+    if src_cols[1].button("🔗 Text holen", key=f"infofetch_{spot}", use_container_width=True):
+        with st.spinner("Lade Text…"):
+            res = fetch_page_description(src_url)
+        if res.get("error"):
+            st.error(res["error"])
+        elif res.get("description"):
+            st.session_state[info_prefill_key] = res["description"]
+            st.rerun()
+        else:
+            st.warning("Keine Beschreibung gefunden – bitte selbst eintragen.")
+
+    if info.get("image"):
+        st.image(bytes(info["image"]), width=220, caption="aktuelles Bild")
+
+    with st.form(f"info_form_{spot}"):
+        desc = st.text_area(
+            "Beschreibung",
+            value=(info_prefill if info_prefill is not None else (info.get("description") or "")),
+            height=140,
+        )
+        webcam = st.text_input(
+            "Webcam- oder Bild-URL (optional, hat Vorrang vor Upload)",
+            value=info.get("webcam_url") or "",
+            help="Direktes Bild (…/snapshot.jpg) lädt sich auto. neu; eine "
+                 "einbettbare Seite (YouTube-Live/Windy) wird als iFrame gezeigt.",
+        )
+        info_img = st.file_uploader(
+            "Bild hochladen (optional)", type=["png", "jpg", "jpeg", "webp"],
+            key=f"infoimg_{spot}",
+        )
+        info_clear = (
+            st.checkbox("Aktuelles Bild entfernen", key=f"infoclr_{spot}")
+            if info.get("image") else False
+        )
+        if st.form_submit_button("💾 Spot-Info speichern"):
+            save_spot_info(
+                spot, desc, webcam,
+                image_bytes=info_img.getvalue() if info_img else None,
+                image_mime=info_img.type if info_img else None,
+                clear_image=info_clear,
+            )
+            st.session_state.pop(info_prefill_key, None)
+            _admin_flash("Spot-Info gespeichert.")
 
 
 def _product_editor(spot, prod):
