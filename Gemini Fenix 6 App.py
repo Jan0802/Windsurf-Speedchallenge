@@ -4634,8 +4634,9 @@ def _render_join_qr(cfg):
         # Wrapper steuert den Abstand per flex-gap -> keine versteckten Eigenmargen.
         ".tv-join-wrap{display:flex;flex-direction:column;gap:0.35cm;margin-top:6px;}"
         ".tv-join-title{font-size:28px;font-weight:800;margin:0;line-height:1.1;}"
-        # Reihe unten ausgerichtet -> Produktkarten schliessen mit dem QR-Code ab.
-        ".tv-join-row{display:flex;gap:22px;align-items:flex-end;margin:0;}"
+        # Reihe OBEN ausgerichtet -> QR sitzt direkt unter dem Titel (sonst sinkt
+        # der kuerzere QR ab, wenn der Produktblock hoeher ist).
+        ".tv-join-row{display:flex;gap:22px;align-items:flex-start;margin:0;}"
         ".tv-join-qr{flex:0 0 auto;background:#fff;border-radius:16px;padding:10px;"
         "line-height:0;box-shadow:0 6px 18px rgba(0,0,0,.18);}"
         ".tv-join-qr img{width:200px;height:200px;display:block;}"
