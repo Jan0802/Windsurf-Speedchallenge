@@ -696,6 +696,7 @@ spot_info_table = Table(
     Column("image", LargeBinary),
     Column("image_mime", String(50)),
     Column("webcam_url", String(500)),
+    Column("auto_filled", Boolean, nullable=False, default=False),  # KI-Entwurf?
     Column("updated_at", DateTime, server_default=func.now()),
 )
 
@@ -1662,6 +1663,7 @@ def save_spot_info(spot, description, webcam_url,
     values = {
         "description": (description or "").strip() or None,
         "webcam_url": (webcam_url or "").strip() or None,
+        "auto_filled": False,   # manuell gespeichert = geprueft
     }
     if clear_image:
         values["image"] = None
@@ -5411,6 +5413,11 @@ def render_admin_ads():
     # --- Spot-Info (unten auf dem TV: Text links, Webcam/Bild rechts) ---
     st.markdown("### Spot-Info (unten auf dem TV)")
     info = load_spot_info(spot) or {}
+    if info.get("auto_filled"):
+        st.warning(
+            "🤖 Dieser Text wurde automatisch per KI erstellt – bitte unten prüfen "
+            "und mit dem Speichern-Button bestätigen (danach gilt er als geprüft)."
+        )
     info_prefill_key = f"spotinfoprefill_{spot}"
     info_prefill = st.session_state.get(info_prefill_key)
 
