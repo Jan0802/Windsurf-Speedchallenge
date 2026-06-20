@@ -4631,15 +4631,11 @@ def _render_join_qr(cfg):
 
     st.markdown(
         "<style>"
-        # Wrapper steuert den Abstand per flex-gap -> keine versteckten Eigenmargen.
-        ".tv-join-wrap{display:flex;flex-direction:column;gap:0.35cm;margin-top:6px;}"
+        ".tv-join-row{display:flex;gap:22px;align-items:flex-start;margin-top:6px;}"
+        # Titel + QR sind eine eigene Spalte, die um 1,5 cm nach unten versetzt ist
+        # (Produkte bleiben oben). gap steuert den Abstand Titel<->QR.
+        ".tv-join-qcol{display:flex;flex-direction:column;gap:0.35cm;margin-top:1.5cm;}"
         ".tv-join-title{font-size:28px;font-weight:800;margin:0;line-height:1.1;}"
-        # Beide Spalten auf gleiche Hoehe strecken -> untere Kanten von QR-Kaestchen
-        # und Produktkarten liegen gleich. QR bleibt oben (Gap zum Titel), das weisse
-        # Kaestchen waechst nach unten bis zur Kartenunterkante.
-        ".tv-join-row{display:flex;gap:22px;align-items:stretch;margin:0;}"
-        # align-self:flex-start -> QR-Kaestchen streckt sich NICHT auf Kartenhoehe,
-        # bleibt oben am Titel und so hoch wie der QR selbst (kein Leerraum unten).
         ".tv-join-qr{flex:0 0 auto;align-self:flex-start;background:#fff;"
         "border-radius:16px;padding:10px;line-height:0;box-shadow:0 6px 18px rgba(0,0,0,.18);}"
         ".tv-join-qr img{width:200px;height:200px;display:block;}"
@@ -4658,9 +4654,12 @@ def _render_join_qr(cfg):
         ".tv-prod-title{padding:9px 12px 2px;font-weight:700;font-size:16px;line-height:1.18;}"
         ".tv-prod-price{padding:0 12px 11px;color:#0a7;font-weight:800;font-size:17px;}"
         "</style>"
-        "<div class='tv-join-wrap'>"
+        "<div class='tv-join-row'>"
+        "<div class='tv-join-qcol'>"
         "<div class='tv-join-title'>📲 Join today’s ranking</div>"
-        f"<div class='tv-join-row'>{qr_html}{deals_html}</div>"
+        f"{qr_html}"
+        "</div>"
+        f"{deals_html}"
         "</div>",
         unsafe_allow_html=True,
     )
