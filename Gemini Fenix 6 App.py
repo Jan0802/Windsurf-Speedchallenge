@@ -4450,9 +4450,11 @@ _TV_CSS = """
   .lb-pos {min-width:54px; text-align:center; font-weight:800;}
   .lb-name {flex:0 0 210px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
             font-weight:700;}
-  .lb-bar {flex:1; height:18px; background:rgba(255,255,255,.12); border-radius:10px;
-           overflow:hidden;}
+  .lb-bar {flex:1; height:30px; background:rgba(255,255,255,.12); border-radius:10px;
+           overflow:hidden; position:relative;}
   .lb-fill {display:block; height:100%; border-radius:10px;}
+  .lb-pct {position:absolute; left:12px; top:50%; transform:translateY(-50%);
+           font-size:18px; font-weight:800; color:#10243f; z-index:2;}
   .lb-val {flex:0 0 150px; text-align:right; font-weight:800; white-space:nowrap;}
   .lb-val small {font-size:16px; opacity:.6; font-weight:600;}
 
@@ -4579,11 +4581,13 @@ def _tv_leaderboard(scope, metric):
     for i, (_, r) in enumerate(g.iterrows(), start=1):
         pos = medals.get(i, str(i))
         col = colors.get(i, "#3aa0ff")
-        w = max(5, round(r["v"] / maxv * 100))
+        pct = round(r["v"] / maxv * 100)   # Platz 1 = 100 %, Rest anteilig
+        w = max(5, pct)
         rows.append(
             f"<div class='lb-row'><span class='lb-pos'>{pos}</span>"
             f"<span class='lb-name'>{r['name']}</span>"
-            f"<span class='lb-bar'><span class='lb-fill' style='width:{w}%;background:{col}'></span></span>"
+            f"<span class='lb-bar'><span class='lb-fill' style='width:{w}%;background:{col}'></span>"
+            f"<span class='lb-pct'>{pct}%</span></span>"
             f"<span class='lb-val'>{r['v']:.1f}<small> km/h</small></span></div>"
         )
     half = (len(rows) + 1) // 2  # 8 -> links 1-4 / rechts 5-8; 10 -> 1-5 / 6-10
