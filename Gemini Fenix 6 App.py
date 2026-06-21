@@ -5765,6 +5765,7 @@ def render_admin_ads():
         else:
             st.warning("Keine Beschreibung gefunden – bitte selbst eintragen.")
 
+    _cur_coords = _spot_coords(spot)
     with st.form(f"info_form_{spot}"):
         desc = st.text_area(
             "Beschreibung",
@@ -5787,8 +5788,21 @@ def render_admin_ads():
             help="Direktes Bild (…/snapshot.jpg) lädt sich auto. neu; eine "
                  "einbettbare Seite (YouTube-Live/Windy) wird als iFrame gezeigt.",
         )
+        st.caption("📍 Koordinaten (für Wetter). Leer lassen = automatisches "
+                   "Geocoding; hier setzen, um einen falschen Ort zu korrigieren.")
+        gc1, gc2 = st.columns(2)
+        lat_in = gc1.number_input(
+            "Latitude (z.B. 52.30)", value=(_cur_coords[0] if _cur_coords else None),
+            format="%.5f", step=0.001, key=f"lat_{spot}",
+        )
+        lon_in = gc2.number_input(
+            "Longitude (z.B. 5.62)", value=(_cur_coords[1] if _cur_coords else None),
+            format="%.5f", step=0.001, key=f"lon_{spot}",
+        )
         if st.form_submit_button("💾 Spot-Info speichern"):
             save_spot_info(spot, desc, webcam, country=country, best_winds=best_winds)
+            if lat_in is not None and lon_in is not None:
+                update_spot_coords(spot, lat_in, lon_in)
             st.session_state.pop(info_prefill_key, None)
             _admin_flash("Spot-Info gespeichert.")
 
