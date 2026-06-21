@@ -5196,7 +5196,7 @@ _WCODE_EMOJI = {
 }
 _COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
             "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
-_WEEKDAY_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+_WEEKDAY_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
 _DIR_DEG = {
@@ -5232,19 +5232,19 @@ def _assess_forecast_day(wind, dir_deg, best_degs):
     if wind is None:
         return "", ""
     if wind < 12:
-        return "🔴", "zu wenig Wind"
+        return "🔴", "too little wind"
     if wind > 60:
-        return "🔴", "zu stark"
-    dir_ok = None  # unbekannt
+        return "🔴", "too strong"
+    dir_ok = None  # unknown
     if best_degs and dir_deg is not None:
         dir_ok = any(_ang_diff(dir_deg, b) <= 34 for b in best_degs)
     if dir_ok is False:
-        return "🟡", "Richtung ungünstig"
+        return "🟡", "wrong direction"
     if 16 <= wind <= 45:
-        return "🟢", "lohnt sich"
+        return "🟢", "worth it"
     if wind > 45:
-        return "🟡", "viel Wind (Könner)"
-    return "🟡", "leichter Wind"
+        return "🟡", "lots of wind (pros)"
+    return "🟡", "light wind"
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
@@ -5286,7 +5286,7 @@ def _tv_forecast(cfg, coords):
     for i, day in enumerate(daily["time"][:3]):
         try:
             dt = pd.to_datetime(day)
-            label = "Heute" if i == 0 else _WEEKDAY_DE[dt.weekday()]
+            label = "Today" if i == 0 else _WEEKDAY_EN[dt.weekday()]
         except Exception:  # noqa: BLE001
             label = str(day)
         wspeed = at("wind_speed_10m_max", i)
@@ -5301,14 +5301,14 @@ def _tv_forecast(cfg, coords):
             f"<div class='tv-fc-temp'>{num(at('temperature_2m_max', i))}°"
             f"<span> / {num(at('temperature_2m_min', i))}°</span></div>"
             f"<div class='tv-fc-wind'>🌬️ {num(wspeed)}<small> km/h</small></div>"
-            f"<div class='tv-fc-gust'>Böen {num(at('wind_gusts_10m_max', i))} · {comp}</div>"
+            f"<div class='tv-fc-gust'>Gusts {num(at('wind_gusts_10m_max', i))} · {comp}</div>"
             f"{rate}"
             "</div>"
         )
 
     bw = info.get("best_winds")
-    bw_note = (f" · beste Winde: {bw}" if bw else
-               " · <i>beste Windrichtungen noch nicht hinterlegt</i>")
+    bw_note = (f" · best winds: {bw}" if bw else
+               " · <i>best wind directions not set yet</i>")
     st.markdown(
         "<style>"
         ".tv-fc-row{display:flex;gap:18px;flex-wrap:wrap;}"
@@ -5324,7 +5324,7 @@ def _tv_forecast(cfg, coords):
         ".tv-fc-gust{font-size:16px;opacity:.75;}"
         ".tv-fc-rate{margin-top:8px;font-size:18px;font-weight:800;}"
         "</style>"
-        f"<div class='tv-info-title'>🌤️ Vorhersage · {cfg['spot']}<span "
+        f"<div class='tv-info-title'>🌤️ Forecast · {cfg['spot']}<span "
         f"style='font-size:16px;font-weight:600;opacity:.7;'>{bw_note}</span></div>"
         f"<div class='tv-fc-row'>{''.join(cards)}</div>",
         unsafe_allow_html=True,
@@ -5364,9 +5364,8 @@ def render_spots_page():
     all_info = load_all_spot_info()
     if not all_info:
         st.info(
-            "Noch keine Spots mit Beschreibung. Sie erscheinen hier automatisch, "
-            "sobald die KI-Anreicherung gelaufen ist (oder du im Backoffice einen "
-            "Text speicherst)."
+            "No spots with a description yet. They appear here automatically once "
+            "the AI enrichment has run (or when you save a text in the backoffice)."
         )
         return
 
@@ -5374,14 +5373,14 @@ def render_spots_page():
         (s.get("country") or "").strip() for s in all_info if (s.get("country") or "").strip()
     })
     fcol1, fcol2 = st.columns(2)
-    country = fcol1.selectbox("Land", ["Alle Länder"] + countries, key="spots_country")
+    country = fcol1.selectbox("Country", ["All countries"] + countries, key="spots_country")
     pool = [
         s for s in all_info
-        if country == "Alle Länder" or (s.get("country") or "").strip() == country
+        if country == "All countries" or (s.get("country") or "").strip() == country
     ]
     names = [s["spot"] for s in pool]
     if not names:
-        st.info("Keine Spots für dieses Land.")
+        st.info("No spots for this country.")
         return
     spot = fcol2.selectbox("Spot", names, key="spots_spot")
 
@@ -5430,14 +5429,11 @@ def render_spots_page():
     lat, lon = resolve_spot_coords(spot)
     if lat is not None and lon is not None:
         coords = (lat, lon)
-        st.markdown("#### 🌬️ Wetter")
+        st.markdown("#### 🌬️ Weather")
         components.html(_tv_weather_html(coords[0], coords[1]), height=130)
         _tv_forecast({"spot": spot}, coords)
     else:
-        st.caption(
-            "Für diesen Spot ließen sich keine Koordinaten ermitteln – daher kein "
-            "Wetter."
-        )
+        st.caption("No coordinates could be determined for this spot – no weather.")
 
 
 def _product_cards_html(spot):
