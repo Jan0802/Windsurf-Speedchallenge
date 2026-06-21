@@ -5060,8 +5060,9 @@ def render_spot_tv(cfg):
     # QR-Code + beworbene Produkte zusammen in EINER umbrechenden Reihe (statisch).
     _render_join_qr(cfg)
 
-    # Ganz unten: Spot-Infos (Beschreibung links, Webcam/Bild rechts).
-    _tv_spot_info(cfg)
+    # Ganz unten: wechselt synchron zum Ranking (2s/30s) zwischen Spot-Info
+    # und 3-Tage-Wettervorhersage.
+    _tv_bottom_info(cfg)
 
 
 def _tv_spot_info(cfg):
@@ -5112,6 +5113,113 @@ def _tv_spot_info(cfg):
                 f"<img class='tv-info-img' src='{img_uri}' alt='Spot'>",
                 unsafe_allow_html=True,
             )
+
+
+_WCODE_EMOJI = {
+    0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 48: "🌫️", 51: "🌦️", 53: "🌦️",
+    55: "🌦️", 61: "🌦️", 63: "🌧️", 65: "🌧️", 71: "🌨️", 73: "🌨️", 75: "❄️",
+    80: "🌦️", 81: "🌧️", 82: "⛈️", 85: "🌨️", 86: "❄️", 95: "⛈️", 96: "⛈️", 99: "⛈️",
+}
+_COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+            "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+_WEEKDAY_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def _fetch_forecast_3d(lat, lon):
+    """3-Tage-Tagesvorhersage von Open-Meteo (serverseitig, gecached)."""
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={lat}&longitude={lon}"
+        "&daily=weather_code,temperature_2m_max,temperature_2m_min,"
+        "wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant"
+        "&wind_speed_unit=kmh&timezone=auto&forecast_days=3"
+    )
+    try:
+        with urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=8) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception:  # noqa: BLE001
+        return None
+    return data.get("daily")
+
+
+def _tv_forecast(cfg, coords):
+    """3-Tage-Vorhersage als HTML-Karten (kein iFrame -> fragment-sicher)."""
+    daily = _fetch_forecast_3d(coords[0], coords[1])
+    if not daily or not daily.get("time"):
+        return
+
+    def at(key, i):
+        arr = daily.get(key) or []
+        return arr[i] if i < len(arr) else None
+
+    def num(x):
+        return str(round(x)) if x is not None else "–"
+
+    cards = []
+    for i, day in enumerate(daily["time"][:3]):
+        try:
+            dt = pd.to_datetime(day)
+            label = "Heute" if i == 0 else _WEEKDAY_DE[dt.weekday()]
+        except Exception:  # noqa: BLE001
+            label = str(day)
+        wdir = at("wind_direction_10m_dominant", i)
+        comp = _COMPASS[round(wdir / 22.5) % 16] if wdir is not None else ""
+        cards.append(
+            "<div class='tv-fc-card'>"
+            f"<div class='tv-fc-day'>{label}</div>"
+            f"<div class='tv-fc-emoji'>{_WCODE_EMOJI.get(at('weather_code', i), '')}</div>"
+            f"<div class='tv-fc-temp'>{num(at('temperature_2m_max', i))}°"
+            f"<span> / {num(at('temperature_2m_min', i))}°</span></div>"
+            f"<div class='tv-fc-wind'>🌬️ {num(at('wind_speed_10m_max', i))}"
+            "<small> km/h</small></div>"
+            f"<div class='tv-fc-gust'>Böen {num(at('wind_gusts_10m_max', i))} · {comp}</div>"
+            "</div>"
+        )
+
+    st.markdown(
+        "<style>"
+        ".tv-fc-row{display:flex;gap:18px;flex-wrap:wrap;}"
+        ".tv-fc-card{flex:1 1 0;min-width:170px;background:rgba(255,255,255,.08);"
+        "border:1px solid rgba(255,255,255,.18);border-radius:18px;padding:14px 18px;"
+        "text-align:center;}"
+        ".tv-fc-day{font-size:22px;font-weight:800;opacity:.9;}"
+        ".tv-fc-emoji{font-size:46px;line-height:1.1;margin:2px 0;}"
+        ".tv-fc-temp{font-size:30px;font-weight:800;}"
+        ".tv-fc-temp span{font-size:20px;font-weight:600;opacity:.6;}"
+        ".tv-fc-wind{font-size:26px;font-weight:800;color:#7fd4ff;margin-top:4px;}"
+        ".tv-fc-wind small{font-size:15px;opacity:.7;font-weight:600;}"
+        ".tv-fc-gust{font-size:16px;opacity:.75;}"
+        "</style>"
+        f"<div class='tv-info-title'>🌤️ Vorhersage · {cfg['spot']}</div>"
+        f"<div class='tv-fc-row'>{''.join(cards)}</div>",
+        unsafe_allow_html=True,
+    )
+
+
+@st.fragment(run_every=30)
+def _tv_bottom_info(cfg):
+    """Unterer Bereich: wechselt synchron zum Ranking (2s/30s) zwischen Spot-Info
+    und 3-Tage-Vorhersage. Gleiche Zeitformel wie der Metrik-Umschalter -> synchron.
+    Gibt es nur eins von beiden, wird dieses dauerhaft gezeigt."""
+    info = load_spot_info(cfg["spot"]) or {}
+    has_info = bool(
+        (info.get("description") or "").strip() or info.get("webcam_url") or info.get("image")
+    )
+    coords = _spot_coords(cfg["spot"])
+    has_fc = coords is not None and _fetch_forecast_3d(coords[0], coords[1]) is not None
+
+    if has_info and has_fc:
+        # Phase 0 (= Ranking "2 s") -> Spot-Info, Phase 1 (= "30 s") -> Vorhersage.
+        phase = (int(datetime.now().timestamp()) // 30) % 2
+        if phase:
+            _tv_forecast(cfg, coords)
+        else:
+            _tv_spot_info(cfg)
+    elif has_info:
+        _tv_spot_info(cfg)
+    elif has_fc:
+        _tv_forecast(cfg, coords)
 
 
 def _product_cards_html(spot):
