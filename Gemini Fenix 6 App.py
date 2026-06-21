@@ -5411,7 +5411,12 @@ def render_admin_ads():
     _product_editor(spot, None)
 
     # --- Spot-Info (unten auf dem TV: Text links, Webcam/Bild rechts) ---
-    st.markdown("### Spot-Info (unten auf dem TV)")
+    info_head = st.columns([3, 1])
+    info_head[0].markdown("### Spot-Info (unten auf dem TV)")
+    if info_head[1].button("🔄 Aktualisieren", key=f"inforeload_{spot}",
+                           help="Lädt frisch aus der DB (z.B. nach dem KI-Anreichern)."):
+        _clear_ad_caches()
+        st.rerun()
     info = load_spot_info(spot) or {}
     if info.get("auto_filled"):
         st.warning(
