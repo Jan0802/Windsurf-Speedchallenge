@@ -5425,15 +5425,18 @@ def render_spots_page():
                 unsafe_allow_html=True,
             )
 
-    coords = _spot_coords(spot)
-    if coords:
+    # resolve_spot_coords liest aus der DB ODER geocodet einmalig und speichert ->
+    # auch Spots ohne GPS-Session bekommen Wetter (und danach profitiert das TV davon).
+    lat, lon = resolve_spot_coords(spot)
+    if lat is not None and lon is not None:
+        coords = (lat, lon)
         st.markdown("#### 🌬️ Wetter")
         components.html(_tv_weather_html(coords[0], coords[1]), height=130)
         _tv_forecast({"spot": spot}, coords)
     else:
         st.caption(
-            "Für diesen Spot sind noch keine Koordinaten hinterlegt – daher kein "
-            "Wetter. Sobald eine Session mit GPS von dort kommt, erscheint die Vorhersage."
+            "Für diesen Spot ließen sich keine Koordinaten ermitteln – daher kein "
+            "Wetter."
         )
 
 
