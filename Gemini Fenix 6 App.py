@@ -697,6 +697,7 @@ spot_info_table = Table(
     Column("image_mime", String(50)),
     Column("webcam_url", String(500)),
     Column("country", String(80)),       # Land (fuer den Filter der Spots-Seite)
+    Column("best_winds", String(120)),   # beste Windrichtungen, z.B. "SW, W, NW"
     Column("auto_filled", Boolean, nullable=False, default=False),  # KI-Entwurf?
     Column("updated_at", DateTime, server_default=func.now()),
 )
@@ -1671,7 +1672,7 @@ def load_spot_info(spot):
     return dict(row) if row else None
 
 
-def save_spot_info(spot, description, webcam_url, country="",
+def save_spot_info(spot, description, webcam_url, country="", best_winds="",
                    image_bytes=None, image_mime=None, clear_image=False):
     if not spot:
         return
@@ -1680,6 +1681,7 @@ def save_spot_info(spot, description, webcam_url, country="",
         "description": (description or "").strip() or None,
         "webcam_url": (webcam_url or "").strip() or None,
         "country": (country or "").strip() or None,
+        "best_winds": (best_winds or "").strip() or None,
         "auto_filled": False,   # manuell gespeichert = geprueft
     }
     if clear_image:
@@ -5142,6 +5144,54 @@ _COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
 _WEEKDAY_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
 
+_DIR_DEG = {
+    # Englische Kompass-Kürzel (so liefert die KI) ...
+    "N": 0, "NNE": 22.5, "NE": 45, "ENE": 67.5, "E": 90, "ESE": 112.5, "SE": 135,
+    "SSE": 157.5, "S": 180, "SSW": 202.5, "SW": 225, "WSW": 247.5, "W": 270,
+    "WNW": 292.5, "NW": 315, "NNW": 337.5,
+    # ... plus deutsche Varianten (Ost/Südost): O, OSO, SO, SSO, NO, ONO, NNO.
+    "O": 90, "ONO": 67.5, "OSO": 112.5, "SO": 135, "SSO": 157.5, "NO": 45, "NNO": 22.5,
+}
+
+
+def _parse_best_dirs(text):
+    """'SW, W, NW' / 'SW-NW' -> Liste von Grad-Mittelwerten. Unbekanntes wird ignoriert."""
+    if not text:
+        return []
+    degs = []
+    for tok in re.split(r"[^A-Za-zÄÖÜäöü]+", str(text)):
+        d = _DIR_DEG.get(tok.strip().upper())
+        if d is not None and d not in degs:
+            degs.append(d)
+    return degs
+
+
+def _ang_diff(a, b):
+    d = abs((a - b) % 360)
+    return min(d, 360 - d)
+
+
+def _assess_forecast_day(wind, dir_deg, best_degs):
+    """(emoji, kurztext) – bewertet einen Vorhersagetag fuer Wind-Wassersport.
+    Windstaerke (km/h) x Richtungs-Match mit den besten Windrichtungen des Spots."""
+    if wind is None:
+        return "", ""
+    if wind < 12:
+        return "🔴", "zu wenig Wind"
+    if wind > 60:
+        return "🔴", "zu stark"
+    dir_ok = None  # unbekannt
+    if best_degs and dir_deg is not None:
+        dir_ok = any(_ang_diff(dir_deg, b) <= 34 for b in best_degs)
+    if dir_ok is False:
+        return "🟡", "Richtung ungünstig"
+    if 16 <= wind <= 45:
+        return "🟢", "lohnt sich"
+    if wind > 45:
+        return "🟡", "viel Wind (Könner)"
+    return "🟡", "leichter Wind"
+
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def _fetch_forecast_3d(lat, lon):
     """3-Tage-Tagesvorhersage von Open-Meteo (serverseitig, gecached)."""
@@ -5161,10 +5211,14 @@ def _fetch_forecast_3d(lat, lon):
 
 
 def _tv_forecast(cfg, coords):
-    """3-Tage-Vorhersage als HTML-Karten (kein iFrame -> fragment-sicher)."""
+    """3-Tage-Vorhersage als HTML-Karten (kein iFrame -> fragment-sicher), je Tag
+    mit Ampel 🟢/🟡/🔴 (Windstärke x beste Windrichtungen des Spots)."""
     daily = _fetch_forecast_3d(coords[0], coords[1])
     if not daily or not daily.get("time"):
         return
+
+    info = load_spot_info(cfg["spot"]) or {}
+    best_degs = _parse_best_dirs(info.get("best_winds"))
 
     def at(key, i):
         arr = daily.get(key) or []
@@ -5180,20 +5234,26 @@ def _tv_forecast(cfg, coords):
             label = "Heute" if i == 0 else _WEEKDAY_DE[dt.weekday()]
         except Exception:  # noqa: BLE001
             label = str(day)
+        wspeed = at("wind_speed_10m_max", i)
         wdir = at("wind_direction_10m_dominant", i)
         comp = _COMPASS[round(wdir / 22.5) % 16] if wdir is not None else ""
+        emoji, verdict = _assess_forecast_day(wspeed, wdir, best_degs)
+        rate = f"<div class='tv-fc-rate'>{emoji} {verdict}</div>" if emoji else ""
         cards.append(
             "<div class='tv-fc-card'>"
             f"<div class='tv-fc-day'>{label}</div>"
             f"<div class='tv-fc-emoji'>{_WCODE_EMOJI.get(at('weather_code', i), '')}</div>"
             f"<div class='tv-fc-temp'>{num(at('temperature_2m_max', i))}°"
             f"<span> / {num(at('temperature_2m_min', i))}°</span></div>"
-            f"<div class='tv-fc-wind'>🌬️ {num(at('wind_speed_10m_max', i))}"
-            "<small> km/h</small></div>"
+            f"<div class='tv-fc-wind'>🌬️ {num(wspeed)}<small> km/h</small></div>"
             f"<div class='tv-fc-gust'>Böen {num(at('wind_gusts_10m_max', i))} · {comp}</div>"
+            f"{rate}"
             "</div>"
         )
 
+    bw = info.get("best_winds")
+    bw_note = (f" · beste Winde: {bw}" if bw else
+               " · <i>beste Windrichtungen noch nicht hinterlegt</i>")
     st.markdown(
         "<style>"
         ".tv-fc-row{display:flex;gap:18px;flex-wrap:wrap;}"
@@ -5207,8 +5267,10 @@ def _tv_forecast(cfg, coords):
         ".tv-fc-wind{font-size:26px;font-weight:800;color:#7fd4ff;margin-top:4px;}"
         ".tv-fc-wind small{font-size:15px;opacity:.7;font-weight:600;}"
         ".tv-fc-gust{font-size:16px;opacity:.75;}"
+        ".tv-fc-rate{margin-top:8px;font-size:18px;font-weight:800;}"
         "</style>"
-        f"<div class='tv-info-title'>🌤️ Vorhersage · {cfg['spot']}</div>"
+        f"<div class='tv-info-title'>🌤️ Vorhersage · {cfg['spot']}<span "
+        f"style='font-size:16px;font-weight:600;opacity:.7;'>{bw_note}</span></div>"
         f"<div class='tv-fc-row'>{''.join(cards)}</div>",
         unsafe_allow_html=True,
     )
@@ -5652,6 +5714,12 @@ def render_admin_ads():
             "Land (für den Filter der Spots-Seite)", value=info.get("country") or "",
             help="Wird vom KI-Job automatisch gesetzt; hier überschreibbar.",
         )
+        best_winds = st.text_input(
+            "Beste Windrichtungen (für die Lohnt-sich-Ampel)",
+            value=info.get("best_winds") or "",
+            help="Kompass-Kürzel, z.B. 'SW, W, NW'. Wird vom KI-Job gesetzt; hier "
+                 "überschreibbar. Leer = keine Richtungsbewertung.",
+        )
         webcam = st.text_input(
             "Webcam- oder Bild-URL (optional, hat Vorrang vor Upload)",
             value=info.get("webcam_url") or "",
@@ -5668,7 +5736,7 @@ def render_admin_ads():
         )
         if st.form_submit_button("💾 Spot-Info speichern"):
             save_spot_info(
-                spot, desc, webcam, country=country,
+                spot, desc, webcam, country=country, best_winds=best_winds,
                 image_bytes=info_img.getvalue() if info_img else None,
                 image_mime=info_img.type if info_img else None,
                 clear_image=info_clear,
