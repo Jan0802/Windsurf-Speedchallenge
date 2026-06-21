@@ -702,6 +702,17 @@ spot_info_table = Table(
     Column("updated_at", DateTime, server_default=func.now()),
 )
 
+# Mehrere Bilder je Spot (Galerie auf der Spots-Seite). Bytes in der DB.
+spot_images_table = Table(
+    "spot_images", DB_METADATA,
+    Column("id", Integer, primary_key=True),
+    Column("spot", String(200), nullable=False),
+    Column("image", LargeBinary),
+    Column("image_mime", String(50)),
+    Column("sort_order", Integer, default=0),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
 # Gruppen-Ereignisse (Rekorde / Top-3) – andere Mitglieder sehen sie beim
 # nächsten Öffnen als Banner. Wird von create_all automatisch angelegt.
 group_events_table = Table(
@@ -1529,17 +1540,57 @@ def _ensure_ad_tables():
         spot_ads_table.create(get_engine(), checkfirst=True)
         spot_products_table.create(get_engine(), checkfirst=True)
         spot_info_table.create(get_engine(), checkfirst=True)
+        spot_images_table.create(get_engine(), checkfirst=True)
     except Exception:
         logging.exception("Werbe-Tabellen konnten nicht angelegt werden")
     return True
 
 
 def _clear_ad_caches():
-    for fn in (load_spot_ad, load_spot_products, load_spot_info, load_all_spot_info):
+    for fn in (load_spot_ad, load_spot_products, load_spot_info, load_all_spot_info,
+               load_spot_images):
         try:
             fn.clear()
         except Exception:
             pass
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_spot_images(spot):
+    """Alle Galerie-Bilder eines Spots (sortiert)."""
+    if not spot:
+        return []
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(spot_images_table)
+            .where(spot_images_table.c.spot == spot)
+            .order_by(spot_images_table.c.sort_order, spot_images_table.c.id)
+        ).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def add_spot_image(spot, image_bytes, image_mime):
+    if not spot or not image_bytes:
+        return
+    _ensure_ad_tables()
+    with get_engine().begin() as conn:
+        mx = conn.execute(
+            select(func.coalesce(func.max(spot_images_table.c.sort_order), 0))
+            .where(spot_images_table.c.spot == spot)
+        ).scalar() or 0
+        conn.execute(insert(spot_images_table).values(
+            spot=spot, image=image_bytes, image_mime=image_mime or "image/jpeg",
+            sort_order=int(mx) + 1,
+        ))
+    _clear_ad_caches()
+
+
+def delete_spot_image(image_id):
+    _ensure_ad_tables()
+    with get_engine().begin() as conn:
+        conn.execute(delete(spot_images_table).where(spot_images_table.c.id == int(image_id)))
+    _clear_ad_caches()
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -5091,7 +5142,11 @@ def _tv_spot_info(cfg):
         return
     desc = (info.get("description") or "").strip()
     webcam = (info.get("webcam_url") or "").strip()
-    img_uri = _bytes_to_data_uri(info.get("image"), info.get("image_mime"))
+    gallery = load_spot_images(cfg["spot"])
+    if gallery and gallery[0].get("image"):
+        img_uri = _bytes_to_data_uri(gallery[0]["image"], gallery[0].get("image_mime"))
+    else:
+        img_uri = _bytes_to_data_uri(info.get("image"), info.get("image_mime"))
     if not desc and not webcam and not img_uri:
         return
 
@@ -5283,7 +5338,8 @@ def _tv_bottom_info(cfg):
     Gibt es nur eins von beiden, wird dieses dauerhaft gezeigt."""
     info = load_spot_info(cfg["spot"]) or {}
     has_info = bool(
-        (info.get("description") or "").strip() or info.get("webcam_url") or info.get("image")
+        (info.get("description") or "").strip() or info.get("webcam_url")
+        or info.get("image") or load_spot_images(cfg["spot"])
     )
     coords = _spot_coords(cfg["spot"])
     has_fc = coords is not None and _fetch_forecast_3d(coords[0], coords[1]) is not None
@@ -5345,7 +5401,6 @@ def render_spots_page():
         )
 
     webcam = (info.get("webcam_url") or "").strip()
-    img_uri = _bytes_to_data_uri(info.get("image"), info.get("image_mime"))
     if webcam and _is_image_url(webcam):
         components.html(
             f"<img src='{webcam}' style='width:100%;max-height:380px;object-fit:cover;"
@@ -5354,11 +5409,21 @@ def render_spots_page():
         components.html(
             f"<iframe src='{webcam}' allow='autoplay; fullscreen' "
             "style='width:100%;height:380px;border:0;border-radius:16px;'></iframe>", height=388)
-    elif img_uri:
-        st.markdown(
-            f"<img src='{img_uri}' style='width:100%;border-radius:16px;'>",
-            unsafe_allow_html=True,
-        )
+
+    # Bilder-Galerie (mehrere Bilder); Fallback: altes Einzelbild, wenn keine Galerie.
+    gallery = load_spot_images(spot)
+    if gallery:
+        gcols = st.columns(3)
+        for idx, gi in enumerate(gallery):
+            if gi.get("image"):
+                gcols[idx % 3].image(bytes(gi["image"]), use_container_width=True)
+    elif not webcam:
+        img_uri = _bytes_to_data_uri(info.get("image"), info.get("image_mime"))
+        if img_uri:
+            st.markdown(
+                f"<img src='{img_uri}' style='width:100%;border-radius:16px;'>",
+                unsafe_allow_html=True,
+            )
 
     coords = _spot_coords(spot)
     if coords:
@@ -5701,9 +5766,6 @@ def render_admin_ads():
         else:
             st.warning("Keine Beschreibung gefunden – bitte selbst eintragen.")
 
-    if info.get("image"):
-        st.image(bytes(info["image"]), width=220, caption="aktuelles Bild")
-
     with st.form(f"info_form_{spot}"):
         desc = st.text_area(
             "Beschreibung",
@@ -5726,23 +5788,35 @@ def render_admin_ads():
             help="Direktes Bild (…/snapshot.jpg) lädt sich auto. neu; eine "
                  "einbettbare Seite (YouTube-Live/Windy) wird als iFrame gezeigt.",
         )
-        info_img = st.file_uploader(
-            "Bild hochladen (optional)", type=["png", "jpg", "jpeg", "webp"],
-            key=f"infoimg_{spot}",
-        )
-        info_clear = (
-            st.checkbox("Aktuelles Bild entfernen", key=f"infoclr_{spot}")
-            if info.get("image") else False
-        )
         if st.form_submit_button("💾 Spot-Info speichern"):
-            save_spot_info(
-                spot, desc, webcam, country=country, best_winds=best_winds,
-                image_bytes=info_img.getvalue() if info_img else None,
-                image_mime=info_img.type if info_img else None,
-                clear_image=info_clear,
-            )
+            save_spot_info(spot, desc, webcam, country=country, best_winds=best_winds)
             st.session_state.pop(info_prefill_key, None)
             _admin_flash("Spot-Info gespeichert.")
+
+    # --- Bilder-Galerie (mehrere Bilder je Spot, ausserhalb des Formulars) ---
+    st.markdown("#### 🖼️ Bilder (Galerie)")
+    gallery = load_spot_images(spot)
+    if info.get("image") and not gallery:
+        st.caption("Es gibt noch ein altes Einzelbild – lade hier Galerie-Bilder "
+                   "hoch, sie ersetzen es in der Anzeige.")
+        st.image(bytes(info["image"]), width=150, caption="altes Einzelbild")
+    if gallery:
+        gcols = st.columns(4)
+        for idx, gi in enumerate(gallery):
+            with gcols[idx % 4]:
+                if gi.get("image"):
+                    st.image(bytes(gi["image"]), use_container_width=True)
+                if st.button("🗑️", key=f"delimg_{gi['id']}", help="Dieses Bild löschen"):
+                    delete_spot_image(gi["id"])
+                    _admin_flash("Bild gelöscht.")
+    new_imgs = st.file_uploader(
+        "Bilder hinzufügen (mehrere möglich)", type=["png", "jpg", "jpeg", "webp"],
+        accept_multiple_files=True, key=f"galup_{spot}",
+    )
+    if st.button("➕ Bilder hochladen", key=f"galadd_{spot}", disabled=not new_imgs):
+        for up in new_imgs:
+            add_spot_image(spot, up.getvalue(), up.type)
+        _admin_flash(f"{len(new_imgs)} Bild(er) hinzugefügt.")
 
 
 def _product_editor(spot, prod):
