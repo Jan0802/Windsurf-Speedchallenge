@@ -696,6 +696,7 @@ spot_info_table = Table(
     Column("image", LargeBinary),
     Column("image_mime", String(50)),
     Column("webcam_url", String(500)),
+    Column("country", String(80)),       # Land (fuer den Filter der Spots-Seite)
     Column("auto_filled", Boolean, nullable=False, default=False),  # KI-Entwurf?
     Column("updated_at", DateTime, server_default=func.now()),
 )
@@ -1533,11 +1534,26 @@ def _ensure_ad_tables():
 
 
 def _clear_ad_caches():
-    for fn in (load_spot_ad, load_spot_products, load_spot_info):
+    for fn in (load_spot_ad, load_spot_products, load_spot_info, load_all_spot_info):
         try:
             fn.clear()
         except Exception:
             pass
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_all_spot_info():
+    """Alle Spots MIT Beschreibung (ohne Bild-Bytes – leichtgewichtig) fuer die
+    Spots-Seite: spot, country, description."""
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(spot_info_table.c.spot, spot_info_table.c.country,
+                   spot_info_table.c.description)
+            .where(spot_info_table.c.description.isnot(None))
+            .order_by(spot_info_table.c.spot)
+        ).mappings().all()
+    return [dict(r) for r in rows if (r["description"] or "").strip()]
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -1655,7 +1671,7 @@ def load_spot_info(spot):
     return dict(row) if row else None
 
 
-def save_spot_info(spot, description, webcam_url,
+def save_spot_info(spot, description, webcam_url, country="",
                    image_bytes=None, image_mime=None, clear_image=False):
     if not spot:
         return
@@ -1663,6 +1679,7 @@ def save_spot_info(spot, description, webcam_url,
     values = {
         "description": (description or "").strip() or None,
         "webcam_url": (webcam_url or "").strip() or None,
+        "country": (country or "").strip() or None,
         "auto_filled": False,   # manuell gespeichert = geprueft
     }
     if clear_image:
@@ -5222,6 +5239,77 @@ def _tv_bottom_info(cfg):
         _tv_forecast(cfg, coords)
 
 
+def render_spots_page():
+    """Reine Spot-Seite (Revierführer): Filter Land/Spot -> Beschreibung, Webcam/
+    Bild und Wetter (aktuell + 3-Tage) des gewählten Spots."""
+    st.markdown("## 🗺️ Spots")
+    all_info = load_all_spot_info()
+    if not all_info:
+        st.info(
+            "Noch keine Spots mit Beschreibung. Sie erscheinen hier automatisch, "
+            "sobald die KI-Anreicherung gelaufen ist (oder du im Backoffice einen "
+            "Text speicherst)."
+        )
+        return
+
+    countries = sorted({
+        (s.get("country") or "").strip() for s in all_info if (s.get("country") or "").strip()
+    })
+    fcol1, fcol2 = st.columns(2)
+    country = fcol1.selectbox("Land", ["Alle Länder"] + countries, key="spots_country")
+    pool = [
+        s for s in all_info
+        if country == "Alle Länder" or (s.get("country") or "").strip() == country
+    ]
+    names = [s["spot"] for s in pool]
+    if not names:
+        st.info("Keine Spots für dieses Land.")
+        return
+    spot = fcol2.selectbox("Spot", names, key="spots_spot")
+
+    chosen = next((s for s in pool if s["spot"] == spot), {})
+    info = load_spot_info(spot) or {}   # voll, inkl. Bild/Webcam
+
+    heading = f"### {spot}"
+    if chosen.get("country"):
+        heading += f"  ·  📍 {chosen['country']}"
+    st.markdown(heading)
+
+    desc = (chosen.get("description") or info.get("description") or "").strip()
+    if desc:
+        st.markdown(
+            f"<div style='font-size:18px;line-height:1.6;'>{desc}</div>",
+            unsafe_allow_html=True,
+        )
+
+    webcam = (info.get("webcam_url") or "").strip()
+    img_uri = _bytes_to_data_uri(info.get("image"), info.get("image_mime"))
+    if webcam and _is_image_url(webcam):
+        components.html(
+            f"<img src='{webcam}' style='width:100%;max-height:380px;object-fit:cover;"
+            "border-radius:16px;display:block;'>", height=388)
+    elif webcam:
+        components.html(
+            f"<iframe src='{webcam}' allow='autoplay; fullscreen' "
+            "style='width:100%;height:380px;border:0;border-radius:16px;'></iframe>", height=388)
+    elif img_uri:
+        st.markdown(
+            f"<img src='{img_uri}' style='width:100%;border-radius:16px;'>",
+            unsafe_allow_html=True,
+        )
+
+    coords = _spot_coords(spot)
+    if coords:
+        st.markdown("#### 🌬️ Wetter")
+        components.html(_tv_weather_html(coords[0], coords[1]), height=130)
+        _tv_forecast({"spot": spot}, coords)
+    else:
+        st.caption(
+            "Für diesen Spot sind noch keine Koordinaten hinterlegt – daher kein "
+            "Wetter. Sobald eine Session mit GPS von dort kommt, erscheint die Vorhersage."
+        )
+
+
 def _product_cards_html(spot):
     """HTML-Karten (Bild + Titel + Preis, je Shop/Cafe-Link) der aktiven Produkte."""
     cards = []
@@ -5560,6 +5648,10 @@ def render_admin_ads():
             value=(info_prefill if info_prefill is not None else (info.get("description") or "")),
             height=140,
         )
+        country = st.text_input(
+            "Land (für den Filter der Spots-Seite)", value=info.get("country") or "",
+            help="Wird vom KI-Job automatisch gesetzt; hier überschreibbar.",
+        )
         webcam = st.text_input(
             "Webcam- oder Bild-URL (optional, hat Vorrang vor Upload)",
             value=info.get("webcam_url") or "",
@@ -5576,7 +5668,7 @@ def render_admin_ads():
         )
         if st.form_submit_button("💾 Spot-Info speichern"):
             save_spot_info(
-                spot, desc, webcam,
+                spot, desc, webcam, country=country,
                 image_bytes=info_img.getvalue() if info_img else None,
                 image_mime=info_img.type if info_img else None,
                 clear_image=info_clear,
@@ -5795,20 +5887,29 @@ logo_img = image_to_base64(app_path("assets", "windsurfer.png"))
 
 # Aktiver Sport (aus ?sport=). Standard: Windsurf.
 sport = active_sport()
+_is_spots_view = st.query_params.get("view") == "spots"
 
-# Header-Umschalter Windsurf | Kitesurf (ganz oben). Klick setzt ?sport= in der
-# URL (bleibt über Reload/Link erhalten) und löst einen Rerun aus.
-_sw_cols = st.columns([2] * len(SPORTS) + [1])
+# Header-Umschalter Sportarten + ganz rechts die reine Spots-Seite. Klick setzt
+# ?sport= bzw. ?view=spots in der URL (bleibt über Reload/Link erhalten).
+_sw_cols = st.columns([2] * len(SPORTS) + [2])
 for _i, _key in enumerate(SPORTS):
     if _sw_cols[_i].button(
         SPORT_META[_key]["label"],
         key=f"switch_sport_{_key}",
         use_container_width=True,
-        type="primary" if _key == sport else "secondary",
+        type="primary" if (_key == sport and not _is_spots_view) else "secondary",
     ):
-        if _key != sport:
-            st.query_params["sport"] = _key
-            st.rerun()
+        if "view" in st.query_params:
+            del st.query_params["view"]
+        st.query_params["sport"] = _key
+        st.rerun()
+if _sw_cols[len(SPORTS)].button(
+    "🗺️ Spots", key="switch_view_spots", use_container_width=True,
+    type="primary" if _is_spots_view else "secondary",
+):
+    if not _is_spots_view:
+        st.query_params["view"] = "spots"
+        st.rerun()
 
 # Vollflächiges Hintergrundbild je Sport. Lege dein Wunschfoto als
 # assets/background.webp (Windsurf) bzw. assets/background_kite.webp (Kite) ab
@@ -6621,6 +6722,14 @@ render_account_sidebar(current_user)
 if st.session_state.get("_pending_token"):
     _persist_auth_cookie(st.session_state["_pending_token"])
     st.session_state.pop("_pending_token", None)
+
+
+# Reine Spots-Seite (Revierführer) – ersetzt die Rankings; Header/Umschalter oben
+# bleiben sichtbar. ensure_schema stellt sicher, dass spot_info.country existiert.
+if _is_spots_view:
+    ensure_schema()
+    render_spots_page()
+    st.stop()
 
 
 # Bestleistungs-Filter direkt unter „Konto & Daten löschen" (Konto-Bereich der
