@@ -5422,10 +5422,13 @@ def render_spots_page():
         if tiles:
             st.markdown(
                 "<style>"
+                # 5 Kacheln nebeneinander (breit); auf schmalen Screens automatisch weniger.
                 ".sp-gallery{display:grid;gap:14px;margin-top:10px;"
-                "grid-template-columns:repeat(auto-fill,minmax(260px,1fr));}"
-                ".sp-tile{height:220px;background-size:cover;background-position:center;"
+                "grid-template-columns:repeat(5,1fr);}"
+                ".sp-tile{height:240px;background-size:cover;background-position:center;"
                 "border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.18);}"
+                "@media (max-width:1200px){.sp-gallery{grid-template-columns:repeat(3,1fr);}}"
+                "@media (max-width:680px){.sp-gallery{grid-template-columns:repeat(2,1fr);}}"
                 "</style>"
                 f"<div class='sp-gallery'>{''.join(tiles)}</div>",
                 unsafe_allow_html=True,
