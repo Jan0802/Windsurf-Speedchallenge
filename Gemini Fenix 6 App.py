@@ -5409,13 +5409,27 @@ def render_spots_page():
             f"<iframe src='{webcam}' allow='autoplay; fullscreen' "
             "style='width:100%;height:380px;border:0;border-radius:16px;'></iframe>", height=388)
 
-    # Bilder-Galerie (mehrere Bilder); Fallback: altes Einzelbild, wenn keine Galerie.
+    # Bilder-Galerie als gleichmaessiges Kachel-Raster (alle gleich gross, cover).
     gallery = load_spot_images(spot)
     if gallery:
-        gcols = st.columns(3)
-        for idx, gi in enumerate(gallery):
-            if gi.get("image"):
-                gcols[idx % 3].image(bytes(gi["image"]), use_container_width=True)
+        tiles = []
+        for gi in gallery:
+            uri = _bytes_to_data_uri(gi.get("image"), gi.get("image_mime"))
+            if uri:
+                tiles.append(
+                    f"<div class='sp-tile' style=\"background-image:url('{uri}')\"></div>"
+                )
+        if tiles:
+            st.markdown(
+                "<style>"
+                ".sp-gallery{display:grid;gap:14px;margin-top:10px;"
+                "grid-template-columns:repeat(auto-fill,minmax(260px,1fr));}"
+                ".sp-tile{height:220px;background-size:cover;background-position:center;"
+                "border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.18);}"
+                "</style>"
+                f"<div class='sp-gallery'>{''.join(tiles)}</div>",
+                unsafe_allow_html=True,
+            )
     elif not webcam:
         img_uri = _bytes_to_data_uri(info.get("image"), info.get("image_mime"))
         if img_uri:
