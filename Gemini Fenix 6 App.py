@@ -5292,9 +5292,52 @@ def _fetch_forecast_3d(lat, lon):
     return data.get("daily")
 
 
-def _tv_forecast(cfg, coords):
+@st.cache_data(ttl=1800, show_spinner=False)
+def _fetch_hourly_forecast(lat, lon):
+    """Stuendliche 3-Tage-Vorhersage (Wind/Boeen/Richtung) fuer die Detailansicht."""
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={lat}&longitude={lon}"
+        "&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m"
+        "&wind_speed_unit=kmh&timezone=auto&forecast_days=3"
+    )
+    try:
+        with urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=8) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception:  # noqa: BLE001
+        return None
+    return data.get("hourly")
+
+
+def _wind_color(v):
+    """Fliessender Farbverlauf fuer die Windstaerke (km/h):
+    gelb (zu wenig) -> gruen (gut) -> orange/rot (zu stark). Gibt 'r,g,b'."""
+    stops = [
+        (0, (245, 197, 24)),    # gelb – zu wenig Wind
+        (15, (46, 204, 113)),   # gruen – guter Wind beginnt
+        (42, (46, 204, 113)),   # gruen – Sweet Spot
+        (55, (243, 156, 18)),   # orange – viel Wind
+        (70, (231, 76, 60)),    # rot – zu stark/Sturm
+    ]
+    if v <= stops[0][0]:
+        r, g, b = stops[0][1]
+        return f"{r},{g},{b}"
+    if v >= stops[-1][0]:
+        r, g, b = stops[-1][1]
+        return f"{r},{g},{b}"
+    for (x0, c0), (x1, c1) in zip(stops, stops[1:]):
+        if x0 <= v <= x1:
+            t = (v - x0) / (x1 - x0) if x1 > x0 else 0
+            r, g, b = (round(c0[k] + (c1[k] - c0[k]) * t) for k in range(3))
+            return f"{r},{g},{b}"
+    r, g, b = stops[-1][1]
+    return f"{r},{g},{b}"
+
+
+def _tv_forecast(cfg, coords, clickable=False):
     """3-Tage-Vorhersage als HTML-Karten (kein iFrame -> fragment-sicher), je Tag
-    mit Ampel 🟢/🟡/🔴 (Windstärke x beste Windrichtungen des Spots)."""
+    mit Ampel 🟢/🟡/🔴 (Windstärke x beste Windrichtungen des Spots). clickable=True
+    (Spots-Seite) macht jede Kachel zum Link -> Stundenansicht via ?fcday=i."""
     daily = _fetch_forecast_3d(coords[0], coords[1])
     if not daily or not daily.get("time"):
         return
@@ -5321,7 +5364,7 @@ def _tv_forecast(cfg, coords):
         comp = _COMPASS[round(wdir / 22.5) % 16] if wdir is not None else ""
         emoji, verdict = _assess_forecast_day(wspeed, wdir, best_degs)
         rate = f"<div class='tv-fc-rate'>{emoji} {verdict}</div>" if emoji else ""
-        cards.append(
+        card = (
             "<div class='tv-fc-card'>"
             f"<div class='tv-fc-day'>{label}</div>"
             f"<div class='tv-fc-emoji'>{_WCODE_EMOJI.get(at('weather_code', i), '')}</div>"
@@ -5332,16 +5375,25 @@ def _tv_forecast(cfg, coords):
             f"{rate}"
             "</div>"
         )
+        if clickable:
+            qp = urlencode({"view": "spots", "spot": cfg["spot"], "fcday": i})
+            card = (f"<a class='tv-fc-link' href='?{qp}' target='_self' "
+                    f"title='Hourly view 9–21h'>{card}</a>")
+        cards.append(card)
 
     bw = info.get("best_winds")
     bw_note = (f" · best winds: {bw}" if bw else
                " · <i>best wind directions not set yet</i>")
+    hint = " · <span style='opacity:.6;'>click a day for the hourly view</span>" if clickable else ""
     st.markdown(
         "<style>"
         ".tv-fc-row{display:flex;gap:18px;flex-wrap:wrap;}"
+        ".tv-fc-link{flex:1 1 0;min-width:170px;text-decoration:none;color:inherit;display:block;}"
         ".tv-fc-card{flex:1 1 0;min-width:170px;background:rgba(255,255,255,.08);"
         "border:1px solid rgba(255,255,255,.18);border-radius:18px;padding:14px 18px;"
         "text-align:center;}"
+        ".tv-fc-link .tv-fc-card{height:100%;cursor:pointer;transition:transform .1s,background .1s;}"
+        ".tv-fc-link:hover .tv-fc-card{transform:translateY(-2px);background:rgba(255,255,255,.14);}"
         ".tv-fc-day{font-size:22px;font-weight:800;opacity:.9;}"
         ".tv-fc-emoji{font-size:46px;line-height:1.1;margin:2px 0;}"
         ".tv-fc-temp{font-size:30px;font-weight:800;}"
@@ -5352,8 +5404,88 @@ def _tv_forecast(cfg, coords):
         ".tv-fc-rate{margin-top:8px;font-size:18px;font-weight:800;}"
         "</style>"
         f"<div class='tv-info-title'>🌤️ Forecast · {cfg['spot']}<span "
-        f"style='font-size:16px;font-weight:600;opacity:.7;'>{bw_note}</span></div>"
+        f"style='font-size:16px;font-weight:600;opacity:.7;'>{bw_note}{hint}</span></div>"
         f"<div class='tv-fc-row'>{''.join(cards)}</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_hourly(spot, coords, day_index):
+    """Stundenansicht (9–21 Uhr) eines Tages als Balken: Hoehe=Windstaerke,
+    Farbe fliessend (gelb zu wenig -> gruen gut -> rot zu stark), Zahl in km/h."""
+    daily = _fetch_forecast_3d(coords[0], coords[1])
+    hourly = _fetch_hourly_forecast(coords[0], coords[1])
+    if not daily or not hourly or not daily.get("time") or day_index >= len(daily["time"]):
+        return
+    target = daily["time"][day_index]   # 'YYYY-MM-DD'
+    try:
+        dt = pd.to_datetime(target)
+        day_label = "Today" if day_index == 0 else _WEEKDAY_EN[dt.weekday()]
+    except Exception:  # noqa: BLE001
+        day_label = str(target)
+
+    times = hourly.get("time") or []
+    ws = hourly.get("wind_speed_10m") or []
+    gs = hourly.get("wind_gusts_10m") or []
+    ds = hourly.get("wind_direction_10m") or []
+    rows = []
+    for i, t in enumerate(times):
+        if t[:10] != target:
+            continue
+        hh = int(t[11:13])
+        if hh < 9 or hh > 21:
+            continue
+        rows.append((
+            hh,
+            ws[i] if i < len(ws) else None,
+            gs[i] if i < len(gs) else None,
+            ds[i] if i < len(ds) else None,
+        ))
+    if not rows:
+        st.info("No hourly data for this day.")
+        return
+
+    ref = max(70.0, max((w for _, w, _, _ in rows if w is not None), default=0))
+    bars = []
+    for hh, w, g, d in rows:
+        wv = w or 0
+        h_pct = max(5, min(100, wv / ref * 100))
+        comp = _COMPASS[round(d / 22.5) % 16] if d is not None else ""
+        gust = f"⤴ {round(g)}" if g is not None else ""
+        bars.append(
+            "<div class='hb-col'>"
+            f"<div class='hb-val'>{round(wv)}</div>"
+            "<div class='hb-track'>"
+            f"<div class='hb-bar' style='height:{h_pct}%;background:rgb({_wind_color(wv)});'></div>"
+            "</div>"
+            f"<div class='hb-hr'>{hh}h</div>"
+            f"<div class='hb-dir'>{comp}</div>"
+            f"<div class='hb-gust'>{gust}</div>"
+            "</div>"
+        )
+
+    st.markdown(
+        "<style>"
+        ".hb-wrap{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);"
+        "border-radius:18px;padding:16px 18px;margin-top:6px;}"
+        ".hb-title{font-size:22px;font-weight:800;margin-bottom:4px;}"
+        ".hb-legend{font-size:14px;opacity:.7;margin-bottom:12px;}"
+        ".hb-row{display:flex;gap:6px;align-items:flex-end;}"
+        ".hb-col{flex:1 1 0;text-align:center;}"
+        ".hb-val{font-size:15px;font-weight:800;margin-bottom:4px;}"
+        ".hb-track{height:180px;display:flex;align-items:flex-end;}"
+        ".hb-bar{width:100%;border-radius:7px 7px 0 0;min-height:4px;}"
+        ".hb-hr{font-size:13px;opacity:.75;margin-top:5px;}"
+        ".hb-dir{font-size:12px;opacity:.55;}"
+        ".hb-gust{font-size:11px;opacity:.45;}"
+        "</style>"
+        "<div class='hb-wrap'>"
+        f"<div class='hb-title'>⏱️ {spot} · {day_label} · 9–21h <small style='font-weight:600;"
+        "opacity:.6;'>(wind km/h)</small></div>"
+        "<div class='hb-legend'>🟡 too little · 🟢 good · 🔴 too strong &nbsp;·&nbsp; "
+        "⤴ = gusts</div>"
+        f"<div class='hb-row'>{''.join(bars)}</div>"
+        "</div>",
         unsafe_allow_html=True,
     )
 
@@ -5409,7 +5541,15 @@ def render_spots_page():
     if not names:
         st.info("No spots for this country.")
         return
-    spot = fcol2.selectbox("Spot", names, key="spots_spot")
+    # Spot in der URL halten -> ueberlebt den Klick-Reload der Wetterkacheln.
+    url_spot = st.query_params.get("spot")
+    default_idx = names.index(url_spot) if url_spot in names else 0
+    spot = fcol2.selectbox("Spot", names, index=default_idx)
+    if spot != st.query_params.get("spot"):
+        st.query_params["spot"] = spot
+        if "fcday" in st.query_params:   # anderer Spot -> Stundenansicht schliessen
+            del st.query_params["fcday"]
+        st.rerun()
 
     chosen = next((s for s in pool if s["spot"] == spot), {})
     info = load_spot_info(spot) or {}   # voll, inkl. Bild/Webcam
@@ -5475,7 +5615,19 @@ def render_spots_page():
         coords = (lat, lon)
         st.markdown("#### 🌬️ Weather")
         components.html(_tv_weather_html(coords[0], coords[1]), height=130)
-        _tv_forecast({"spot": spot}, coords)
+        _tv_forecast({"spot": spot}, coords, clickable=True)
+        # Klick auf eine Tageskachel setzt ?fcday=i -> Stundenansicht 9–21h.
+        fcday = st.query_params.get("fcday")
+        if fcday is not None:
+            try:
+                di = int(fcday)
+            except (TypeError, ValueError):
+                di = None
+            if di in (0, 1, 2):
+                _render_hourly(spot, coords, di)
+                if st.button("✕ Close hourly view", key="close_hourly"):
+                    del st.query_params["fcday"]
+                    st.rerun()
     else:
         st.caption("No coordinates could be determined for this spot – no weather.")
 
