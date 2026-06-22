@@ -1573,6 +1573,7 @@ def load_spot_images(spot):
 def add_spot_image(spot, image_bytes, image_mime):
     if not spot or not image_bytes:
         return
+    image_bytes, image_mime = _optimize_image(image_bytes, image_mime)
     _ensure_ad_tables()
     with get_engine().begin() as conn:
         mx = conn.execute(
@@ -1635,6 +1636,7 @@ def save_spot_ad(spot, sponsor_name, sponsor_url, active,
         values["logo"] = None
         values["logo_mime"] = None
     elif logo_bytes is not None:
+        logo_bytes, logo_mime = _optimize_image(logo_bytes, logo_mime, max_dim=600)
         values["logo"] = logo_bytes
         values["logo_mime"] = logo_mime or "image/png"
 
@@ -1687,6 +1689,7 @@ def save_spot_product(product_id, spot, title, price, url, active, sort_order,
         values["image"] = None
         values["image_mime"] = None
     elif image_bytes is not None:
+        image_bytes, image_mime = _optimize_image(image_bytes, image_mime, max_dim=900)
         values["image"] = image_bytes
         values["image_mime"] = image_mime or "image/png"
 
@@ -1766,6 +1769,30 @@ def _bytes_to_data_uri(data, mime):
     # Postgres (Neon) liefert bytea als memoryview -> in bytes wandeln.
     b64 = base64.b64encode(bytes(data)).decode("ascii")
     return f"data:{mime or 'image/png'};base64,{b64}"
+
+
+def _optimize_image(data, mime, max_dim=1600, quality=82):
+    """Macht ein hochgeladenes Bild webfaehig: skaliert auf max_dim herunter und
+    komprimiert (JPEG, bzw. PNG bei Transparenz). Spart Speicher/Transfer und
+    macht Galerie/TV schneller. Bei Fehlern bleibt das Original erhalten."""
+    if not data:
+        return data, mime
+    try:
+        from PIL import Image
+        im = Image.open(io.BytesIO(bytes(data)))
+        im.load()
+        has_alpha = im.mode in ("RGBA", "LA") or (
+            im.mode == "P" and "transparency" in im.info
+        )
+        im.thumbnail((max_dim, max_dim))  # nur verkleinern, Seitenverhaeltnis bleibt
+        buf = io.BytesIO()
+        if has_alpha:
+            im.convert("RGBA").save(buf, format="PNG", optimize=True)
+            return buf.getvalue(), "image/png"
+        im.convert("RGB").save(buf, format="JPEG", quality=quality, optimize=True)
+        return buf.getvalue(), "image/jpeg"
+    except Exception:  # noqa: BLE001 – im Zweifel Original behalten
+        return data, mime
 
 
 # ---- Produkt-Metadaten aus einer Shop-URL ziehen (Open Graph / JSON-LD) ----
