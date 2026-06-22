@@ -1548,7 +1548,7 @@ def _ensure_ad_tables():
 
 def _clear_ad_caches():
     for fn in (load_spot_ad, load_spot_products, load_spot_info, load_all_spot_info,
-               load_spot_images):
+               load_spot_images, load_spot_image_ids, _spot_thumb_uri):
         try:
             fn.clear()
         except Exception:
@@ -1557,7 +1557,7 @@ def _clear_ad_caches():
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_spot_images(spot):
-    """Alle Galerie-Bilder eines Spots (sortiert)."""
+    """Alle Galerie-Bilder eines Spots inkl. Bytes (sortiert) – fuers Backoffice."""
     if not spot:
         return []
     _ensure_ad_tables()
@@ -1568,6 +1568,38 @@ def load_spot_images(spot):
             .order_by(spot_images_table.c.sort_order, spot_images_table.c.id)
         ).mappings().all()
     return [dict(r) for r in rows]
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_spot_image_ids(spot):
+    """Nur die Bild-IDs eines Spots (leichtgewichtig, ohne Bytes) – fuer die
+    Galerie-Anzeige, die ueber _spot_thumb_uri gecachte Thumbnails laedt."""
+    if not spot:
+        return []
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(spot_images_table.c.id)
+            .where(spot_images_table.c.spot == spot)
+            .order_by(spot_images_table.c.sort_order, spot_images_table.c.id)
+        ).all()
+    return [r[0] for r in rows]
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _spot_thumb_uri(image_id, max_dim=560):
+    """Kleines, gecachtes Thumbnail (data-URI) eines Galerie-Bilds. Spart enorm
+    Seitenlast gegenueber dem Voll-Bild-base64 in der Galerie."""
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(spot_images_table.c.image, spot_images_table.c.image_mime)
+            .where(spot_images_table.c.id == int(image_id))
+        ).first()
+    if not row or not row[0]:
+        return None
+    data, mime = _optimize_image(row[0], row[1], max_dim=max_dim, quality=72)
+    return _bytes_to_data_uri(data, mime)
 
 
 def add_spot_image(spot, image_bytes, image_mime):
@@ -5169,9 +5201,9 @@ def _tv_spot_info(cfg):
         return
     desc = (info.get("description") or "").strip()
     webcam = (info.get("webcam_url") or "").strip()
-    gallery = load_spot_images(cfg["spot"])
-    if gallery and gallery[0].get("image"):
-        img_uri = _bytes_to_data_uri(gallery[0]["image"], gallery[0].get("image_mime"))
+    img_ids = load_spot_image_ids(cfg["spot"])
+    if img_ids:
+        img_uri = _spot_thumb_uri(img_ids[0], max_dim=520)
     else:
         img_uri = _bytes_to_data_uri(info.get("image"), info.get("image_mime"))
     if not desc and not webcam and not img_uri:
@@ -5498,7 +5530,7 @@ def _tv_bottom_info(cfg):
     info = load_spot_info(cfg["spot"]) or {}
     has_info = bool(
         (info.get("description") or "").strip() or info.get("webcam_url")
-        or info.get("image") or load_spot_images(cfg["spot"])
+        or info.get("image") or load_spot_image_ids(cfg["spot"])
     )
     coords = _spot_coords(cfg["spot"])
     has_fc = coords is not None and _fetch_forecast_3d(coords[0], coords[1]) is not None
@@ -5577,11 +5609,12 @@ def render_spots_page():
             "style='width:100%;height:380px;border:0;border-radius:16px;'></iframe>", height=388)
 
     # Bilder-Galerie als gleichmaessiges Kachel-Raster (alle gleich gross, cover).
-    gallery = load_spot_images(spot)
-    if gallery:
+    # Gecachte Thumbnails statt Voll-Bild-base64 -> viel kleinere Seitenlast.
+    img_ids = load_spot_image_ids(spot)
+    if img_ids:
         tiles = []
-        for gi in gallery:
-            uri = _bytes_to_data_uri(gi.get("image"), gi.get("image_mime"))
+        for iid in img_ids:
+            uri = _spot_thumb_uri(iid)
             if uri:
                 tiles.append(
                     f"<div class='sp-tile' style=\"background-image:url('{uri}')\"></div>"
