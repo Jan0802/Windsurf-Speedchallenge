@@ -17,6 +17,11 @@
 #MainMenu { visibility: hidden !important; }
 [data-testid="stHeader"] {
     background: transparent !important;
+    /* Der transparente Header lag unsichtbar ueber der obersten Button-Reihe und
+       fing deren Klicks ab (nur der untere Rand war klickbar). pointer-events:none
+       laesst Klicks durch zu den Buttons darunter; der Sidebar-Pfeil bekommt unten
+       wieder pointer-events:auto. */
+    pointer-events: none !important;
 }
 
 /* WICHTIG: Der Ein-/Ausklapp-Pfeil der Sidebar muss sichtbar bleiben –
@@ -30,6 +35,7 @@
     visibility: visible !important;
     opacity: 1 !important;
     z-index: 1000 !important;
+    pointer-events: auto !important;   /* trotz pointer-events:none am Header klickbar */
 }
 
 /* Überschriften hell mit weichem Schatten */
