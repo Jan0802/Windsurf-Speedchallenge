@@ -4733,7 +4733,7 @@ def _spot_tv_config():
         "logo": qp.get("logo", ""),
         "event": qp.get("event", ""),
         "trust": trust,
-        "base": qp.get("base", "https://mywatersessions.streamlit.app"),
+        "base": qp.get("base", "https://mywatersessions.com"),
     }
 
 
