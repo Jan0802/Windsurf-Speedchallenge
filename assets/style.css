@@ -2,7 +2,10 @@
    Das Hintergrundbild wird per Code (base64) auf .stApp gelegt. */
 
 .block-container {
-    padding-top: 0.75rem;
+    /* 4rem oben: Die oberste Button-Reihe lag sonst unter dem (transparenten)
+       Streamlit-Header (~3.75rem hoch), der die Klicks abfing -> nur der untere
+       Rand war klickbar. Mit 4rem startet der Inhalt UNTER dem Header. */
+    padding-top: 4rem;
     max-width: 100%;
     padding-left: 1.5rem;
     padding-right: 1.5rem;
