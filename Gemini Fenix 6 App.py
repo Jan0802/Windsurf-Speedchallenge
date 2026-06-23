@@ -7321,6 +7321,12 @@ with left:
             "**GARMIN/Activity** folder and upload the desired **.fit file** "
             "below."
         )
+        st.caption(
+            "🍏 **Apple Watch & others:** export the workout as a **.fit** file "
+            "(e.g. via the **HealthFit** app on Apple Watch) and upload it here – "
+            "GPS track, distance and the 2 s / 30 s top speeds are computed "
+            "automatically. Works with any watch that can export FIT."
+        )
 
     if source == "📁 Upload file":
         uploaded_file = st.file_uploader("Upload FIT file", type=["fit"])
