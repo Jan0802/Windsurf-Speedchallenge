@@ -5306,15 +5306,45 @@ def _assess_forecast_day(wind, dir_deg, best_degs):
     return "🟡", "light wind"
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
-def _fetch_forecast_3d(lat, lon):
-    """3-Tage-Tagesvorhersage von Open-Meteo (serverseitig, gecached).
+@st.cache_resource(show_spinner=False)
+def _forecast3d_store():
+    """Letzter erfolgreicher 3-Tage-Abruf je (Spot, Block). Überlebt Reruns und
+    Sessions (cache_resource) → dient als Fallback, wenn ein frischer Abruf an
+    einem 429 scheitert. So bleiben die Kacheln stehen statt zu flackern."""
+    return {}
 
-    Geht über _open_meteo_url + _http_get_json (Retry, korrekter User-Agent und
-    – falls Key gesetzt – Kunden-Endpunkt). Nacktes urlopen scheiterte auf der
-    geteilten Render-IP regelmäßig an HTTP 429 → Vorhersage verschwand.
-    """
-    params = {
+
+def _fetch_open_meteo_block(params, block, attempts=3):
+    """Holt einen Open-Meteo-Block ('daily'/'hourly') robust.
+
+    _http_get_json wirft bei 4xx sofort – inkl. 429 (Rate-Limit der geteilten
+    Render-IP). Genau das ist hier aber der häufigste, vorübergehende Fehler,
+    daher wird 429 ein paar Mal mit kurzer Pause wiederholt. Wirft, wenn alle
+    Versuche scheitern (der Aufrufer fällt dann auf den letzten Stand zurück)."""
+    url = _open_meteo_url("api", "/v1/forecast", params)
+    last = None
+    for i in range(attempts):
+        try:
+            return (_http_get_json(url, timeout=20) or {}).get(block)
+        except HTTPError as e:
+            last = e
+            if e.code == 429 and i < attempts - 1:
+                time.sleep(1.2 * (i + 1))
+                continue
+            if 400 <= e.code < 500:   # andere 4xx sind dauerhaft
+                raise
+        except Exception as e:  # noqa: BLE001
+            last = e
+            if i < attempts - 1:
+                time.sleep(1.2 * (i + 1))
+    raise last if last else RuntimeError("forecast fetch failed")
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def _fetch_forecast_3d_raw(lat, lon):
+    """3-Tage-Tagesvorhersage – cached NUR bei Erfolg (wirft sonst, damit
+    st.cache_data den Fehler nicht 30 Min festhält)."""
+    return _fetch_open_meteo_block({
         "latitude": round(float(lat), 4),
         "longitude": round(float(lon), 4),
         "daily": (
@@ -5324,32 +5354,42 @@ def _fetch_forecast_3d(lat, lon):
         "wind_speed_unit": "kmh",
         "timezone": "auto",
         "forecast_days": 3,
-    }
-    try:
-        data = _http_get_json(_open_meteo_url("api", "/v1/forecast", params), timeout=30)
-    except Exception:  # noqa: BLE001
-        return None
-    return data.get("daily")
+    }, "daily")
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def _fetch_hourly_forecast(lat, lon):
-    """Stuendliche 3-Tage-Vorhersage (Wind/Boeen/Richtung) fuer die Detailansicht.
-
-    Gleicher robuster Pfad wie _fetch_forecast_3d (Retry + Kunden-Endpunkt)."""
-    params = {
+def _fetch_hourly_forecast_raw(lat, lon):
+    """Stuendliche 3-Tage-Vorhersage – cached nur bei Erfolg (wirft sonst)."""
+    return _fetch_open_meteo_block({
         "latitude": round(float(lat), 4),
         "longitude": round(float(lon), 4),
         "hourly": "wind_speed_10m,wind_gusts_10m,wind_direction_10m",
         "wind_speed_unit": "kmh",
         "timezone": "auto",
         "forecast_days": 3,
-    }
+    }, "hourly")
+
+
+def _forecast_with_fallback(kind, fetch, lat, lon):
+    """Erfolg cachen (über fetch) + letzten guten Stand merken; bei Fehler den
+    letzten Stand zurückgeben statt None. Behebt das „mal da, mal nicht"."""
+    store = _forecast3d_store()
+    key = (kind, round(float(lat), 4), round(float(lon), 4))
     try:
-        data = _http_get_json(_open_meteo_url("api", "/v1/forecast", params), timeout=30)
+        result = fetch(lat, lon)
+        if result:
+            store[key] = result
+        return result
     except Exception:  # noqa: BLE001
-        return None
-    return data.get("hourly")
+        return store.get(key)
+
+
+def _fetch_forecast_3d(lat, lon):
+    return _forecast_with_fallback("daily", _fetch_forecast_3d_raw, lat, lon)
+
+
+def _fetch_hourly_forecast(lat, lon):
+    return _forecast_with_fallback("hourly", _fetch_hourly_forecast_raw, lat, lon)
 
 
 def _wind_color(v):
