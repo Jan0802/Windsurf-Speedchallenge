@@ -5308,17 +5308,25 @@ def _assess_forecast_day(wind, dir_deg, best_degs):
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def _fetch_forecast_3d(lat, lon):
-    """3-Tage-Tagesvorhersage von Open-Meteo (serverseitig, gecached)."""
-    url = (
-        "https://api.open-meteo.com/v1/forecast"
-        f"?latitude={lat}&longitude={lon}"
-        "&daily=weather_code,temperature_2m_max,temperature_2m_min,"
-        "wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant"
-        "&wind_speed_unit=kmh&timezone=auto&forecast_days=3"
-    )
+    """3-Tage-Tagesvorhersage von Open-Meteo (serverseitig, gecached).
+
+    Geht über _open_meteo_url + _http_get_json (Retry, korrekter User-Agent und
+    – falls Key gesetzt – Kunden-Endpunkt). Nacktes urlopen scheiterte auf der
+    geteilten Render-IP regelmäßig an HTTP 429 → Vorhersage verschwand.
+    """
+    params = {
+        "latitude": round(float(lat), 4),
+        "longitude": round(float(lon), 4),
+        "daily": (
+            "weather_code,temperature_2m_max,temperature_2m_min,"
+            "wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant"
+        ),
+        "wind_speed_unit": "kmh",
+        "timezone": "auto",
+        "forecast_days": 3,
+    }
     try:
-        with urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=8) as resp:
-            data = json.loads(resp.read().decode())
+        data = _http_get_json(_open_meteo_url("api", "/v1/forecast", params), timeout=30)
     except Exception:  # noqa: BLE001
         return None
     return data.get("daily")
@@ -5326,16 +5334,19 @@ def _fetch_forecast_3d(lat, lon):
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def _fetch_hourly_forecast(lat, lon):
-    """Stuendliche 3-Tage-Vorhersage (Wind/Boeen/Richtung) fuer die Detailansicht."""
-    url = (
-        "https://api.open-meteo.com/v1/forecast"
-        f"?latitude={lat}&longitude={lon}"
-        "&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m"
-        "&wind_speed_unit=kmh&timezone=auto&forecast_days=3"
-    )
+    """Stuendliche 3-Tage-Vorhersage (Wind/Boeen/Richtung) fuer die Detailansicht.
+
+    Gleicher robuster Pfad wie _fetch_forecast_3d (Retry + Kunden-Endpunkt)."""
+    params = {
+        "latitude": round(float(lat), 4),
+        "longitude": round(float(lon), 4),
+        "hourly": "wind_speed_10m,wind_gusts_10m,wind_direction_10m",
+        "wind_speed_unit": "kmh",
+        "timezone": "auto",
+        "forecast_days": 3,
+    }
     try:
-        with urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=8) as resp:
-            data = json.loads(resp.read().decode())
+        data = _http_get_json(_open_meteo_url("api", "/v1/forecast", params), timeout=30)
     except Exception:  # noqa: BLE001
         return None
     return data.get("hourly")
@@ -5442,6 +5453,7 @@ def render_spots_forecast(spot, coords):
     oeffnet die Stundenansicht per Streamlit-Rerun (KEIN voller Seiten-Reload)."""
     daily = _fetch_forecast_3d(coords[0], coords[1])
     if not daily or not daily.get("time"):
+        st.caption("⛅ Forecast is temporarily unavailable – please try again in a moment.")
         return
     info = load_spot_info(spot) or {}
     best_degs = _parse_best_dirs(info.get("best_winds"))
