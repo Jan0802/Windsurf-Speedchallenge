@@ -5213,14 +5213,18 @@ def _tv_spot_info(cfg):
         "<style>"
         ".tv-info-title{font-size:26px;font-weight:800;margin:30px 0 10px;}"
         ".tv-info-text{font-size:20px;line-height:1.5;opacity:.92;}"
-        ".tv-info-img{width:100%;border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.18);"
-        "display:block;}"
+        # Festes, randvolles Bild-Tile (cover) statt frei skalierendem Bild -> wirkt
+        # als bewusster Block neben dem Text, nicht als kleines schwebendes Foto.
+        ".tv-info-img{width:100%;height:320px;object-fit:cover;object-position:center;"
+        "border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.18);display:block;}"
         "</style>"
         f"<div class='tv-info-title'>ℹ️ {cfg['spot']}</div>",
         unsafe_allow_html=True,
     )
 
-    col_text, col_media = st.columns([1.3, 1])
+    # vertical_alignment="center": Bild mittig zur (oft höheren) Textspalte ->
+    # Leerraum verteilt sich symmetrisch, das Layout wirkt ausgewogen.
+    col_text, col_media = st.columns([1.3, 1], vertical_alignment="center")
     with col_text:
         if desc:
             st.markdown(f"<div class='tv-info-text'>{desc}</div>", unsafe_allow_html=True)
@@ -5229,17 +5233,17 @@ def _tv_spot_info(cfg):
             # Snapshot-Webcam: Bild alle 60 s mit Cache-Buster neu laden.
             components.html(
                 f"<img id='cam' src='{webcam}' "
-                "style='width:100%;height:240px;object-fit:cover;border-radius:16px;display:block;'>"
+                "style='width:100%;height:320px;object-fit:cover;border-radius:16px;display:block;'>"
                 "<script>setInterval(function(){var c=document.getElementById('cam');"
                 "var u=c.src.split('?')[0];c.src=u+'?t='+Date.now();},60000);</script>",
-                height=248,
+                height=328,
             )
         elif webcam:
             # Einbettbare Seite (YouTube-Live/Windy/…): als iFrame.
             components.html(
                 f"<iframe src='{webcam}' allow='autoplay; fullscreen' "
-                "style='width:100%;height:240px;border:0;border-radius:16px;'></iframe>",
-                height=248,
+                "style='width:100%;height:320px;border:0;border-radius:16px;'></iframe>",
+                height=328,
             )
         elif img_uri:
             st.markdown(
