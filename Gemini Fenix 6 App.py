@@ -7209,16 +7209,102 @@ if _is_spots_view:
     st.stop()
 
 
+def _sail_size_m2(sail_str):
+    """Segelgröße in m² aus dem Anzeige-String, z.B. 'Severne NCX 6.5 m²' -> 6.5.
+    Nimmt die Zahl vor 'm', sonst die letzte Zahl; nur plausible Größen (0,5–25)."""
+    if not sail_str:
+        return None
+    s = str(sail_str)
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*m", s)
+    cand = m.group(1) if m else None
+    if cand is None:
+        nums = re.findall(r"\d+(?:[.,]\d+)?", s)
+        cand = nums[-1] if nums else None
+    if cand is None:
+        return None
+    try:
+        v = float(cand.replace(",", "."))
+    except ValueError:
+        return None
+    return v if 0.5 <= v <= 25 else None
+
+
+def _best_performance_index(df):
+    """Bester Performance-Index = Top-2s ÷ (Wind × Segelgröße) × 100 über alle
+    Sessions mit Wind- UND Segelgröße-Angabe. Hoch = schnell bei wenig Wind +
+    kleinem Segel. None, wenn keine geeignete Session vorhanden."""
+    if df is None or df.empty or not {"speed_1s_kmh", "wind_kmh", "sail"}.issubset(df.columns):
+        return None
+    spd = pd.to_numeric(df["speed_1s_kmh"], errors="coerce")
+    wind = pd.to_numeric(df["wind_kmh"], errors="coerce")
+    sail = pd.to_numeric(df["sail"].apply(_sail_size_m2), errors="coerce")
+    valid = spd.notna() & wind.notna() & (wind > 0) & sail.notna() & (sail > 0)
+    if not valid.any():
+        return None
+    pi = spd[valid] / (wind[valid] * sail[valid]) * 100.0
+    return float(pi.max()) if not pi.empty else None
+
+
+def render_my_results_kpis(name):
+    """Headline-KPIs (Allzeit-Rekorde des aktiven Sports) als Glas-Kacheln,
+    plus den Performance-Index aus Speed/Wind/Segelgröße."""
+    df = complete_sessions(load_rider_sessions(name, active_sport()))
+    if df is None or df.empty:
+        return
+
+    def fmt(v, unit, dec=1):
+        return "–" if v is None else f"{v:.{dec}f} {unit}"
+
+    tiles = [
+        ("⚡ Top speed 2 s", fmt(_series_max(df, "speed_1s_kmh"), "km/h", 1), None),
+        ("🏆 Top speed 30 s", fmt(_series_max(df, "speed_30s_kmh"), "km/h", 1), None),
+        ("📏 Longest run", fmt(_series_max(df, "longest_run_km"), "km", 2), None),
+    ]
+    is_wind_sport = active_sport() in ("windsurf", "kitesurf", "wingsurf")
+    if is_wind_sport:
+        tiles.append(("🚀 Highest jump", fmt(_series_max(df, "max_jump_m"), "m", 1), None))
+
+    pi = _best_performance_index(df) if is_wind_sport else None
+    if pi is not None:
+        tiles.append((
+            "📈 Performance Index", f"{pi:.0f}",
+            "Top 2 s ÷ (wind × sail size) × 100. Higher = faster with less wind "
+            "and a smaller sail – your efficiency, ideal for tracking progress.",
+        ))
+
+    total = (
+        pd.to_numeric(df["total_distance_km"], errors="coerce").sum()
+        if "total_distance_km" in df.columns else None
+    )
+    tiles.append((
+        "🌊 Total distance", fmt(None if total is None else float(total), "km", 1),
+        f"Across {len(df)} session(s).",
+    ))
+
+    st.markdown("### 🏅 Your records")
+    n = len(tiles)
+    per_row = n if n <= 4 else (n + 1) // 2   # bei >4 auf zwei gleichmäßige Reihen
+    for start in range(0, n, per_row):
+        chunk = tiles[start:start + per_row]
+        cols = st.columns(len(chunk))
+        for col, (label, val, help_) in zip(cols, chunk):
+            col.metric(label, val, help=help_)
+
+
 def render_my_results_page(user):
-    """Persönliche Seite: Bestleistungen (mit Filter), eigene Sessions +
-    Detailanalyse und der „complete my sessions"-Editor – alles an einem Ort
-    gebündelt, statt über Sidebar und Hauptfenster verstreut."""
+    """Persönliche Seite: KPI-Rekorde, Bestleistungen (mit Filter), eigene
+    Sessions + Detailanalyse und der „complete my sessions"-Editor – alles an
+    einem Ort gebündelt, statt über Sidebar und Hauptfenster verstreut."""
     name = user["username"]
     st.markdown("## 👤 My Results")
     st.caption(
         "Your personal bests, your sessions and their analysis · "
         f"{SPORT_META[active_sport()]['label']}"
     )
+
+    # --- Headline-KPIs (Allzeit-Rekorde + Performance-Index) ---
+    render_my_results_kpis(name)
+    st.markdown("---")
 
     # --- Personal Bests: Filter offen + Top-10-Tabelle ---
     pb_table, pb_caption, pb_total = render_personal_best_filter(name, inline=True)
