@@ -2981,9 +2981,9 @@ def personal_best_table(df, spot="All", year="All", board="All", max_bft=None, l
     return out, caption, total
 
 
-def render_personal_best_filter(name):
-    """Bestleistungs-Filter (Spot/Jahr/Board/Wind) – wird im Konto-Bereich der
-    Sidebar gerendert (unter „Konto & Daten löschen", einfacher zu finden).
+def render_personal_best_filter(name, inline=False):
+    """Bestleistungs-Filter (Spot/Jahr/Board/Wind). `inline=True` rendert die
+    Filter offen im Hauptfenster (My-Results-Seite); sonst im Sidebar-Expander.
 
     Gibt (Anzeige-DataFrame, Caption) zurück; die eigentliche Tabelle wird separat
     im Hauptfenster über render_personal_best_table() angezeigt. Bewusst KEIN
@@ -2993,7 +2993,12 @@ def render_personal_best_filter(name):
     """
     pb_df = load_rider_sessions(name, active_sport())
 
-    with st.expander("🏅 Personal Bests", expanded=False):
+    # inline=True (auf der „My Results"-Seite): Filter offen im Hauptfenster.
+    # Sonst (Sidebar-Nutzung): im einklappbaren Expander.
+    box = st.container() if inline else st.expander("🏅 Personal Bests", expanded=False)
+    with box:
+        if inline:
+            st.markdown("#### 🔎 Filter")
         if pb_df.empty:
             st.info("No sessions yet – upload a FIT file.")
             return None, "", 0
@@ -6352,16 +6357,17 @@ logo_img = image_to_base64(app_path("assets", "windsurfer.png"))
 # Aktiver Sport (aus ?sport=). Standard: Windsurf.
 sport = active_sport()
 _is_spots_view = st.query_params.get("view") == "spots"
+_is_results_view = st.query_params.get("view") == "results"
 
 # Header-Umschalter Sportarten + ganz rechts die reine Spots-Seite. Klick setzt
 # ?sport= bzw. ?view=spots in der URL (bleibt über Reload/Link erhalten).
-_sw_cols = st.columns([2] * len(SPORTS) + [2])
+_sw_cols = st.columns([2] * len(SPORTS) + [2, 2])
 for _i, _key in enumerate(SPORTS):
     if _sw_cols[_i].button(
         SPORT_META[_key]["label"],
         key=f"switch_sport_{_key}",
         use_container_width=True,
-        type="primary" if (_key == sport and not _is_spots_view) else "secondary",
+        type="primary" if (_key == sport and not _is_spots_view and not _is_results_view) else "secondary",
     ):
         if "view" in st.query_params:
             del st.query_params["view"]
@@ -6373,6 +6379,13 @@ if _sw_cols[len(SPORTS)].button(
 ):
     if not _is_spots_view:
         st.query_params["view"] = "spots"
+        st.rerun()
+if _sw_cols[len(SPORTS) + 1].button(
+    "👤 My Results", key="switch_view_results", use_container_width=True,
+    type="primary" if _is_results_view else "secondary",
+):
+    if not _is_results_view:
+        st.query_params["view"] = "results"
         st.rerun()
 
 # Vollflächiges Hintergrundbild je Sport. Lege dein Wunschfoto als
@@ -7196,14 +7209,42 @@ if _is_spots_view:
     st.stop()
 
 
-# Bestleistungs-Filter direkt unter „Konto & Daten löschen" (Konto-Bereich der
-# Sidebar, ÜBER den Tabs) – dort einfacher zu finden. Die zugehörige Tabelle
-# erscheint im Hauptfenster (render_personal_best_table weiter unten).
-with st.sidebar:
-    st.markdown("---")
-    pb_table, pb_table_caption, pb_total = render_personal_best_filter(current_user["username"])
-    selected_history_record = render_session_history(current_user["username"])
+def render_my_results_page(user):
+    """Persönliche Seite: Bestleistungen (mit Filter), eigene Sessions +
+    Detailanalyse und der „complete my sessions"-Editor – alles an einem Ort
+    gebündelt, statt über Sidebar und Hauptfenster verstreut."""
+    name = user["username"]
+    st.markdown("## 👤 My Results")
+    st.caption(
+        "Your personal bests, your sessions and their analysis · "
+        f"{SPORT_META[active_sport()]['label']}"
+    )
 
+    # --- Personal Bests: Filter offen + Top-10-Tabelle ---
+    pb_table, pb_caption, pb_total = render_personal_best_filter(name, inline=True)
+    render_personal_best_table(pb_table, pb_caption, pb_total)
+
+    st.markdown("---")
+
+    # --- Eigene Sessions: Liste + Detailansicht des gewählten Eintrags ---
+    selected = render_session_history(name)
+    if selected is not None:
+        render_history_overview(selected)
+
+    st.markdown("---")
+
+    # --- Sessions vervollständigen (Spot/Board/Segel -> zählen fürs Ranking) ---
+    render_session_editor(user)
+
+
+# Persönliche „My Results"-Seite (Bestleistungen + eigene Sessions + Editor).
+if _is_results_view:
+    render_my_results_page(current_user)
+    st.stop()
+
+
+# Bestleistungen und „View my sessions" liegen jetzt auf der eigenen
+# „👤 My Results"-Seite (render_my_results_page), nicht mehr in der Sidebar.
 
 # Linke Sidebar: Konto/Gruppen sind oben bereits gerendert. Darunter zwei
 # einklappbare Bereiche (Expander) – konsistent mit Bestleistungen/Sessions
@@ -7281,10 +7322,6 @@ st.markdown("---")
 # So bleiben alle bestehenden „with left:"/„with right:"-Blöcke unverändert gültig.
 left = sidebar_tab_material
 right = st.container()
-
-# selected_history_record wird oben im Konto-Bereich gesetzt
-# (render_session_history); hier NICHT erneut auf None setzen, sonst ginge die
-# Auswahl verloren.
 
 
 with left:
@@ -7493,14 +7530,7 @@ with left:
                     )
 
 
-# Bestleistungen als Fragment: Filter in der Sidebar (Filter-Tab, unter den
-# Ranking-Filtern), Tabelle oben im Hauptfenster-Container `right`. Ein
-# Filterklick rerunt nur dieses Fragment.
-with right:
-    _perf("pb_table", render_personal_best_table, pb_table, pb_table_caption, pb_total)
-    # Session-Editor dezent unter den Personal Bests (statt prominent oben).
-    if current_user:
-        _perf("editor", render_session_editor, current_user)
+# Personal Bests + Session-Editor liegen jetzt auf der „👤 My Results"-Seite.
 
 # Profiler-Ausgabe (nur mit ?perf=1): zeigt die Dauer der Hauptbereiche.
 if st.query_params.get("perf") and _PERF:
@@ -7789,14 +7819,12 @@ if fit_source is not None:
 
 else:
     with right:
-        if selected_history_record is not None:
-            render_history_overview(selected_history_record)
-        else:
-            st.info(
-                "Upload a FIT file in the sidebar on the left in the "
-                "**🏄 Add session** tab (choose equipment & upload)."
-            )
-            st.info("After the upload the analysis appears here.")
+        st.info(
+            "Upload a FIT file in the sidebar on the left in the "
+            "**🏄 Add session** tab (choose equipment & upload)."
+        )
+        st.info("After the upload the analysis appears here.")
+        st.caption("📊 Your personal bests and past sessions are on the **👤 My Results** tab.")
 
 
 st.markdown("---")
