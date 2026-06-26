@@ -552,6 +552,9 @@ users_table = Table(
     Column("password_hash", String(255), nullable=False),
     Column("salt", String(64), nullable=False),
     Column("email", String(255)),       # Pflicht bei Neu-Registrierung
+    Column("email_verified", Boolean, default=False),   # Account erst nach Bestätigung aktiv
+    Column("verification_token", String(64)),           # Token aus der Bestätigungs-Mail
+    Column("token_created_at", DateTime),               # für Ablauf des Tokens
     Column("weight_kg", Float),         # optionales Profilfeld
     Column("height_cm", Float),         # optionales Profilfeld
     Column("created_at", DateTime, server_default=func.now()),
@@ -710,6 +713,7 @@ spot_images_table = Table(
     Column("image", LargeBinary),
     Column("image_mime", String(50)),
     Column("sort_order", Integer, default=0),
+    Column("uploaded_by", Integer),     # User-ID des Uploaders (NULL = Admin/Backoffice)
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -910,6 +914,17 @@ def ensure_schema():
             ))
     except Exception:
         logging.exception("Sport-Backfill fehlgeschlagen")
+
+    # Bestehende Konten (vor der E-Mail-Verifizierung angelegt) gelten als
+    # verifiziert -> sie sollen NICHT ausgesperrt werden. Neue Konten bekommen bei
+    # der Registrierung explizit FALSE, werden hiervon also nicht erfasst.
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE users SET email_verified = TRUE WHERE email_verified IS NULL"
+            ))
+    except Exception:
+        logging.exception("email_verified-Backfill fehlgeschlagen")
 
     return True
 
@@ -1226,6 +1241,86 @@ def _valid_email(email):
     return bool(local) and "." in domain and not domain.startswith(".") and not domain.endswith(".")
 
 
+def _app_base_url():
+    """Basis-URL der App für Links in Mails (Verify-Link). Secrets/Env, sonst Default."""
+    try:
+        u = st.secrets.get("APP_BASE_URL")
+        if u:
+            return u.rstrip("/")
+    except Exception:
+        pass
+    return (os.environ.get("APP_BASE_URL") or "https://mywatersessions.com").rstrip("/")
+
+
+def _resend_api_key():
+    try:
+        k = st.secrets.get("RESEND_API_KEY")
+        if k:
+            return k
+    except Exception:
+        pass
+    return os.environ.get("RESEND_API_KEY")
+
+
+def _email_from():
+    """Absender-Adresse. Muss eine bei Resend verifizierte Domain/Adresse sein."""
+    try:
+        f = st.secrets.get("EMAIL_FROM")
+        if f:
+            return f
+    except Exception:
+        pass
+    return os.environ.get("EMAIL_FROM") or "MyWaterSessions <noreply@mywatersessions.com>"
+
+
+def _send_email(to, subject, html):
+    """Verschickt eine Mail über die Resend-HTTP-API. True bei Erfolg.
+
+    Braucht RESEND_API_KEY (+ optional EMAIL_FROM) in den Secrets/Env. Ohne Key
+    wird nichts gesendet (und der Aufrufer behandelt das als Fehlschlag)."""
+    key = _resend_api_key()
+    if not key:
+        logging.warning("RESEND_API_KEY fehlt – Mail wird nicht gesendet")
+        return False
+    payload = json.dumps({
+        "from": _email_from(),
+        "to": [to],
+        "subject": subject,
+        "html": html,
+    }).encode("utf-8")
+    req = Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        method="POST",
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+    )
+    try:
+        with urlopen(req, timeout=15) as resp:
+            json.load(resp)
+        return True
+    except Exception:
+        logging.exception("Resend-Mailversand fehlgeschlagen")
+        return False
+
+
+def send_verification_email(email, username, token):
+    """Bestätigungs-Mail mit Verify-Link senden. True bei Erfolg."""
+    link = f"{_app_base_url()}/?verify={token}"
+    html = (
+        f"<div style='font-family:system-ui,sans-serif;font-size:16px;color:#0b2942;'>"
+        f"<h2>Welcome to MyWaterSessions, {username}!</h2>"
+        f"<p>Please confirm your email address to activate your account:</p>"
+        f"<p style='margin:24px 0;'>"
+        f"<a href='{link}' style='background:#2bd4d9;color:#06303a;padding:12px 22px;"
+        f"border-radius:10px;text-decoration:none;font-weight:700;'>Confirm my account</a>"
+        f"</p>"
+        f"<p style='font-size:13px;opacity:.7;'>Or paste this link into your browser:<br>{link}</p>"
+        f"<p style='font-size:13px;opacity:.7;'>If you didn't create this account, just ignore this email.</p>"
+        f"</div>"
+    )
+    return _send_email(email, "Confirm your MyWaterSessions account", html)
+
+
 def register_user(username, password, email=""):
     username = (username or "").strip()
     email = (email or "").strip()
@@ -1243,6 +1338,10 @@ def register_user(username, password, email=""):
         return False, "This username is already taken."
 
     salt = secrets.token_hex(16)
+    # Verifizierung nur, wenn Mailversand konfiguriert ist (Resend-Key). Sonst
+    # wuerde ein Konto unbestaetigt feststecken -> dann direkt aktiv (wie bisher).
+    require_verify = bool(_resend_api_key())
+    token = secrets.token_urlsafe(32) if require_verify else None
 
     with get_engine().begin() as conn:
         conn.execute(insert(users_table).values(
@@ -1250,9 +1349,68 @@ def register_user(username, password, email=""):
             password_hash=_hash_password(password, salt),
             salt=salt,
             email=email,
+            email_verified=not require_verify,
+            verification_token=token,
+            token_created_at=datetime.now() if require_verify else None,
         ))
 
-    return True, "Registration successful – you can now log in."
+    if not require_verify:
+        return True, "Registration successful – you can now log in."
+
+    if send_verification_email(email, username, token):
+        return True, ("Almost done! We've sent a confirmation link to your email "
+                      f"({email}). Click it to activate your account, then log in.")
+    return True, ("Account created, but the confirmation email could not be sent. "
+                  "Use \"Resend confirmation email\" on the Log-in tab.")
+
+
+def verify_email_token(token):
+    """Markiert das Konto zum Token als verifiziert. (ok, Meldung)."""
+    token = (token or "").strip()
+    if not token:
+        return False, "Invalid confirmation link."
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            select(users_table.c.id, users_table.c.email_verified)
+            .where(users_table.c.verification_token == token)
+        ).first()
+        if not row:
+            return False, "This confirmation link is invalid or has already been used."
+        if row[1]:
+            return True, "Your account is already confirmed – you can log in."
+        conn.execute(
+            update(users_table).where(users_table.c.id == row[0]).values(
+                email_verified=True, verification_token=None
+            )
+        )
+    return True, "Email confirmed – your account is now active. You can log in."
+
+
+def resend_verification(login_or_email):
+    """Neue Bestätigungs-Mail an ein noch unbestätigtes Konto (per Name ODER
+    E-Mail gesucht). Gibt immer eine neutrale Meldung zurück (kein Account-Leak)."""
+    key = (login_or_email or "").strip()
+    neutral = ("If an unconfirmed account matches that, we've sent a new "
+               "confirmation email. Please check your inbox.")
+    if not key:
+        return neutral
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            select(users_table.c.id, users_table.c.username, users_table.c.email,
+                   users_table.c.email_verified)
+            .where((users_table.c.username == key) | (users_table.c.email == key))
+        ).first()
+        if not row or row[3] or not row[2]:
+            return neutral   # nicht gefunden / schon verifiziert / keine Mail
+        token = secrets.token_urlsafe(32)
+        conn.execute(
+            update(users_table).where(users_table.c.id == row[0]).values(
+                verification_token=token, token_created_at=datetime.now()
+            )
+        )
+        email, username = row[2], row[1]
+    send_verification_email(email, username, token)
+    return neutral
 
 
 def update_user_account(user_id, email=None, weight_kg=None, height_cm=None):
@@ -1548,7 +1706,8 @@ def _ensure_ad_tables():
 
 def _clear_ad_caches():
     for fn in (load_spot_ad, load_spot_products, load_spot_info, load_all_spot_info,
-               load_spot_images, load_spot_image_ids, _spot_thumb_uri):
+               load_spot_images, load_spot_image_ids, load_recent_spot_images,
+               _spot_thumb_uri):
         try:
             fn.clear()
         except Exception:
@@ -1602,7 +1761,8 @@ def _spot_thumb_uri(image_id, max_dim=560):
     return _bytes_to_data_uri(data, mime)
 
 
-def add_spot_image(spot, image_bytes, image_mime):
+def add_spot_image(spot, image_bytes, image_mime, uploaded_by=None):
+    """Galerie-Bild speichern. uploaded_by = User-ID (None = Admin/Backoffice)."""
     if not spot or not image_bytes:
         return
     image_bytes, image_mime = _optimize_image(image_bytes, image_mime)
@@ -1614,9 +1774,28 @@ def add_spot_image(spot, image_bytes, image_mime):
         ).scalar() or 0
         conn.execute(insert(spot_images_table).values(
             spot=spot, image=image_bytes, image_mime=image_mime or "image/jpeg",
-            sort_order=int(mx) + 1,
+            sort_order=int(mx) + 1, uploaded_by=uploaded_by,
         ))
     _clear_ad_caches()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_recent_spot_images(spot, limit=5):
+    """Neueste N Galerie-Bilder eines Spots als [{id, uploader}] (neueste zuerst,
+    id DESC als robuster Zeit-Proxy). uploader = Username oder None (Admin)."""
+    if not spot:
+        return []
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(spot_images_table.c.id, users_table.c.username)
+            .select_from(spot_images_table.outerjoin(
+                users_table, spot_images_table.c.uploaded_by == users_table.c.id))
+            .where(spot_images_table.c.spot == spot)
+            .order_by(spot_images_table.c.id.desc())
+            .limit(int(limit))
+        ).all()
+    return [{"id": r[0], "uploader": r[1]} for r in rows]
 
 
 def delete_spot_image(image_id):
@@ -5645,9 +5824,9 @@ def _tv_bottom_info(cfg):
         _tv_forecast(cfg, coords)
 
 
-def render_spots_page():
+def render_spots_page(user=None):
     """Reine Spot-Seite (Revierführer): Filter Land/Spot -> Beschreibung, Webcam/
-    Bild und Wetter (aktuell + 3-Tage) des gewählten Spots."""
+    Bild, Foto-Galerie (+ User-Upload) und Wetter des gewählten Spots."""
     st.markdown("## 🗺️ Spots")
     all_info = load_all_spot_info()
     if not all_info:
@@ -5704,25 +5883,31 @@ def render_spots_page():
             f"<iframe src='{webcam}' allow='autoplay; fullscreen' "
             "style='width:100%;height:380px;border:0;border-radius:16px;'></iframe>", height=388)
 
-    # Bilder-Galerie als gleichmaessiges Kachel-Raster (alle gleich gross, cover).
+    # Bilder-Galerie: die NEUESTEN 5 Bilder (User-Uploads + Admin), Uploader vermerkt.
     # Gecachte Thumbnails statt Voll-Bild-base64 -> viel kleinere Seitenlast.
-    img_ids = load_spot_image_ids(spot)
-    if img_ids:
+    gallery = load_recent_spot_images(spot, 5)
+    if gallery:
         tiles = []
-        for iid in img_ids:
-            uri = _spot_thumb_uri(iid)
-            if uri:
-                tiles.append(
-                    f"<div class='sp-tile' style=\"background-image:url('{uri}')\"></div>"
-                )
+        for g in gallery:
+            uri = _spot_thumb_uri(g["id"])
+            if not uri:
+                continue
+            cap = f"<div class='sp-cap'>📷 {g['uploader']}</div>" if g.get("uploader") else ""
+            tiles.append(
+                f"<div class='sp-tile' style=\"background-image:url('{uri}')\">{cap}</div>"
+            )
         if tiles:
             st.markdown(
                 "<style>"
                 # 5 Kacheln nebeneinander (breit); auf schmalen Screens automatisch weniger.
                 ".sp-gallery{display:grid;gap:14px;margin-top:10px;"
                 "grid-template-columns:repeat(5,1fr);}"
-                ".sp-tile{height:240px;background-size:cover;background-position:center;"
-                "border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.18);}"
+                ".sp-tile{position:relative;height:240px;background-size:cover;"
+                "background-position:center;border-radius:16px;overflow:hidden;"
+                "box-shadow:0 6px 18px rgba(0,0,0,.18);}"
+                ".sp-cap{position:absolute;left:0;right:0;bottom:0;font-size:12px;"
+                "color:#fff;padding:16px 8px 6px;"
+                "background:linear-gradient(transparent,rgba(0,0,0,.6));}"
                 "@media (max-width:1200px){.sp-gallery{grid-template-columns:repeat(3,1fr);}}"
                 "@media (max-width:680px){.sp-gallery{grid-template-columns:repeat(2,1fr);}}"
                 "</style>"
@@ -5736,6 +5921,24 @@ def render_spots_page():
                 f"<img src='{img_uri}' style='width:100%;border-radius:16px;'>",
                 unsafe_allow_html=True,
             )
+
+    # Foto-Upload durch eingeloggte (= verifizierte) User. Nur die neuesten 5
+    # Bilder werden gezeigt; der Uploader wird gespeichert.
+    if user:
+        with st.expander("📷 Add a photo of this spot"):
+            st.caption(
+                "Only the 5 most recent photos are shown. Your name is stored "
+                "with the upload. Please upload only your own, appropriate photos."
+            )
+            up = st.file_uploader(
+                "Choose a photo", type=["jpg", "jpeg", "png"], key=f"spotphoto_{spot}"
+            )
+            if up is not None and st.button("Upload photo", key=f"spotphoto_btn_{spot}"):
+                add_spot_image(spot, up.getvalue(), up.type, uploaded_by=user.get("id"))
+                st.success("Thanks! Your photo was added.")
+                st.rerun()
+    else:
+        st.caption("Log in to add your own photo of this spot.")
 
     # resolve_spot_coords liest aus der DB ODER geocodet einmalig und speichert ->
     # auch Spots ohne GPS-Session bekommen Wetter (und danach profitiert das TV davon).
@@ -6352,6 +6555,15 @@ if "admin" in st.query_params:
     render_admin()
     st.stop()
 
+# E-Mail-Bestätigung per ?verify=<token> – schaltet das Konto frei, dann Login.
+if "verify" in st.query_params:
+    ensure_schema()
+    ok, msg = verify_email_token(st.query_params.get("verify"))
+    st.markdown(f"## {'✅' if ok else '⚠️'} Account confirmation")
+    (st.success if ok else st.error)(msg)
+    st.link_button("➡️ Go to login", _app_base_url(), use_container_width=True)
+    st.stop()
+
 logo_img = image_to_base64(app_path("assets", "windsurfer.png"))
 
 # Aktiver Sport (aus ?sport=). Standard: Windsurf.
@@ -6476,10 +6688,22 @@ def render_login():
         if submitted:
             if verify_login(username, password):
                 user = get_user(username.strip())
-                login_session(user, remember)
-                st.rerun()
+                if user.get("email_verified") is False:
+                    st.warning(
+                        "Please confirm your email first. Open the confirmation "
+                        "link we sent you – or resend it below."
+                    )
+                else:
+                    login_session(user, remember)
+                    st.rerun()
             else:
                 st.error("Wrong username or password.")
+
+        with st.expander("✉️ Didn't get the confirmation email?"):
+            with st.form("resend_verify_form"):
+                rv = st.text_input("Your username or email")
+                if st.form_submit_button("Resend confirmation email"):
+                    st.info(resend_verification(rv))
 
     with tab_register:
         with st.form("register_form"):
@@ -7205,7 +7429,7 @@ if st.session_state.get("_pending_token"):
 # bleiben sichtbar. ensure_schema stellt sicher, dass spot_info.country existiert.
 if _is_spots_view:
     ensure_schema()
-    render_spots_page()
+    render_spots_page(current_user)
     st.stop()
 
 
