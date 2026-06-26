@@ -460,12 +460,21 @@ inklusive Track jederzeit unter „Konto & Daten löschen" entfernen.
 **Gruppen:** Von dir erstellte oder beigetretene Gruppen und der jeweilige
 Mitgliedsstatus.
 
+**Spot-Fotos:** Lädst du auf der Spots-Seite ein Foto eines Spots hoch, speichern
+wir dieses Bild zusammen mit deinem **Benutzernamen** und zeigen es **öffentlich**
+in der Spot-Galerie an (es werden jeweils nur die neuesten Fotos je Spot gezeigt).
+Lade bitte nur **eigene, geeignete** Fotos hoch, an denen du die Rechte besitzt.
+Wir können unpassende Bilder jederzeit entfernen; auf Anfrage löschen wir deine
+hochgeladenen Fotos.
+
 ### 3. Öffentliche Sichtbarkeit (Ranking)
 
 Diese App ist eine Community-Bestenliste. Wenn du eine Session speicherst,
 werden **Benutzername, Datum, Surfspot, Board, Segel, die Speed-Werte und die
 Wetterangaben** im Ranking für andere angemeldete Nutzer sichtbar. In privaten
-Gruppen sind die Ergebnisse nur für bestätigte Mitglieder sichtbar.
+Gruppen sind die Ergebnisse nur für bestätigte Mitglieder sichtbar. Von dir
+**hochgeladene Spot-Fotos** sind samt deinem **Benutzernamen** öffentlich in der
+Spot-Galerie sichtbar.
 
 ### 4. Zwecke und Rechtsgrundlagen
 
