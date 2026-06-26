@@ -32,6 +32,7 @@ from sqlalchemy import (
     MetaData,
     String,
     Table,
+    Text,
     UniqueConstraint,
     create_engine,
     delete,
@@ -716,6 +717,16 @@ spot_info_table = Table(
 )
 
 # Mehrere Bilder je Spot (Galerie auf der Spots-Seite). Bytes in der DB.
+# Persistenter Forecast-Fallback (überlebt Render-Deploys/Neustarts): letzter
+# erfolgreicher Open-Meteo-Abruf je (daily/hourly, Spot). Verhindert, dass nach
+# jedem Deploy die Vorhersage verschwindet, bis ein frischer Abruf durchkommt.
+forecast_cache_table = Table(
+    "forecast_cache", DB_METADATA,
+    Column("cache_key", String(80), primary_key=True),
+    Column("payload", Text),
+    Column("updated_at", DateTime, server_default=func.now()),
+)
+
 spot_images_table = Table(
     "spot_images", DB_METADATA,
     Column("id", Integer, primary_key=True),
@@ -5606,18 +5617,49 @@ def _thermal_level(rad, cloud, hour):
 _THERMAL_LABEL = {0: "–", 1: "weak", 2: "moderate", 3: "strong"}
 
 
+def _forecast_db_get(cache_key):
+    """Letzter erfolgreicher Forecast aus der DB (überlebt Deploys). None bei Fehler."""
+    try:
+        with get_engine().connect() as conn:
+            row = conn.execute(
+                select(forecast_cache_table.c.payload)
+                .where(forecast_cache_table.c.cache_key == cache_key)
+            ).first()
+        return json.loads(row[0]) if row and row[0] else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _forecast_db_put(cache_key, obj):
+    """Erfolgreichen Forecast in der DB sichern (Upsert)."""
+    try:
+        payload = json.dumps(obj)
+        with get_engine().begin() as conn:
+            conn.execute(delete(forecast_cache_table).where(
+                forecast_cache_table.c.cache_key == cache_key))
+            conn.execute(insert(forecast_cache_table).values(
+                cache_key=cache_key, payload=payload, updated_at=datetime.now()))
+    except Exception:  # noqa: BLE001
+        logging.exception("forecast_cache put fehlgeschlagen")
+
+
 def _forecast_with_fallback(kind, fetch, lat, lon):
-    """Erfolg cachen (über fetch) + letzten guten Stand merken; bei Fehler den
-    letzten Stand zurückgeben statt None. Behebt das „mal da, mal nicht"."""
+    """Erfolg cachen (RAM + DB) + bei Fehler letzten guten Stand zurückgeben.
+
+    Der DB-Cache überlebt Render-Deploys/Neustarts – sonst verschwindet die
+    Vorhersage nach jedem Deploy, bis ein frischer Open-Meteo-Abruf durchkommt
+    (Renders geteilte IP wird zeitweise mit 429 geblockt)."""
     store = _forecast3d_store()
     key = (kind, round(float(lat), 4), round(float(lon), 4))
+    db_key = f"{kind}:{key[1]}:{key[2]}"
     try:
         result = fetch(lat, lon)
         if result:
             store[key] = result
+            _forecast_db_put(db_key, result)
         return result
     except Exception:  # noqa: BLE001
-        return store.get(key)
+        return store.get(key) or _forecast_db_get(db_key)
 
 
 def _fetch_forecast_3d(lat, lon):
