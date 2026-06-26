@@ -1,4 +1,9 @@
-streamlit
+# Gepinnt: neuere Versionen entfernen st.components.v1.html (Deprecation
+# "removed after 2026-06-01"), das die App an vielen Stellen nutzt. 1.58.0 hat
+# die Funktion noch (nur deprecated) + alle genutzten neuen APIs (st.fragment,
+# width="stretch", st.columns vertical_alignment). Vor einem Upgrade erst die
+# components.html-Aufrufe auf st.html/st.iframe migrieren.
+streamlit==1.58.0
 pandas
 pydeck
 fitparse

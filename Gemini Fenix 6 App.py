@@ -450,11 +450,12 @@ Datum, Surfspot, Board, Segel sowie die berechneten Kennzahlen
 (Höchstgeschwindigkeit über 1 s und 30 s, längster Run, Gesamtstrecke) und die
 zur Session passenden Wetterdaten.
 
-**GPS-Daten:** Deine hochgeladene FIT-Datei enthält GPS-Punkte. Diese werden
-nur kurzzeitig zur Berechnung deiner Kennzahlen und zur Anzeige der Karte
-**für dich selbst** verwendet. **Der GPS-Track wird nicht dauerhaft
-gespeichert und niemals öffentlich angezeigt oder mit anderen Nutzern
-geteilt.**
+**GPS-Daten:** Deine hochgeladene FIT-Datei bzw. die von deiner Uhr gesendete
+Session enthält GPS-Punkte (eine ausgedünnte Route). Diese **GPS-Route wird
+gespeichert** und dient der Berechnung deiner Kennzahlen sowie der Karten-Anzeige
+**ausschließlich in deinem persönlichen Bereich**. **Sie wird niemals öffentlich
+im Ranking angezeigt oder mit anderen Nutzern geteilt.** Du kannst deine Sessions
+inklusive Track jederzeit unter „Konto & Daten löschen" entfernen.
 
 **Gruppen:** Von dir erstellte oder beigetretene Gruppen und der jeweilige
 Mitgliedsstatus.
@@ -6743,9 +6744,9 @@ def render_login():
             )
 
             st.caption(
-                "ℹ️ Your GPS track is not stored and never shown publicly – only "
-                "the metrics appear in the ranking. Details in the "
-                "Datenschutzerklärung (link above)."
+                "ℹ️ Your GPS track is stored and shown only to you in your personal "
+                "area – it is never shown publicly. In the ranking only your metrics "
+                "appear. Details in the Datenschutzerklärung (link above)."
             )
 
             submitted = st.form_submit_button("Register")
