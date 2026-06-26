@@ -7264,12 +7264,16 @@ def render_my_results_kpis(name):
     if is_wind_sport:
         tiles.append(("🚀 Highest jump", fmt(_series_max(df, "max_jump_m"), "m", 1), None))
 
-    pi = _best_performance_index(df) if is_wind_sport else None
-    if pi is not None:
+        # Performance-Index immer zeigen (auch ohne Daten -> „–"), damit er sichtbar
+        # ist und die Erklärung sagt, was fehlt.
+        pi = _best_performance_index(df)
         tiles.append((
-            "📈 Performance Index", f"{pi:.0f}",
+            "📈 Performance Index",
+            "–" if pi is None else f"{pi:.0f}",
             "Top 2 s ÷ (wind × sail size) × 100. Higher = faster with less wind "
-            "and a smaller sail – your efficiency, ideal for tracking progress.",
+            "and a smaller sail – your efficiency, ideal for tracking progress. "
+            "Needs a session with BOTH a wind value and a sail size (real GPS "
+            "sessions get wind automatically; indoor test sessions have none).",
         ))
 
     total = (
