@@ -1292,7 +1292,14 @@ def _send_email(to, subject, html):
         "https://api.resend.com/emails",
         data=payload,
         method="POST",
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            # Ohne expliziten User-Agent blockt Cloudflare vor api.resend.com die
+            # Default-urllib-Anfrage (HTTP 403, "error code: 1010").
+            "User-Agent": "MyWaterSessions/1.0 (+https://mywatersessions.com)",
+            "Accept": "application/json",
+        },
     )
     try:
         with urlopen(req, timeout=15) as resp:
