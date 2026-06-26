@@ -5578,11 +5578,32 @@ def _fetch_hourly_forecast_raw(lat, lon):
     return _fetch_open_meteo_block({
         "latitude": round(float(lat), 4),
         "longitude": round(float(lon), 4),
-        "hourly": "wind_speed_10m,wind_gusts_10m,wind_direction_10m",
+        "hourly": ("wind_speed_10m,wind_gusts_10m,wind_direction_10m,"
+                   "shortwave_radiation,cloud_cover"),
         "wind_speed_unit": "kmh",
         "timezone": "auto",
         "forecast_days": 3,
     }, "hourly")
+
+
+def _thermal_level(rad, cloud, hour):
+    """Thermik-/Seewind-Potenzial 0–3 aus Sonneneinstrahlung (W/m²), Bewölkung (%)
+    und Tageszeit. Thermik entsteht bei starker Sonne, wenig Wolken, nachmittags.
+    Liefert nur ein Potenzial – die exakte thermische Windstärke kann Open-Meteo
+    nicht beziffern (steckt teils schon im Modellwind)."""
+    if rad is None or hour < 10 or hour > 20:
+        return 0
+    c = cloud if cloud is not None else 0
+    if rad >= 600 and c < 35:
+        return 3
+    if rad >= 400 and c < 55:
+        return 2
+    if rad >= 250 and c < 75:
+        return 1
+    return 0
+
+
+_THERMAL_LABEL = {0: "–", 1: "weak", 2: "moderate", 3: "strong"}
 
 
 def _forecast_with_fallback(kind, fetch, lat, lon):
@@ -5730,15 +5751,22 @@ def render_spots_forecast(spot, coords):
 
     di = st.session_state.get("spots_fcday")
     if di is not None and di < n:
-        _render_hourly(spot, coords, di)
+        show_thermal = st.toggle(
+            "🌡️ Show thermal / sea-breeze potential",
+            key="spots_thermal_toggle",
+            help="Likelihood of thermal / sea-breeze wind from strong sun and low "
+                 "cloud in the afternoon. An indicator, not an exact wind value.",
+        )
+        _render_hourly(spot, coords, di, show_thermal)
         if st.button("✕ Close hourly view", key="close_hourly"):
             st.session_state.pop("spots_fcday", None)
             st.rerun()
 
 
-def _render_hourly(spot, coords, day_index):
+def _render_hourly(spot, coords, day_index, show_thermal=False):
     """Stundenansicht (9–21 Uhr) eines Tages als Balken: Hoehe=Windstaerke,
-    Farbe fliessend (gelb zu wenig -> gruen gut -> rot zu stark), Zahl in km/h."""
+    Farbe fliessend (gelb zu wenig -> gruen gut -> rot zu stark), Zahl in km/h.
+    Optional eine Thermik-/Seewind-Potenzial-Zeile (show_thermal)."""
     daily = _fetch_forecast_3d(coords[0], coords[1])
     hourly = _fetch_hourly_forecast(coords[0], coords[1])
     if not daily or not hourly or not daily.get("time") or day_index >= len(daily["time"]):
@@ -5754,6 +5782,8 @@ def _render_hourly(spot, coords, day_index):
     ws = hourly.get("wind_speed_10m") or []
     gs = hourly.get("wind_gusts_10m") or []
     ds = hourly.get("wind_direction_10m") or []
+    rad_arr = hourly.get("shortwave_radiation") or []
+    cloud_arr = hourly.get("cloud_cover") or []
     rows = []
     for i, t in enumerate(times):
         if t[:10] != target:
@@ -5766,21 +5796,28 @@ def _render_hourly(spot, coords, day_index):
             ws[i] if i < len(ws) else None,
             gs[i] if i < len(gs) else None,
             ds[i] if i < len(ds) else None,
+            rad_arr[i] if i < len(rad_arr) else None,
+            cloud_arr[i] if i < len(cloud_arr) else None,
         ))
     if not rows:
         st.info("No hourly data for this day.")
         return
 
-    gvals = [g for _, _, g, _ in rows if g is not None]
-    wvals = [w for _, w, _, _ in rows if w is not None]
+    gvals = [r[2] for r in rows if r[2] is not None]
+    wvals = [r[1] for r in rows if r[1] is not None]
     ref = max(70.0, max(gvals + wvals, default=0))   # auf max. Boe skalieren
     bars = []
-    for hh, w, g, d in rows:
+    for hh, w, g, d, rad, cloud in rows:
         wv = w or 0
         gv = g if g is not None else wv
         w_pct = max(4, min(100, wv / ref * 100))
         g_pct = max(w_pct, min(100, gv / ref * 100))   # Boe >= Wind -> hoeher
         comp = _COMPASS[round(d / 22.5) % 16] if d is not None else ""
+        therm = ""
+        if show_thermal:
+            lvl = _thermal_level(rad, cloud, hh)
+            dots = "●" * lvl if lvl else "·"
+            therm = f"<div class='hb-therm' title='{_THERMAL_LABEL[lvl]}'>{dots}</div>"
         bars.append(
             "<div class='hb-col'>"
             f"<div class='hb-val'>{round(wv)}</div>"
@@ -5791,8 +5828,15 @@ def _render_hourly(spot, coords, day_index):
             f"<div class='hb-hr'>{hh}h</div>"
             f"<div class='hb-dir'>{comp}</div>"
             f"<div class='hb-gust-val'>⤴ {round(gv)}</div>"
+            f"{therm}"
             "</div>"
         )
+
+    legend = ("🟡 too little · 🟢 good · 🔴 too strong &nbsp;·&nbsp; "
+              "⤴ gusts = frosted bar")
+    if show_thermal:
+        legend += ("&nbsp;·&nbsp; 🌡️ thermal/sea-breeze potential "
+                   "(<span style='color:#f5a623;'>● ●● ●●●</span> = weak→strong)")
 
     st.markdown(
         "<style>"
@@ -5813,12 +5857,12 @@ def _render_hourly(spot, coords, day_index):
         ".hb-hr{font-size:13px;opacity:.75;margin-top:5px;}"
         ".hb-dir{font-size:12px;opacity:.55;}"
         ".hb-gust-val{font-size:11px;opacity:.5;}"
+        ".hb-therm{color:#f5a623;font-size:13px;margin-top:3px;letter-spacing:1px;min-height:16px;}"
         "</style>"
         "<div class='hb-wrap'>"
         f"<div class='hb-title'>⏱️ {spot} · {day_label} · 9–21h <small style='font-weight:600;"
         "opacity:.6;'>(wind km/h)</small></div>"
-        "<div class='hb-legend'>🟡 too little · 🟢 good · 🔴 too strong &nbsp;·&nbsp; "
-        "⤴ gusts = frosted bar</div>"
+        f"<div class='hb-legend'>{legend}</div>"
         f"<div class='hb-row'>{''.join(bars)}</div>"
         "</div>",
         unsafe_allow_html=True,
