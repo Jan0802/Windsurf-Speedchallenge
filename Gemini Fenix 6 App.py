@@ -5568,9 +5568,9 @@ def _fetch_open_meteo_block(params, block, attempts=3):
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def _fetch_forecast_3d_raw(lat, lon):
-    """3-Tage-Tagesvorhersage – cached NUR bei Erfolg (wirft sonst, damit
-    st.cache_data den Fehler nicht 30 Min festhält)."""
-    return _fetch_open_meteo_block({
+    """3-Tage-Tagesvorhersage – cached NUR bei Erfolg (wirft sonst). Sichert den
+    Erfolg in der DB (nur hier = nur bei echtem Abruf, nicht bei Cache-Treffern)."""
+    daily = _fetch_open_meteo_block({
         "latitude": round(float(lat), 4),
         "longitude": round(float(lon), 4),
         "daily": (
@@ -5581,12 +5581,16 @@ def _fetch_forecast_3d_raw(lat, lon):
         "timezone": "auto",
         "forecast_days": 3,
     }, "daily")
+    if daily:
+        _forecast_db_put(f"daily:{round(float(lat), 4)}:{round(float(lon), 4)}", daily)
+    return daily
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def _fetch_hourly_forecast_raw(lat, lon):
-    """Stuendliche 3-Tage-Vorhersage – cached nur bei Erfolg (wirft sonst)."""
-    return _fetch_open_meteo_block({
+    """Stuendliche 3-Tage-Vorhersage – cached nur bei Erfolg (wirft sonst).
+    Sichert den Erfolg in der DB (nur bei echtem Abruf)."""
+    hourly = _fetch_open_meteo_block({
         "latitude": round(float(lat), 4),
         "longitude": round(float(lon), 4),
         "hourly": ("wind_speed_10m,wind_gusts_10m,wind_direction_10m,"
@@ -5595,6 +5599,9 @@ def _fetch_hourly_forecast_raw(lat, lon):
         "timezone": "auto",
         "forecast_days": 3,
     }, "hourly")
+    if hourly:
+        _forecast_db_put(f"hourly:{round(float(lat), 4)}:{round(float(lon), 4)}", hourly)
+    return hourly
 
 
 def _thermal_level(rad, cloud, hour):
@@ -5653,10 +5660,9 @@ def _forecast_with_fallback(kind, fetch, lat, lon):
     key = (kind, round(float(lat), 4), round(float(lon), 4))
     db_key = f"{kind}:{key[1]}:{key[2]}"
     try:
-        result = fetch(lat, lon)
+        result = fetch(lat, lon)   # DB-Sicherung passiert in der gecachten fetch-Fn
         if result:
             store[key] = result
-            _forecast_db_put(db_key, result)
         return result
     except Exception:  # noqa: BLE001
         return store.get(key) or _forecast_db_get(db_key)
