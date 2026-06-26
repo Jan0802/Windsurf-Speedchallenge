@@ -3077,6 +3077,10 @@ def mark_group_events_seen(user_id):
 # Pflichtfelder, damit eine Session im Ranking/in den Personal Bests zählt.
 RANKING_REQUIRED = ["surfspot", "board", "sail"]
 
+# Öffentliche Bestenliste zeigt nur die Top N je Tabelle. Den eigenen Rang
+# (auch jenseits der Top N) sieht der Nutzer im persönlichen Bereich.
+RANKING_TOP_N = 15
+
 
 def complete_sessions(df):
     """Nur Sessions, die fürs Ranking vollständig sind: Spot + Board + Segel/
@@ -4274,6 +4278,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             r30.sort_values("speed_30s_kmh", ascending=False)
             .drop_duplicates(subset="name", keep="first")
             .reset_index(drop=True)
+            .head(RANKING_TOP_N)
         )
         r30.insert(0, "Rank", r30.index + 1)
 
@@ -4309,6 +4314,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             r1.sort_values("speed_1s_kmh", ascending=False)
             .drop_duplicates(subset="name", keep="first")
             .reset_index(drop=True)
+            .head(RANKING_TOP_N)
         )
         r1.insert(0, "Rank", r1.index + 1)
 
@@ -4346,6 +4352,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             rrun.sort_values("longest_run_m", ascending=False)
             .drop_duplicates(subset="name", keep="first")
             .reset_index(drop=True)
+            .head(RANKING_TOP_N)
         )
         rrun.insert(0, "Rank", rrun.index + 1)
 
@@ -4373,6 +4380,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             )
             .sort_values("total_distance_km", ascending=False)
             .reset_index(drop=True)
+            .head(RANKING_TOP_N)
         )
 
         rtotal.insert(0, "Rank", rtotal.index + 1)
@@ -4397,6 +4405,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             tbl.sort_values(metric, ascending=False)
             .drop_duplicates(subset="name", keep="first")
             .reset_index(drop=True)
+            .head(RANKING_TOP_N)
         )
         st.markdown(title)
         if tbl.empty:
@@ -7638,10 +7647,55 @@ def render_my_results_kpis(name):
             col.metric(label, val, help=help_)
 
 
+def _user_rank(name, sport, spot=None, metric="speed_1s_kmh"):
+    """Rang des Fahrers in der vollständigen Bestenliste – beste Session je Fahrer
+    nach `metric`, optional auf einen Spot eingegrenzt. {rank,total,value} oder
+    None, wenn der Fahrer dort (noch) nicht vorkommt."""
+    df = complete_sessions(load_sessions(sport))
+    if df is None or df.empty or metric not in df.columns or "name" not in df.columns:
+        return None
+    if spot and spot != "All" and "surfspot" in df.columns:
+        df = df[df["surfspot"].astype(str) == spot]
+    d = df.copy()
+    d[metric] = pd.to_numeric(d[metric], errors="coerce")
+    d = d.dropna(subset=[metric])
+    if d.empty:
+        return None
+    best = (d.sort_values(metric, ascending=False)
+            .drop_duplicates(subset="name", keep="first")
+            .reset_index(drop=True))
+    names = best["name"].astype(str).tolist()
+    if name not in names:
+        return None
+    rank = names.index(name) + 1
+    return {"rank": rank, "total": len(names), "value": float(best.iloc[rank - 1][metric])}
+
+
+def render_my_results_rank(name, spot):
+    """Kachel(n): eigener Rang gesamt bzw. am gewählten Spot (2 s + 30 s)."""
+    sport = active_sport()
+    scope_spot = None if (not spot or spot == "All") else spot
+    r2 = _user_rank(name, sport, scope_spot, "speed_1s_kmh")
+    r30 = _user_rank(name, sport, scope_spot, "speed_30s_kmh")
+    if not r2 and not r30:
+        return
+    where = "Overall" if scope_spot is None else scope_spot
+    st.markdown(f"### 🏁 Your ranking position · {where}")
+    c1, c2 = st.columns(2)
+    if r2:
+        c1.metric("⚡ 2 s rank", f"#{r2['rank']} of {r2['total']}", f"{r2['value']:.1f} km/h")
+    if r30:
+        c2.metric("🏆 30 s rank", f"#{r30['rank']} of {r30['total']}", f"{r30['value']:.1f} km/h")
+    st.caption(
+        "Among all riders" + ("" if scope_spot is None else f" at {scope_spot}")
+        + " (best session per rider). Pick a Spot in the filter above for your spot rank."
+    )
+
+
 def render_my_results_page(user):
-    """Persönliche Seite: KPI-Rekorde, Bestleistungen (mit Filter), eigene
-    Sessions + Detailanalyse und der „complete my sessions"-Editor – alles an
-    einem Ort gebündelt, statt über Sidebar und Hauptfenster verstreut."""
+    """Persönliche Seite: KPI-Rekorde, eigener Rang, Bestleistungen (mit Filter),
+    eigene Sessions + Detailanalyse und der „complete my sessions"-Editor – alles
+    an einem Ort gebündelt, statt über Sidebar und Hauptfenster verstreut."""
     name = user["username"]
     st.markdown("## 👤 My Results")
     st.caption(
@@ -7653,8 +7707,9 @@ def render_my_results_page(user):
     render_my_results_kpis(name)
     st.markdown("---")
 
-    # --- Personal Bests: Filter offen + Top-10-Tabelle ---
+    # --- Personal Bests: Filter offen + eigener Rang + Top-10-Tabelle ---
     pb_table, pb_caption, pb_total = render_personal_best_filter(name, inline=True)
+    render_my_results_rank(name, st.session_state.get(f"pb_spot_{name}", "All"))
     render_personal_best_table(pb_table, pb_caption, pb_total)
 
     st.markdown("---")
