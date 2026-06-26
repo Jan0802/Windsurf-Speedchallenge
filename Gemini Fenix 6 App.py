@@ -1298,8 +1298,18 @@ def _send_email(to, subject, html):
         with urlopen(req, timeout=15) as resp:
             json.load(resp)
         return True
+    except HTTPError as e:
+        # Resend liefert den Grund (z.B. "domain not verified", "invalid from")
+        # im Response-Body – ohne den ist der Fehler nicht diagnostizierbar.
+        try:
+            body = e.read().decode("utf-8", "replace")
+        except Exception:
+            body = ""
+        logging.error("Resend send failed: HTTP %s from=%r body=%s",
+                      e.code, _email_from(), body)
+        return False
     except Exception:
-        logging.exception("Resend-Mailversand fehlgeschlagen")
+        logging.exception("Resend-Mailversand fehlgeschlagen (Netzwerk/Timeout)")
         return False
 
 
