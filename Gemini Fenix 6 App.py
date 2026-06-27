@@ -4183,6 +4183,75 @@ def df_height(n_rows, max_rows=15):
     return (rows + 1) * 35 + 3
 
 
+def _render_champion(ranking, is_wind):
+    """Glas-Karte mit der #1: kombinierter Score aus normalisiertem 2s/30s/
+    längstem Run (bei Windsport zusätzlich Sprunghöhe + Airtime). Zeigt deren
+    Werte + Wetter/Trust (aus der schnellsten 2s-Session). Respektiert die Filter."""
+    if ranking is None or ranking.empty or "name" not in ranking.columns:
+        return
+    metrics = [
+        ("speed_1s_kmh", "⚡ Top 2 s", "km/h", 1),
+        ("speed_30s_kmh", "🏆 Top 30 s", "km/h", 1),
+        ("longest_run_km", "🚩 Longest run", "km", 2),
+    ]
+    if is_wind:
+        metrics += [
+            ("max_jump_m", "🚀 Highest jump", "m", 1),
+            ("max_airtime_s", "🪂 Airtime", "s", 1),
+        ]
+    df = ranking.copy()
+    for key, *_ in metrics:
+        df[key] = pd.to_numeric(df.get(key), errors="coerce")
+    best = df.groupby("name")[[m[0] for m in metrics]].max()
+    if best.empty:
+        return
+
+    # Kombinierter Score: jede Kennzahl auf ihren Höchstwert normiert (0..1) und
+    # summiert. So zählen 2s/30s/Run (etc.) gleichwertig trotz anderer Einheiten.
+    score = pd.Series(0.0, index=best.index)
+    used = 0
+    for key, *_ in metrics:
+        mx = best[key].max()
+        if mx and mx > 0:
+            score = score + best[key].fillna(0) / mx
+            used += 1
+    if used == 0:
+        return
+    champ = score.idxmax()
+    vals = best.loc[champ]
+
+    crows = df[df["name"].astype(str) == str(champ)].sort_values(
+        "speed_1s_kmh", ascending=False)
+    weather = str(crows.iloc[0].get("Weather") or "–") if not crows.empty else "–"
+    trust = str(crows.iloc[0].get("Trust") or "–") if not crows.empty else "–"
+
+    def _cell(label, value):
+        return f"<div class='champ-cell'><span>{label}</span><b>{value}</b></div>"
+
+    cells = ""
+    for key, label, unit, dec in metrics:
+        v = vals.get(key)
+        cells += _cell(label, "–" if pd.isna(v) else f"{float(v):.{dec}f} {unit}")
+    cells += _cell("🌤 Weather", weather)
+    cells += _cell("🛡 Trust", trust)
+
+    st.markdown(
+        "<style>"
+        ".champ{background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(16px);"
+        "backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.28);border-radius:20px;"
+        "padding:16px 22px;margin:4px 0 20px;box-shadow:0 8px 30px rgba(0,0,0,.18);}"
+        ".champ-title{font-size:22px;font-weight:800;margin-bottom:12px;}"
+        ".champ-grid{display:flex;flex-wrap:wrap;gap:12px 30px;}"
+        ".champ-cell{display:flex;flex-direction:column;}"
+        ".champ-cell span{font-size:13px;opacity:.75;}"
+        ".champ-cell b{font-size:21px;font-weight:800;line-height:1.15;}"
+        "</style>"
+        f"<div class='champ'><div class='champ-title'>🥇 #1 overall · {champ}</div>"
+        f"<div class='champ-grid'>{cells}</div></div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _render_ranking_tables(ranking, group_choice, member_groups, months,
                            spot_filter, year_filter, month_filter, day_filter,
                            gear_filter="All", extra=None):
@@ -4275,6 +4344,9 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     # ergänzen – siehe _enrich_ranking. Vermeidet die Neuberechnung bei jedem
     # (Fragment-)Rerun, solange sich das gefilterte Ranking nicht ändert.
     ranking = _enrich_ranking(ranking)
+
+    # #1-Glaskarte oben (kombinierter Score) – direkt unter der Überschrift.
+    _render_champion(ranking, active_sport() in ("windsurf", "kitesurf", "wingsurf"))
 
     # 2x2-Raster. width="stretch" (moderne API, ersetzt das veraltete
     # use_container_width) lässt jede Tabelle ihre Box voll ausfüllen; bei vielen
