@@ -278,6 +278,36 @@ st.set_page_config(
 )
 
 
+# --- "Online jetzt"-Zähler (grobe Näherung) -------------------------------
+# Jede Browser-Session bekommt eine ID; bei jedem (vollen) Rerun wird ein
+# Zeitstempel in einem prozessweiten Speicher (cache_resource) aktualisiert.
+# "Online" = Sessions mit Aktivität in den letzten Minuten. Hinweis: rein
+# inaktive Tabs (kein Rerun) fallen nach dem Fenster raus -> bewusst eine
+# Aktivitäts-Schätzung, kein exakter Live-Wert.
+@st.cache_resource(show_spinner=False)
+def _online_store():
+    return {}
+
+
+def _touch_online():
+    sid = st.session_state.get("_sid")
+    if not sid:
+        sid = secrets.token_hex(8)
+        st.session_state["_sid"] = sid
+    _online_store()[sid] = datetime.now()
+
+
+def _online_count(window_s=180):
+    store = _online_store()
+    now = datetime.now()
+    for k in [k for k, t in list(store.items()) if (now - t).total_seconds() > window_s]:
+        store.pop(k, None)
+    return len(store)
+
+
+_touch_online()
+
+
 def load_css(path):
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
@@ -6278,6 +6308,25 @@ def _admin_flash(msg):
     st.rerun()
 
 
+def _admin_stats():
+    """Kennzahlen fürs Backoffice: Mitglieder, verifiziert, Sessions, aktive Fahrer."""
+    try:
+        with get_engine().connect() as conn:
+            members = conn.execute(select(func.count()).select_from(users_table)).scalar() or 0
+            verified = conn.execute(
+                select(func.count()).select_from(users_table)
+                .where(users_table.c.email_verified.is_(True))
+            ).scalar() or 0
+            sessions = conn.execute(select(func.count()).select_from(sessions_table)).scalar() or 0
+            riders = conn.execute(
+                select(func.count(func.distinct(sessions_table.c.name)))
+            ).scalar() or 0
+        return {"members": members, "verified": verified,
+                "unverified": max(0, members - verified), "sessions": sessions, "riders": riders}
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def render_admin():
     st.markdown("# 🔧 Backoffice")
 
@@ -6320,6 +6369,19 @@ def render_admin():
     if top[1].button("Admin abmelden", key="admin_logout"):
         st.session_state["is_admin"] = False
         st.rerun()
+
+    # --- Kennzahlen ---
+    _s = _admin_stats()
+    if _s is not None:
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("👥 Mitglieder", _s["members"],
+                  help=f"{_s['verified']} verifiziert · {_s['unverified']} unbestätigt")
+        m2.metric("🟢 Online (~3 min)", _online_count(),
+                  help="Aktive Browser-Sessions der letzten ~3 Minuten (Näherung).")
+        m3.metric("🏄 Sessions gesamt", _s["sessions"])
+        m4.metric("🧍 Aktive Fahrer", _s["riders"],
+                  help="Fahrer mit mindestens einer Session.")
+        st.markdown("---")
 
     tab_ads, tab_profiles = st.tabs(["📣 Werbung pro Spot", "👤 Profile"])
     with tab_ads:
