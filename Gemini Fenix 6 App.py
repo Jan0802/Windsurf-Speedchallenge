@@ -1049,13 +1049,6 @@ def update_session(session_id, fields):
     clear_data_caches()
 
 
-def delete_session(session_id):
-    """Loescht eine einzelne Session (z.B. fehlerhafte/Test-Sessions)."""
-    with get_engine().begin() as conn:
-        conn.execute(delete(sessions_table).where(sessions_table.c.id == int(session_id)))
-    clear_data_caches()
-
-
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_sessions(sport=None):
     """Sessions als DataFrame. sport=None -> alle Sportarten (z.B. für die
@@ -7457,8 +7450,10 @@ def render_session_editor(user):
         confirm_del = st.checkbox("Confirm delete", key=f"es_delconf_{sid}")
         if st.button("🗑 Delete this session", key=f"es_del_{sid}",
                      use_container_width=True, disabled=not confirm_del):
-            delete_session(sid)
-            st.success("Session deleted.")
+            if delete_session(sid, user["username"]):
+                st.success("Session deleted.")
+            else:
+                st.warning("Could not delete this session.")
             st.rerun()
 
 
