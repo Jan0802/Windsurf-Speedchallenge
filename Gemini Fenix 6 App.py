@@ -6819,29 +6819,61 @@ _GUIDE = {
              "<li>Switch screens with <kbd>UP</kbd>/<kbd>DOWN</kbd>: speed · jumps/paddle · totals · km/h only · knots only.</li>"
              "<li>To finish: press <kbd>START</kbd> → choose <b>Send</b>. A phone with Garmin Connect must be nearby; "
              "the status shows <code>sent</code> on success.</li></ul>"),
-            ("Online rankings",
-             "<ul><li>The home page shows the <b>Top 15</b> per category (best 30s, top 2s, longest run, total distance) for the selected sport.</li>"
-             "<li>Use the <b>Filter</b> in the sidebar (spot, year, month, gear, weight …).</li>"
-             "<li>Switch sport with the buttons at the top.</li></ul>"),
-            ("My Results",
-             "<ul><li>The <b>My Results</b> tab shows your <b>records</b> (2s, 30s, longest run, highest jump) and a "
-             "<b>Performance Index</b> (fast with little wind &amp; a small sail).</li>"
-             "<li><b>Your ranking position</b> – overall, or pick a spot in the filter to see your rank there.</li>"
-             "<li>Your <b>sessions</b> with the <b>GPS map</b>, and <b>complete my sessions</b> (set spot/board/sail so they count).</li></ul>"),
-            ("Spots &amp; weather",
-             "<ul><li>The <b>Spots</b> tab: filter by country + spot for a description, photos, live weather and a <b>3-day forecast</b>.</li>"
-             "<li>Open a day for the <b>hourly view</b>; toggle <b>thermal / sea-breeze potential</b>.</li>"
-             "<li>You can <b>upload your own spot photo</b> (the newest 5 are shown, with your name).</li></ul>"),
+            ("The 5 watch screens",
+             "<ul><li>While recording, switch screens with <kbd>UP</kbd>/<kbd>DOWN</kbd>:</li></ul>"
+             "<ol><li><b>Speed</b> – current speed big (knots + km/h), plus your max and time.</li>"
+             "<li><b>Jumps</b> (wind sports) / <b>Paddle</b> (SUP) – count, airtime/strokes, best.</li>"
+             "<li><b>Totals</b> – distance, average, 2 s peak.</li>"
+             "<li><b>km/h only</b> – just the current speed in km/h (large) + max.</li>"
+             "<li><b>knots only</b> – just the current speed in knots (large) + max.</li></ol>"
+             "<p>Top of screen shows <b>REC</b> (recording) or <b>READY</b>.</p>"),
+            ("Sending your session",
+             "<ul><li>Finish with <kbd>START</kbd> → choose <b>Send</b> (or <i>Keep recording</i> / <i>Discard</i>).</li>"
+             "<li>A phone with <b>Garmin Connect</b> must be nearby – the watch uploads through it.</li>"
+             "<li>The status shows <code>sent</code> (success), <code>retry …</code> (trying again) or <code>err …</code>.</li>"
+             "<li>No phone at the beach? It retries automatically; you can also use <b>Resend last</b> later.</li></ul>"),
+            ("Sports &amp; the home rankings",
+             "<ul><li>Switch sport at the top: <b>Windsurf · Kitesurf · Wingsurf · SUP</b>.</li>"
+             "<li>The home page shows the <b>Top 15</b> per category: <b>Best 30 s</b>, <b>Top speed 2 s</b>, "
+             "<b>Longest run</b> and <b>Total distance</b> (one best session per rider).</li>"
+             "<li>Wind sports also have <b>Best airtime</b> &amp; <b>Highest jump</b>; SUP has <b>Most strokes</b> &amp; <b>Max cadence</b>.</li>"
+             "<li>Each row shows the <b>weather</b> of that session and a <b>trust</b> badge.</li></ul>"),
+            ("Filters &amp; your saved start",
+             "<ul><li>Open <b>Filter</b> in the sidebar: <b>Group, Location (spot), Year, Month, Day</b> and <b>gear type</b>.</li>"
+             "<li>Advanced filters: <b>max front wing</b> (foil), <b>max fin size</b> and a <b>weight range</b> (e.g. compare similar riders).</li>"
+             "<li>Save your selection as <b>'My start'</b> – it is preselected every time you open the app.</li></ul>"),
+            ("My Results – records, index &amp; your rank",
+             "<ul><li>The <b>My Results</b> tab opens with your <b>records</b>: top 2 s, top 30 s, longest run, highest jump and total distance.</li>"
+             "<li><b>Performance Index</b> = top 2 s ÷ (wind × sail size) × 100 – higher means you were fast with <i>little wind and a small sail</i> (a fair efficiency score for tracking progress).</li>"
+             "<li><b>Your ranking position</b>: your rank overall, or pick a spot in the filter to see your rank <i>at that spot</i> (for 2 s and 30 s).</li></ul>"),
+            ("My Results – personal bests, sessions &amp; analysis",
+             "<ul><li><b>Personal bests</b>: your top-10 speed table, filterable by spot, year, board and max wind (e.g. 'how fast at ≤ 5 Bft?').</li>"
+             "<li><b>View my sessions</b>: list with a date filter; pick one to see the full analysis.</li>"
+             "<li>Session detail: distance, average, peak speeds, jumps/paddling, detected <b>runs</b>, the <b>GPS map</b>, weather and trust.</li>"
+             "<li><b>Complete my sessions</b>: set spot / board / sail on watch sessions so they count in the ranking.</li></ul>"),
+            ("Spots &amp; weather forecast",
+             "<ul><li>The <b>Spots</b> tab: filter by <b>country + spot</b> for a description, photo gallery, webcam and live weather.</li>"
+             "<li><b>3-day forecast</b> with a 'worth it' traffic light (🟢/🟡/🔴) from wind strength &amp; the spot's best wind directions.</li>"
+             "<li>Open a day for the <b>hourly view</b> (wind bars + frosted gust bars); toggle the <b>thermal / sea-breeze potential</b>.</li>"
+             "<li><b>Upload your own spot photo</b> – the newest 5 are shown with the uploader's name.</li></ul>"),
+            ("Spot-TV – the café / shop screen",
+             "<ul><li>A full-screen live board for a café, shop or club. Open it from the <b>Filter</b> panel: pick a spot → <b>Open Spot TV</b> (then press F11 for full screen).</li>"
+             "<li>Shows a <b>leaderboard</b> with 🥇🥈🥉 and percentage bars (rank 1 = 100 %), the <b>rider of the day</b>, the current weather and the 3-day forecast (rotating with the spot info).</li>"
+             "<li>A <b>QR code</b> lets visitors join today's ranking, plus optional sponsor logo &amp; product deals.</li></ul>"),
+            ("Groups &amp; community",
+             "<ul><li>Create or join <b>groups</b> to compare within your crew; filter the rankings by group.</li>"
+             "<li>Private groups need the owner's <b>approval</b>; the owner can invite/approve members.</li>"
+             "<li>A <b>news banner</b> shows members' new records and top-3 results.</li></ul>"),
+            ("Share equipment",
+             "<ul><li>Use the same boards/sails as family or friends? <b>Share your equipment</b> via a short code.</li>"
+             "<li>Enter a mate's code under <b>Import equipment</b> to copy their gear list – no retyping.</li></ul>"),
             ("Other watches / Apple Watch",
              "<ul><li>Any watch that exports a <b>FIT file</b> (e.g. Apple Watch via HealthFit) works too.</li>"
-             "<li>Use <b>Add session</b> in the sidebar → choose equipment → upload the FIT file.</li></ul>"),
-            ("Groups",
-             "<ul><li>Create or join <b>groups</b> to compare within your crew.</li>"
-             "<li>Private groups require the owner's approval.</li></ul>"),
-            ("Trust &amp; privacy",
-             "<ul><li>Each session gets a <b>trust score</b> from GPS plausibility (and an on-water check) – please keep it fair.</li>"
-             "<li>Your <b>GPS track</b> is stored but shown <b>only to you</b>. The ranking shows name, spot, speed, equipment and weather. "
-             "See the privacy policy in the app.</li></ul>"),
+             "<li>Use <b>Add session</b> in the sidebar → choose equipment → upload the FIT file. Weather is added automatically; you get runs, map and the speed analysis.</li></ul>"),
+            ("Trust, fair play &amp; privacy",
+             "<ul><li>Every session gets a <b>trust score</b> from GPS physics: max acceleration, course change at speed, GPS noise, point density and a comparison with the spot best.</li>"
+             "<li>Watch sessions also get an <b>on-water check</b> and a device-verified baseline. Please keep it fair – obvious outliers lose trust.</li>"
+             "<li><b>Privacy</b>: your GPS track is stored but shown <b>only to you</b>. The ranking shows name, spot, speed, equipment and weather. You can delete your data or account anytime. See the privacy policy.</li></ul>"),
         ],
     },
     "de": {
@@ -6871,29 +6903,61 @@ _GUIDE = {
              "<li>Mit <kbd>UP</kbd>/<kbd>DOWN</kbd> umschalten: Speed · Sprünge/Paddeln · Summen · nur km/h · nur Knoten.</li>"
              "<li>Beenden: <kbd>START</kbd> → <b>Send</b>. Ein Handy mit Garmin Connect muss in der Nähe sein; "
              "bei Erfolg zeigt der Status <code>sent</code>.</li></ul>"),
-            ("Online-Bestenliste",
-             "<ul><li>Die Startseite zeigt die <b>Top 15</b> je Kategorie (beste 30s, Top 2s, längster Run, Gesamtstrecke) für die gewählte Sportart.</li>"
-             "<li>Nutze den <b>Filter</b> in der Sidebar (Spot, Jahr, Monat, Material, Gewicht …).</li>"
-             "<li>Sportart oben umschalten.</li></ul>"),
-            ("My Results (dein Bereich)",
-             "<ul><li>Der Tab <b>My Results</b> zeigt deine <b>Rekorde</b> (2s, 30s, längster Run, höchster Sprung) und einen "
-             "<b>Performance Index</b> (schnell bei wenig Wind &amp; kleinem Segel).</li>"
-             "<li><b>Deine Platzierung</b> – gesamt, oder wähle im Filter einen Spot für deinen Rang dort.</li>"
-             "<li>Deine <b>Sessions</b> mit <b>GPS-Karte</b> und <b>„complete my sessions“</b> (Spot/Board/Segel setzen, damit sie zählen).</li></ul>"),
-            ("Spots &amp; Wetter",
-             "<ul><li>Der Tab <b>Spots</b>: nach Land + Spot filtern für Beschreibung, Fotos, aktuelles Wetter und <b>3-Tage-Vorhersage</b>.</li>"
-             "<li>Einen Tag für die <b>Stundenansicht</b> öffnen; <b>Thermik-/Seewind-Potenzial</b> ein-/ausblenden.</li>"
-             "<li>Du kannst ein <b>eigenes Spot-Foto hochladen</b> (die neuesten 5 werden mit deinem Namen gezeigt).</li></ul>"),
+            ("Die 5 Uhr-Screens",
+             "<ul><li>Während der Aufzeichnung mit <kbd>UP</kbd>/<kbd>DOWN</kbd> umschalten:</li></ul>"
+             "<ol><li><b>Speed</b> – aktuelle Geschwindigkeit groß (Knoten + km/h), dazu dein Max und die Zeit.</li>"
+             "<li><b>Sprünge</b> (Windsport) / <b>Paddeln</b> (SUP) – Anzahl, Airtime/Schläge, Bestwert.</li>"
+             "<li><b>Summen</b> – Distanz, Schnitt, 2-s-Spitze.</li>"
+             "<li><b>nur km/h</b> – nur die aktuelle Geschwindigkeit in km/h (groß) + Max.</li>"
+             "<li><b>nur Knoten</b> – nur die aktuelle Geschwindigkeit in Knoten (groß) + Max.</li></ol>"
+             "<p>Oben steht <b>REC</b> (Aufnahme) oder <b>READY</b>.</p>"),
+            ("Session senden",
+             "<ul><li>Beenden mit <kbd>START</kbd> → <b>Send</b> wählen (oder <i>Keep recording</i> / <i>Discard</i>).</li>"
+             "<li>Ein Handy mit <b>Garmin Connect</b> muss in der Nähe sein – die Uhr lädt darüber hoch.</li>"
+             "<li>Status: <code>sent</code> (Erfolg), <code>retry …</code> (neuer Versuch) oder <code>err …</code>.</li>"
+             "<li>Kein Handy am Strand? Sie versucht es automatisch erneut; später geht auch <b>Resend last</b>.</li></ul>"),
+            ("Sportarten &amp; die Startseiten-Bestenliste",
+             "<ul><li>Sportart oben umschalten: <b>Windsurf · Kitesurf · Wingsurf · SUP</b>.</li>"
+             "<li>Die Startseite zeigt die <b>Top 15</b> je Kategorie: <b>Beste 30 s</b>, <b>Top-Speed 2 s</b>, "
+             "<b>Längster Run</b> und <b>Gesamtstrecke</b> (beste Session je Fahrer).</li>"
+             "<li>Windsport hat zusätzlich <b>Beste Airtime</b> &amp; <b>Höchster Sprung</b>; SUP <b>Meiste Schläge</b> &amp; <b>Max. Kadenz</b>.</li>"
+             "<li>Jede Zeile zeigt das <b>Wetter</b> der Session und ein <b>Trust</b>-Abzeichen.</li></ul>"),
+            ("Filter &amp; dein gespeicherter Start",
+             "<ul><li><b>Filter</b> in der Sidebar öffnen: <b>Gruppe, Lokation (Spot), Jahr, Monat, Tag</b> und <b>Material-Typ</b>.</li>"
+             "<li>Erweiterte Filter: <b>max. Frontwing</b> (Foil), <b>max. Finne</b> und ein <b>Gewichtsbereich</b> (z. B. ähnliche Fahrer vergleichen).</li>"
+             "<li>Speichere deine Auswahl als <b>'My start'</b> – sie ist bei jedem Öffnen vorausgewählt.</li></ul>"),
+            ("My Results – Rekorde, Index &amp; dein Rang",
+             "<ul><li>Der Tab <b>My Results</b> startet mit deinen <b>Rekorden</b>: Top 2 s, Top 30 s, längster Run, höchster Sprung, Gesamtstrecke.</li>"
+             "<li><b>Performance Index</b> = Top 2 s ÷ (Wind × Segelgröße) × 100 – höher = du warst schnell bei <i>wenig Wind und kleinem Segel</i> (fairer Effizienzwert für deinen Fortschritt).</li>"
+             "<li><b>Deine Platzierung</b>: dein Rang gesamt, oder wähle im Filter einen Spot für deinen Rang <i>an diesem Spot</i> (für 2 s und 30 s).</li></ul>"),
+            ("My Results – Bestleistungen, Sessions &amp; Analyse",
+             "<ul><li><b>Bestleistungen</b>: deine Top-10-Speed-Tabelle, filterbar nach Spot, Jahr, Board und max. Wind (z. B. 'wie schnell bei ≤ 5 Bft?').</li>"
+             "<li><b>View my sessions</b>: Liste mit Datumsfilter; eine Session wählen für die volle Analyse.</li>"
+             "<li>Session-Detail: Distanz, Schnitt, Spitzen, Sprünge/Paddeln, erkannte <b>Runs</b>, die <b>GPS-Karte</b>, Wetter und Trust.</li>"
+             "<li><b>Complete my sessions</b>: bei Uhr-Sessions Spot / Board / Segel setzen, damit sie im Ranking zählen.</li></ul>"),
+            ("Spots &amp; Wettervorhersage",
+             "<ul><li>Der Tab <b>Spots</b>: nach <b>Land + Spot</b> filtern für Beschreibung, Foto-Galerie, Webcam und aktuelles Wetter.</li>"
+             "<li><b>3-Tage-Vorhersage</b> mit 'lohnt sich'-Ampel (🟢/🟡/🔴) aus Windstärke &amp; den besten Windrichtungen des Spots.</li>"
+             "<li>Einen Tag für die <b>Stundenansicht</b> öffnen (Wind-Balken + gläserne Böen-Balken); <b>Thermik-/Seewind-Potenzial</b> ein-/ausblenden.</li>"
+             "<li><b>Eigenes Spot-Foto hochladen</b> – die neuesten 5 werden mit dem Namen des Uploaders gezeigt.</li></ul>"),
+            ("Spot-TV – der Café-/Shop-Screen",
+             "<ul><li>Ein Vollbild-Live-Screen für Café, Shop oder Club. Im <b>Filter</b>-Bereich öffnen: Spot wählen → <b>Open Spot TV</b> (danach F11 für Vollbild).</li>"
+             "<li>Zeigt eine <b>Bestenliste</b> mit 🥇🥈🥉 und Prozentbalken (Platz 1 = 100 %), den <b>Rider of the Day</b>, das aktuelle Wetter und die 3-Tage-Vorhersage (wechselt mit der Spot-Info).</li>"
+             "<li>Ein <b>QR-Code</b> lädt Besucher ins heutige Ranking ein, dazu optional Sponsor-Logo &amp; Produkt-Deals.</li></ul>"),
+            ("Gruppen &amp; Community",
+             "<ul><li><b>Gruppen</b> erstellen oder beitreten, um euch im Team zu vergleichen; die Bestenliste nach Gruppe filtern.</li>"
+             "<li>Private Gruppen brauchen die <b>Freigabe</b> des Besitzers; er kann Mitglieder einladen/freigeben.</li>"
+             "<li>Ein <b>News-Banner</b> zeigt neue Rekorde und Top-3-Ergebnisse der Mitglieder.</li></ul>"),
+            ("Equipment teilen",
+             "<ul><li>Gleiches Material wie Familie/Freunde? <b>Teile dein Equipment</b> über einen kurzen Code.</li>"
+             "<li>Den Code eines Kollegen unter <b>Import equipment</b> eingeben, um dessen Materialliste zu übernehmen – kein erneutes Tippen.</li></ul>"),
             ("Andere Uhren / Apple Watch",
              "<ul><li>Jede Uhr, die eine <b>FIT-Datei</b> exportiert (z. B. Apple Watch über HealthFit), funktioniert auch.</li>"
-             "<li><b>Add session</b> in der Sidebar → Material wählen → FIT-Datei hochladen.</li></ul>"),
-            ("Gruppen",
-             "<ul><li><b>Gruppen</b> erstellen oder beitreten, um euch im Team zu vergleichen.</li>"
-             "<li>Private Gruppen brauchen die Freigabe des Besitzers.</li></ul>"),
-            ("Trust &amp; Datenschutz",
-             "<ul><li>Jede Session bekommt einen <b>Trust-Score</b> aus GPS-Plausibilität (und einem On-Water-Check) – bitte fair bleiben.</li>"
-             "<li>Dein <b>GPS-Track</b> wird gespeichert, aber <b>nur dir</b> angezeigt. Die Bestenliste zeigt Name, Spot, Speed, Material und Wetter. "
-             "Details in der Datenschutzerklärung.</li></ul>"),
+             "<li><b>Add session</b> in der Sidebar → Material wählen → FIT-Datei hochladen. Wetter wird automatisch ergänzt; du bekommst Runs, Karte und die Speed-Analyse.</li></ul>"),
+            ("Trust, Fairness &amp; Datenschutz",
+             "<ul><li>Jede Session bekommt einen <b>Trust-Score</b> aus GPS-Physik: max. Beschleunigung, Kursänderung bei Tempo, GPS-Rauschen, Punktdichte und Vergleich mit dem Spot-Bestwert.</li>"
+             "<li>Uhr-Sessions bekommen zusätzlich einen <b>On-Water-Check</b> und einen geräteverifizierten Grundwert. Bitte fair bleiben – klare Ausreißer verlieren Trust.</li>"
+             "<li><b>Datenschutz</b>: Dein GPS-Track wird gespeichert, aber <b>nur dir</b> angezeigt. Die Bestenliste zeigt Name, Spot, Speed, Material und Wetter. Du kannst deine Daten oder dein Konto jederzeit löschen. Siehe Datenschutzerklärung.</li></ul>"),
         ],
     },
     "nl": {
@@ -6923,29 +6987,61 @@ _GUIDE = {
              "<li>Wissel schermen met <kbd>UP</kbd>/<kbd>DOWN</kbd>: snelheid · sprongen/peddelen · totalen · alleen km/u · alleen knopen.</li>"
              "<li>Afsluiten: <kbd>START</kbd> → <b>Send</b>. Een telefoon met Garmin Connect moet in de buurt zijn; "
              "bij succes toont de status <code>sent</code>.</li></ul>"),
-            ("Online ranglijst",
-             "<ul><li>De startpagina toont de <b>Top 15</b> per categorie (beste 30s, top 2s, langste run, totale afstand) voor de gekozen sport.</li>"
-             "<li>Gebruik het <b>Filter</b> in de zijbalk (spot, jaar, maand, materiaal, gewicht …).</li>"
-             "<li>Wissel van sport met de knoppen bovenaan.</li></ul>"),
-            ("My Results (jouw deel)",
-             "<ul><li>Het tabblad <b>My Results</b> toont je <b>records</b> (2s, 30s, langste run, hoogste sprong) en een "
-             "<b>Performance Index</b> (snel met weinig wind &amp; klein zeil).</li>"
-             "<li><b>Jouw positie</b> – totaal, of kies een spot in het filter voor je rang daar.</li>"
-             "<li>Je <b>sessies</b> met de <b>GPS-kaart</b> en <b>„complete my sessions“</b> (spot/board/zeil instellen zodat ze meetellen).</li></ul>"),
-            ("Spots &amp; weer",
-             "<ul><li>Het tabblad <b>Spots</b>: filter op land + spot voor een beschrijving, foto's, actueel weer en een <b>3-daagse verwachting</b>.</li>"
-             "<li>Open een dag voor de <b>uurweergave</b>; zet <b>thermiek-/zeewindpotentieel</b> aan/uit.</li>"
-             "<li>Je kunt een <b>eigen spotfoto uploaden</b> (de nieuwste 5 worden getoond, met je naam).</li></ul>"),
+            ("De 5 horlogeschermen",
+             "<ul><li>Wissel tijdens het opnemen met <kbd>UP</kbd>/<kbd>DOWN</kbd>:</li></ul>"
+             "<ol><li><b>Snelheid</b> – actuele snelheid groot (knopen + km/u), plus je max en de tijd.</li>"
+             "<li><b>Sprongen</b> (windsport) / <b>Peddelen</b> (SUP) – aantal, airtime/slagen, beste.</li>"
+             "<li><b>Totalen</b> – afstand, gemiddelde, 2 s-piek.</li>"
+             "<li><b>alleen km/u</b> – alleen de actuele snelheid in km/u (groot) + max.</li>"
+             "<li><b>alleen knopen</b> – alleen de actuele snelheid in knopen (groot) + max.</li></ol>"
+             "<p>Bovenaan staat <b>REC</b> (opname) of <b>READY</b>.</p>"),
+            ("Je sessie versturen",
+             "<ul><li>Afsluiten met <kbd>START</kbd> → kies <b>Send</b> (of <i>Keep recording</i> / <i>Discard</i>).</li>"
+             "<li>Een telefoon met <b>Garmin Connect</b> moet in de buurt zijn – het horloge uploadt daardoorheen.</li>"
+             "<li>Status: <code>sent</code> (gelukt), <code>retry …</code> (nieuwe poging) of <code>err …</code>.</li>"
+             "<li>Geen telefoon op het strand? Hij probeert het automatisch opnieuw; later kan ook <b>Resend last</b>.</li></ul>"),
+            ("Sporten &amp; de ranglijst op de startpagina",
+             "<ul><li>Wissel van sport bovenaan: <b>Windsurf · Kitesurf · Wingsurf · SUP</b>.</li>"
+             "<li>De startpagina toont de <b>Top 15</b> per categorie: <b>Beste 30 s</b>, <b>Topsnelheid 2 s</b>, "
+             "<b>Langste run</b> en <b>Totale afstand</b> (beste sessie per rider).</li>"
+             "<li>Windsport heeft ook <b>Beste airtime</b> &amp; <b>Hoogste sprong</b>; SUP <b>Meeste slagen</b> &amp; <b>Max. cadans</b>.</li>"
+             "<li>Elke regel toont het <b>weer</b> van die sessie en een <b>trust</b>-badge.</li></ul>"),
+            ("Filters &amp; je opgeslagen start",
+             "<ul><li>Open <b>Filter</b> in de zijbalk: <b>Groep, Locatie (spot), Jaar, Maand, Dag</b> en <b>materiaaltype</b>.</li>"
+             "<li>Geavanceerd: <b>max. frontwing</b> (foil), <b>max. vin</b> en een <b>gewichtsbereik</b> (bijv. vergelijkbare riders vergelijken).</li>"
+             "<li>Sla je selectie op als <b>'My start'</b> – die is bij elke keer openen vooraf geselecteerd.</li></ul>"),
+            ("My Results – records, index &amp; jouw rang",
+             "<ul><li>Het tabblad <b>My Results</b> opent met je <b>records</b>: top 2 s, top 30 s, langste run, hoogste sprong en totale afstand.</li>"
+             "<li><b>Performance Index</b> = top 2 s ÷ (wind × zeilgrootte) × 100 – hoger = je was snel met <i>weinig wind en een klein zeil</i> (een eerlijke efficiëntiescore voor je voortgang).</li>"
+             "<li><b>Jouw positie</b>: je rang totaal, of kies een spot in het filter voor je rang <i>op die spot</i> (voor 2 s en 30 s).</li></ul>"),
+            ("My Results – persoonlijke records, sessies &amp; analyse",
+             "<ul><li><b>Persoonlijke records</b>: je top-10 snelheidstabel, te filteren op spot, jaar, board en max. wind (bijv. 'hoe snel bij ≤ 5 Bft?').</li>"
+             "<li><b>View my sessions</b>: lijst met datumfilter; kies er een voor de volledige analyse.</li>"
+             "<li>Sessiedetail: afstand, gemiddelde, pieksnelheden, sprongen/peddelen, herkende <b>runs</b>, de <b>GPS-kaart</b>, weer en trust.</li>"
+             "<li><b>Complete my sessions</b>: stel bij horlogesessies spot / board / zeil in zodat ze meetellen in de ranglijst.</li></ul>"),
+            ("Spots &amp; weersverwachting",
+             "<ul><li>Het tabblad <b>Spots</b>: filter op <b>land + spot</b> voor een beschrijving, fotogalerij, webcam en actueel weer.</li>"
+             "<li><b>3-daagse verwachting</b> met een 'de moeite waard'-stoplicht (🟢/🟡/🔴) op basis van windkracht &amp; de beste windrichtingen van de spot.</li>"
+             "<li>Open een dag voor de <b>uurweergave</b> (windbalken + matglazen vlaagbalken); zet het <b>thermiek-/zeewindpotentieel</b> aan/uit.</li>"
+             "<li><b>Upload je eigen spotfoto</b> – de nieuwste 5 worden getoond met de naam van de uploader.</li></ul>"),
+            ("Spot-TV – het café-/shopscherm",
+             "<ul><li>Een volledig scherm live-board voor een café, shop of club. Open het in het <b>Filter</b>-paneel: kies een spot → <b>Open Spot TV</b> (daarna F11 voor volledig scherm).</li>"
+             "<li>Toont een <b>ranglijst</b> met 🥇🥈🥉 en procentbalken (plek 1 = 100 %), de <b>rider of the day</b>, het actuele weer en de 3-daagse verwachting (wisselt met de spotinfo).</li>"
+             "<li>Een <b>QR-code</b> laat bezoekers meedoen aan de ranglijst van vandaag, plus optioneel sponsorlogo &amp; productdeals.</li></ul>"),
+            ("Groepen &amp; community",
+             "<ul><li>Maak of word lid van <b>groepen</b> om binnen je crew te vergelijken; filter de ranglijst op groep.</li>"
+             "<li>Privégroepen vereisen <b>goedkeuring</b> van de eigenaar; die kan leden uitnodigen/goedkeuren.</li>"
+             "<li>Een <b>nieuwsbanner</b> toont nieuwe records en top-3-resultaten van leden.</li></ul>"),
+            ("Materiaal delen",
+             "<ul><li>Zelfde materiaal als familie of vrienden? <b>Deel je materiaal</b> via een korte code.</li>"
+             "<li>Voer de code van een maatje in onder <b>Import equipment</b> om hun materiaallijst over te nemen – niet opnieuw typen.</li></ul>"),
             ("Andere horloges / Apple Watch",
              "<ul><li>Elk horloge dat een <b>FIT-bestand</b> exporteert (bijv. Apple Watch via HealthFit) werkt ook.</li>"
-             "<li>Gebruik <b>Add session</b> in de zijbalk → kies materiaal → upload het FIT-bestand.</li></ul>"),
-            ("Groepen",
-             "<ul><li>Maak of word lid van <b>groepen</b> om binnen je crew te vergelijken.</li>"
-             "<li>Privégroepen vereisen goedkeuring van de eigenaar.</li></ul>"),
-            ("Trust &amp; privacy",
-             "<ul><li>Elke sessie krijgt een <b>trust-score</b> op basis van GPS-plausibiliteit (en een on-water-check) – speel eerlijk.</li>"
-             "<li>Je <b>GPS-track</b> wordt opgeslagen maar <b>alleen aan jou</b> getoond. De ranglijst toont naam, spot, snelheid, materiaal en weer. "
-             "Zie het privacybeleid.</li></ul>"),
+             "<li>Gebruik <b>Add session</b> in de zijbalk → kies materiaal → upload het FIT-bestand. Weer wordt automatisch toegevoegd; je krijgt runs, kaart en de snelheidsanalyse.</li></ul>"),
+            ("Trust, fair play &amp; privacy",
+             "<ul><li>Elke sessie krijgt een <b>trust-score</b> uit GPS-fysica: max. versnelling, koerswijziging bij snelheid, GPS-ruis, puntdichtheid en vergelijking met het spotrecord.</li>"
+             "<li>Horlogesessies krijgen ook een <b>on-water-check</b> en een apparaat-geverifieerde basiswaarde. Speel eerlijk – duidelijke uitschieters verliezen trust.</li>"
+             "<li><b>Privacy</b>: je GPS-track wordt opgeslagen maar <b>alleen aan jou</b> getoond. De ranglijst toont naam, spot, snelheid, materiaal en weer. Je kunt je gegevens of account altijd verwijderen. Zie het privacybeleid.</li></ul>"),
         ],
     },
 }
@@ -6995,6 +7091,44 @@ def render_guide_downloads(key_prefix="", stacked=False):
         )
 
 
+def render_guide_page():
+    """Eigene, ausführliche Anleitungs-Seite (?seite=guide) in EN/DE/NL,
+    plus Download-Buttons. Ohne Login erreichbar (wie die Rechtsseiten)."""
+    if st.button("← Back · Zurück · Terug", key="guide_back"):
+        st.query_params.clear()
+        st.rerun()
+    langs = [("English", "en"), ("Deutsch", "de"), ("Nederlands", "nl")]
+    pick = st.radio("Language · Sprache · Taal", [lbl for lbl, _ in langs],
+                    horizontal=True, key="guide_lang")
+    lang = dict(langs)[pick]
+    g = _GUIDE[lang]
+    secs = "".join(
+        f"<h3 class='gp-h'>{i}. {title}</h3>{body}"
+        for i, (title, body) in enumerate(g["sections"], 1)
+    )
+    st.markdown(
+        "<style>"
+        ".gp-h{color:#8fe3ff;margin-top:22px;}"
+        ".gp ul,.gp ol{padding-left:22px;}.gp li{margin:4px 0;}"
+        ".gp kbd{background:#2bd4d9;color:#06303a;border-radius:5px;padding:1px 7px;font-weight:700;}"
+        ".gp code{background:rgba(255,255,255,.15);border-radius:5px;padding:1px 6px;}"
+        "</style>"
+        f"<h2 style='color:#fff;'>🌊 {g['title']}</h2>"
+        f"<p style='font-size:17px;opacity:.9;'>{g['intro']}</p>"
+        f"<div class='gp'>{secs}</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("---")
+    st.caption("⬇️ Download as a file (HTML – opens in any browser, print to PDF):")
+    render_guide_downloads(key_prefix="page_")
+
+
+# Eigene Anleitungs-Seite (?seite=guide) – ohne Login erreichbar.
+if st.query_params.get("seite") == "guide":
+    render_guide_page()
+    st.stop()
+
+
 def render_login():
     st.markdown(f"## 🔐 Sign in {BETA_BADGE}", unsafe_allow_html=True)
     st.info(
@@ -7011,8 +7145,12 @@ def render_login():
         unsafe_allow_html=True,
     )
 
-    with st.expander("📖 User guide · Anleitung · Handleiding (download)"):
-        render_guide_downloads(key_prefix="login_")
+    st.markdown(
+        "<div style='text-align:center;margin:.1rem 0 1rem;'>"
+        "<a href='?seite=guide' target='_self' style='color:#2bd4d9;font-weight:700;'>"
+        "📖 User guide · Anleitung · Handleiding</a></div>",
+        unsafe_allow_html=True,
+    )
 
     tab_login, tab_register = st.tabs(["Log in", "Register"])
 
@@ -7960,8 +8098,8 @@ with st.sidebar:
     st.markdown("---")
     sidebar_tab_material = st.expander("🏄 Add session", expanded=False)
     sidebar_tab_filter = st.expander("🔎 Filter", expanded=False)
-    with st.expander("📖 Guide · Anleitung · Handleiding", expanded=False):
-        render_guide_downloads(key_prefix="side_", stacked=True)
+    st.link_button("📖 Guide · Anleitung · Handleiding", "?seite=guide",
+                   use_container_width=True)
 
 
 def autocollapse_sidebar():
