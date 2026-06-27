@@ -4225,31 +4225,23 @@ def _render_champion(ranking, is_wind):
     weather = str(crows.iloc[0].get("Weather") or "–") if not crows.empty else "–"
     trust = str(crows.iloc[0].get("Trust") or "–") if not crows.empty else "–"
 
-    def _cell(label, value):
-        return f"<div class='champ-cell'><span>{label}</span><b>{value}</b></div>"
-
-    cells = ""
+    tiles = []
     for key, label, unit, dec in metrics:
         v = vals.get(key)
-        cells += _cell(label, "–" if pd.isna(v) else f"{float(v):.{dec}f} {unit}")
-    cells += _cell("🌤 Weather", weather)
-    cells += _cell("🛡 Trust", trust)
+        tiles.append((label, "–" if pd.isna(v) else f"{float(v):.{dec}f} {unit}"))
+    tiles.append(("🌤 Weather", weather))
+    tiles.append(("🛡 Trust", trust))
 
-    st.markdown(
-        "<style>"
-        ".champ{background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(16px);"
-        "backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.28);border-radius:20px;"
-        "padding:16px 22px;margin:4px 0 20px;box-shadow:0 8px 30px rgba(0,0,0,.18);}"
-        ".champ-title{font-size:22px;font-weight:800;margin-bottom:12px;}"
-        ".champ-grid{display:flex;flex-wrap:wrap;gap:12px 30px;}"
-        ".champ-cell{display:flex;flex-direction:column;}"
-        ".champ-cell span{font-size:13px;opacity:.75;}"
-        ".champ-cell b{font-size:21px;font-weight:800;line-height:1.15;}"
-        "</style>"
-        f"<div class='champ'><div class='champ-title'>🥇 #1 overall · {champ}</div>"
-        f"<div class='champ-grid'>{cells}</div></div>",
-        unsafe_allow_html=True,
-    )
+    # Jede Kennzahl als eigene Glas-Kachel (st.metric = unser Standard-Glaskasten).
+    st.markdown(f"#### 🥇 #1 overall · {champ}")
+    n = len(tiles)
+    per_row = n if n <= 4 else (n + 1) // 2   # >4 -> zwei gleichmäßige Reihen
+    for start in range(0, n, per_row):
+        chunk = tiles[start:start + per_row]
+        cols = st.columns(len(chunk))
+        for col, (label, val) in zip(cols, chunk):
+            col.metric(label, val)
+    st.markdown("")
 
 
 def _render_ranking_tables(ranking, group_choice, member_groups, months,
