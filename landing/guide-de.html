@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>So funktioniert MyWaterSessions – Anleitung für Windsurf-, Kite-, Wing- &amp; SUP-Speed-Ranking</title>
+<meta name="description" content="Schritt-für-Schritt-Anleitung zu MyWaterSessions: auf der Garmin-Uhr aufzeichnen, Top-2s/30s-Speed und Rang pro Spot sehen, Spot-Guide mit 3-Tage-Windvorhersage, Gruppen, Spot-TV und mehr.">
+<link rel="canonical" href="https://mywatersessions.com/guide-de.html">
+<link rel="alternate" hreflang="en" href="https://mywatersessions.com/guide.html">
+<link rel="alternate" hreflang="de" href="https://mywatersessions.com/guide-de.html">
+<link rel="alternate" hreflang="nl" href="https://mywatersessions.com/guide-nl.html">
+<link rel="alternate" hreflang="x-default" href="https://mywatersessions.com/guide.html">
+<meta name="theme-color" content="#06303a">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="MyWaterSessions">
+<meta property="og:title" content="So funktioniert MyWaterSessions – die Anleitung">
+<meta property="og:description" content="Auf der Garmin-Uhr aufzeichnen, im Speed-Ranking aufsteigen, Windvorhersage und deinen Rang pro Spot prüfen. So funktioniert alles.">
+<meta property="og:url" content="https://mywatersessions.com/guide-de.html">
+<meta property="og:image" content="https://mywatersessions.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://mywatersessions.com/og.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "So funktioniert MyWaterSessions",
+  "about": "Speed-Ranking und Spot-Guide für Windsurfen, Kitesurfen, Wingfoilen und SUP",
+  "inLanguage": "de",
+  "url": "https://mywatersessions.com/guide-de.html",
+  "image": "https://mywatersessions.com/og.png",
+  "publisher": { "@type": "Organization", "name": "MyWaterSessions", "url": "https://mywatersessions.com/" }
+}
+</script>
+
+<style>
+  :root{ --aqua:#2bd4d9; --ink:#06303a; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+        color:#eaf4ff; background:#06222e; line-height:1.6; }
+  a{ color:var(--aqua); }
+  .wrap{ max-width:820px; margin:0 auto; padding:0 20px; }
+  .top{ background:linear-gradient(180deg, rgba(6,34,46,.5), rgba(6,34,46,.95)),
+        radial-gradient(900px 360px at 75% -20%, #0b6b8c, #06222e 60%);
+        padding:46px 0 36px; }
+  .brand{ font-size:30px; font-weight:800; text-decoration:none; color:#fff; }
+  .brand .dot{ color:var(--aqua); }
+  .langbar{ font-size:14px; margin:10px 0 0; }
+  .langbar a{ margin-right:12px; text-decoration:none; }
+  .langbar .active{ color:#fff; font-weight:700; }
+  h1{ font-size:clamp(26px,4.4vw,38px); margin:16px 0 6px; }
+  .lead{ color:#bcd4dd; font-size:18px; margin:0 0 18px; }
+  .btn{ display:inline-block; background:var(--aqua); color:var(--ink); font-weight:800;
+        text-decoration:none; padding:12px 24px; border-radius:12px; }
+  .btn:hover{ filter:brightness(1.07); }
+  nav.toc{ background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+           border-radius:16px; padding:16px 20px; margin:26px 0; }
+  nav.toc h2{ font-size:15px; text-transform:uppercase; letter-spacing:1px; color:#8fd9e3; margin:0 0 8px; }
+  nav.toc ol{ margin:0; padding-left:20px; columns:2; }
+  @media(max-width:620px){ nav.toc ol{ columns:1; } }
+  nav.toc a{ text-decoration:none; }
+  article{ padding:8px 0 40px; }
+  article h2{ color:#8fe3ff; font-size:22px; margin:34px 0 6px; scroll-margin-top:14px; }
+  article ul,article ol{ padding-left:22px; }
+  article li{ margin:5px 0; color:#dceaf0; }
+  kbd{ background:var(--aqua); color:var(--ink); border-radius:5px; padding:1px 7px; font-weight:700; font-size:.85em; }
+  code{ background:rgba(255,255,255,.15); border-radius:5px; padding:1px 6px; font-size:.92em; }
+  .cta{ text-align:center; background:rgba(255,255,255,.04);
+        border-top:1px solid rgba(255,255,255,.1); padding:34px 0; margin-top:20px; }
+  footer{ padding:30px 0 48px; color:#7fa6b2; font-size:13px; text-align:center; }
+  footer a{ color:#9fd9e3; margin:0 8px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/">MyWaterSessions<span class="dot">.</span></a>
+    <div class="langbar"><a href="/guide.html">EN</a><a class="active">DE</a><a href="/guide-nl.html">NL</a></div>
+    <h1>So funktioniert's</h1>
+    <p class="lead">MyWaterSessions ist die kostenlose Community-Speed-Bestenliste und der Spot-Guide für
+      Windsurfen, Kitesurfen, Wingfoilen und SUP. Zeichne eine Session mit deiner Garmin-Uhr auf
+      (oder lade eine FIT-Datei hoch) – sie landet in der Online-Bestenliste. Dazu ein Spot-Guide mit
+      3-Tage-Windvorhersage.</p>
+    <a class="btn" href="https://app.mywatersessions.com/">🌊 App öffnen</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="toc">
+    <h2>Inhalt</h2>
+    <ol>
+      <li><a href="#account">Konto erstellen</a></li>
+      <li><a href="#token">Dein Device-Token</a></li>
+      <li><a href="#watch">Uhr-App einrichten</a></li>
+      <li><a href="#screens">Die 5 Uhr-Screens</a></li>
+      <li><a href="#send">Session senden</a></li>
+      <li><a href="#rankings">Sportarten &amp; Bestenliste</a></li>
+      <li><a href="#filters">Filter &amp; gespeicherter Start</a></li>
+      <li><a href="#results">My Results &amp; Rang</a></li>
+      <li><a href="#bests">Bestleistungen &amp; Analyse</a></li>
+      <li><a href="#spots">Spots &amp; Wettervorhersage</a></li>
+      <li><a href="#tv">Spot-TV</a></li>
+      <li><a href="#groups">Gruppen &amp; Community</a></li>
+      <li><a href="#equipment">Equipment teilen</a></li>
+      <li><a href="#fit">Andere Uhren / Apple Watch</a></li>
+      <li><a href="#trust">Trust, Fairness &amp; Datenschutz</a></li>
+    </ol>
+  </nav>
+
+  <article>
+    <h2 id="account">1. Konto erstellen</h2>
+    <ul>
+      <li>Öffne die App und wähle <b>Register</b>: Benutzername, E-Mail, Passwort.</li>
+      <li>Du bekommst eine <b>Bestätigungs-Mail</b> – klicke den Link, um dein Konto zu aktivieren.</li>
+      <li>Dann <b>einloggen</b>. <i>Angemeldet bleiben</i> hält dich auf deinem Gerät eingeloggt.</li>
+    </ul>
+
+    <h2 id="token">2. Dein Device-Token</h2>
+    <ul>
+      <li>Einloggen und dein <b>Profil / Konto</b> öffnen.</li>
+      <li>Den angezeigten <b>Device-Token</b> kopieren und in die App-Einstellungen der Uhr einfügen.</li>
+      <li>Der Token ordnet deine Sessions deinem Konto zu – das Einzige, das jeder Fahrer setzen muss.</li>
+    </ul>
+
+    <h2 id="watch">3. Uhr-App installieren &amp; einrichten</h2>
+    <ul>
+      <li>Installiere <b>WaterSession</b> aus dem Connect-IQ-Store auf deiner Garmin.</li>
+      <li>In <b>Garmin Connect</b> (Handy) → <b>Geräte</b> → deine Uhr → <b>Connect-IQ-Apps</b> → <b>WaterSession</b> → <b>Einstellungen</b>.</li>
+      <li><b>Device-Token</b> eintragen (Pflicht). <b>Spot</b> leer lassen → wird per GPS automatisch erkannt.</li>
+      <li>Uhr <b>synchronisieren</b>.</li>
+    </ul>
+
+    <h2 id="screens">4. Die 5 Uhr-Screens</h2>
+    <p>Während der Aufzeichnung mit <kbd>UP</kbd>/<kbd>DOWN</kbd> umschalten:</p>
+    <ol>
+      <li><b>Speed</b> – aktuelle Geschwindigkeit groß (Knoten + km/h), dazu Max und Zeit.</li>
+      <li><b>Sprünge</b> (Windsport) / <b>Paddeln</b> (SUP) – Anzahl, Airtime/Schläge, Bestwert.</li>
+      <li><b>Summen</b> – Distanz, Schnitt, 2-s-Spitze.</li>
+      <li><b>nur km/h</b> – nur die aktuelle Geschwindigkeit in km/h (groß) + Max.</li>
+      <li><b>nur Knoten</b> – nur die aktuelle Geschwindigkeit in Knoten (groß) + Max.</li>
+    </ol>
+    <p>Oben steht <b>REC</b> (Aufnahme) oder <b>READY</b>.</p>
+
+    <h2 id="send">5. Session senden</h2>
+    <ul>
+      <li>Beenden mit <kbd>START</kbd> → <b>Send</b> wählen (oder <i>Keep recording</i> / <i>Discard</i>).</li>
+      <li>Ein Handy mit <b>Garmin Connect</b> muss in der Nähe sein – die Uhr lädt darüber hoch.</li>
+      <li>Status: <code>sent</code> (Erfolg), <code>retry …</code> oder <code>err …</code>.</li>
+      <li>Kein Handy am Strand? Sie versucht es automatisch erneut; später geht auch <b>Resend last</b>.</li>
+    </ul>
+
+    <h2 id="rankings">6. Sportarten &amp; Startseiten-Bestenliste</h2>
+    <ul>
+      <li>Sportart oben umschalten: <b>Windsurf · Kitesurf · Wingsurf · SUP</b>.</li>
+      <li>Die Startseite zeigt die <b>Top 15</b> je Kategorie: <b>Beste 30 s</b>, <b>Top-Speed 2 s</b>, <b>Längster Run</b> und <b>Gesamtstrecke</b> (beste Session je Fahrer).</li>
+      <li>Windsport hat zusätzlich <b>Beste Airtime</b> &amp; <b>Höchster Sprung</b>; SUP <b>Meiste Schläge</b> &amp; <b>Max. Kadenz</b>.</li>
+      <li>Jede Zeile zeigt das <b>Wetter</b> der Session und ein <b>Trust</b>-Abzeichen.</li>
+    </ul>
+
+    <h2 id="filters">7. Filter &amp; dein gespeicherter Start</h2>
+    <ul>
+      <li><b>Filter</b> in der Sidebar: <b>Gruppe, Lokation (Spot), Jahr, Monat, Tag</b> und <b>Material-Typ</b>.</li>
+      <li>Erweitert: <b>max. Frontwing</b> (Foil), <b>max. Finne</b> und ein <b>Gewichtsbereich</b> (ähnliche Fahrer vergleichen).</li>
+      <li>Auswahl als <b>My start</b> speichern → bei jedem Öffnen vorausgewählt.</li>
+    </ul>
+
+    <h2 id="results">8. My Results – Rekorde, Index &amp; dein Rang</h2>
+    <ul>
+      <li>Deine <b>Rekorde</b>: Top 2 s, Top 30 s, längster Run, höchster Sprung, Gesamtstrecke.</li>
+      <li><b>Performance Index</b> = Top 2 s ÷ (Wind × Segelgröße) × 100 – höher = schnell bei <i>wenig Wind und kleinem Segel</i>.</li>
+      <li><b>Deine Platzierung</b>: Rang gesamt, oder im Filter einen Spot wählen für den Rang <i>an diesem Spot</i> (2 s &amp; 30 s).</li>
+    </ul>
+
+    <h2 id="bests">9. My Results – Bestleistungen, Sessions &amp; Analyse</h2>
+    <ul>
+      <li><b>Bestleistungen</b>: Top-10-Speed-Tabelle, filterbar nach Spot, Jahr, Board und max. Wind (z. B. ≤ 5 Bft).</li>
+      <li><b>View my sessions</b>: Liste mit Datumsfilter; eine Session wählen für die volle Analyse.</li>
+      <li>Detail: Distanz, Schnitt, Spitzen, Sprünge/Paddeln, erkannte <b>Runs</b>, die <b>GPS-Karte</b>, Wetter und Trust.</li>
+      <li><b>Complete my sessions</b>: bei Uhr-Sessions Spot / Board / Segel setzen, damit sie im Ranking zählen.</li>
+    </ul>
+
+    <h2 id="spots">10. Spots &amp; Wettervorhersage</h2>
+    <ul>
+      <li>Der <b>Spots</b>-Tab: nach <b>Land + Spot</b> filtern für Beschreibung, Foto-Galerie, Webcam und aktuelles Wetter.</li>
+      <li><b>3-Tage-Vorhersage</b> mit „lohnt sich"-Ampel (grün/gelb/rot) aus Windstärke &amp; den besten Windrichtungen des Spots.</li>
+      <li>Einen Tag für die <b>Stundenansicht</b> öffnen (Wind-Balken + gläserne Böen-Balken); <b>Thermik-/Seewind-Potenzial</b> ein-/ausblenden.</li>
+      <li><b>Eigenes Spot-Foto hochladen</b> – die neuesten 5 werden mit dem Uploader-Namen gezeigt.</li>
+    </ul>
+
+    <h2 id="tv">11. Spot-TV – der Café-/Shop-Screen</h2>
+    <ul>
+      <li>Ein Vollbild-Live-Screen für Café, Shop oder Club. Im <b>Filter</b>-Bereich: Spot wählen → <b>Open Spot TV</b> (danach F11 für Vollbild).</li>
+      <li>Zeigt eine <b>Bestenliste</b> mit Medaillen &amp; Prozentbalken (Platz 1 = 100 %), den <b>Rider of the Day</b>, das aktuelle Wetter und die 3-Tage-Vorhersage.</li>
+      <li>Ein <b>QR-Code</b> lädt Besucher ins heutige Ranking, dazu optional Sponsor-Logo &amp; Produkt-Deals.</li>
+    </ul>
+
+    <h2 id="groups">12. Gruppen &amp; Community</h2>
+    <ul>
+      <li><b>Gruppen</b> erstellen oder beitreten, um euch im Team zu vergleichen; die Bestenliste nach Gruppe filtern.</li>
+      <li>Private Gruppen brauchen die <b>Freigabe</b> des Besitzers; er kann Mitglieder einladen/freigeben.</li>
+      <li>Ein <b>News-Banner</b> zeigt neue Rekorde und Top-3-Ergebnisse der Mitglieder.</li>
+    </ul>
+
+    <h2 id="equipment">13. Equipment teilen</h2>
+    <ul>
+      <li>Gleiches Material wie Familie oder Freunde? <b>Teile dein Equipment</b> über einen kurzen Code.</li>
+      <li>Den Code eines Kollegen unter <b>Import equipment</b> eingeben → Materialliste übernehmen, kein erneutes Tippen.</li>
+    </ul>
+
+    <h2 id="fit">14. Andere Uhren / Apple Watch</h2>
+    <ul>
+      <li>Jede Uhr, die eine <b>FIT-Datei</b> exportiert (z. B. Apple Watch über HealthFit), funktioniert auch.</li>
+      <li><b>Add session</b> in der Sidebar → Material wählen → FIT-Datei hochladen. Wetter wird automatisch ergänzt; du bekommst Runs, Karte und die Speed-Analyse.</li>
+    </ul>
+
+    <h2 id="trust">15. Trust, Fairness &amp; Datenschutz</h2>
+    <ul>
+      <li>Jede Session bekommt einen <b>Trust-Score</b> aus GPS-Physik: max. Beschleunigung, Kursänderung bei Tempo, GPS-Rauschen, Punktdichte und Vergleich mit dem Spot-Bestwert.</li>
+      <li>Uhr-Sessions bekommen zusätzlich einen <b>On-Water-Check</b> und einen geräteverifizierten Grundwert. Bitte fair bleiben – klare Ausreißer verlieren Trust.</li>
+      <li><b>Datenschutz</b>: Dein GPS-Track wird gespeichert, aber <b>nur dir</b> angezeigt. Die Bestenliste zeigt Name, Spot, Speed, Material und Wetter. Du kannst deine Daten oder dein Konto jederzeit löschen.</li>
+    </ul>
+  </article>
+</div>
+
+<section class="cta">
+  <div class="wrap">
+    <h2 style="color:#fff;margin-top:0;">Bereit?</h2>
+    <a class="btn" href="https://app.mywatersessions.com/">🌊 App öffnen</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a href="/">Start</a> ·
+    <a href="https://app.mywatersessions.com/">App öffnen</a> ·
+    <a href="https://app.mywatersessions.com/?seite=impressum">Impressum</a> ·
+    <a href="https://app.mywatersessions.com/?seite=datenschutz">Datenschutz</a>
+    <div style="margin-top:8px;">© MyWaterSessions · Speed-Ranking für Windsurf · Kite · Wing · SUP</div>
+  </div>
+</footer>
+
+</body>
+</html>
