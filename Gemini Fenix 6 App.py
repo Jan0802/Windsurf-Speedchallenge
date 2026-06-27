@@ -6788,6 +6788,213 @@ if render_legal_page():
 #  Login / Registrierung (Gate vor dem Rest der App)
 # =====================================================================
 
+# =====================================================================
+#  Nutzer-Anleitung (EN / DE / NL) – als herunterladbare HTML-Datei.
+# =====================================================================
+_GUIDE = {
+    "en": {
+        "title": "MyWaterSessions – User Guide",
+        "intro": ("MyWaterSessions is a community speed-ranking app for windsurfing, "
+                  "kitesurfing, wingsurfing and SUP. Record your session on a Garmin "
+                  "watch (or upload a FIT file) and it appears in the online rankings – "
+                  "plus a spot guide with weather forecast."),
+        "footer": "Have fun and ride safe! · mywatersessions.com",
+        "sections": [
+            ("Create your account",
+             "<ul><li>Open mywatersessions.com and choose <b>Register</b>: username, email, password.</li>"
+             "<li>You'll get a <b>confirmation email</b> – click the link to activate your account.</li>"
+             "<li>Then <b>log in</b>. Tick <i>Stay logged in</i> to stay signed in on your device.</li></ul>"),
+            ("Install &amp; set up the watch app",
+             "<ul><li>On your Garmin watch, install <b>WaterSession</b> from the Connect IQ Store.</li>"
+             "<li>In <b>Garmin Connect</b> (phone) → <b>Devices</b> → your watch → <b>Connect IQ Apps</b> → "
+             "<b>WaterSession</b> → <b>Settings</b>.</li>"
+             "<li>Paste your <b>Device Token</b> (required – see next step). Leave <b>Spot</b> empty to detect it automatically by GPS.</li>"
+             "<li><b>Sync</b> the watch.</li></ul>"),
+            ("Your Device Token",
+             "<ul><li>Log in on mywatersessions.com and open your <b>account / profile</b>.</li>"
+             "<li>Copy the <b>Device Token</b> shown there and paste it into the watch app settings.</li>"
+             "<li>The token links your sessions to your account – it's the only thing each rider must set.</li></ul>"),
+            ("Record a session",
+             "<ul><li>Press <kbd>START</kbd> and pick <b>WaterSession</b> from the activity list.</li>"
+             "<li>Switch screens with <kbd>UP</kbd>/<kbd>DOWN</kbd>: speed · jumps/paddle · totals · km/h only · knots only.</li>"
+             "<li>To finish: press <kbd>START</kbd> → choose <b>Send</b>. A phone with Garmin Connect must be nearby; "
+             "the status shows <code>sent</code> on success.</li></ul>"),
+            ("Online rankings",
+             "<ul><li>The home page shows the <b>Top 15</b> per category (best 30s, top 2s, longest run, total distance) for the selected sport.</li>"
+             "<li>Use the <b>Filter</b> in the sidebar (spot, year, month, gear, weight …).</li>"
+             "<li>Switch sport with the buttons at the top.</li></ul>"),
+            ("My Results",
+             "<ul><li>The <b>My Results</b> tab shows your <b>records</b> (2s, 30s, longest run, highest jump) and a "
+             "<b>Performance Index</b> (fast with little wind &amp; a small sail).</li>"
+             "<li><b>Your ranking position</b> – overall, or pick a spot in the filter to see your rank there.</li>"
+             "<li>Your <b>sessions</b> with the <b>GPS map</b>, and <b>complete my sessions</b> (set spot/board/sail so they count).</li></ul>"),
+            ("Spots &amp; weather",
+             "<ul><li>The <b>Spots</b> tab: filter by country + spot for a description, photos, live weather and a <b>3-day forecast</b>.</li>"
+             "<li>Open a day for the <b>hourly view</b>; toggle <b>thermal / sea-breeze potential</b>.</li>"
+             "<li>You can <b>upload your own spot photo</b> (the newest 5 are shown, with your name).</li></ul>"),
+            ("Other watches / Apple Watch",
+             "<ul><li>Any watch that exports a <b>FIT file</b> (e.g. Apple Watch via HealthFit) works too.</li>"
+             "<li>Use <b>Add session</b> in the sidebar → choose equipment → upload the FIT file.</li></ul>"),
+            ("Groups",
+             "<ul><li>Create or join <b>groups</b> to compare within your crew.</li>"
+             "<li>Private groups require the owner's approval.</li></ul>"),
+            ("Trust &amp; privacy",
+             "<ul><li>Each session gets a <b>trust score</b> from GPS plausibility (and an on-water check) – please keep it fair.</li>"
+             "<li>Your <b>GPS track</b> is stored but shown <b>only to you</b>. The ranking shows name, spot, speed, equipment and weather. "
+             "See the privacy policy in the app.</li></ul>"),
+        ],
+    },
+    "de": {
+        "title": "MyWaterSessions – Anleitung",
+        "intro": ("MyWaterSessions ist eine Community-Speed-Bestenliste für Windsurfen, "
+                  "Kitesurfen, Wingsurfen und SUP. Zeichne deine Session mit einer Garmin-Uhr "
+                  "auf (oder lade eine FIT-Datei hoch) – sie erscheint in der Online-Bestenliste. "
+                  "Dazu ein Spot-Guide mit Wettervorhersage."),
+        "footer": "Viel Spaß und sicher unterwegs! · mywatersessions.com",
+        "sections": [
+            ("Konto erstellen",
+             "<ul><li>Öffne mywatersessions.com und wähle <b>Registrieren</b>: Benutzername, E-Mail, Passwort.</li>"
+             "<li>Du bekommst eine <b>Bestätigungs-Mail</b> – klicke den Link, um dein Konto zu aktivieren.</li>"
+             "<li>Dann <b>einloggen</b>. <i>Angemeldet bleiben</i> hält dich auf deinem Gerät eingeloggt.</li></ul>"),
+            ("Uhr-App installieren &amp; einrichten",
+             "<ul><li>Installiere <b>WaterSession</b> aus dem Connect-IQ-Store auf deiner Garmin.</li>"
+             "<li>In <b>Garmin Connect</b> (Handy) → <b>Geräte</b> → deine Uhr → <b>Connect-IQ-Apps</b> → "
+             "<b>WaterSession</b> → <b>Einstellungen</b>.</li>"
+             "<li>Trage deinen <b>Device-Token</b> ein (Pflicht – siehe nächster Schritt). Lass <b>Spot</b> leer – er wird per GPS automatisch erkannt.</li>"
+             "<li>Uhr <b>synchronisieren</b>.</li></ul>"),
+            ("Dein Device-Token",
+             "<ul><li>Auf mywatersessions.com einloggen und dein <b>Profil / Konto</b> öffnen.</li>"
+             "<li>Den dort angezeigten <b>Device-Token</b> kopieren und in die App-Einstellungen einfügen.</li>"
+             "<li>Der Token ordnet deine Sessions deinem Konto zu – das Einzige, das jeder Fahrer setzen muss.</li></ul>"),
+            ("Session aufzeichnen",
+             "<ul><li><kbd>START</kbd> drücken und <b>WaterSession</b> aus der Aktivitätsliste wählen.</li>"
+             "<li>Mit <kbd>UP</kbd>/<kbd>DOWN</kbd> umschalten: Speed · Sprünge/Paddeln · Summen · nur km/h · nur Knoten.</li>"
+             "<li>Beenden: <kbd>START</kbd> → <b>Send</b>. Ein Handy mit Garmin Connect muss in der Nähe sein; "
+             "bei Erfolg zeigt der Status <code>sent</code>.</li></ul>"),
+            ("Online-Bestenliste",
+             "<ul><li>Die Startseite zeigt die <b>Top 15</b> je Kategorie (beste 30s, Top 2s, längster Run, Gesamtstrecke) für die gewählte Sportart.</li>"
+             "<li>Nutze den <b>Filter</b> in der Sidebar (Spot, Jahr, Monat, Material, Gewicht …).</li>"
+             "<li>Sportart oben umschalten.</li></ul>"),
+            ("My Results (dein Bereich)",
+             "<ul><li>Der Tab <b>My Results</b> zeigt deine <b>Rekorde</b> (2s, 30s, längster Run, höchster Sprung) und einen "
+             "<b>Performance Index</b> (schnell bei wenig Wind &amp; kleinem Segel).</li>"
+             "<li><b>Deine Platzierung</b> – gesamt, oder wähle im Filter einen Spot für deinen Rang dort.</li>"
+             "<li>Deine <b>Sessions</b> mit <b>GPS-Karte</b> und <b>„complete my sessions“</b> (Spot/Board/Segel setzen, damit sie zählen).</li></ul>"),
+            ("Spots &amp; Wetter",
+             "<ul><li>Der Tab <b>Spots</b>: nach Land + Spot filtern für Beschreibung, Fotos, aktuelles Wetter und <b>3-Tage-Vorhersage</b>.</li>"
+             "<li>Einen Tag für die <b>Stundenansicht</b> öffnen; <b>Thermik-/Seewind-Potenzial</b> ein-/ausblenden.</li>"
+             "<li>Du kannst ein <b>eigenes Spot-Foto hochladen</b> (die neuesten 5 werden mit deinem Namen gezeigt).</li></ul>"),
+            ("Andere Uhren / Apple Watch",
+             "<ul><li>Jede Uhr, die eine <b>FIT-Datei</b> exportiert (z. B. Apple Watch über HealthFit), funktioniert auch.</li>"
+             "<li><b>Add session</b> in der Sidebar → Material wählen → FIT-Datei hochladen.</li></ul>"),
+            ("Gruppen",
+             "<ul><li><b>Gruppen</b> erstellen oder beitreten, um euch im Team zu vergleichen.</li>"
+             "<li>Private Gruppen brauchen die Freigabe des Besitzers.</li></ul>"),
+            ("Trust &amp; Datenschutz",
+             "<ul><li>Jede Session bekommt einen <b>Trust-Score</b> aus GPS-Plausibilität (und einem On-Water-Check) – bitte fair bleiben.</li>"
+             "<li>Dein <b>GPS-Track</b> wird gespeichert, aber <b>nur dir</b> angezeigt. Die Bestenliste zeigt Name, Spot, Speed, Material und Wetter. "
+             "Details in der Datenschutzerklärung.</li></ul>"),
+        ],
+    },
+    "nl": {
+        "title": "MyWaterSessions – Handleiding",
+        "intro": ("MyWaterSessions is een community-snelheidsranglijst voor windsurfen, "
+                  "kitesurfen, wingsurfen en SUP. Neem je sessie op met een Garmin-horloge "
+                  "(of upload een FIT-bestand) en hij verschijnt in de online ranglijst. "
+                  "Plus een spotgids met weersverwachting."),
+        "footer": "Veel plezier en blijf veilig! · mywatersessions.com",
+        "sections": [
+            ("Account aanmaken",
+             "<ul><li>Ga naar mywatersessions.com en kies <b>Registreren</b>: gebruikersnaam, e-mail, wachtwoord.</li>"
+             "<li>Je krijgt een <b>bevestigingsmail</b> – klik op de link om je account te activeren.</li>"
+             "<li>Daarna <b>inloggen</b>. Vink <i>Ingelogd blijven</i> aan om ingelogd te blijven.</li></ul>"),
+            ("Horloge-app installeren &amp; instellen",
+             "<ul><li>Installeer <b>WaterSession</b> uit de Connect IQ Store op je Garmin.</li>"
+             "<li>In <b>Garmin Connect</b> (telefoon) → <b>Toestellen</b> → je horloge → <b>Connect IQ-apps</b> → "
+             "<b>WaterSession</b> → <b>Instellingen</b>.</li>"
+             "<li>Vul je <b>Device Token</b> in (verplicht – zie volgende stap). Laat <b>Spot</b> leeg – die wordt automatisch via GPS herkend.</li>"
+             "<li><b>Synchroniseer</b> het horloge.</li></ul>"),
+            ("Je Device Token",
+             "<ul><li>Log in op mywatersessions.com en open je <b>profiel / account</b>.</li>"
+             "<li>Kopieer de <b>Device Token</b> en plak die in de app-instellingen.</li>"
+             "<li>De token koppelt je sessies aan je account – het enige dat elke rider moet instellen.</li></ul>"),
+            ("Een sessie opnemen",
+             "<ul><li>Druk op <kbd>START</kbd> en kies <b>WaterSession</b> uit de activiteitenlijst.</li>"
+             "<li>Wissel schermen met <kbd>UP</kbd>/<kbd>DOWN</kbd>: snelheid · sprongen/peddelen · totalen · alleen km/u · alleen knopen.</li>"
+             "<li>Afsluiten: <kbd>START</kbd> → <b>Send</b>. Een telefoon met Garmin Connect moet in de buurt zijn; "
+             "bij succes toont de status <code>sent</code>.</li></ul>"),
+            ("Online ranglijst",
+             "<ul><li>De startpagina toont de <b>Top 15</b> per categorie (beste 30s, top 2s, langste run, totale afstand) voor de gekozen sport.</li>"
+             "<li>Gebruik het <b>Filter</b> in de zijbalk (spot, jaar, maand, materiaal, gewicht …).</li>"
+             "<li>Wissel van sport met de knoppen bovenaan.</li></ul>"),
+            ("My Results (jouw deel)",
+             "<ul><li>Het tabblad <b>My Results</b> toont je <b>records</b> (2s, 30s, langste run, hoogste sprong) en een "
+             "<b>Performance Index</b> (snel met weinig wind &amp; klein zeil).</li>"
+             "<li><b>Jouw positie</b> – totaal, of kies een spot in het filter voor je rang daar.</li>"
+             "<li>Je <b>sessies</b> met de <b>GPS-kaart</b> en <b>„complete my sessions“</b> (spot/board/zeil instellen zodat ze meetellen).</li></ul>"),
+            ("Spots &amp; weer",
+             "<ul><li>Het tabblad <b>Spots</b>: filter op land + spot voor een beschrijving, foto's, actueel weer en een <b>3-daagse verwachting</b>.</li>"
+             "<li>Open een dag voor de <b>uurweergave</b>; zet <b>thermiek-/zeewindpotentieel</b> aan/uit.</li>"
+             "<li>Je kunt een <b>eigen spotfoto uploaden</b> (de nieuwste 5 worden getoond, met je naam).</li></ul>"),
+            ("Andere horloges / Apple Watch",
+             "<ul><li>Elk horloge dat een <b>FIT-bestand</b> exporteert (bijv. Apple Watch via HealthFit) werkt ook.</li>"
+             "<li>Gebruik <b>Add session</b> in de zijbalk → kies materiaal → upload het FIT-bestand.</li></ul>"),
+            ("Groepen",
+             "<ul><li>Maak of word lid van <b>groepen</b> om binnen je crew te vergelijken.</li>"
+             "<li>Privégroepen vereisen goedkeuring van de eigenaar.</li></ul>"),
+            ("Trust &amp; privacy",
+             "<ul><li>Elke sessie krijgt een <b>trust-score</b> op basis van GPS-plausibiliteit (en een on-water-check) – speel eerlijk.</li>"
+             "<li>Je <b>GPS-track</b> wordt opgeslagen maar <b>alleen aan jou</b> getoond. De ranglijst toont naam, spot, snelheid, materiaal en weer. "
+             "Zie het privacybeleid.</li></ul>"),
+        ],
+    },
+}
+
+_GUIDE_CSS = (
+    "body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;"
+    "max-width:760px;margin:30px auto;padding:0 18px;color:#16384f;line-height:1.55;}"
+    "h1{color:#0b6b8c;font-size:27px;border-bottom:3px solid #2bd4d9;padding-bottom:8px;}"
+    "h2{color:#0b6b8c;font-size:19px;margin-top:26px;}"
+    ".intro{font-size:16px;color:#33576b;}"
+    "ul{padding-left:20px;}li{margin:5px 0;}"
+    "kbd{background:#0b6b8c;color:#fff;border-radius:5px;padding:1px 7px;font-size:.85em;}"
+    "code{background:#eef6f9;border-radius:5px;padding:1px 6px;font-size:.9em;}"
+    ".foot{margin-top:34px;font-size:13px;color:#7891a0;border-top:1px solid #dce8ee;padding-top:12px;}"
+)
+
+
+def _guide_html(lang):
+    """Vollständige, in sich geschlossene HTML-Anleitung in der gewählten Sprache."""
+    g = _GUIDE.get(lang, _GUIDE["en"])
+    secs = "".join(
+        f"<h2>{i}. {title}</h2>{body}"
+        for i, (title, body) in enumerate(g["sections"], 1)
+    )
+    return (
+        f"<!doctype html><html lang='{lang}'><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        f"<title>{g['title']}</title><style>{_GUIDE_CSS}</style></head><body>"
+        f"<h1>🌊 {g['title']}</h1><p class='intro'>{g['intro']}</p>"
+        f"{secs}<p class='foot'>{g['footer']}</p></body></html>"
+    )
+
+
+def render_guide_downloads(key_prefix="", stacked=False):
+    """Drei Download-Buttons (EN/DE/NL) für die HTML-Anleitung."""
+    items = [
+        ("🇬🇧 English", "en", "Guide-EN"),
+        ("🇩🇪 Deutsch", "de", "Anleitung-DE"),
+        ("🇳🇱 Nederlands", "nl", "Handleiding-NL"),
+    ]
+    cols = [st, st, st] if stacked else st.columns(3)
+    for col, (label, lang, fname) in zip(cols, items):
+        col.download_button(
+            label, _guide_html(lang),
+            file_name=f"MyWaterSessions-{fname}.html", mime="text/html",
+            use_container_width=True, key=f"{key_prefix}guide_{lang}",
+        )
+
+
 def render_login():
     st.markdown(f"## 🔐 Sign in {BETA_BADGE}", unsafe_allow_html=True)
     st.info(
@@ -6803,6 +7010,9 @@ def render_login():
         '</div>',
         unsafe_allow_html=True,
     )
+
+    with st.expander("📖 User guide · Anleitung · Handleiding (download)"):
+        render_guide_downloads(key_prefix="login_")
 
     tab_login, tab_register = st.tabs(["Log in", "Register"])
 
@@ -7703,7 +7913,7 @@ def render_my_results_rank(name, spot):
 
 def render_my_results_page(user):
     """Persönliche Seite: KPI-Rekorde, eigener Rang, Bestleistungen (mit Filter),
-    eigene Sessions + Detailanalyse und der „complete my sessions"-Editor – alles
+    eigene Sessions + Detailanalyse und der „complete my sessions“-Editor – alles
     an einem Ort gebündelt, statt über Sidebar und Hauptfenster verstreut."""
     name = user["username"]
     st.markdown("## 👤 My Results")
@@ -7750,6 +7960,8 @@ with st.sidebar:
     st.markdown("---")
     sidebar_tab_material = st.expander("🏄 Add session", expanded=False)
     sidebar_tab_filter = st.expander("🔎 Filter", expanded=False)
+    with st.expander("📖 Guide · Anleitung · Handleiding", expanded=False):
+        render_guide_downloads(key_prefix="side_", stacked=True)
 
 
 def autocollapse_sidebar():
