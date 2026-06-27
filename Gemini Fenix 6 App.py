@@ -7525,15 +7525,24 @@ if "user" not in st.session_state:
     # saved_token == None heißt: Cookie noch nicht geladen ODER nicht vorhanden.
     # Einmal auf das Cookie-Rerun der Komponente warten, damit der Login-Screen
     # nicht kurz aufblitzt, während das Cookie noch ankommt.
+    # ROBUST: Kam die Komponente gelegentlich NICHT zurück, blieb die Seite auf
+    # „one moment" hängen (man musste manuell neu laden). Daher lädt ein JS-Timer
+    # nach 2,5 s EINMALIG automatisch neu (?_clr=1); beim so markierten Reload wird
+    # nicht mehr gewartet -> kein Hängenbleiben, höchstens ein Auto-Reload.
     if (
         "user" not in st.session_state
         and cm is not None
         and not st.session_state.get("_cookie_probed")
+        and st.query_params.get("_clr") != "1"
     ):
         st.session_state["_cookie_probed"] = True
-        st.markdown(
-            "<div style='text-align:center;margin-top:3rem;opacity:.7;'>⏳ one moment…</div>",
-            unsafe_allow_html=True,
+        components.html(
+            "<div style=\"text-align:center;margin-top:3rem;color:#eaf4ff;opacity:.75;"
+            "font-family:system-ui,-apple-system,sans-serif;font-size:18px;\">⏳ one moment…</div>"
+            "<script>setTimeout(function(){try{var u=new URL(window.parent.location);"
+            "u.searchParams.set('_clr','1');window.parent.location.replace(u.toString());}"
+            "catch(e){}},2500);</script>",
+            height=90,
         )
         st.stop()
 
