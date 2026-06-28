@@ -36,6 +36,29 @@
 }
 </script>
 
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Which sports does MyWaterSessions support?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Five: windsurfing, kitesurfing, wingfoiling, SUP and wakeboarding. Each sport has its own rankings and records." } },
+    { "@type": "Question", "name": "Is MyWaterSessions free?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Creating an account, recording sessions, the rankings, the spot guide and the wind forecast are all free." } },
+    { "@type": "Question", "name": "Which Garmin watches are supported?",
+      "acceptedAnswer": { "@type": "Answer", "text": "The WaterSession Connect IQ app runs on around 40 Garmin watches including Fenix, Epix, Forerunner, Instinct, Venu and vívoactive. Install it from the Connect IQ Store and paste your Device Token." } },
+    { "@type": "Question", "name": "How is my speed measured?",
+      "acceptedAnswer": { "@type": "Answer", "text": "From GPS. The ranking uses your best 2-second peak and your best 30-second average, so a single GPS spike cannot fake a top speed. Every session also gets a trust score." } },
+    { "@type": "Question", "name": "Can I use it without a Garmin watch?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Any watch that exports a FIT file (for example an Apple Watch) works. Upload it under Add session and you get the same speed analysis, runs and map." } },
+    { "@type": "Question", "name": "Does it track jumps and airtime for wakeboarding?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. For wind sports and wakeboarding the watch detects each jump and shows jump height and airtime; SUP tracks strokes and cadence instead." } },
+    { "@type": "Question", "name": "Is my GPS location private?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Your GPS track is stored but shown only to you. Others only see your name, spot, speed, equipment and the weather of the session." } }
+  ]
+}
+</script>
+
 <style>
   :root{ --aqua:#2bd4d9; --ink:#06303a; }
   *{ box-sizing:border-box; }
@@ -95,7 +118,7 @@
       <li><a href="#account">Create your account</a></li>
       <li><a href="#token">Your Device Token</a></li>
       <li><a href="#watch">Set up the watch app</a></li>
-      <li><a href="#screens">The 5 watch screens</a></li>
+      <li><a href="#screens">The 8 watch screens</a></li>
       <li><a href="#send">Sending your session</a></li>
       <li><a href="#rankings">Sports &amp; home rankings</a></li>
       <li><a href="#filters">Filters &amp; saved start</a></li>
@@ -107,6 +130,7 @@
       <li><a href="#equipment">Share equipment</a></li>
       <li><a href="#fit">Other watches / Apple Watch</a></li>
       <li><a href="#trust">Trust, fair play &amp; privacy</a></li>
+      <li><a href="#faq">FAQ</a></li>
     </ol>
   </nav>
 
@@ -133,14 +157,17 @@
       <li><b>Sync</b> the watch.</li>
     </ul>
 
-    <h2 id="screens">4. The 5 watch screens</h2>
+    <h2 id="screens">4. The 8 watch screens</h2>
     <p>While recording, switch screens with <kbd>UP</kbd>/<kbd>DOWN</kbd>:</p>
     <ol>
       <li><b>Speed</b> – current speed big (knots + km/h), plus your max and time.</li>
-      <li><b>Jumps</b> (wind sports) / <b>Paddle</b> (SUP) – count, airtime/strokes, best.</li>
+      <li><b>Jumps</b> (wind sports &amp; wakeboard) / <b>Paddle</b> (SUP) – count and the latest value.</li>
       <li><b>Totals</b> – distance, average, 2&nbsp;s peak.</li>
       <li><b>km/h only</b> – just the current speed in km/h (large) + max.</li>
       <li><b>knots only</b> – just the current speed in knots (large) + max.</li>
+      <li><b>Distance</b> – total session distance, large.</li>
+      <li><b>Jump height</b> (wind &amp; wakeboard) / <b>Cadence</b> (SUP) – height of the last jump in m / strokes per minute.</li>
+      <li><b>Airtime</b> (wind &amp; wakeboard) / <b>Strokes</b> (SUP) – airtime of the last jump in s / total strokes.</li>
     </ol>
     <p>The top of the screen shows <b>REC</b> (recording) or <b>READY</b>.</p>
 
@@ -222,6 +249,22 @@
       <li>Watch sessions also get an <b>on-water check</b> and a device-verified baseline. Please keep it fair – obvious outliers lose trust.</li>
       <li><b>Privacy</b>: your GPS track is stored but shown <b>only to you</b>. The ranking shows name, spot, speed, equipment and weather. You can delete your data or account anytime.</li>
     </ul>
+
+    <h2 id="faq">16. Frequently asked questions</h2>
+    <h3>Which sports does MyWaterSessions support?</h3>
+    <p>Five: <b>windsurfing, kitesurfing, wingfoiling, SUP and wakeboarding</b>. Switch sport at the top of the app – each has its own rankings and records.</p>
+    <h3>Is MyWaterSessions free?</h3>
+    <p>Yes. Creating an account, recording sessions, the rankings, the spot guide and the wind forecast are all free.</p>
+    <h3>Which Garmin watches are supported?</h3>
+    <p>The <b>WaterSession</b> Connect IQ app runs on around 40 Garmin watches – Fenix, Epix, Forerunner, Instinct, Venu, vívoactive and more. Install it from the Connect IQ Store and paste your Device Token.</p>
+    <h3>How is my speed measured?</h3>
+    <p>From GPS. The ranking uses your best <b>2-second</b> peak and your best <b>30-second</b> average, so a single GPS spike can't fake a top speed. Every session also gets a trust score.</p>
+    <h3>Can I use it without a Garmin watch (e.g. Apple Watch)?</h3>
+    <p>Yes. Any watch that exports a <b>FIT file</b> works – upload it under <b>Add session</b> and you get the same speed analysis, runs and map.</p>
+    <h3>Does it track jumps and airtime for wakeboarding?</h3>
+    <p>Yes. For wind sports <b>and wakeboarding</b> the watch detects each jump and shows jump height and airtime; SUP tracks strokes and cadence instead.</p>
+    <h3>Is my GPS location private?</h3>
+    <p>Your GPS track is stored but shown <b>only to you</b>. Others only see your name, spot, speed, equipment and the weather of the session.</p>
   </article>
 </div>
 

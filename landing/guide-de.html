@@ -36,6 +36,29 @@
 }
 </script>
 
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Welche Sportarten unterstützt MyWaterSessions?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Fünf: Windsurfen, Kitesurfen, Wingfoilen, SUP und Wakeboarden. Jede Sportart hat eigene Bestenlisten und Rekorde." } },
+    { "@type": "Question", "name": "Ist MyWaterSessions kostenlos?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Ja. Konto anlegen, Sessions aufzeichnen, Bestenlisten, Spot-Guide und Windvorhersage sind komplett kostenlos." } },
+    { "@type": "Question", "name": "Welche Garmin-Uhren werden unterstützt?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Die Connect-IQ-App WaterSession läuft auf rund 40 Garmin-Uhren, darunter Fenix, Epix, Forerunner, Instinct, Venu und vívoactive. Aus dem Connect-IQ-Store installieren und den Device-Token eintragen." } },
+    { "@type": "Question", "name": "Wie wird mein Speed gemessen?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Per GPS. Die Bestenliste nutzt deine beste 2-Sekunden-Spitze und deinen besten 30-Sekunden-Schnitt, sodass ein einzelner GPS-Ausreißer keinen Top-Speed vortäuschen kann. Jede Session bekommt zusätzlich einen Trust-Score." } },
+    { "@type": "Question", "name": "Geht es auch ohne Garmin-Uhr?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Ja. Jede Uhr, die eine FIT-Datei exportiert (zum Beispiel eine Apple Watch), funktioniert. Unter Add session hochladen und du bekommst dieselbe Speed-Analyse, Runs und Karte." } },
+    { "@type": "Question", "name": "Erfasst sie Sprünge und Airtime beim Wakeboarden?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Ja. Für Windsport und Wakeboard erkennt die Uhr jeden Sprung und zeigt Sprunghöhe und Airtime; SUP erfasst stattdessen Paddelschläge und Kadenz." } },
+    { "@type": "Question", "name": "Ist mein GPS-Standort privat?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Dein GPS-Track wird gespeichert, aber nur dir angezeigt. Andere sehen nur Name, Spot, Speed, Material und das Wetter der Session." } }
+  ]
+}
+</script>
+
 <style>
   :root{ --aqua:#2bd4d9; --ink:#06303a; }
   *{ box-sizing:border-box; }
@@ -96,7 +119,7 @@
       <li><a href="#account">Konto erstellen</a></li>
       <li><a href="#token">Dein Device-Token</a></li>
       <li><a href="#watch">Uhr-App einrichten</a></li>
-      <li><a href="#screens">Die 5 Uhr-Screens</a></li>
+      <li><a href="#screens">Die 8 Uhr-Screens</a></li>
       <li><a href="#send">Session senden</a></li>
       <li><a href="#rankings">Sportarten &amp; Bestenliste</a></li>
       <li><a href="#filters">Filter &amp; gespeicherter Start</a></li>
@@ -108,6 +131,7 @@
       <li><a href="#equipment">Equipment teilen</a></li>
       <li><a href="#fit">Andere Uhren / Apple Watch</a></li>
       <li><a href="#trust">Trust, Fairness &amp; Datenschutz</a></li>
+      <li><a href="#faq">FAQ</a></li>
     </ol>
   </nav>
 
@@ -134,14 +158,17 @@
       <li>Uhr <b>synchronisieren</b>.</li>
     </ul>
 
-    <h2 id="screens">4. Die 5 Uhr-Screens</h2>
+    <h2 id="screens">4. Die 8 Uhr-Screens</h2>
     <p>Während der Aufzeichnung mit <kbd>UP</kbd>/<kbd>DOWN</kbd> umschalten:</p>
     <ol>
       <li><b>Speed</b> – aktuelle Geschwindigkeit groß (Knoten + km/h), dazu Max und Zeit.</li>
-      <li><b>Sprünge</b> (Windsport) / <b>Paddeln</b> (SUP) – Anzahl, Airtime/Schläge, Bestwert.</li>
+      <li><b>Sprünge</b> (Windsport &amp; Wakeboard) / <b>Paddeln</b> (SUP) – Anzahl und der letzte Wert.</li>
       <li><b>Summen</b> – Distanz, Schnitt, 2-s-Spitze.</li>
       <li><b>nur km/h</b> – nur die aktuelle Geschwindigkeit in km/h (groß) + Max.</li>
       <li><b>nur Knoten</b> – nur die aktuelle Geschwindigkeit in Knoten (groß) + Max.</li>
+      <li><b>Distanz</b> – gesamte Session-Strecke, groß.</li>
+      <li><b>Sprunghöhe</b> (Wind &amp; Wakeboard) / <b>Kadenz</b> (SUP) – Höhe des letzten Sprungs in m / Schläge pro Minute.</li>
+      <li><b>Airtime</b> (Wind &amp; Wakeboard) / <b>Schläge</b> (SUP) – Airtime des letzten Sprungs in s / Schläge gesamt.</li>
     </ol>
     <p>Oben steht <b>REC</b> (Aufnahme) oder <b>READY</b>.</p>
 
@@ -223,6 +250,22 @@
       <li>Uhr-Sessions bekommen zusätzlich einen <b>On-Water-Check</b> und einen geräteverifizierten Grundwert. Bitte fair bleiben – klare Ausreißer verlieren Trust.</li>
       <li><b>Datenschutz</b>: Dein GPS-Track wird gespeichert, aber <b>nur dir</b> angezeigt. Die Bestenliste zeigt Name, Spot, Speed, Material und Wetter. Du kannst deine Daten oder dein Konto jederzeit löschen.</li>
     </ul>
+
+    <h2 id="faq">16. Häufige Fragen</h2>
+    <h3>Welche Sportarten unterstützt MyWaterSessions?</h3>
+    <p>Fünf: <b>Windsurfen, Kitesurfen, Wingfoilen, SUP und Wakeboarden</b>. Oben in der App die Sportart umschalten – jede hat eigene Bestenlisten und Rekorde.</p>
+    <h3>Ist MyWaterSessions kostenlos?</h3>
+    <p>Ja. Konto anlegen, Sessions aufzeichnen, Bestenlisten, Spot-Guide und Windvorhersage sind komplett kostenlos.</p>
+    <h3>Welche Garmin-Uhren werden unterstützt?</h3>
+    <p>Die Connect-IQ-App <b>WaterSession</b> läuft auf rund 40 Garmin-Uhren – Fenix, Epix, Forerunner, Instinct, Venu, vívoactive und mehr. Aus dem Connect-IQ-Store installieren und den Device-Token eintragen.</p>
+    <h3>Wie wird mein Speed gemessen?</h3>
+    <p>Per GPS. Die Bestenliste nutzt deine beste <b>2-Sekunden</b>-Spitze und deinen besten <b>30-Sekunden</b>-Schnitt – so kann ein einzelner GPS-Ausreißer keinen Top-Speed vortäuschen. Jede Session bekommt zusätzlich einen Trust-Score.</p>
+    <h3>Geht es auch ohne Garmin-Uhr (z. B. Apple Watch)?</h3>
+    <p>Ja. Jede Uhr, die eine <b>FIT-Datei</b> exportiert, funktioniert – unter <b>Add session</b> hochladen und du bekommst dieselbe Speed-Analyse, Runs und Karte.</p>
+    <h3>Erfasst sie Sprünge und Airtime beim Wakeboarden?</h3>
+    <p>Ja. Für Windsport <b>und Wakeboard</b> erkennt die Uhr jeden Sprung und zeigt Sprunghöhe und Airtime; SUP erfasst stattdessen Paddelschläge und Kadenz.</p>
+    <h3>Ist mein GPS-Standort privat?</h3>
+    <p>Dein GPS-Track wird gespeichert, aber <b>nur dir</b> angezeigt. Andere sehen nur Name, Spot, Speed, Material und das Wetter der Session.</p>
   </article>
 </div>
 

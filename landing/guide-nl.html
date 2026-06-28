@@ -36,6 +36,29 @@
 }
 </script>
 
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Welke sporten ondersteunt MyWaterSessions?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Vijf: windsurfen, kitesurfen, wingfoilen, SUP en wakeboarden. Elke sport heeft eigen ranglijsten en records." } },
+    { "@type": "Question", "name": "Is MyWaterSessions gratis?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Ja. Een account aanmaken, sessies opnemen, de ranglijsten, de spotgids en de windverwachting zijn allemaal gratis." } },
+    { "@type": "Question", "name": "Welke Garmin-horloges worden ondersteund?",
+      "acceptedAnswer": { "@type": "Answer", "text": "De Connect IQ-app WaterSession draait op zo'n 40 Garmin-horloges, waaronder Fenix, Epix, Forerunner, Instinct, Venu en vívoactive. Installeer via de Connect IQ Store en plak je Device Token." } },
+    { "@type": "Question", "name": "Hoe wordt mijn snelheid gemeten?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Via GPS. De ranglijst gebruikt je beste 2-seconden-piek en je beste 30-seconden-gemiddelde, zodat één GPS-uitschieter geen topsnelheid kan faken. Elke sessie krijgt ook een trust-score." } },
+    { "@type": "Question", "name": "Kan ik het zonder Garmin-horloge gebruiken?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Ja. Elk horloge dat een FIT-bestand exporteert (bijvoorbeeld een Apple Watch) werkt. Upload het onder Add session en je krijgt dezelfde snelheidsanalyse, runs en kaart." } },
+    { "@type": "Question", "name": "Registreert het sprongen en airtime bij wakeboarden?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Ja. Voor windsport en wakeboard detecteert het horloge elke sprong en toont spronghoogte en airtime; SUP registreert in plaats daarvan slagen en cadans." } },
+    { "@type": "Question", "name": "Is mijn GPS-locatie privé?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Je GPS-track wordt opgeslagen maar alleen aan jou getoond. Anderen zien alleen je naam, spot, snelheid, materiaal en het weer van de sessie." } }
+  ]
+}
+</script>
+
 <style>
   :root{ --aqua:#2bd4d9; --ink:#06303a; }
   *{ box-sizing:border-box; }
@@ -95,7 +118,7 @@
       <li><a href="#account">Account aanmaken</a></li>
       <li><a href="#token">Je Device Token</a></li>
       <li><a href="#watch">Horloge-app instellen</a></li>
-      <li><a href="#screens">De 5 horlogeschermen</a></li>
+      <li><a href="#screens">De 8 horlogeschermen</a></li>
       <li><a href="#send">Je sessie versturen</a></li>
       <li><a href="#rankings">Sporten &amp; ranglijst</a></li>
       <li><a href="#filters">Filters &amp; opgeslagen start</a></li>
@@ -107,6 +130,7 @@
       <li><a href="#equipment">Materiaal delen</a></li>
       <li><a href="#fit">Andere horloges / Apple Watch</a></li>
       <li><a href="#trust">Trust, fair play &amp; privacy</a></li>
+      <li><a href="#faq">FAQ</a></li>
     </ol>
   </nav>
 
@@ -133,14 +157,17 @@
       <li><b>Synchroniseer</b> het horloge.</li>
     </ul>
 
-    <h2 id="screens">4. De 5 horlogeschermen</h2>
+    <h2 id="screens">4. De 8 horlogeschermen</h2>
     <p>Wissel tijdens het opnemen met <kbd>UP</kbd>/<kbd>DOWN</kbd>:</p>
     <ol>
       <li><b>Snelheid</b> – actuele snelheid groot (knopen + km/u), plus je max en de tijd.</li>
-      <li><b>Sprongen</b> (windsport) / <b>Peddelen</b> (SUP) – aantal, airtime/slagen, beste.</li>
+      <li><b>Sprongen</b> (windsport &amp; wakeboard) / <b>Peddelen</b> (SUP) – aantal en de laatste waarde.</li>
       <li><b>Totalen</b> – afstand, gemiddelde, 2 s-piek.</li>
       <li><b>alleen km/u</b> – alleen de actuele snelheid in km/u (groot) + max.</li>
       <li><b>alleen knopen</b> – alleen de actuele snelheid in knopen (groot) + max.</li>
+      <li><b>Afstand</b> – totale sessie-afstand, groot.</li>
+      <li><b>Spronghoogte</b> (wind &amp; wakeboard) / <b>Cadans</b> (SUP) – hoogte van de laatste sprong in m / slagen per minuut.</li>
+      <li><b>Airtime</b> (wind &amp; wakeboard) / <b>Slagen</b> (SUP) – airtime van de laatste sprong in s / totaal aantal slagen.</li>
     </ol>
     <p>Bovenaan staat <b>REC</b> (opname) of <b>READY</b>.</p>
 
@@ -222,6 +249,22 @@
       <li>Horlogesessies krijgen ook een <b>on-water-check</b> en een apparaat-geverifieerde basiswaarde. Speel eerlijk – duidelijke uitschieters verliezen trust.</li>
       <li><b>Privacy</b>: je GPS-track wordt opgeslagen maar <b>alleen aan jou</b> getoond. De ranglijst toont naam, spot, snelheid, materiaal en weer. Je kunt je gegevens of account altijd verwijderen.</li>
     </ul>
+
+    <h2 id="faq">16. Veelgestelde vragen</h2>
+    <h3>Welke sporten ondersteunt MyWaterSessions?</h3>
+    <p>Vijf: <b>windsurfen, kitesurfen, wingfoilen, SUP en wakeboarden</b>. Wissel bovenaan van sport – elke sport heeft eigen ranglijsten en records.</p>
+    <h3>Is MyWaterSessions gratis?</h3>
+    <p>Ja. Een account aanmaken, sessies opnemen, de ranglijsten, de spotgids en de windverwachting zijn allemaal gratis.</p>
+    <h3>Welke Garmin-horloges worden ondersteund?</h3>
+    <p>De Connect IQ-app <b>WaterSession</b> draait op zo'n 40 Garmin-horloges – Fenix, Epix, Forerunner, Instinct, Venu, vívoactive en meer. Installeer via de Connect IQ Store en plak je Device Token.</p>
+    <h3>Hoe wordt mijn snelheid gemeten?</h3>
+    <p>Via GPS. De ranglijst gebruikt je beste <b>2-seconden</b>-piek en je beste <b>30-seconden</b>-gemiddelde, zodat één GPS-uitschieter geen topsnelheid kan faken. Elke sessie krijgt ook een trust-score.</p>
+    <h3>Kan ik het zonder Garmin-horloge gebruiken (bijv. Apple Watch)?</h3>
+    <p>Ja. Elk horloge dat een <b>FIT-bestand</b> exporteert werkt – upload het onder <b>Add session</b> en je krijgt dezelfde snelheidsanalyse, runs en kaart.</p>
+    <h3>Registreert het sprongen en airtime bij wakeboarden?</h3>
+    <p>Ja. Voor windsport <b>en wakeboard</b> detecteert het horloge elke sprong en toont spronghoogte en airtime; SUP registreert in plaats daarvan slagen en cadans.</p>
+    <h3>Is mijn GPS-locatie privé?</h3>
+    <p>Je GPS-track wordt opgeslagen maar <b>alleen aan jou</b> getoond. Anderen zien alleen je naam, spot, snelheid, materiaal en het weer van de sessie.</p>
   </article>
 </div>
 

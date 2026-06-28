@@ -6975,16 +6975,19 @@ _GUIDE = {
              "<li>The token links your sessions to your account – it's the only thing each rider must set.</li></ul>"),
             ("Record a session",
              "<ul><li>Press <kbd>START</kbd> and pick <b>WaterSession</b> from the activity list.</li>"
-             "<li>Switch screens with <kbd>UP</kbd>/<kbd>DOWN</kbd>: speed · jumps/paddle · totals · km/h only · knots only.</li>"
+             "<li>Switch screens with <kbd>UP</kbd>/<kbd>DOWN</kbd>: speed · jumps/paddle · totals · km/h · knots · distance · jump height/cadence · airtime/strokes.</li>"
              "<li>To finish: press <kbd>START</kbd> → choose <b>Send</b>. A phone with Garmin Connect must be nearby; "
              "the status shows <code>sent</code> on success.</li></ul>"),
-            ("The 5 watch screens",
+            ("The 8 watch screens",
              "<ul><li>While recording, switch screens with <kbd>UP</kbd>/<kbd>DOWN</kbd>:</li></ul>"
              "<ol><li><b>Speed</b> – current speed big (knots + km/h), plus your max and time.</li>"
-             "<li><b>Jumps</b> (wind sports) / <b>Paddle</b> (SUP) – count, airtime/strokes, best.</li>"
+             "<li><b>Jumps</b> (wind sports &amp; wakeboard) / <b>Paddle</b> (SUP) – count and the latest value.</li>"
              "<li><b>Totals</b> – distance, average, 2 s peak.</li>"
              "<li><b>km/h only</b> – just the current speed in km/h (large) + max.</li>"
-             "<li><b>knots only</b> – just the current speed in knots (large) + max.</li></ol>"
+             "<li><b>knots only</b> – just the current speed in knots (large) + max.</li>"
+             "<li><b>Distance</b> – total session distance, large.</li>"
+             "<li><b>Jump height</b> (wind &amp; wakeboard) / <b>Cadence</b> (SUP) – last jump height in m / strokes per minute.</li>"
+             "<li><b>Airtime</b> (wind &amp; wakeboard) / <b>Strokes</b> (SUP) – airtime of the last jump in s / total strokes.</li></ol>"
              "<p>Top of screen shows <b>REC</b> (recording) or <b>READY</b>.</p>"),
             ("Sending your session",
              "<ul><li>Finish with <kbd>START</kbd> → choose <b>Send</b> (or <i>Keep recording</i> / <i>Discard</i>).</li>"
@@ -7059,16 +7062,19 @@ _GUIDE = {
              "<li>Der Token ordnet deine Sessions deinem Konto zu – das Einzige, das jeder Fahrer setzen muss.</li></ul>"),
             ("Session aufzeichnen",
              "<ul><li><kbd>START</kbd> drücken und <b>WaterSession</b> aus der Aktivitätsliste wählen.</li>"
-             "<li>Mit <kbd>UP</kbd>/<kbd>DOWN</kbd> umschalten: Speed · Sprünge/Paddeln · Summen · nur km/h · nur Knoten.</li>"
+             "<li>Mit <kbd>UP</kbd>/<kbd>DOWN</kbd> umschalten: Speed · Sprünge/Paddeln · Summen · km/h · Knoten · Distanz · Sprunghöhe/Kadenz · Airtime/Schläge.</li>"
              "<li>Beenden: <kbd>START</kbd> → <b>Send</b>. Ein Handy mit Garmin Connect muss in der Nähe sein; "
              "bei Erfolg zeigt der Status <code>sent</code>.</li></ul>"),
-            ("Die 5 Uhr-Screens",
+            ("Die 8 Uhr-Screens",
              "<ul><li>Während der Aufzeichnung mit <kbd>UP</kbd>/<kbd>DOWN</kbd> umschalten:</li></ul>"
              "<ol><li><b>Speed</b> – aktuelle Geschwindigkeit groß (Knoten + km/h), dazu dein Max und die Zeit.</li>"
-             "<li><b>Sprünge</b> (Windsport) / <b>Paddeln</b> (SUP) – Anzahl, Airtime/Schläge, Bestwert.</li>"
+             "<li><b>Sprünge</b> (Windsport &amp; Wakeboard) / <b>Paddeln</b> (SUP) – Anzahl und der letzte Wert.</li>"
              "<li><b>Summen</b> – Distanz, Schnitt, 2-s-Spitze.</li>"
              "<li><b>nur km/h</b> – nur die aktuelle Geschwindigkeit in km/h (groß) + Max.</li>"
-             "<li><b>nur Knoten</b> – nur die aktuelle Geschwindigkeit in Knoten (groß) + Max.</li></ol>"
+             "<li><b>nur Knoten</b> – nur die aktuelle Geschwindigkeit in Knoten (groß) + Max.</li>"
+             "<li><b>Distanz</b> – gesamte Session-Strecke, groß.</li>"
+             "<li><b>Sprunghöhe</b> (Wind &amp; Wakeboard) / <b>Kadenz</b> (SUP) – Höhe des letzten Sprungs in m / Schläge pro Minute.</li>"
+             "<li><b>Airtime</b> (Wind &amp; Wakeboard) / <b>Schläge</b> (SUP) – Airtime des letzten Sprungs in s / Schläge gesamt.</li></ol>"
              "<p>Oben steht <b>REC</b> (Aufnahme) oder <b>READY</b>.</p>"),
             ("Session senden",
              "<ul><li>Beenden mit <kbd>START</kbd> → <b>Send</b> wählen (oder <i>Keep recording</i> / <i>Discard</i>).</li>"
@@ -7143,16 +7149,19 @@ _GUIDE = {
              "<li>De token koppelt je sessies aan je account – het enige dat elke rider moet instellen.</li></ul>"),
             ("Een sessie opnemen",
              "<ul><li>Druk op <kbd>START</kbd> en kies <b>WaterSession</b> uit de activiteitenlijst.</li>"
-             "<li>Wissel schermen met <kbd>UP</kbd>/<kbd>DOWN</kbd>: snelheid · sprongen/peddelen · totalen · alleen km/u · alleen knopen.</li>"
+             "<li>Wissel schermen met <kbd>UP</kbd>/<kbd>DOWN</kbd>: snelheid · sprongen/peddelen · totalen · km/u · knopen · afstand · spronghoogte/cadans · airtime/slagen.</li>"
              "<li>Afsluiten: <kbd>START</kbd> → <b>Send</b>. Een telefoon met Garmin Connect moet in de buurt zijn; "
              "bij succes toont de status <code>sent</code>.</li></ul>"),
-            ("De 5 horlogeschermen",
+            ("De 8 horlogeschermen",
              "<ul><li>Wissel tijdens het opnemen met <kbd>UP</kbd>/<kbd>DOWN</kbd>:</li></ul>"
              "<ol><li><b>Snelheid</b> – actuele snelheid groot (knopen + km/u), plus je max en de tijd.</li>"
-             "<li><b>Sprongen</b> (windsport) / <b>Peddelen</b> (SUP) – aantal, airtime/slagen, beste.</li>"
+             "<li><b>Sprongen</b> (windsport &amp; wakeboard) / <b>Peddelen</b> (SUP) – aantal en de laatste waarde.</li>"
              "<li><b>Totalen</b> – afstand, gemiddelde, 2 s-piek.</li>"
              "<li><b>alleen km/u</b> – alleen de actuele snelheid in km/u (groot) + max.</li>"
-             "<li><b>alleen knopen</b> – alleen de actuele snelheid in knopen (groot) + max.</li></ol>"
+             "<li><b>alleen knopen</b> – alleen de actuele snelheid in knopen (groot) + max.</li>"
+             "<li><b>Afstand</b> – totale sessie-afstand, groot.</li>"
+             "<li><b>Spronghoogte</b> (wind &amp; wakeboard) / <b>Cadans</b> (SUP) – hoogte van de laatste sprong in m / slagen per minuut.</li>"
+             "<li><b>Airtime</b> (wind &amp; wakeboard) / <b>Slagen</b> (SUP) – airtime van de laatste sprong in s / totaal aantal slagen.</li></ol>"
              "<p>Bovenaan staat <b>REC</b> (opname) of <b>READY</b>.</p>"),
             ("Je sessie versturen",
              "<ul><li>Afsluiten met <kbd>START</kbd> → kies <b>Send</b> (of <i>Keep recording</i> / <i>Discard</i>).</li>"
