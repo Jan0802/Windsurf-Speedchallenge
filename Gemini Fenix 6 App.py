@@ -4241,6 +4241,12 @@ def _render_champion(ranking, is_wind):
         cols = st.columns(len(chunk))
         for col, (label, val) in zip(cols, chunk):
             col.metric(label, val)
+    st.caption(
+        "ℹ️ #1 = combined score: top 2 s, top 30 s and longest run"
+        + (", plus highest jump & airtime" if is_wind else "")
+        + " — each value is scaled to the field's best (0–1) and added up, so the "
+          "best all-rounder wins, not just the fastest single run."
+    )
     st.markdown("")
 
 
