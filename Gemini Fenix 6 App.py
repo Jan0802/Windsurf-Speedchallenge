@@ -6954,7 +6954,7 @@ _GUIDE = {
     "en": {
         "title": "MyWaterSessions – User Guide",
         "intro": ("MyWaterSessions is a community speed-ranking app for windsurfing, "
-                  "kitesurfing, wingsurfing and SUP. Record your session on a Garmin "
+                  "kitesurfing, wingsurfing, SUP and wakeboarding. Record your session on a Garmin "
                   "watch (or upload a FIT file) and it appears in the online rankings – "
                   "plus a spot guide with weather forecast."),
         "footer": "Have fun and ride safe! · mywatersessions.com",
@@ -6992,10 +6992,10 @@ _GUIDE = {
              "<li>The status shows <code>sent</code> (success), <code>retry …</code> (trying again) or <code>err …</code>.</li>"
              "<li>No phone at the beach? It retries automatically; you can also use <b>Resend last</b> later.</li></ul>"),
             ("Sports &amp; the home rankings",
-             "<ul><li>Switch sport at the top: <b>Windsurf · Kitesurf · Wingsurf · SUP</b>.</li>"
+             "<ul><li>Switch sport at the top: <b>Windsurf · Kitesurf · Wingsurf · SUP · Wakeboard</b>.</li>"
              "<li>The home page shows the <b>Top 15</b> per category: <b>Best 30 s</b>, <b>Top speed 2 s</b>, "
              "<b>Longest run</b> and <b>Total distance</b> (one best session per rider).</li>"
-             "<li>Wind sports also have <b>Best airtime</b> &amp; <b>Highest jump</b>; SUP has <b>Most strokes</b> &amp; <b>Max cadence</b>.</li>"
+             "<li>Wind sports &amp; wakeboard also have <b>Best airtime</b> &amp; <b>Highest jump</b>; SUP has <b>Most strokes</b> &amp; <b>Max cadence</b>.</li>"
              "<li>Each row shows the <b>weather</b> of that session and a <b>trust</b> badge.</li></ul>"),
             ("Filters &amp; your saved start",
              "<ul><li>Open <b>Filter</b> in the sidebar: <b>Group, Location (spot), Year, Month, Day</b> and <b>gear type</b>.</li>"
@@ -7038,7 +7038,7 @@ _GUIDE = {
     "de": {
         "title": "MyWaterSessions – Anleitung",
         "intro": ("MyWaterSessions ist eine Community-Speed-Bestenliste für Windsurfen, "
-                  "Kitesurfen, Wingsurfen und SUP. Zeichne deine Session mit einer Garmin-Uhr "
+                  "Kitesurfen, Wingsurfen, SUP und Wakeboarden. Zeichne deine Session mit einer Garmin-Uhr "
                   "auf (oder lade eine FIT-Datei hoch) – sie erscheint in der Online-Bestenliste. "
                   "Dazu ein Spot-Guide mit Wettervorhersage."),
         "footer": "Viel Spaß und sicher unterwegs! · mywatersessions.com",
@@ -7076,10 +7076,10 @@ _GUIDE = {
              "<li>Status: <code>sent</code> (Erfolg), <code>retry …</code> (neuer Versuch) oder <code>err …</code>.</li>"
              "<li>Kein Handy am Strand? Sie versucht es automatisch erneut; später geht auch <b>Resend last</b>.</li></ul>"),
             ("Sportarten &amp; die Startseiten-Bestenliste",
-             "<ul><li>Sportart oben umschalten: <b>Windsurf · Kitesurf · Wingsurf · SUP</b>.</li>"
+             "<ul><li>Sportart oben umschalten: <b>Windsurf · Kitesurf · Wingsurf · SUP · Wakeboard</b>.</li>"
              "<li>Die Startseite zeigt die <b>Top 15</b> je Kategorie: <b>Beste 30 s</b>, <b>Top-Speed 2 s</b>, "
              "<b>Längster Run</b> und <b>Gesamtstrecke</b> (beste Session je Fahrer).</li>"
-             "<li>Windsport hat zusätzlich <b>Beste Airtime</b> &amp; <b>Höchster Sprung</b>; SUP <b>Meiste Schläge</b> &amp; <b>Max. Kadenz</b>.</li>"
+             "<li>Windsport &amp; Wakeboard haben zusätzlich <b>Beste Airtime</b> &amp; <b>Höchster Sprung</b>; SUP <b>Meiste Schläge</b> &amp; <b>Max. Kadenz</b>.</li>"
              "<li>Jede Zeile zeigt das <b>Wetter</b> der Session und ein <b>Trust</b>-Abzeichen.</li></ul>"),
             ("Filter &amp; dein gespeicherter Start",
              "<ul><li><b>Filter</b> in der Sidebar öffnen: <b>Gruppe, Lokation (Spot), Jahr, Monat, Tag</b> und <b>Material-Typ</b>.</li>"
@@ -7122,7 +7122,7 @@ _GUIDE = {
     "nl": {
         "title": "MyWaterSessions – Handleiding",
         "intro": ("MyWaterSessions is een community-snelheidsranglijst voor windsurfen, "
-                  "kitesurfen, wingsurfen en SUP. Neem je sessie op met een Garmin-horloge "
+                  "kitesurfen, wingsurfen, SUP en wakeboarden. Neem je sessie op met een Garmin-horloge "
                   "(of upload een FIT-bestand) en hij verschijnt in de online ranglijst. "
                   "Plus een spotgids met weersverwachting."),
         "footer": "Veel plezier en blijf veilig! · mywatersessions.com",
@@ -7160,10 +7160,10 @@ _GUIDE = {
              "<li>Status: <code>sent</code> (gelukt), <code>retry …</code> (nieuwe poging) of <code>err …</code>.</li>"
              "<li>Geen telefoon op het strand? Hij probeert het automatisch opnieuw; later kan ook <b>Resend last</b>.</li></ul>"),
             ("Sporten &amp; de ranglijst op de startpagina",
-             "<ul><li>Wissel van sport bovenaan: <b>Windsurf · Kitesurf · Wingsurf · SUP</b>.</li>"
+             "<ul><li>Wissel van sport bovenaan: <b>Windsurf · Kitesurf · Wingsurf · SUP · Wakeboard</b>.</li>"
              "<li>De startpagina toont de <b>Top 15</b> per categorie: <b>Beste 30 s</b>, <b>Topsnelheid 2 s</b>, "
              "<b>Langste run</b> en <b>Totale afstand</b> (beste sessie per rider).</li>"
-             "<li>Windsport heeft ook <b>Beste airtime</b> &amp; <b>Hoogste sprong</b>; SUP <b>Meeste slagen</b> &amp; <b>Max. cadans</b>.</li>"
+             "<li>Windsport &amp; wakeboard hebben ook <b>Beste airtime</b> &amp; <b>Hoogste sprong</b>; SUP <b>Meeste slagen</b> &amp; <b>Max. cadans</b>.</li>"
              "<li>Elke regel toont het <b>weer</b> van die sessie en een <b>trust</b>-badge.</li></ul>"),
             ("Filters &amp; je opgeslagen start",
              "<ul><li>Open <b>Filter</b> in de zijbalk: <b>Groep, Locatie (spot), Jaar, Maand, Dag</b> en <b>materiaaltype</b>.</li>"
