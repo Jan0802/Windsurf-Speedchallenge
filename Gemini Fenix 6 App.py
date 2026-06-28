@@ -6083,6 +6083,11 @@ def render_spots_page(user=None):
     """Reine Spot-Seite (Revierführer): Filter Land/Spot -> Beschreibung, Webcam/
     Bild, Foto-Galerie (+ User-Upload) und Wetter des gewählten Spots."""
     st.markdown("## 🗺️ Spots")
+    st.caption(
+        "💡 Spot missing? Just type its name when you log a session "
+        "(**Add session → New surf spot**, or **…or new spot** in the session editor) – "
+        "it instantly becomes available to everyone and gets its own spot page."
+    )
     all_info = load_all_spot_info()
     if not all_info:
         st.info(
