@@ -172,7 +172,7 @@ SPORT_META = {
         "gear_type_options": ["Cable", "Boat"],
         "boards_key": "wake_boards",
         "gear_key": "wake_tows",
-        "bg_stem": "background",                    # vorerst Standard-Hintergrund
+        "bg_stem": "background_wake",                # assets/background_wake.webp
     },
 }
 
