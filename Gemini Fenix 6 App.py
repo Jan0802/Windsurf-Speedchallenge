@@ -100,7 +100,7 @@ NEW_ENTRY = "➕ Add new..."
 # Eine DB, eine sessions-Tabelle mit Spalte `sport`. Der aktive Sport kommt aus
 # dem URL-Parameter ?sport= (bleibt so über Reload/Link erhalten). Standard:
 # Windsurf. So bleiben Caching & Performance unverändert – nur ein WHERE mehr.
-SPORTS = ("windsurf", "kitesurf", "wingsurf", "sup")
+SPORTS = ("windsurf", "kitesurf", "wingsurf", "sup", "wakeboard")
 
 # Beta-Hinweis neben dem Logo: verirrte Besucher sollen wissen, dass die Seite
 # noch im Aufbau ist (volle Geschwindigkeit erst nach Umzug auf einen Pay-Server).
@@ -161,6 +161,18 @@ SPORT_META = {
         "boards_key": "sup_boards",
         "gear_key": "paddles",
         "bg_stem": "background_sup",                # assets/background_sup.*
+    },
+    "wakeboard": {
+        "label": "🤙 Wakeboard",
+        "emoji": "🤙",
+        "title": "WAKEBOARD",
+        "gear_label": "Tow",                        # 2. „Material": Boot/Cable
+        "gear_size_unit": "",                       # keine m²-Größe
+        "gear_type_label": "Boat / Cable",
+        "gear_type_options": ["Cable", "Boat"],
+        "boards_key": "wake_boards",
+        "gear_key": "wake_tows",
+        "bg_stem": "background",                    # vorerst Standard-Hintergrund
     },
 }
 
@@ -4349,7 +4361,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     ranking = _enrich_ranking(ranking)
 
     # #1-Glaskarte oben (kombinierter Score) – direkt unter der Überschrift.
-    _render_champion(ranking, active_sport() in ("windsurf", "kitesurf", "wingsurf"))
+    _render_champion(ranking, active_sport() in ("windsurf", "kitesurf", "wingsurf", "wakeboard"))
 
     # 2x2-Raster. width="stretch" (moderne API, ersetzt das veraltete
     # use_container_width) lässt jede Tabelle ihre Box voll ausfüllen; bei vielen
@@ -5852,8 +5864,12 @@ def _forecast_card_html(daily, i, best_degs):
     wspeed = at("wind_speed_10m_max")
     wdir = at("wind_direction_10m_dominant")
     comp = _COMPASS[round(wdir / 22.5) % 16] if wdir is not None else ""
-    emoji, verdict = _assess_forecast_day(wspeed, wdir, best_degs)
-    rate = f"<div class='tv-fc-rate'>{emoji} {verdict}</div>" if emoji else ""
+    # Wind-Ampel ("worth it") ergibt für Wakeboard keinen Sinn -> ausblenden.
+    if active_sport() == "wakeboard":
+        rate = ""
+    else:
+        emoji, verdict = _assess_forecast_day(wspeed, wdir, best_degs)
+        rate = f"<div class='tv-fc-rate'>{emoji} {verdict}</div>" if emoji else ""
     return (
         "<div class='tv-fc-card'>"
         f"<div class='tv-fc-day'>{label}</div>"
@@ -5917,12 +5933,14 @@ def render_spots_forecast(spot, coords):
 
     di = st.session_state.get("spots_fcday")
     if di is not None and di < n:
-        show_thermal = st.toggle(
-            "🌡️ Show thermal / sea-breeze potential",
-            key="spots_thermal_toggle",
-            help="Likelihood of thermal / sea-breeze wind from strong sun and low "
-                 "cloud in the afternoon. An indicator, not an exact wind value.",
-        )
+        show_thermal = False
+        if active_sport() != "wakeboard":   # Thermik/Seewind irrelevant für Wakeboard
+            show_thermal = st.toggle(
+                "🌡️ Show thermal / sea-breeze potential",
+                key="spots_thermal_toggle",
+                help="Likelihood of thermal / sea-breeze wind from strong sun and low "
+                     "cloud in the afternoon. An indicator, not an exact wind value.",
+            )
         _render_hourly(spot, coords, di, show_thermal)
         if st.button("✕ Close hourly view", key="close_hourly"):
             st.session_state.pop("spots_fcday", None)
@@ -8112,7 +8130,7 @@ def render_my_results_kpis(name):
         ("🏆 Top speed 30 s", fmt(_series_max(df, "speed_30s_kmh"), "km/h", 1), None),
         ("📏 Longest run", fmt(_series_max(df, "longest_run_km"), "km", 2), None),
     ]
-    is_wind_sport = active_sport() in ("windsurf", "kitesurf", "wingsurf")
+    is_wind_sport = active_sport() in ("windsurf", "kitesurf", "wingsurf", "wakeboard")
     if is_wind_sport:
         tiles.append(("🚀 Highest jump", fmt(_series_max(df, "max_jump_m"), "m", 1), None))
 
