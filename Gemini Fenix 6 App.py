@@ -4206,19 +4206,23 @@ def _render_champion(ranking, is_wind):
     if best.empty:
         return
 
-    # Kombinierter Score: jede Kennzahl auf ihren Höchstwert normiert (0..1) und
-    # summiert. So zählen 2s/30s/Run (etc.) gleichwertig trotz anderer Einheiten.
-    score = pd.Series(0.0, index=best.index)
-    used = 0
+    # Punkte nach Platz: je Kategorie bekommt der Beste 10 Punkte, der 2. 9 …
+    # der 10. noch 1, danach 0. Über alle Kategorien summiert -> #1. Robust gegen
+    # Ausreißer und leicht zu erklären. Nur Fahrer mit Wert >0 zählen je Kategorie.
+    points = pd.Series(0.0, index=best.index)
+    any_pts = False
     for key, *_ in metrics:
-        mx = best[key].max()
-        if mx and mx > 0:
-            score = score + best[key].fillna(0) / mx
-            used += 1
-    if used == 0:
+        valid = best[key][best[key].notna() & (best[key] > 0)]
+        if valid.empty:
+            continue
+        ranks = valid.rank(method="min", ascending=False)
+        points = points.add((11 - ranks).clip(lower=0), fill_value=0)
+        any_pts = True
+    if not any_pts:
         return
-    champ = score.idxmax()
+    champ = points.idxmax()
     vals = best.loc[champ]
+    total_pts = int(round(points.loc[champ]))
 
     crows = df[df["name"].astype(str) == str(champ)].sort_values(
         "speed_1s_kmh", ascending=False)
@@ -4233,7 +4237,7 @@ def _render_champion(ranking, is_wind):
     tiles.append(("🛡 Trust", trust))
 
     # Jede Kennzahl als eigene Glas-Kachel (st.metric = unser Standard-Glaskasten).
-    st.markdown(f"#### 🥇 #1 overall · {champ}")
+    st.markdown(f"#### 🥇 #1 overall · {champ} · {total_pts} pts")
     n = len(tiles)
     per_row = n if n <= 4 else (n + 1) // 2   # >4 -> zwei gleichmäßige Reihen
     for start in range(0, n, per_row):
@@ -4242,10 +4246,11 @@ def _render_champion(ranking, is_wind):
         for col, (label, val) in zip(cols, chunk):
             col.metric(label, val)
     st.caption(
-        "ℹ️ #1 = combined score: top 2 s, top 30 s and longest run"
-        + (", plus highest jump & airtime" if is_wind else "")
-        + " — each value is scaled to the field's best (0–1) and added up, so the "
-          "best all-rounder wins, not just the fastest single run."
+        "ℹ️ #1 by points: in each category (top 2 s, top 30 s, longest run"
+        + (", highest jump, airtime" if is_wind else "")
+        + ") the best rider gets 10 points, the 2nd 9 … the 10th 1. Points are "
+          "summed across categories — rewards the best all-rounder, not just the "
+          "fastest single run."
     )
     st.markdown("")
 
