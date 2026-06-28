@@ -5720,15 +5720,26 @@ def _thermal_level(rad, cloud, hour):
 _THERMAL_LABEL = {0: "–", 1: "weak", 2: "moderate", 3: "strong"}
 
 
+def _forecast_fresh(obj):
+    """Gibt obj nur zurück, wenn der erste Tag/Stunde >= heute ist – sonst None.
+    Verhindert, dass ein veralteter Fallback-Stand als „heute" angezeigt wird
+    (sonst wirkt die Vorhersage „eingefroren")."""
+    times = (obj or {}).get("time") or []
+    if not times:
+        return obj
+    return obj if str(times[0])[:10] >= datetime.now().strftime("%Y-%m-%d") else None
+
+
 def _forecast_db_get(cache_key):
-    """Letzter erfolgreicher Forecast aus der DB (überlebt Deploys). None bei Fehler."""
+    """Letzter erfolgreicher Forecast aus der DB (überlebt Deploys) – aber nur,
+    wenn er noch aktuell ist (sonst None)."""
     try:
         with get_engine().connect() as conn:
             row = conn.execute(
                 select(forecast_cache_table.c.payload)
                 .where(forecast_cache_table.c.cache_key == cache_key)
             ).first()
-        return json.loads(row[0]) if row and row[0] else None
+        return _forecast_fresh(json.loads(row[0])) if row and row[0] else None
     except Exception:  # noqa: BLE001
         return None
 
@@ -5761,7 +5772,7 @@ def _forecast_with_fallback(kind, fetch, lat, lon):
             store[key] = result
         return result
     except Exception:  # noqa: BLE001
-        return store.get(key) or _forecast_db_get(db_key)
+        return _forecast_fresh(store.get(key)) or _forecast_db_get(db_key)
 
 
 def _fetch_forecast_3d(lat, lon):
