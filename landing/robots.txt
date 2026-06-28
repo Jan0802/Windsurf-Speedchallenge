@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://mywatersessions.com/sitemap.xml
+Sitemap: https://spots.mywatersessions.com/sitemap-spots.xml
