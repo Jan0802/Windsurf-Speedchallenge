@@ -7124,14 +7124,37 @@ def _render_sponsor_fields(spot):
     info = load_spot_info(spot) or {}
     with st.form(f"sp_info_{spot}"):
         desc = st.text_area("Beschreibung", value=info.get("description") or "", height=140)
+        best_winds = st.text_input(
+            "Beste Windrichtungen (optional)", value=info.get("best_winds") or "",
+            help="Kompass-Kürzel, z.B. 'SW, W, NW' – steuert die Lohnt-sich-Ampel.")
         webcam = st.text_input("Webcam-/Bild-URL (optional)", value=info.get("webcam_url") or "")
         if st.form_submit_button("💾 Beschreibung speichern"):
-            # Land/Winde NICHT ueberschreiben (Admin/KI) -> bestehende Werte mitgeben.
+            # Land bleibt Admin/KI -> bestehenden Wert mitgeben (nicht leeren).
             save_spot_info(spot, desc, webcam,
-                           country=info.get("country") or "",
-                           best_winds=info.get("best_winds") or "")
+                           country=info.get("country") or "", best_winds=best_winds)
             st.session_state["_spotadmin_flash"] = "Beschreibung gespeichert."
             st.rerun()
+
+    st.markdown("### 🖼️ Bilder (Galerie)")
+    gallery = load_spot_images(spot)
+    if gallery:
+        gcols = st.columns(4)
+        for idx, gi in enumerate(gallery):
+            with gcols[idx % 4]:
+                if gi.get("image"):
+                    st.image(bytes(gi["image"]), use_container_width=True)
+                if st.button("🗑️", key=f"sp_delimg_{gi['id']}", help="Dieses Bild löschen"):
+                    delete_spot_image(gi["id"])
+                    st.session_state["_spotadmin_flash"] = "Bild gelöscht."
+                    st.rerun()
+    new_imgs = st.file_uploader(
+        "Bilder hinzufügen (mehrere möglich)", type=["png", "jpg", "jpeg", "webp"],
+        accept_multiple_files=True, key=f"sp_galup_{spot}")
+    if st.button("➕ Bilder hochladen", key=f"sp_galadd_{spot}", disabled=not new_imgs):
+        for up in new_imgs:
+            add_spot_image(spot, up.getvalue(), up.type)
+        st.session_state["_spotadmin_flash"] = f"{len(new_imgs)} Bild(er) hinzugefügt."
+        st.rerun()
 
 
 def render_spotadmin():
