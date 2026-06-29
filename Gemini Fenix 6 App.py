@@ -743,6 +743,17 @@ spot_products_table = Table(
     Column("created_at", DateTime, server_default=func.now()),
 )
 
+# Sponsor-Self-Service ("Admin 2"): pro Spot ein eigenes Passwort, das Admin 1
+# vergibt. Damit pflegt der Werbekunde NUR seinen Spot (Logo/Produkte/Text).
+spot_managers_table = Table(
+    "spot_managers", DB_METADATA,
+    Column("spot", String(200), primary_key=True),
+    Column("salt", String(64), nullable=False),
+    Column("pw_hash", String(128), nullable=False),
+    Column("active", Boolean, nullable=False, default=True),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
 # Spot-Infos fuers Spot-TV (unten): Beschreibungstext + Bild (Bytes) ODER eine
 # Webcam-/Bild-URL. Im Admin-Backoffice editierbar.
 spot_info_table = Table(
@@ -1772,9 +1783,70 @@ def _ensure_ad_tables():
         spot_products_table.create(get_engine(), checkfirst=True)
         spot_info_table.create(get_engine(), checkfirst=True)
         spot_images_table.create(get_engine(), checkfirst=True)
+        spot_managers_table.create(get_engine(), checkfirst=True)
     except Exception:
         logging.exception("Werbe-Tabellen konnten nicht angelegt werden")
     return True
+
+
+# ---- Sponsor-Self-Service: per-Spot-Login (Admin 2) ------------------------
+def set_spot_manager_password(spot, password):
+    """Setzt/aktualisiert das Sponsor-Passwort fuer einen Spot (durch Admin 1)."""
+    spot = (spot or "").strip()
+    if not spot or not password:
+        return False
+    _ensure_ad_tables()
+    salt = secrets.token_hex(16)
+    vals = {"salt": salt, "pw_hash": _hash_password(password, salt), "active": True}
+    with get_engine().begin() as conn:
+        exists = conn.execute(
+            select(spot_managers_table.c.spot).where(spot_managers_table.c.spot == spot)
+        ).first()
+        if exists:
+            conn.execute(update(spot_managers_table)
+                         .where(spot_managers_table.c.spot == spot).values(**vals))
+        else:
+            conn.execute(insert(spot_managers_table).values(spot=spot, **vals))
+    return True
+
+
+def set_spot_manager_active(spot, active):
+    _ensure_ad_tables()
+    with get_engine().begin() as conn:
+        conn.execute(update(spot_managers_table)
+                     .where(spot_managers_table.c.spot == spot).values(active=bool(active)))
+
+
+def delete_spot_manager(spot):
+    _ensure_ad_tables()
+    with get_engine().begin() as conn:
+        conn.execute(spot_managers_table.delete()
+                     .where(spot_managers_table.c.spot == spot))
+
+
+def spot_manager_status(spot):
+    """None = kein Zugang angelegt; sonst True/False (aktiv?)."""
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(spot_managers_table.c.active).where(spot_managers_table.c.spot == spot)
+        ).first()
+    return None if row is None else bool(row[0])
+
+
+def verify_spot_manager(spot, password):
+    """True, wenn das Passwort fuer den (aktiven) Spot-Manager stimmt."""
+    spot = (spot or "").strip()
+    if not spot or not password:
+        return False
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(spot_managers_table).where(spot_managers_table.c.spot == spot)
+        ).mappings().first()
+    if not row or not row.get("active"):
+        return False
+    return _hash_password(password, row["salt"]) == row["pw_hash"]
 
 
 def _clear_ad_caches():
@@ -6667,6 +6739,34 @@ def render_admin_ads():
 
     ad = load_spot_ad(spot) or {}
 
+    with st.expander("🔑 Sponsor-Zugang (Self-Service 'Admin 2' für diesen Spot)"):
+        status = spot_manager_status(spot)
+        if status is None:
+            st.caption("Noch kein Zugang. Vergib ein Passwort – dann kann der Werbekunde "
+                       "**nur diesen Spot** selbst pflegen (Logo, Produkte, Beschreibung).")
+        else:
+            st.caption(("🟢 Zugang aktiv. " if status else "🔴 Zugang deaktiviert. ")
+                       + f"Login-Link: {_spot_sponsor_link(spot)}")
+        sc1, sc2 = st.columns([3, 1])
+        new_pw = sc1.text_input("Passwort setzen / ändern", type="password",
+                                key=f"spm_pw_{spot}")
+        if sc2.button("💾 Setzen", key=f"spm_save_{spot}"):
+            if new_pw.strip():
+                set_spot_manager_password(spot, new_pw.strip())
+                _admin_flash(f"Sponsor-Zugang für {spot} gesetzt.")
+            else:
+                st.warning("Bitte ein Passwort eingeben.")
+        if status is not None:
+            b1, b2 = st.columns(2)
+            if b1.button(("⏸️ Deaktivieren" if status else "▶️ Aktivieren"),
+                         key=f"spm_tog_{spot}"):
+                set_spot_manager_active(spot, not status)
+                _admin_flash(f"Sponsor-Zugang für {spot} "
+                             f"{'deaktiviert' if status else 'aktiviert'}.")
+            if b2.button("🗑️ Zugang löschen", key=f"spm_del_{spot}"):
+                delete_spot_manager(spot)
+                _admin_flash(f"Sponsor-Zugang für {spot} gelöscht.")
+
     st.markdown(f"### Sponsor für **{spot}**")
     if ad.get("logo"):
         st.image(bytes(ad["logo"]), width=200, caption="aktuelles Logo")
@@ -6985,6 +7085,100 @@ def render_admin_profiles():
         _admin_flash(f"Profil '{name}' gelöscht.")
 
 
+def _spot_sponsor_link(spot):
+    from urllib.parse import quote
+    return f"{_app_base_url()}/?spotadmin={quote(spot or '')}"
+
+
+def _render_sponsor_fields(spot):
+    """Editier-UI fuer einen Sponsor – beschraenkt auf EINEN Spot: Logo/Name/Link,
+    Produkte und Beschreibung. Land/Koordinaten/Winde bleiben bei Admin 1/KI."""
+    ad = load_spot_ad(spot) or {}
+    st.markdown("### Sponsor / Logo")
+    if ad.get("logo"):
+        st.image(bytes(ad["logo"]), width=200, caption="aktuelles Logo")
+    with st.form(f"sp_ad_{spot}"):
+        name = st.text_input("Sponsor-Name", value=ad.get("sponsor_name") or "")
+        url = st.text_input("Link (Shop/Café-Webseite)", value=ad.get("sponsor_url") or "")
+        active = st.checkbox("Auf dem Spot-TV anzeigen", value=bool(ad.get("active", True)))
+        logo_up = st.file_uploader("Logo (PNG/JPG/WebP)", type=["png", "jpg", "jpeg", "webp"])
+        clear_logo = st.checkbox("Aktuelles Logo entfernen") if ad.get("logo") else False
+        if st.form_submit_button("💾 Sponsor speichern"):
+            save_spot_ad(spot, name, url, active,
+                         logo_bytes=logo_up.getvalue() if logo_up else None,
+                         logo_mime=logo_up.type if logo_up else None,
+                         clear_logo=clear_logo)
+            st.session_state["_spotadmin_flash"] = "Sponsor gespeichert."
+            st.rerun()
+
+    st.markdown("### Produkte / Angebote")
+    for prod in load_spot_products(spot):
+        flag = "✅" if prod.get("active") else "⛔"
+        price = f" · {prod['price']}" if prod.get("price") else ""
+        with st.expander(f"{flag} {prod['title']}{price}"):
+            _product_editor(spot, prod)
+    st.markdown("#### ➕ Neues Produkt")
+    _product_editor(spot, None)
+
+    st.markdown("### Beschreibung")
+    info = load_spot_info(spot) or {}
+    with st.form(f"sp_info_{spot}"):
+        desc = st.text_area("Beschreibung", value=info.get("description") or "", height=140)
+        webcam = st.text_input("Webcam-/Bild-URL (optional)", value=info.get("webcam_url") or "")
+        if st.form_submit_button("💾 Beschreibung speichern"):
+            # Land/Winde NICHT ueberschreiben (Admin/KI) -> bestehende Werte mitgeben.
+            save_spot_info(spot, desc, webcam,
+                           country=info.get("country") or "",
+                           best_winds=info.get("best_winds") or "")
+            st.session_state["_spotadmin_flash"] = "Beschreibung gespeichert."
+            st.rerun()
+
+
+def render_spotadmin():
+    st.markdown("# 🏷️ Spot-Verwaltung")
+    st.caption("Sponsor-Bereich: pflege Logo, Produkte und Beschreibung – nur für deinen Spot.")
+
+    url_spot = st.query_params.get("spotadmin")
+    if url_spot in (None, "", "1", "true"):
+        url_spot = None
+
+    if not st.session_state.get("spotadmin_spot"):
+        st.caption("Mit dem Spot-Passwort anmelden (vom Spot-Betreiber erhalten).")
+        spots = _all_spot_names()
+        with st.form("spotadmin_login"):
+            if url_spot and url_spot in spots:
+                st.text_input("Spot", value=url_spot, disabled=True)
+                sel = url_spot
+            else:
+                sel = st.selectbox("Spot", ["– auswählen –"] + spots)
+            pw = st.text_input("Spot-Passwort", type="password")
+            ok = st.form_submit_button("Anmelden")
+        if ok:
+            sp = url_spot if (url_spot and url_spot in spots) else (
+                sel if sel != "– auswählen –" else "")
+            if sp and verify_spot_manager(sp, pw):
+                st.session_state["spotadmin_spot"] = sp
+                st.rerun()
+            else:
+                st.error("Falscher Spot/Passwort oder Zugang deaktiviert.")
+        if st.button("← Zur App"):
+            st.query_params.clear()
+            st.rerun()
+        return
+
+    spot = st.session_state["spotadmin_spot"]
+    cols = st.columns([3, 1.4])
+    cols[0].markdown(f"## 📍 {spot}")
+    if cols[1].button("Abmelden"):
+        st.session_state.pop("spotadmin_spot", None)
+        st.rerun()
+    flash = st.session_state.pop("_spotadmin_flash", None)
+    if flash:
+        st.success(flash)
+    st.markdown("---")
+    _render_sponsor_fields(spot)
+
+
 load_css(app_path("assets", "style.css"))
 
 # Spot-TV-Vollbildmodus (Cafe/Shop/Club-Screen): wird per ?tv=... aufgerufen und
@@ -7002,6 +7196,13 @@ if "admin" in st.query_params:
     ensure_schema()
     ensure_watch_columns()
     render_admin()
+    st.stop()
+
+# Sponsor-Self-Service ("Admin 2") – per ?spotadmin=<Spot>, eigenes per-Spot-Login.
+if "spotadmin" in st.query_params:
+    ensure_schema()
+    ensure_watch_columns()
+    render_spotadmin()
     st.stop()
 
 # E-Mail-Bestätigung per ?verify=<token> – schaltet das Konto frei, dann Login.
