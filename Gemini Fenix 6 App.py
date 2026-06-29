@@ -6545,12 +6545,18 @@ def render_admin_analytics():
     col_a, col_b = st.columns(2)
     with col_a:
         st.markdown("**Top-Seiten**")
-        st.dataframe(pd.DataFrame(data["topPaths"]), hide_index=True,
-                     use_container_width=True) if data["topPaths"] else st.caption("–")
+        if data["topPaths"]:
+            st.dataframe(pd.DataFrame(data["topPaths"]), hide_index=True,
+                         use_container_width=True)
+        else:
+            st.caption("–")
     with col_b:
         st.markdown("**Top-Länder**")
-        st.dataframe(pd.DataFrame(data["topCountries"]), hide_index=True,
-                     use_container_width=True) if data["topCountries"] else st.caption("–")
+        if data["topCountries"]:
+            st.dataframe(pd.DataFrame(data["topCountries"]), hide_index=True,
+                         use_container_width=True)
+        else:
+            st.caption("–")
 
     if data["byHost"]:
         st.markdown("**Nach Hostname** (Landing vs. Spots)")
