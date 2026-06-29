@@ -7601,6 +7601,180 @@ _GUIDE = {
              "<li><b>Privacy</b>: je GPS-track wordt opgeslagen maar <b>alleen aan jou</b> getoond. De ranglijst toont naam, spot, snelheid, materiaal en weer. Je kunt je gegevens of account altijd verwijderen. Zie het privacybeleid.</li></ul>"),
         ],
     },
+    "fr": {
+        "title": "MyWaterSessions – Guide",
+        "intro": ("MyWaterSessions est une appli de classement de vitesse communautaire pour le "
+                  "windsurf, le kitesurf, le wingfoil, le SUP et le wakeboard. Enregistrez votre "
+                  "session sur une montre Garmin (ou téléversez un fichier FIT) et elle apparaît "
+                  "dans les classements en ligne – avec un guide des spots et des prévisions météo."),
+        "footer": "Amusez-vous bien et ridez prudemment ! · mywatersessions.com",
+        "sections": [
+            ("Créer votre compte",
+             "<ul><li>Ouvrez mywatersessions.com et choisissez <b>Register</b> : nom d'utilisateur, e-mail, mot de passe.</li>"
+             "<li>Vous recevez un <b>e-mail de confirmation</b> – cliquez le lien pour activer votre compte.</li>"
+             "<li>Puis <b>connectez-vous</b>. Cochez <i>Rester connecté</i> pour rester connecté sur votre appareil.</li></ul>"),
+            ("Installer &amp; configurer l'app de la montre",
+             "<ul><li>Sur votre montre Garmin, installez <b>WaterSession</b> depuis le Connect IQ Store.</li>"
+             "<li>Dans <b>Garmin Connect</b> (téléphone) → <b>Appareils</b> → votre montre → <b>Applis Connect IQ</b> → "
+             "<b>WaterSession</b> → <b>Réglages</b>.</li>"
+             "<li>Collez votre <b>Device Token</b> (obligatoire – voir étape suivante). Laissez <b>Spot</b> vide pour une détection automatique par GPS.</li>"
+             "<li><b>Synchronisez</b> la montre.</li></ul>"),
+            ("Votre Device Token",
+             "<ul><li>Connectez-vous sur mywatersessions.com et ouvrez votre <b>compte / profil</b>.</li>"
+             "<li>Copiez le <b>Device Token</b> affiché et collez-le dans les réglages de l'app de la montre.</li>"
+             "<li>Le token relie vos sessions à votre compte – c'est la seule chose que chaque rider doit régler.</li></ul>"),
+            ("Enregistrer une session",
+             "<ul><li>Appuyez sur <kbd>START</kbd> et choisissez <b>WaterSession</b> dans la liste des activités.</li>"
+             "<li>Changez d'écran avec <kbd>UP</kbd>/<kbd>DOWN</kbd> : vitesse · sauts/pagaie · totaux · km/h · nœuds · distance · hauteur de saut/cadence · airtime/coups.</li>"
+             "<li>Pour terminer : <kbd>START</kbd> → <b>Send</b>. Un téléphone avec Garmin Connect doit être à proximité ; "
+             "le statut affiche <code>sent</code> en cas de succès.</li></ul>"),
+            ("Les 8 écrans de la montre",
+             "<ul><li>Pendant l'enregistrement, changez d'écran avec <kbd>UP</kbd>/<kbd>DOWN</kbd> :</li></ul>"
+             "<ol><li><b>Vitesse</b> – vitesse actuelle en grand (nœuds + km/h), avec votre max et le temps.</li>"
+             "<li><b>Sauts</b> (sports de vent &amp; wakeboard) / <b>Pagaie</b> (SUP) – nombre et dernière valeur.</li>"
+             "<li><b>Totaux</b> – distance, moyenne, pic sur 2 s.</li>"
+             "<li><b>km/h seul</b> – uniquement la vitesse actuelle en km/h (en grand) + max.</li>"
+             "<li><b>nœuds seul</b> – uniquement la vitesse actuelle en nœuds (en grand) + max.</li>"
+             "<li><b>Distance</b> – distance totale de la session, en grand.</li>"
+             "<li><b>Hauteur de saut</b> (vent &amp; wakeboard) / <b>Cadence</b> (SUP) – hauteur du dernier saut en m / coups par minute.</li>"
+             "<li><b>Airtime</b> (vent &amp; wakeboard) / <b>Coups</b> (SUP) – airtime du dernier saut en s / total des coups.</li></ol>"
+             "<p>En haut de l'écran s'affiche <b>REC</b> (enregistrement) ou <b>READY</b>.</p>"),
+            ("Envoyer votre session",
+             "<ul><li>Terminez avec <kbd>START</kbd> → <b>Send</b> (ou <i>Continuer l'enregistrement</i> / <i>Ignorer</i>).</li>"
+             "<li>Un téléphone avec <b>Garmin Connect</b> doit être à proximité – la montre envoie via lui.</li>"
+             "<li>Le statut affiche <code>sent</code> (réussi), <code>retry …</code> (nouvel essai) ou <code>err …</code>.</li>"
+             "<li>Pas de téléphone sur la plage ? Elle réessaie automatiquement ; vous pouvez aussi utiliser <b>Resend last</b> plus tard.</li></ul>"),
+            ("Sports &amp; classements de l'accueil",
+             "<ul><li>Changez de sport en haut : <b>Windsurf · Kitesurf · Wingsurf · SUP · Wakeboard</b>.</li>"
+             "<li>L'accueil montre le <b>Top 15</b> par catégorie : <b>Meilleur 30 s</b>, <b>Vitesse de pointe 2 s</b>, "
+             "<b>Run le plus long</b> et <b>Distance totale</b> (la meilleure session par rider).</li>"
+             "<li>Les sports de vent &amp; le wakeboard ont aussi <b>Meilleur airtime</b> &amp; <b>Saut le plus haut</b> ; le SUP a <b>Plus de coups</b> &amp; <b>Cadence max</b>.</li>"
+             "<li>Chaque ligne montre la <b>météo</b> de la session et un badge de <b>confiance</b>.</li></ul>"),
+            ("Filtres &amp; votre départ enregistré",
+             "<ul><li>Ouvrez <b>Filter</b> dans la barre latérale : <b>Groupe, Lieu (spot), Année, Mois, Jour</b> et <b>type de matériel</b>.</li>"
+             "<li>Filtres avancés : <b>aile avant max</b> (foil), <b>taille d'aileron max</b> et une <b>plage de poids</b> (comparer des riders similaires).</li>"
+             "<li>Enregistrez votre sélection comme <b>'My start'</b> – elle est présélectionnée à chaque ouverture de l'app.</li></ul>"),
+            ("My Results – records, indice &amp; votre rang",
+             "<ul><li>L'onglet <b>My Results</b> s'ouvre sur vos <b>records</b> : meilleur 2 s, meilleur 30 s, run le plus long, saut le plus haut et distance totale.</li>"
+             "<li><b>Indice de Performance</b> = meilleur 2 s ÷ (vent × taille de voile) × 100 – plus c'est élevé, plus vous étiez rapide avec <i>peu de vent et une petite voile</i> (un score d'efficacité équitable pour suivre vos progrès).</li>"
+             "<li><b>Votre position au classement</b> : votre rang global, ou choisissez un spot dans le filtre pour voir votre rang <i>sur ce spot</i> (pour le 2 s et le 30 s).</li></ul>"),
+            ("My Results – records perso, sessions &amp; analyse",
+             "<ul><li><b>Records personnels</b> : votre top 10 de vitesse, filtrable par spot, année, planche et vent max (p. ex. 'quelle vitesse à ≤ 5 Bft ?').</li>"
+             "<li><b>Voir mes sessions</b> : liste avec filtre de date ; choisissez-en une pour l'analyse complète.</li>"
+             "<li>Détail de la session : distance, moyenne, vitesses de pointe, sauts/pagaie, <b>runs</b> détectés, la <b>carte GPS</b>, météo et confiance.</li>"
+             "<li><b>Compléter mes sessions</b> : renseignez spot / planche / voile sur les sessions de la montre pour qu'elles comptent au classement.</li></ul>"),
+            ("Spots &amp; prévisions météo",
+             "<ul><li>L'onglet <b>Spots</b> : filtrez par <b>pays + spot</b> pour une description, une galerie photo, une webcam et la météo en direct.</li>"
+             "<li><b>Prévision sur 3 jours</b> avec un feu « ça vaut le coup » (🟢/🟡/🔴) selon la force du vent &amp; les meilleures directions du spot.</li>"
+             "<li>Ouvrez un jour pour la <b>vue horaire</b> (barres de vent + barres de rafales givrées) ; activez le <b>potentiel thermique / brise de mer</b>.</li>"
+             "<li><b>Téléversez votre propre photo de spot</b> – les 5 plus récentes sont affichées avec le nom de l'auteur.</li></ul>"),
+            ("Spot-TV – l'écran café / shop",
+             "<ul><li>Un tableau en direct plein écran pour un café, un shop ou un club. Ouvrez-le depuis le panneau <b>Filter</b> : choisissez un spot → <b>Open Spot TV</b> (puis F11 pour le plein écran).</li>"
+             "<li>Affiche un <b>classement</b> avec 🥇🥈🥉 et des barres de pourcentage (rang 1 = 100 %), le <b>rider du jour</b>, la météo actuelle et la prévision sur 3 jours (en alternance avec les infos du spot).</li>"
+             "<li>Un <b>QR code</b> permet aux visiteurs de rejoindre le classement du jour, plus un logo sponsor &amp; des offres produits en option.</li></ul>"),
+            ("Groupes &amp; communauté",
+             "<ul><li>Créez ou rejoignez des <b>groupes</b> pour comparer au sein de votre crew ; filtrez les classements par groupe.</li>"
+             "<li>Les groupes privés nécessitent l'<b>approbation</b> du propriétaire ; il peut inviter/approuver des membres.</li>"
+             "<li>Un <b>bandeau d'actus</b> montre les nouveaux records et les top 3 des membres.</li></ul>"),
+            ("Partager le matériel",
+             "<ul><li>Vous utilisez les mêmes planches/voiles que la famille ou des amis ? <b>Partagez votre matériel</b> via un code court.</li>"
+             "<li>Saisissez le code d'un pote sous <b>Import equipment</b> pour copier sa liste de matériel – sans tout retaper.</li></ul>"),
+            ("Autres montres / Apple Watch",
+             "<ul><li>Toute montre qui exporte un <b>fichier FIT</b> (p. ex. Apple Watch via HealthFit) fonctionne aussi.</li>"
+             "<li>Utilisez <b>Add session</b> dans la barre latérale → choisissez le matériel → téléversez le fichier FIT. La météo est ajoutée automatiquement ; vous obtenez runs, carte et analyse de vitesse.</li></ul>"),
+            ("Confiance, fair-play &amp; vie privée",
+             "<ul><li>Chaque session reçoit un <b>score de confiance</b> basé sur la physique GPS : accélération max, changement de cap à vitesse, bruit GPS, densité de points et comparaison avec le record du spot.</li>"
+             "<li>Les sessions montre reçoivent aussi un <b>contrôle « sur l'eau »</b> et une base vérifiée par l'appareil. Restez fair-play – les valeurs aberrantes perdent de la confiance.</li>"
+             "<li><b>Vie privée</b> : votre trace GPS est stockée mais visible <b>uniquement par vous</b>. Le classement montre le nom, le spot, la vitesse, le matériel et la météo. Vous pouvez supprimer vos données ou votre compte à tout moment. Voir la politique de confidentialité.</li></ul>"),
+        ],
+    },
+    "es": {
+        "title": "MyWaterSessions – Guía",
+        "intro": ("MyWaterSessions es una app de ranking de velocidad comunitario para windsurf, "
+                  "kitesurf, wingfoil, SUP y wakeboard. Graba tu sesión en un reloj Garmin (o sube "
+                  "un archivo FIT) y aparece en los rankings online, además de una guía de spots "
+                  "con previsión meteorológica."),
+        "footer": "¡Diviértete y navega con seguridad! · mywatersessions.com",
+        "sections": [
+            ("Crear tu cuenta",
+             "<ul><li>Abre mywatersessions.com y elige <b>Register</b>: usuario, e-mail, contraseña.</li>"
+             "<li>Recibirás un <b>e-mail de confirmación</b> – haz clic en el enlace para activar tu cuenta.</li>"
+             "<li>Luego <b>inicia sesión</b>. Marca <i>Seguir conectado</i> para mantener la sesión en tu dispositivo.</li></ul>"),
+            ("Instalar &amp; configurar la app del reloj",
+             "<ul><li>En tu reloj Garmin, instala <b>WaterSession</b> desde la Connect IQ Store.</li>"
+             "<li>En <b>Garmin Connect</b> (móvil) → <b>Dispositivos</b> → tu reloj → <b>Apps Connect IQ</b> → "
+             "<b>WaterSession</b> → <b>Ajustes</b>.</li>"
+             "<li>Pega tu <b>Device Token</b> (obligatorio – ver el paso siguiente). Deja <b>Spot</b> vacío para detectarlo automáticamente por GPS.</li>"
+             "<li><b>Sincroniza</b> el reloj.</li></ul>"),
+            ("Tu Device Token",
+             "<ul><li>Inicia sesión en mywatersessions.com y abre tu <b>cuenta / perfil</b>.</li>"
+             "<li>Copia el <b>Device Token</b> que aparece y pégalo en los ajustes de la app del reloj.</li>"
+             "<li>El token vincula tus sesiones a tu cuenta – es lo único que cada rider debe configurar.</li></ul>"),
+            ("Grabar una sesión",
+             "<ul><li>Pulsa <kbd>START</kbd> y elige <b>WaterSession</b> en la lista de actividades.</li>"
+             "<li>Cambia de pantalla con <kbd>UP</kbd>/<kbd>DOWN</kbd>: velocidad · saltos/palada · totales · km/h · nudos · distancia · altura de salto/cadencia · airtime/paladas.</li>"
+             "<li>Para terminar: <kbd>START</kbd> → <b>Send</b>. Debe haber cerca un móvil con Garmin Connect; "
+             "el estado muestra <code>sent</code> si tiene éxito.</li></ul>"),
+            ("Las 8 pantallas del reloj",
+             "<ul><li>Durante la grabación, cambia de pantalla con <kbd>UP</kbd>/<kbd>DOWN</kbd>:</li></ul>"
+             "<ol><li><b>Velocidad</b> – velocidad actual en grande (nudos + km/h), con tu máx. y el tiempo.</li>"
+             "<li><b>Saltos</b> (deportes de viento &amp; wakeboard) / <b>Palada</b> (SUP) – número y último valor.</li>"
+             "<li><b>Totales</b> – distancia, media, pico de 2 s.</li>"
+             "<li><b>solo km/h</b> – solo la velocidad actual en km/h (en grande) + máx.</li>"
+             "<li><b>solo nudos</b> – solo la velocidad actual en nudos (en grande) + máx.</li>"
+             "<li><b>Distancia</b> – distancia total de la sesión, en grande.</li>"
+             "<li><b>Altura de salto</b> (viento &amp; wakeboard) / <b>Cadencia</b> (SUP) – altura del último salto en m / paladas por minuto.</li>"
+             "<li><b>Airtime</b> (viento &amp; wakeboard) / <b>Paladas</b> (SUP) – airtime del último salto en s / total de paladas.</li></ol>"
+             "<p>Arriba en la pantalla aparece <b>REC</b> (grabando) o <b>READY</b>.</p>"),
+            ("Enviar tu sesión",
+             "<ul><li>Termina con <kbd>START</kbd> → <b>Send</b> (o <i>Seguir grabando</i> / <i>Descartar</i>).</li>"
+             "<li>Debe haber cerca un móvil con <b>Garmin Connect</b> – el reloj sube a través de él.</li>"
+             "<li>El estado muestra <code>sent</code> (éxito), <code>retry …</code> (reintentando) o <code>err …</code>.</li>"
+             "<li>¿Sin móvil en la playa? Reintenta automáticamente; también puedes usar <b>Resend last</b> más tarde.</li></ul>"),
+            ("Deportes &amp; rankings de inicio",
+             "<ul><li>Cambia de deporte arriba: <b>Windsurf · Kitesurf · Wingsurf · SUP · Wakeboard</b>.</li>"
+             "<li>La portada muestra el <b>Top 15</b> por categoría: <b>Mejor 30 s</b>, <b>Velocidad punta 2 s</b>, "
+             "<b>Run más largo</b> y <b>Distancia total</b> (la mejor sesión por rider).</li>"
+             "<li>Los deportes de viento &amp; el wakeboard tienen además <b>Mejor airtime</b> &amp; <b>Salto más alto</b>; el SUP tiene <b>Más paladas</b> &amp; <b>Cadencia máx.</b>.</li>"
+             "<li>Cada fila muestra el <b>tiempo</b> de la sesión y una insignia de <b>confianza</b>.</li></ul>"),
+            ("Filtros &amp; tu inicio guardado",
+             "<ul><li>Abre <b>Filter</b> en la barra lateral: <b>Grupo, Lugar (spot), Año, Mes, Día</b> y <b>tipo de material</b>.</li>"
+             "<li>Filtros avanzados: <b>ala delantera máx.</b> (foil), <b>tamaño de quilla máx.</b> y un <b>rango de peso</b> (comparar riders similares).</li>"
+             "<li>Guarda tu selección como <b>'My start'</b> – queda preseleccionada cada vez que abres la app.</li></ul>"),
+            ("My Results – récords, índice &amp; tu puesto",
+             "<ul><li>La pestaña <b>My Results</b> abre con tus <b>récords</b>: mejor 2 s, mejor 30 s, run más largo, salto más alto y distancia total.</li>"
+             "<li><b>Índice de Rendimiento</b> = mejor 2 s ÷ (viento × tamaño de vela) × 100 – cuanto más alto, más rápido fuiste con <i>poco viento y una vela pequeña</i> (una puntuación de eficiencia justa para seguir tu progreso).</li>"
+             "<li><b>Tu posición en el ranking</b>: tu puesto global, o elige un spot en el filtro para ver tu puesto <i>en ese spot</i> (para 2 s y 30 s).</li></ul>"),
+            ("My Results – récords, sesiones &amp; análisis",
+             "<ul><li><b>Récords personales</b>: tu top 10 de velocidad, filtrable por spot, año, tabla y viento máx. (p. ej. '¿qué velocidad con ≤ 5 Bft?').</li>"
+             "<li><b>Ver mis sesiones</b>: lista con filtro de fecha; elige una para el análisis completo.</li>"
+             "<li>Detalle de la sesión: distancia, media, velocidades punta, saltos/palada, <b>runs</b> detectados, el <b>mapa GPS</b>, tiempo y confianza.</li>"
+             "<li><b>Completar mis sesiones</b>: pon spot / tabla / vela en las sesiones del reloj para que cuenten en el ranking.</li></ul>"),
+            ("Spots &amp; previsión meteorológica",
+             "<ul><li>La pestaña <b>Spots</b>: filtra por <b>país + spot</b> para una descripción, galería de fotos, webcam y tiempo en directo.</li>"
+             "<li><b>Previsión a 3 días</b> con un semáforo «merece la pena» (🟢/🟡/🔴) según la fuerza del viento &amp; las mejores direcciones del spot.</li>"
+             "<li>Abre un día para la <b>vista por horas</b> (barras de viento + barras de rachas esmeriladas); activa el <b>potencial térmico / brisa marina</b>.</li>"
+             "<li><b>Sube tu propia foto del spot</b> – se muestran las 5 más recientes con el nombre de quien las subió.</li></ul>"),
+            ("Spot-TV – la pantalla de café / tienda",
+             "<ul><li>Un tablero en directo a pantalla completa para un café, tienda o club. Ábrelo desde el panel <b>Filter</b>: elige un spot → <b>Open Spot TV</b> (luego F11 para pantalla completa).</li>"
+             "<li>Muestra un <b>ranking</b> con 🥇🥈🥉 y barras de porcentaje (puesto 1 = 100 %), el <b>rider del día</b>, el tiempo actual y la previsión a 3 días (alternando con la info del spot).</li>"
+             "<li>Un <b>código QR</b> permite a los visitantes unirse al ranking del día, además de un logo de patrocinador &amp; ofertas de producto opcionales.</li></ul>"),
+            ("Grupos &amp; comunidad",
+             "<ul><li>Crea o únete a <b>grupos</b> para comparar dentro de tu crew; filtra los rankings por grupo.</li>"
+             "<li>Los grupos privados necesitan la <b>aprobación</b> del propietario; este puede invitar/aprobar miembros.</li>"
+             "<li>Un <b>banner de novedades</b> muestra los nuevos récords y los top 3 de los miembros.</li></ul>"),
+            ("Compartir material",
+             "<ul><li>¿Usas las mismas tablas/velas que la familia o los amigos? <b>Comparte tu material</b> con un código corto.</li>"
+             "<li>Introduce el código de un colega en <b>Import equipment</b> para copiar su lista de material – sin volver a teclear.</li></ul>"),
+            ("Otros relojes / Apple Watch",
+             "<ul><li>Cualquier reloj que exporte un <b>archivo FIT</b> (p. ej. Apple Watch vía HealthFit) también funciona.</li>"
+             "<li>Usa <b>Add session</b> en la barra lateral → elige el material → sube el archivo FIT. El tiempo se añade automáticamente; obtienes runs, mapa y análisis de velocidad.</li></ul>"),
+            ("Confianza, juego limpio &amp; privacidad",
+             "<ul><li>Cada sesión recibe una <b>puntuación de confianza</b> basada en la física GPS: aceleración máx., cambio de rumbo a velocidad, ruido GPS, densidad de puntos y comparación con el récord del spot.</li>"
+             "<li>Las sesiones del reloj reciben además un <b>control «sobre el agua»</b> y una base verificada por el dispositivo. Juega limpio – los valores atípicos pierden confianza.</li>"
+             "<li><b>Privacidad</b>: tu traza GPS se guarda pero solo la ves <b>tú</b>. El ranking muestra el nombre, el spot, la velocidad, el material y el tiempo. Puedes borrar tus datos o tu cuenta cuando quieras. Consulta la política de privacidad.</li></ul>"),
+        ],
+    },
 }
 
 _GUIDE_CSS = (
@@ -7638,8 +7812,10 @@ def render_guide_downloads(key_prefix="", stacked=False):
         ("🇬🇧 English", "en", "Guide-EN"),
         ("🇩🇪 Deutsch", "de", "Anleitung-DE"),
         ("🇳🇱 Nederlands", "nl", "Handleiding-NL"),
+        ("🇫🇷 Français", "fr", "Guide-FR"),
+        ("🇪🇸 Español", "es", "Guia-ES"),
     ]
-    cols = [st, st, st] if stacked else st.columns(3)
+    cols = [st] * len(items) if stacked else st.columns(len(items))
     for col, (label, lang, fname) in zip(cols, items):
         col.download_button(
             label, _guide_html(lang),
@@ -7654,8 +7830,9 @@ def render_guide_page():
     if st.button("← Back · Zurück · Terug", key="guide_back"):
         st.query_params.clear()
         st.rerun()
-    langs = [("English", "en"), ("Deutsch", "de"), ("Nederlands", "nl")]
-    pick = st.radio("Language · Sprache · Taal", [lbl for lbl, _ in langs],
+    langs = [("English", "en"), ("Deutsch", "de"), ("Nederlands", "nl"),
+             ("Français", "fr"), ("Español", "es")]
+    pick = st.radio("Language · Sprache · Taal · Langue · Idioma", [lbl for lbl, _ in langs],
                     horizontal=True, key="guide_lang")
     lang = dict(langs)[pick]
     g = _GUIDE[lang]
