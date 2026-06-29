@@ -6410,6 +6410,154 @@ def _admin_flash(msg):
     st.rerun()
 
 
+# ---- Cloudflare Web Analytics (cookieless) fuers Backoffice ----------------
+CF_GRAPHQL_URL = "https://api.cloudflare.com/client/v4/graphql"
+
+
+def _secret(name, default=""):
+    """Liest Konfig aus st.secrets, faellt auf Umgebungsvariablen zurueck."""
+    try:
+        v = st.secrets.get(name)
+    except Exception:  # noqa: BLE001
+        v = None
+    return (v or os.environ.get(name) or default)
+
+
+def _cf_site_tag():
+    # siteTag == Beacon-Token (nicht geheim); per Env ueberschreibbar.
+    return _secret("CF_SITE_TAG", "c16ea8dadd7749e1826d6ea48f80ca6d")
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def _cf_web_analytics(days=30):
+    """Web-Analytics-Kennzahlen von der Cloudflare GraphQL-API.
+    -> None wenn nicht konfiguriert; {"error": msg} bei Fehlern; sonst dict."""
+    token = _secret("CF_API_TOKEN").strip()
+    account = _secret("CF_ACCOUNT_ID").strip()
+    site = _cf_site_tag().strip()
+    if not token or not account:
+        return None
+
+    end = datetime.utcnow().date()
+    start = end - timedelta(days=int(days) - 1)
+    flt = f'{{siteTag: "{site}", date_geq: "{start.isoformat()}", date_leq: "{end.isoformat()}"}}'
+    query = (
+        '{ viewer { accounts(filter: {accountTag: "' + account + '"}) {'
+        f" totals: rumPageloadEventsAdaptiveGroups(limit: 1, filter: {flt}) {{ count sum {{ visits }} }}"
+        f" byDay: rumPageloadEventsAdaptiveGroups(limit: 400, orderBy: [date_ASC], filter: {flt}) {{ count sum {{ visits }} dimensions {{ date }} }}"
+        f" topPaths: rumPageloadEventsAdaptiveGroups(limit: 15, orderBy: [count_DESC], filter: {flt}) {{ count dimensions {{ requestPath }} }}"
+        f" topCountries: rumPageloadEventsAdaptiveGroups(limit: 12, orderBy: [count_DESC], filter: {flt}) {{ count dimensions {{ countryName }} }}"
+        f" byHost: rumPageloadEventsAdaptiveGroups(limit: 10, orderBy: [count_DESC], filter: {flt}) {{ count sum {{ visits }} dimensions {{ requestHost }} }}"
+        " } } }"
+    )
+    try:
+        req = Request(
+            CF_GRAPHQL_URL,
+            data=json.dumps({"query": query}).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "User-Agent": "MyWaterSessions/1.0",
+            },
+            method="POST",
+        )
+        with urlopen(req, timeout=20) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"Request fehlgeschlagen: {exc}"}
+
+    if payload.get("errors"):
+        msg = "; ".join(str(x.get("message", x)) for x in payload["errors"])
+        return {"error": msg}
+    try:
+        acct = payload["data"]["viewer"]["accounts"][0]
+    except (KeyError, IndexError, TypeError):
+        return {"error": "Keine Daten (Account-ID / siteTag pruefen)."}
+
+    def _vis(node):
+        return sum((r.get("sum") or {}).get("visits", 0) for r in (node or []))
+
+    totals = acct.get("totals") or []
+    return {
+        "days": int(days),
+        "views": sum(r.get("count", 0) for r in totals),
+        "visits": _vis(totals),
+        "byDay": [
+            {"date": r["dimensions"]["date"], "views": r.get("count", 0),
+             "visits": (r.get("sum") or {}).get("visits", 0)}
+            for r in (acct.get("byDay") or [])
+        ],
+        "topPaths": [
+            {"Pfad": r["dimensions"]["requestPath"], "Views": r.get("count", 0)}
+            for r in (acct.get("topPaths") or [])
+        ],
+        "topCountries": [
+            {"Land": r["dimensions"]["countryName"], "Views": r.get("count", 0)}
+            for r in (acct.get("topCountries") or [])
+        ],
+        "byHost": [
+            {"Host": r["dimensions"]["requestHost"], "Views": r.get("count", 0),
+             "Besuche": (r.get("sum") or {}).get("visits", 0)}
+            for r in (acct.get("byHost") or [])
+        ],
+    }
+
+
+def render_admin_analytics():
+    st.caption(
+        "Cookieless Web Analytics via Cloudflare (kein Tracking einzelner Besucher). "
+        "Werte 30 Min zwischengespeichert."
+    )
+    if not _secret("CF_API_TOKEN") or not _secret("CF_ACCOUNT_ID"):
+        st.info(
+            "Noch nicht konfiguriert. In Render (App-Service) die Umgebungsvariablen "
+            "**CF_API_TOKEN** und **CF_ACCOUNT_ID** setzen (Cloudflare-API-Token mit "
+            "*Account Analytics: Read*)."
+        )
+        return
+
+    c1, c2 = st.columns([2, 1])
+    days = c1.selectbox("Zeitraum", [7, 30, 90], index=1,
+                        format_func=lambda d: f"letzte {d} Tage", key="cf_days")
+    if c2.button("🔄 Aktualisieren", key="cf_refresh"):
+        _cf_web_analytics.clear()
+        st.rerun()
+
+    data = _cf_web_analytics(days)
+    if data is None:
+        st.info("Nicht konfiguriert."); return
+    if "error" in data:
+        st.error(f"Cloudflare-API: {data['error']}"); return
+
+    def _de(n):
+        return f"{int(n):,}".replace(",", ".")
+
+    k1, k2, k3 = st.columns(3)
+    k1.metric("👁️ Page Views", _de(data["views"]))
+    k2.metric("🧭 Besuche", _de(data["visits"]))
+    k3.metric("📄 Views / Besuch", f"{(data['views'] / data['visits']):.1f}" if data["visits"] else "–")
+
+    if data["byDay"]:
+        df = pd.DataFrame(data["byDay"])
+        df["date"] = pd.to_datetime(df["date"])
+        st.line_chart(df.set_index("date")[["views", "visits"]])
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("**Top-Seiten**")
+        st.dataframe(pd.DataFrame(data["topPaths"]), hide_index=True,
+                     use_container_width=True) if data["topPaths"] else st.caption("–")
+    with col_b:
+        st.markdown("**Top-Länder**")
+        st.dataframe(pd.DataFrame(data["topCountries"]), hide_index=True,
+                     use_container_width=True) if data["topCountries"] else st.caption("–")
+
+    if data["byHost"]:
+        st.markdown("**Nach Hostname** (Landing vs. Spots)")
+        st.dataframe(pd.DataFrame(data["byHost"]), hide_index=True,
+                     use_container_width=True)
+
+
 def _admin_stats():
     """Kennzahlen fürs Backoffice: Mitglieder, verifiziert, Sessions, aktive Fahrer."""
     try:
@@ -6485,11 +6633,14 @@ def render_admin():
                   help="Fahrer mit mindestens einer Session.")
         st.markdown("---")
 
-    tab_ads, tab_profiles = st.tabs(["📣 Werbung pro Spot", "👤 Profile"])
+    tab_ads, tab_profiles, tab_analytics = st.tabs(
+        ["📣 Werbung pro Spot", "👤 Profile", "📊 Web Analytics"])
     with tab_ads:
         render_admin_ads()
     with tab_profiles:
         render_admin_profiles()
+    with tab_analytics:
+        render_admin_analytics()
 
 
 def render_admin_ads():
