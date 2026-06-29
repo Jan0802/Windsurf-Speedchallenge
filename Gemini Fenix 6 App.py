@@ -6496,8 +6496,10 @@ def _secret(name, default=""):
 
 
 def _cf_site_tag():
-    # siteTag == Beacon-Token (nicht geheim); per Env ueberschreibbar.
-    return _secret("CF_SITE_TAG", "c16ea8dadd7749e1826d6ea48f80ca6d")
+    # Optionaler GraphQL-siteTag-Filter. LEER = ganzen Account abfragen (richtig,
+    # solange es nur eine Web-Analytics-Site gibt). Der Beacon-Token taugt hier
+    # NICHT als Filter -> daher nur filtern, wenn bewusst per Env gesetzt.
+    return _secret("CF_SITE_TAG", "")
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
@@ -6512,7 +6514,8 @@ def _cf_web_analytics(days=30):
 
     end = datetime.utcnow().date()
     start = end - timedelta(days=int(days) - 1)
-    flt = f'{{siteTag: "{site}", date_geq: "{start.isoformat()}", date_leq: "{end.isoformat()}"}}'
+    site_clause = f'siteTag: "{site}", ' if site else ""
+    flt = f'{{{site_clause}date_geq: "{start.isoformat()}", date_leq: "{end.isoformat()}"}}'
     query = (
         '{ viewer { accounts(filter: {accountTag: "' + account + '"}) {'
         f" totals: rumPageloadEventsAdaptiveGroups(limit: 1, filter: {flt}) {{ count sum {{ visits }} }}"
