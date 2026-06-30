@@ -8818,7 +8818,8 @@ _BP_METRICS_WIND = [
 
 
 def _bp_rank_in(df, name, metric):
-    """Rang des Fahrers in df nach metric (bester Wert je Fahrer)."""
+    """Rang des Fahrers in df nach metric (bester Wert je Fahrer) inkl. der
+    Nachbarwerte (Fahrer direkt darüber/darunter) für den 'knapp dran'-Nudge."""
     if metric not in df.columns:
         return None
     d = df.copy()
@@ -8832,7 +8833,12 @@ def _bp_rank_in(df, name, metric):
     if name not in names:
         return None
     r = names.index(name) + 1
-    return r, len(names), float(best.iloc[r - 1][metric])
+    n = len(names)
+    return {
+        "rank": r, "total": n, "value": float(best.iloc[r - 1][metric]),
+        "above": float(best.iloc[r - 2][metric]) if r >= 2 else None,
+        "below": float(best.iloc[r][metric]) if r < n else None,
+    }
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -8877,7 +8883,7 @@ def best_placement(name, sport):
             res = _bp_rank_in(sub, name, mkey)
             if not res:
                 continue
-            r, n, val = res
+            r, n, val = res["rank"], res["total"], res["value"]
             if n < _BP_MIN_FIELD:
                 continue
             pct = r / n
@@ -8886,7 +8892,8 @@ def best_placement(name, sport):
             field = float(np.log10(n + 1))
             score = (strength * 2 + podium * 1.5 + 0.4) * field * dim_w[dim]
             cands.append({"dim": dim, "ctx": ctx_label, "metric": mlabel, "unit": unit,
-                          "rank": r, "total": n, "value": val, "pct": pct, "score": score})
+                          "rank": r, "total": n, "value": val, "pct": pct, "score": score,
+                          "above": res["above"], "below": res["below"]})
 
     # Nur ehrlich-positive Kontexte: Sieg, Podium (nicht Letzter) oder obere Haelfte.
     positive = [c for c in cands
@@ -8924,6 +8931,40 @@ def _bp_tier(c):
     return "👍 Top half"
 
 
+def _bp_nudge(c):
+    """'Knapp dran'-Hinweis für den Top-Kontext: Abstand zum nächsten Rang bzw.
+    (bei Platz 1) Vorsprung auf #2. Gibt einen Satz oder None zurück."""
+    unit = c["unit"]
+    if c["rank"] > 1 and c.get("above") is not None:
+        gap = c["above"] - c["value"]
+        if gap > 0.05:
+            return f"🔼 Only {gap:.1f} {unit} to reach #{c['rank'] - 1} {c['ctx']}"
+    elif c["rank"] == 1 and c.get("below") is not None:
+        lead = c["value"] - c["below"]
+        if lead > 0.05:
+            return f"🛡️ You lead #2 by {lead:.1f} {unit} {c['ctx']} — defend it!"
+    return None
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _bp_season_progress(name, sport):
+    """Bester 2 s dieses Jahr vs. Vorjahr (für 'Fortschritt statt Absolutwert').
+    -> (this_year, last_year_or_None) oder None."""
+    df = load_rider_sessions(name, sport)
+    df = complete_sessions(df)
+    if df is None or df.empty or "speed_1s_kmh" not in df.columns or "date" not in df.columns:
+        return None
+    d = df.copy()
+    d["_y"] = pd.to_datetime(d["date"], errors="coerce", format="mixed").dt.year
+    d["_v"] = pd.to_numeric(d["speed_1s_kmh"], errors="coerce")
+    yr = datetime.now().year
+    this_ = d[d["_y"] == yr]["_v"].max()
+    last_ = d[d["_y"] == yr - 1]["_v"].max()
+    if pd.isna(this_):
+        return None
+    return float(this_), (None if pd.isna(last_) else float(last_))
+
+
 def render_best_placement(name):
     """Hero-Badge: wo der Fahrer gerade am besten dasteht (+ weitere Bestwerte)."""
     try:
@@ -8948,13 +8989,17 @@ def render_best_placement(name):
     headline = f"{_bp_tier(t)} · {t['metric']} {t['ctx']}"
     pct_txt = f"Top {max(1, round(t['pct'] * 100))}% of {t['total']}"
     val_txt = f"your {t['value']:.1f} {t['unit']}"
+    nudge = _bp_nudge(t)
+    nudge_html = (f"<div style='margin-top:7px;font-weight:700;color:#2bd4d9;'>{nudge}</div>"
+                  if nudge else "")
     st.markdown(
         "<div style='background:linear-gradient(135deg,rgba(43,212,217,.18),rgba(43,212,217,.04));"
         "border:1px solid rgba(43,212,217,.45);border-radius:16px;padding:14px 20px;margin:2px 0 8px;'>"
         "<div style='font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#8fd9e3;'>"
         "Where you're ahead right now</div>"
         f"<div style='font-size:22px;font-weight:800;margin-top:3px;'>{headline}</div>"
-        f"<div style='color:#bcd4dd;margin-top:2px;'>{pct_txt} · {val_txt}</div></div>",
+        f"<div style='color:#bcd4dd;margin-top:2px;'>{pct_txt} · {val_txt}</div>"
+        f"{nudge_html}</div>",
         unsafe_allow_html=True,
     )
     if bp["others"]:
@@ -8967,6 +9012,22 @@ def render_best_placement(name):
             for c in bp["others"]
         )
         st.markdown(f"<div style='margin:-2px 0 6px;'>{chips}</div>", unsafe_allow_html=True)
+
+    # Fortschritt statt Absolutwert: diese Saison vs. Vorjahr (nur wenn Vorjahr da).
+    prog = _bp_season_progress(name, active_sport())
+    if prog:
+        this_, last_ = prog
+        if last_ is not None:
+            d = this_ - last_
+            if d > 0.05:
+                st.caption(f"📈 Your best 2 s this season: **{this_:.1f} km/h** "
+                           f"(+{d:.1f} vs last year — new personal progress!)")
+            elif d < -0.05:
+                st.caption(f"Your best 2 s this season: **{this_:.1f} km/h** · "
+                           f"last year you hit {last_:.1f} km/h — go reclaim it! 💪")
+            else:
+                st.caption(f"📊 Your best 2 s this season: **{this_:.1f} km/h** "
+                           f"(matching last year — time for a new PB!)")
 
 
 def render_my_results_page(user):
