@@ -80,8 +80,13 @@ def main():
             manifest.append(f"{t}: FEHLER ({exc})")
             continue
         # Binärspalten base64-kodieren, damit sie sauber in CSV passen.
+        # Nur object-Spalten prüfen (datetime/numerische dtypes auslassen) und am
+        # ersten Nicht-NULL-Wert erkennen, ob es Bytes sind.
         for col in df.columns:
-            if df[col].map(lambda v: isinstance(v, (bytes, bytearray, memoryview))).any():
+            if df[col].dtype != object:
+                continue
+            sample = df[col].dropna()
+            if len(sample) and isinstance(sample.iloc[0], (bytes, bytearray, memoryview)):
                 df[col] = df[col].map(_b64_if_bytes)
         df.to_csv(os.path.join(out_dir, f"{t}.csv"), index=False, encoding="utf-8")
         total_rows += len(df)
