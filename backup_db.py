@@ -36,14 +36,31 @@ def _b64_if_bytes(v):
 
 
 def main():
-    url = os.environ.get("DATABASE_URL")
-    if not url:
+    raw = os.environ.get("DATABASE_URL")
+    if not raw:
         print("FEHLER: Umgebungsvariable DATABASE_URL ist nicht gesetzt.")
-        print('  PowerShell:  $env:DATABASE_URL = "postgresql+psycopg2://…"')
+        print('  PowerShell:  $env:DATABASE_URL = "postgresql://…"')
         sys.exit(1)
 
-    # SQLAlchemy versteht 'postgresql://' und 'postgresql+psycopg2://'.
-    engine = create_engine(url)
+    # Auf reines 'postgresql://' normalisieren, dann den vorhandenen Treiber waehlen
+    # (psycopg2 ODER psycopg v3). Beide verstehen die Neon-URL inkl. ?sslmode=require.
+    base = raw
+    for pfx in ("postgresql+psycopg2://", "postgresql+psycopg://", "postgresql+pg8000://"):
+        base = base.replace(pfx, "postgresql://")
+    driver = None
+    try:
+        import psycopg2  # noqa: F401
+        driver = "postgresql+psycopg2"
+    except ImportError:
+        try:
+            import psycopg  # noqa: F401  (psycopg 3)
+            driver = "postgresql+psycopg"
+        except ImportError:
+            print("Kein Postgres-Treiber installiert. Bitte EINEN davon installieren:")
+            print('   python -m pip install "psycopg[binary]"      (empfohlen, Python 3.14)')
+            print("   python -m pip install psycopg2-binary")
+            sys.exit(1)
+    engine = create_engine(base.replace("postgresql://", driver + "://", 1))
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     out_dir = f"db-backup-{stamp}"
     os.makedirs(out_dir, exist_ok=True)
