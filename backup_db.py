@@ -15,7 +15,7 @@ AUSFÜHREN (Windows PowerShell), im Ordner dieses Skripts:
 (Die DATABASE_URL ist genau der String aus den Render-Env-Variablen des
 App-Service. NICHT ins Git/öffentlich – nur lokal als Umgebungsvariable setzen.)
 
-Ergebnis: Ordner  db-backup-YYYYMMDD-HHMMSS\  mit je einer CSV pro Tabelle
+Ergebnis: Ordner  db-backup-YYYYMMDD-HHMMSS/  mit je einer CSV pro Tabelle
 + _manifest.txt (Tabellen + Zeilenzahl). Den Ordner danach an einen sicheren
 Ort kopieren (Cloud-Speicher / externe Platte).
 """
