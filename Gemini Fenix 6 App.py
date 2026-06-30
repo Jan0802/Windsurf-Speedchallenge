@@ -7234,10 +7234,22 @@ if "spotadmin" in st.query_params:
 # E-Mail-Bestätigung per ?verify=<token> – schaltet das Konto frei, dann Login.
 if "verify" in st.query_params:
     ensure_schema()
-    ok, msg = verify_email_token(st.query_params.get("verify"))
-    st.markdown(f"## {'✅' if ok else '⚠️'} Account confirmation")
-    (st.success if ok else st.error)(msg)
-    st.link_button("➡️ Go to login", _app_base_url(), use_container_width=True)
+    _vtoken = st.query_params.get("verify")
+    st.markdown("## ✅ Account confirmation")
+    # WICHTIG: Token NICHT schon beim bloßen Aufruf einlösen. Manche Firmen-Mail-
+    # Systeme (Microsoft Safe Links, Mimecast, Proofpoint …) rufen Links vorab auf,
+    # um sie zu prüfen – das würde ein Einmal-Token "verbrauchen", bevor der Nutzer
+    # klickt ("invalid or already used"). Erst der Button-Klick eines Menschen löst ein.
+    _vres = st.session_state.get("_verify_result")
+    if not (_vres and _vres.get("token") == _vtoken):
+        st.write("Click the button below to confirm your email address and activate your account.")
+        if st.button("✅ Confirm my account", type="primary", use_container_width=True):
+            ok, msg = verify_email_token(_vtoken)
+            st.session_state["_verify_result"] = {"token": _vtoken, "ok": ok, "msg": msg}
+            st.rerun()
+    else:
+        (st.success if _vres["ok"] else st.error)(_vres["msg"])
+        st.link_button("➡️ Go to login", _app_base_url(), use_container_width=True)
     st.stop()
 
 logo_img = image_to_base64(app_path("assets", "windsurfer.png"))
