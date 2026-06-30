@@ -8797,6 +8797,178 @@ def render_my_results_rank(name, spot):
     )
 
 
+# ===========================================================================
+#  "Zeig mir, wo ich vorne bin" – findet automatisch die Teilwertung, in der der
+#  Fahrer am besten dasteht, und zeigt sie als Erfolg (statt "Platz 3890 gesamt").
+#  v1: einfache 1-Dimensions-Kontexte (gesamt / pro Spot / Gewichtsklasse / dieses
+#  Jahr) × Metriken; Score waehlt den glaubwuerdigsten Bestwert. Mindestfeld klein
+#  (Testphase) -> spaeter hochsetzen.
+# ===========================================================================
+_BP_MIN_FIELD = 2   # Mindest-Vergleichsfeld; spaeter z.B. auf 8 hochsetzen.
+
+_BP_METRICS_BASE = [
+    ("speed_1s_kmh", "top speed (2 s)", "km/h"),
+    ("speed_30s_kmh", "30 s speed", "km/h"),
+    ("total_distance_km", "distance", "km"),
+]
+_BP_METRICS_WIND = [
+    ("max_jump_m", "highest jump", "m"),
+    ("max_airtime_s", "airtime", "s"),
+]
+
+
+def _bp_rank_in(df, name, metric):
+    """Rang des Fahrers in df nach metric (bester Wert je Fahrer)."""
+    if metric not in df.columns:
+        return None
+    d = df.copy()
+    d[metric] = pd.to_numeric(d[metric], errors="coerce")
+    d = d.dropna(subset=[metric])
+    if d.empty:
+        return None
+    best = (d.sort_values(metric, ascending=False)
+            .drop_duplicates(subset="name", keep="first").reset_index(drop=True))
+    names = best["name"].astype(str).tolist()
+    if name not in names:
+        return None
+    r = names.index(name) + 1
+    return r, len(names), float(best.iloc[r - 1][metric])
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def best_placement(name, sport):
+    """Bester glaubwuerdiger Teilwertungs-Rang des Fahrers. -> dict mit top/others
+    ODER {'fallback': ...} ODER None."""
+    df = complete_sessions(load_sessions(sport))
+    if df is None or df.empty or "name" not in df.columns:
+        return None
+    df = df.copy()
+    df["name"] = df["name"].astype(str)
+    if name not in set(df["name"]):
+        return {"fallback": "welcome"}
+
+    metrics = list(_BP_METRICS_BASE)
+    if sport in ("windsurf", "kitesurf", "wingsurf", "wakeboard"):
+        metrics += _BP_METRICS_WIND
+
+    contexts = [("overall", "overall", df)]
+    if "surfspot" in df.columns:
+        for sp in df[df["name"] == name]["surfspot"].dropna().astype(str).unique():
+            if sp.strip():
+                contexts.append(("spot", f"at {sp}", df[df["surfspot"].astype(str) == sp]))
+    if "date" in df.columns:
+        yr = datetime.now().year
+        dd = df[pd.to_datetime(df["date"], errors="coerce", format="mixed").dt.year == yr]
+        contexts.append(("year", "this year", dd))
+    weights = load_user_weights()
+    w = weights.get(name)
+    if w:
+        lo, hi = w - 5, w + 5
+        peers = [n for n, wt in weights.items() if lo <= wt <= hi]
+        contexts.append(("weight", f"among riders {int(round(lo))}–{int(round(hi))} kg",
+                         df[df["name"].isin(peers)]))
+
+    dim_w = {"overall": 1.0, "spot": 1.0, "weight": 0.95, "year": 0.9}
+    cands = []
+    for dim, ctx_label, sub in contexts:
+        if sub is None or sub.empty:
+            continue
+        for mkey, mlabel, unit in metrics:
+            res = _bp_rank_in(sub, name, mkey)
+            if not res:
+                continue
+            r, n, val = res
+            if n < _BP_MIN_FIELD:
+                continue
+            pct = r / n
+            strength = (n - r) / max(1, n - 1)
+            podium = {1: 1.0, 2: 0.7, 3: 0.5}.get(r, 0.0)
+            field = float(np.log10(n + 1))
+            score = (strength * 2 + podium * 1.5 + 0.4) * field * dim_w[dim]
+            cands.append({"dim": dim, "ctx": ctx_label, "metric": mlabel, "unit": unit,
+                          "rank": r, "total": n, "value": val, "pct": pct, "score": score})
+
+    # Nur ehrlich-positive Kontexte: Sieg, Podium (nicht Letzter) oder obere Haelfte.
+    positive = [c for c in cands
+                if c["rank"] == 1 or (c["rank"] <= 3 and c["rank"] < c["total"]) or c["pct"] <= 0.5]
+    if not positive:
+        d = df[df["name"] == name]
+        v = pd.to_numeric(d.get("speed_1s_kmh"), errors="coerce").max()
+        return {"fallback": "solo", "best2s": (None if pd.isna(v) else float(v))}
+
+    positive.sort(key=lambda c: c["score"], reverse=True)
+    top = positive[0]
+    # Weitere Bestwerte: je ein anderer KONTEXT (Abwechslung statt 3x derselbe Spot).
+    others, seen_ctx = [], {top["ctx"]}
+    for c in positive[1:]:
+        if c["ctx"] in seen_ctx:
+            continue
+        seen_ctx.add(c["ctx"])
+        others.append(c)
+        if len(others) >= 3:
+            break
+    return {"top": top, "others": others}
+
+
+def _bp_tier(c):
+    """Kurzes Erfolgs-Label je nach Stärke der Platzierung."""
+    r, pct = c["rank"], c["pct"]
+    if r == 1:
+        return "🥇 #1"
+    if r <= 3 and r < c["total"]:
+        return f"🏅 #{r}"
+    if pct <= 0.10:
+        return "🔥 Top 10%"
+    if pct <= 0.25:
+        return "💪 Top 25%"
+    return "👍 Top half"
+
+
+def render_best_placement(name):
+    """Hero-Badge: wo der Fahrer gerade am besten dasteht (+ weitere Bestwerte)."""
+    try:
+        bp = best_placement(name, active_sport())
+    except Exception:  # noqa: BLE001
+        return
+    if not bp:
+        return
+    if bp.get("fallback") == "welcome":
+        st.info("🌊 Welcome! Record or upload your first complete session "
+                "(spot + board + sail/kite) to enter the ranking.")
+        return
+    if bp.get("fallback") == "solo":
+        if bp.get("best2s"):
+            st.info(f"💪 Your best 2 s so far: **{bp['best2s']:.1f} km/h**. "
+                    "As more riders join, your ranking spots will appear here.")
+        else:
+            st.info("🌊 Your sessions are in — keep logging to climb the ranking!")
+        return
+
+    t = bp["top"]
+    headline = f"{_bp_tier(t)} · {t['metric']} {t['ctx']}"
+    pct_txt = f"Top {max(1, round(t['pct'] * 100))}% of {t['total']}"
+    val_txt = f"your {t['value']:.1f} {t['unit']}"
+    st.markdown(
+        "<div style='background:linear-gradient(135deg,rgba(43,212,217,.18),rgba(43,212,217,.04));"
+        "border:1px solid rgba(43,212,217,.45);border-radius:16px;padding:14px 20px;margin:2px 0 8px;'>"
+        "<div style='font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#8fd9e3;'>"
+        "Where you're ahead right now</div>"
+        f"<div style='font-size:22px;font-weight:800;margin-top:3px;'>{headline}</div>"
+        f"<div style='color:#bcd4dd;margin-top:2px;'>{pct_txt} · {val_txt}</div></div>",
+        unsafe_allow_html=True,
+    )
+    if bp["others"]:
+        chips = "".join(
+            "<span style='display:inline-block;background:rgba(255,255,255,.06);"
+            "border:1px solid rgba(255,255,255,.16);border-radius:20px;padding:5px 12px;"
+            "margin:0 8px 6px 0;font-size:13px;color:#dceaf0;'>"
+            f"{_bp_tier(c)} · {c['metric']} {c['ctx']} <span style='opacity:.6;'>"
+            f"(Top {max(1, round(c['pct'] * 100))}% of {c['total']})</span></span>"
+            for c in bp["others"]
+        )
+        st.markdown(f"<div style='margin:-2px 0 6px;'>{chips}</div>", unsafe_allow_html=True)
+
+
 def render_my_results_page(user):
     """Persönliche Seite: KPI-Rekorde, eigener Rang, Bestleistungen (mit Filter),
     eigene Sessions + Detailanalyse und der „complete my sessions“-Editor – alles
@@ -8807,6 +8979,9 @@ def render_my_results_page(user):
         "Your personal bests, your sessions and their analysis · "
         f"{SPORT_META[active_sport()]['label']}"
     )
+
+    # --- "Wo du gerade vorne bist" – Erfolgs-Badge zur Begrüßung ---
+    render_best_placement(name)
 
     # --- Headline-KPIs (Allzeit-Rekorde + Performance-Index) ---
     render_my_results_kpis(name)
