@@ -7,6 +7,9 @@ spots.json
 # Secrets (DATABASE_URL etc.) – niemals committen!
 .streamlit/secrets.toml
 
+# DB-Backups (enthalten E-Mails/Tokens/GPS) – niemals committen!
+db-backup-*/
+
 # Python
 __pycache__/
 *.pyc
