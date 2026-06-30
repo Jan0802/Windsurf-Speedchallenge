@@ -9029,6 +9029,18 @@ def render_best_placement(name):
                 st.caption(f"📊 Your best 2 s this season: **{this_:.1f} km/h** "
                            f"(matching last year — time for a new PB!)")
 
+    # Teilen (nur beim Aufklappen/Klick – kostet die Seitenladezeit nichts).
+    share = (f"{_bp_tier(t)} — {t['metric']} {t['ctx']} on MyWaterSessions "
+             f"(Top {max(1, round(t['pct'] * 100))}% of {t['total']}) 🌊 https://mywatersessions.com")
+    with st.expander("📣 Share this"):
+        st.code(share, language=None)
+        sc = st.columns(2)
+        sc[0].link_button("WhatsApp", f"https://wa.me/?{urlencode({'text': share})}",
+                          use_container_width=True)
+        sc[1].link_button("X / Twitter",
+                          f"https://twitter.com/intent/tweet?{urlencode({'text': share})}",
+                          use_container_width=True)
+
 
 def render_my_results_page(user):
     """Persönliche Seite: KPI-Rekorde, eigener Rang, Bestleistungen (mit Filter),
