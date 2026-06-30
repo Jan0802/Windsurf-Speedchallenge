@@ -5427,8 +5427,8 @@ def _spot_tv_live(cfg):
     st.markdown(f"<div class='tv-cards' translate='no' data-r='{rk}'>{cards}</div>",
                 unsafe_allow_html=True)
 
-    # Leaderboard zeigt 1s ODER 30s und wechselt automatisch (~alle 30 s).
-    metric = "30s" if (int(now.timestamp()) // 30) % 2 else "1s"
+    # Leaderboard zeigt 1s ODER 30s und wechselt automatisch (~alle 60 s).
+    metric = "30s" if (int(now.timestamp()) // 60) % 2 else "1s"
     metric_lbl = "Top 2 s" if metric == "1s" else "Top 30 s"
     st.markdown(
         f"<div class='tv-rank-title' translate='no'>🏁 {scope_title} leaderboard · {metric_lbl}</div>",
@@ -5437,7 +5437,7 @@ def _spot_tv_live(cfg):
                 unsafe_allow_html=True)
 
     st.markdown(f"<div class='tv-update' translate='no'>⏱️ Last update: {now.strftime('%H:%M')} "
-                f"· auto-refresh 30 s · switches 2 s / 30 s</div>", unsafe_allow_html=True)
+                f"· auto-refresh 30 s · 2 s / 30 s switch every 60 s</div>", unsafe_allow_html=True)
 
 
 # Sponsor je Spot. logo = Dateiname in assets/, name/url optional.
