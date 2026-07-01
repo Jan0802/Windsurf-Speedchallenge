@@ -783,6 +783,18 @@ spot_managers_table = Table(
     Column("created_at", DateTime, server_default=func.now()),
 )
 
+# Feedback/Kontakt (ohne Konto). Landet NUR im Backoffice (keine Mail).
+feedback_table = Table(
+    "feedback", DB_METADATA,
+    Column("id", Integer, primary_key=True),
+    Column("message", String, nullable=False),
+    Column("name", String(120)),
+    Column("email", String(200)),
+    Column("source", String(40)),        # woher, z.B. "login" / "sidebar"
+    Column("handled", Boolean, nullable=False, default=False),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
 # Spot-Infos fuers Spot-TV (unten): Beschreibungstext + Bild (Bytes) ODER eine
 # Webcam-/Bild-URL. Im Admin-Backoffice editierbar.
 spot_info_table = Table(
@@ -1815,9 +1827,80 @@ def _ensure_ad_tables():
         spot_info_table.create(get_engine(), checkfirst=True)
         spot_images_table.create(get_engine(), checkfirst=True)
         spot_managers_table.create(get_engine(), checkfirst=True)
+        feedback_table.create(get_engine(), checkfirst=True)
     except Exception:
         logging.exception("Werbe-Tabellen konnten nicht angelegt werden")
     return True
+
+
+# ---- Feedback / Kontakt (nur Backoffice, keine Mail) ----
+def save_feedback(message, name="", email="", source=""):
+    msg = (message or "").strip()
+    if len(msg) < 3:
+        return False
+    _ensure_ad_tables()
+    with get_engine().begin() as conn:
+        conn.execute(insert(feedback_table).values(
+            message=msg[:4000], name=(name or "").strip()[:120] or None,
+            email=(email or "").strip()[:200] or None, source=(source or "")[:40] or None,
+        ))
+    return True
+
+
+def list_feedback(limit=200):
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(feedback_table).order_by(feedback_table.c.created_at.desc()).limit(limit)
+        ).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def feedback_unhandled_count():
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        return conn.execute(
+            select(func.count()).select_from(feedback_table)
+            .where(feedback_table.c.handled.is_(False))
+        ).scalar() or 0
+
+
+def set_feedback_handled(fid, handled=True):
+    _ensure_ad_tables()
+    with get_engine().begin() as conn:
+        conn.execute(update(feedback_table).where(feedback_table.c.id == int(fid))
+                     .values(handled=bool(handled)))
+
+
+def delete_feedback(fid):
+    _ensure_ad_tables()
+    with get_engine().begin() as conn:
+        conn.execute(delete(feedback_table).where(feedback_table.c.id == int(fid)))
+
+
+def render_feedback_form(source="", key_prefix=""):
+    """Kompaktes Feedback-Formular. Nachrichten landen im Backoffice (keine Mail)."""
+    flash = st.session_state.pop(f"_fb_ok_{key_prefix}", None)
+    if flash:
+        st.success("🙏 Thanks for your message — it helps us improve!")
+    with st.form(f"feedback_form_{key_prefix}", clear_on_submit=True):
+        msg = st.text_area(
+            "Your message", key=f"fb_msg_{key_prefix}",
+            placeholder="What's missing, unclear or not working? Ideas welcome too.",
+            height=110,
+        )
+        c1, c2 = st.columns(2)
+        nm = c1.text_input("Name (optional)", key=f"fb_name_{key_prefix}")
+        em = c2.text_input("Email (optional, only if you'd like a reply)", key=f"fb_mail_{key_prefix}")
+        sent = st.form_submit_button("Send feedback")
+    if sent:
+        if len((msg or "").strip()) < 3:
+            st.warning("Please enter a short message.")
+        else:
+            save_feedback(msg, nm, em, source)
+            st.session_state[f"_fb_ok_{key_prefix}"] = True
+            st.rerun()
+    st.caption("We read every message but can't always reply. No account needed.")
 
 
 # ---- Sponsor-Self-Service: per-Spot-Login (Admin 2) ------------------------
@@ -6790,6 +6873,39 @@ def _admin_stats():
         return None
 
 
+def render_admin_feedback():
+    st.caption("Nachrichten aus dem Feedback-Formular – nur hier sichtbar, keine Mail.")
+    items = list_feedback()
+    if not items:
+        st.info("Noch kein Feedback.")
+        return
+    open_n = sum(1 for f in items if not f.get("handled"))
+    st.markdown(f"**{len(items)}** Nachrichten · **{open_n}** offen")
+    for f in items:
+        _ca = f.get("created_at")
+        when = _ca.strftime("%d.%m.%Y %H:%M") if hasattr(_ca, "strftime") else str(_ca or "")
+        who = f.get("name") or "anonym"
+        mark = "" if f.get("handled") else "🟡 "
+        with st.expander(f"{mark}{who} · {when}"):
+            st.write(f.get("message") or "")
+            if f.get("email"):
+                st.caption(f"✉️ {f['email']}")
+            if f.get("source"):
+                st.caption(f"Quelle: {f['source']}")
+            b1, b2 = st.columns(2)
+            if not f.get("handled"):
+                if b1.button("✓ Erledigt", key=f"fbdone_{f['id']}"):
+                    set_feedback_handled(f["id"], True)
+                    _admin_flash("Als erledigt markiert.")
+            else:
+                if b1.button("↩︎ Wieder offen", key=f"fbopen_{f['id']}"):
+                    set_feedback_handled(f["id"], False)
+                    _admin_flash("Wieder als offen markiert.")
+            if b2.button("🗑️ Löschen", key=f"fbdel_{f['id']}"):
+                delete_feedback(f["id"])
+                _admin_flash("Feedback gelöscht.")
+
+
 def render_admin():
     st.markdown("# 🔧 Backoffice")
 
@@ -6846,14 +6962,18 @@ def render_admin():
                   help="Fahrer mit mindestens einer Session.")
         st.markdown("---")
 
-    tab_ads, tab_profiles, tab_analytics = st.tabs(
-        ["📣 Werbung pro Spot", "👤 Profile", "📊 Web Analytics"])
+    _fb_new = feedback_unhandled_count()
+    fb_label = f"💬 Feedback ({_fb_new})" if _fb_new else "💬 Feedback"
+    tab_ads, tab_profiles, tab_analytics, tab_fb = st.tabs(
+        ["📣 Werbung pro Spot", "👤 Profile", "📊 Web Analytics", fb_label])
     with tab_ads:
         render_admin_ads()
     with tab_profiles:
         render_admin_profiles()
     with tab_analytics:
         render_admin_analytics()
+    with tab_fb:
+        render_admin_feedback()
 
 
 def render_admin_ads():
@@ -8109,6 +8229,12 @@ def render_login():
                 else:
                     st.error(message)
 
+    st.markdown("---")
+    with st.expander("💬 Feedback / Contact — no account needed"):
+        st.caption("Something missing, unclear or not working? Tell us — it helps us "
+                   "improve MyWaterSessions.")
+        render_feedback_form(source="login", key_prefix="login")
+
 
 def render_achievements(ach):
     """Hebt die Rekorde der gerade hochgeladenen Session hervor (für den Fahrer)."""
@@ -8506,6 +8632,9 @@ def render_account_sidebar(user):
 
         st.markdown("---")
         render_user_profile(user)
+
+        with st.expander("💬 Feedback / idea?"):
+            render_feedback_form(source="sidebar", key_prefix="sidebar")
 
         st.markdown("---")
         st.markdown("### 👥 Groups")
