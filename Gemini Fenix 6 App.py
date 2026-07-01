@@ -301,8 +301,17 @@ def kmh_to_beaufort(kmh):
     return 12
 
 
+try:
+    from PIL import Image as _PILImage
+    _PAGE_ICON = _PILImage.open(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "app-icon.png")
+    )
+except Exception:  # noqa: BLE001 – Icon fehlt -> Emoji-Fallback
+    _PAGE_ICON = "🌊"
+
 st.set_page_config(
     page_title="MyWaterSessions",
+    page_icon=_PAGE_ICON,
     layout="wide",
     initial_sidebar_state="collapsed",
 )
