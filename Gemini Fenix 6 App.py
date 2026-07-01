@@ -5483,15 +5483,27 @@ def _spot_tv_live(cfg):
     top30 = _mx(scope, "speed_30s_kmh")
 
     leader = "–"
-    leader_board = "–"
-    leader_date = "–"
     if not scope.empty and "speed_1s_kmh" in scope.columns:
         t = scope.copy()
         t["_s"] = pd.to_numeric(t["speed_1s_kmh"], errors="coerce")
-        t = t.dropna(subset=["_s"]).reset_index(drop=True)
+        t = t.dropna(subset=["_s"])
         if not t.empty:
-            row = t.loc[t["_s"].idxmax()]
-            leader = str(row["name"])
+            leader = str(t.loc[t["_s"].idxmax(), "name"])
+
+    # Angezeigte Leaderboard-Wertung (wechselt automatisch ~alle 60 s). Record
+    # date + Board richten sich danach: bei "30 s" gehoeren sie zum 30-s-Rekord.
+    metric = "30s" if (int(now.timestamp()) // 60) % 2 else "1s"
+    metric_lbl = "Top 2 s" if metric == "1s" else "Top 30 s"
+    metric_word = "2 s" if metric == "1s" else "30 s"
+    metric_col = "speed_1s_kmh" if metric == "1s" else "speed_30s_kmh"
+    leader_board = "–"
+    leader_date = "–"
+    if not scope.empty and metric_col in scope.columns:
+        tr = scope.copy()
+        tr["_r"] = pd.to_numeric(tr[metric_col], errors="coerce")
+        tr = tr.dropna(subset=["_r"]).reset_index(drop=True)
+        if not tr.empty:
+            row = tr.loc[tr["_r"].idxmax()]
             _b = str(row.get("board") or "").strip()
             if _b and _b.lower() not in ("none", "nan", "null"):
                 leader_board = _b
@@ -5514,17 +5526,15 @@ def _spot_tv_live(cfg):
         _tv_card(f"🔥 Top 30s {period_word}", f"{top30:.1f}" if top30 else "–", "km/h" if top30 else ""),
         _tv_card("🏄 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
         _tv_card(leader_label, leader),
-        _tv_card("📅 Record date", leader_date),
-        _tv_card("🏄 Board", leader_board),
+        _tv_card("📅 Record date", leader_date, metric_word),
+        _tv_card("🏄 Board", leader_board, metric_word),
         _tv_card("🧭 Last activity", last_txt),
     ])
     rk = now.strftime("%H%M%S")  # wechselt je Refresh -> erzwingt Re-Mount (Animation)
     st.markdown(f"<div class='tv-cards' translate='no' data-r='{rk}'>{cards}</div>",
                 unsafe_allow_html=True)
 
-    # Leaderboard zeigt 1s ODER 30s und wechselt automatisch (~alle 60 s).
-    metric = "30s" if (int(now.timestamp()) // 60) % 2 else "1s"
-    metric_lbl = "Top 2 s" if metric == "1s" else "Top 30 s"
+    # metric / metric_lbl wurden oben bereits bestimmt (Kacheln + Leaderboard nutzen dieselbe Wertung).
     st.markdown(
         f"<div class='tv-rank-title' translate='no'>🏁 {scope_title} leaderboard · {metric_lbl}</div>",
         unsafe_allow_html=True)
