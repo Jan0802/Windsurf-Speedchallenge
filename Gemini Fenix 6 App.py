@@ -111,6 +111,24 @@ BETA_BADGE = (
     "Beta 0.76</span>"
 )
 
+# Datum des letzten Deploys (bei jedem Ausrollen aktualisieren) + Beta-Erklaerung.
+LAST_UPDATE = "1 Jul 2026"
+BETA_WHY = (
+    "**MyWaterSessions is brand new.** Everything here works, but it hasn't had a real "
+    "load test yet — so far there simply haven't been many riders on the server at the "
+    "same time. So you might occasionally hit a rough edge or a slower moment. "
+    "We're improving it constantly — thanks for being one of the first on board! 🌊"
+)
+
+
+def render_beta_note():
+    """Kleines 'Last update'-Datum + ?-Popover, das erklaert, warum Beta."""
+    c1, c2, _sp = st.columns([3, 2, 5])
+    c1.caption(f"🔧 Last update: {LAST_UPDATE}")
+    with c2.popover("❓ Why Beta?"):
+        st.markdown(BETA_WHY)
+
+
 SPORT_META = {
     "windsurf": {
         "label": "🏄 Windsurf",
@@ -7447,6 +7465,8 @@ st.markdown(f"""
     </div>
 </div>
 """, unsafe_allow_html=True)
+
+render_beta_note()
 
 
 # Rechtsseiten (Impressum/Datenschutz) zuerst behandeln – ohne Login erreichbar.
