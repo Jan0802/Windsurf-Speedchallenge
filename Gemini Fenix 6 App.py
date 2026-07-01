@@ -652,6 +652,8 @@ sessions_table = Table(
     Column("speed_1s_kn", Float),
     Column("speed_30s_kmh", Float),
     Column("speed_30s_kn", Float),
+    Column("speed_500m_kmh", Float),     # beste Ø-Geschwindigkeit über 500 m
+    Column("speed_nm_kmh", Float),       # beste Ø-Geschwindigkeit über 1 Seemeile (1852 m)
     Column("wind_kmh", Float),
     Column("gust_kmh", Float),
     Column("wind_dir_deg", Float),
@@ -1004,6 +1006,8 @@ def ensure_schema():
 
 
 _WATCH_COLUMNS = {
+    "speed_500m_kmh": "DOUBLE PRECISION",
+    "speed_nm_kmh": "DOUBLE PRECISION",
     "jumps": "INTEGER",
     "max_airtime_s": "DOUBLE PRECISION",
     "max_jump_m": "DOUBLE PRECISION",
@@ -2981,6 +2985,8 @@ def delete_user_pref(username):
 RECORD_METRICS = [
     {"key": "speed_1s_kmh", "label": "Top speed 2 s", "unit": "km/h", "decimals": 2},
     {"key": "speed_30s_kmh", "label": "Top speed 30 s", "unit": "km/h", "decimals": 2},
+    {"key": "speed_500m_kmh", "label": "Best 500 m", "unit": "km/h", "decimals": 2},
+    {"key": "speed_nm_kmh", "label": "Best nautical mile", "unit": "km/h", "decimals": 2},
     {"key": "longest_run_km", "label": "Longest run", "unit": "km", "decimals": 3},
     {"key": "total_distance_km", "label": "Total distance", "unit": "km", "decimals": 2},
 ]
@@ -4512,6 +4518,37 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
 
         st.dataframe(r1, width="stretch", hide_index=True, height=df_height(len(r1)))
 
+    if {"speed_500m_kmh", "speed_nm_kmh"}.issubset(ranking.columns):
+        rcol5, rcol6 = st.columns(2)
+
+        def _dist_table(container, col, title, unit_label):
+            with container:
+                st.markdown(f"### {title}")
+                tab = ranking[[
+                    "date", "name", col, "surfspot", "board", "sail", "Weather", "Trust",
+                ]].copy()
+                tab = (
+                    tab.dropna(subset=[col])
+                    .sort_values(col, ascending=False)
+                    .drop_duplicates(subset="name", keep="first")
+                    .reset_index(drop=True)
+                    .head(RANKING_TOP_N)
+                )
+                if tab.empty:
+                    st.caption("No entries yet – needs a FIT upload (or the watch update).")
+                    return
+                tab.insert(0, "Rank", tab.index + 1)
+                tab[f"{unit_label} kn"] = (
+                    pd.to_numeric(tab[col], errors="coerce") / 1.852).round(2)
+                tab = tab.rename(columns={
+                    "date": "Date", "name": "Name", "surfspot": "Surf spot",
+                    "board": "Board", "sail": gear_label, col: f"{unit_label} km/h",
+                })
+                st.dataframe(tab, width="stretch", hide_index=True, height=df_height(len(tab)))
+
+        _dist_table(rcol5, "speed_500m_kmh", "📏 Best 500 m", "500m")
+        _dist_table(rcol6, "speed_nm_kmh", "⚓ Best nautical mile", "nm")
+
     rcol3, rcol4 = st.columns(2)
 
     with rcol3:
@@ -4708,6 +4745,38 @@ def best_average_speed(df, seconds):
         return None
 
     return float(best)
+
+
+def best_distance_speed(df, meters):
+    """Schnellste Durchschnittsgeschwindigkeit (km/h) über ein zusammenhängendes
+    Streckenfenster von >= `meters` Metern – die GPS-Speedsurf-Disziplinen
+    500 m und Seemeile (1852 m). Braucht Zeit + kumulierte Distanz je Punkt
+    (wie sie FIT-Dateien liefern). Zwei-Zeiger-Verfahren, O(n)."""
+    if "timestamp" not in df.columns or "distance" not in df.columns:
+        return None
+    d = df[["timestamp", "distance"]].dropna()
+    if len(d) < 2:
+        return None
+    d = d.sort_values("timestamp")
+    ts = pd.to_datetime(d["timestamp"])
+    t = (ts - ts.iloc[0]).dt.total_seconds().to_numpy()  # Sekunden (einheiten-sicher)
+    dist = pd.to_numeric(d["distance"], errors="coerce").to_numpy()      # kumuliert, m
+    n = len(dist)
+    best = 0.0
+    j = 0
+    for i in range(n):
+        if j < i:
+            j = i
+        while j < n and (dist[j] - dist[i]) < meters:
+            j += 1
+        if j >= n:
+            break
+        dt = t[j] - t[i]
+        if dt > 0:
+            v = (dist[j] - dist[i]) / dt * 3.6  # m/s -> km/h
+            if v > best:
+                best = v
+    return best if best > 0 else None
 
 
 def detect_runs(df):
@@ -8809,6 +8878,8 @@ _BP_MIN_FIELD = 2   # Mindest-Vergleichsfeld; spaeter z.B. auf 8 hochsetzen.
 _BP_METRICS_BASE = [
     ("speed_1s_kmh", "top speed (2 s)", "km/h"),
     ("speed_30s_kmh", "30 s speed", "km/h"),
+    ("speed_500m_kmh", "500 m", "km/h"),
+    ("speed_nm_kmh", "nautical mile", "km/h"),
     ("total_distance_km", "distance", "km"),
 ]
 _BP_METRICS_WIND = [
@@ -9402,12 +9473,16 @@ if fit_source is not None:
     avg_speed = None
     best_1s = None
     best_30s = None
+    best_500m = None
+    best_nm = None
 
     if "speed_kmh" in df.columns:
         max_speed = df["speed_kmh"].max()
         avg_speed = df["speed_kmh"].mean()
         best_1s = best_average_speed(df, 1)
         best_30s = best_average_speed(df, 30)
+    best_500m = best_distance_speed(df, 500)
+    best_nm = best_distance_speed(df, 1852)
 
     distance_km = None
 
@@ -9612,6 +9687,8 @@ if fit_source is not None:
                     "speed_1s_kn": None if best_1s is None else round(best_1s / 1.852, 2),
                     "speed_30s_kmh": None if best_30s is None else round(best_30s, 2),
                     "speed_30s_kn": None if best_30s is None else round(best_30s / 1.852, 2),
+                    "speed_500m_kmh": None if best_500m is None else round(best_500m, 2),
+                    "speed_nm_kmh": None if best_nm is None else round(best_nm, 2),
                     "wind_kmh": None if weather is None or weather["wind"] is None else round(weather["wind"], 1),
                     "gust_kmh": None if weather is None or weather["gust"] is None else round(weather["gust"], 1),
                     "wind_dir_deg": None if weather is None or weather["dir"] is None else round(weather["dir"]),
