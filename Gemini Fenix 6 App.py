@@ -5520,12 +5520,21 @@ const LAT=__LAT__,LON=__LON__;
 const C=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const W={0:"☀️",1:"🌤️",2:"⛅",3:"☁️",45:"🌫️",51:"🌦️",61:"🌦️",63:"🌧️",65:"🌧️",80:"🌦️",81:"🌧️",95:"⛈️"};
 function comp(d){return d==null?"":C[Math.round(d/22.5)%16];}
+function sunset(iso){
+ if(!iso) return ["–",""];
+ var t=iso.slice(11,16), ss=new Date(iso), diff=Math.round((ss-new Date())/60000);
+ if(diff>0){var h=Math.floor(diff/60),m=diff%60; return [t, (h>0?h+" h ":"")+m+" min of light left"];}
+ return [t, "sun has set"];
+}
 function load(){
-fetch("https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+"&current=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=kmh&timezone=auto")
+fetch("https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+"&current=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&daily=sunset&forecast_days=1&wind_speed_unit=kmh&timezone=auto")
 .then(r=>r.json()).then(d=>{const c=d.current||{};
+ var ss=sunset((d.daily&&d.daily.sunset&&d.daily.sunset[0])||"");
  document.getElementById('w').innerHTML=
- "<div class='c'><div class='l'>🌬️ Wind</div><div class='v'>"+Math.round(c.wind_speed_10m)+" km/h</div><div class='l'>Gusts "+Math.round(c.wind_gusts_10m)+" km/h · "+comp(c.wind_direction_10m)+"</div></div>"+
- "<div class='c'><div class='l'>🌡️ Temperature</div><div class='v'>"+(Math.round(c.temperature_2m*10)/10)+" °C</div><div class='l'>"+(W[c.weather_code]||"")+"</div></div>";
+ "<div class='c'><div class='l'>🌬️ Wind</div><div class='v'>"+Math.round(c.wind_speed_10m)+" km/h</div><div class='l'>right now</div></div>"+
+ "<div class='c'><div class='l'>💨 Gusts &amp; direction</div><div class='v'>"+Math.round(c.wind_gusts_10m)+" km/h</div><div class='l'>from "+comp(c.wind_direction_10m)+"</div></div>"+
+ "<div class='c'><div class='l'>🌡️ Temperature</div><div class='v'>"+(Math.round(c.temperature_2m*10)/10)+" °C</div><div class='l'>"+(W[c.weather_code]||"")+"</div></div>"+
+ "<div class='c'><div class='l'>🌅 Sunset</div><div class='v'>"+ss[0]+"</div><div class='l'>"+ss[1]+"</div></div>";
 }).catch(e=>{document.getElementById('w').innerHTML="<div class='c'>Weather unavailable</div>";});
 }
 load(); setInterval(load, 600000);
