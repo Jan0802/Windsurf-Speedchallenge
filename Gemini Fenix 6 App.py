@@ -123,7 +123,7 @@ BETA_WHY = (
 
 def render_beta_note():
     """Kleines 'Last update'-Datum + ?-Popover, das erklaert, warum Beta."""
-    c1, c2, _sp = st.columns([3, 2, 5])
+    c1, c2, _sp = st.columns([2, 1.4, 6.6], vertical_alignment="center")
     c1.caption(f"🔧 Last update: {LAST_UPDATE}")
     with c2.popover("❓ Why Beta?"):
         st.markdown(BETA_WHY)
