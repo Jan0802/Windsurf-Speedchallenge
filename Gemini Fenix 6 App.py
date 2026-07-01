@@ -2236,7 +2236,13 @@ def fetch_product_meta(url):
         return {"error": f"Seite nicht erreichbar ({type(exc).__name__})."}
 
     page = raw.decode("utf-8", errors="replace")
-    title = price = currency = image_url = None
+    title = price = currency = None
+    images = []   # ALLE Bild-Kandidaten sammeln (Reihenfolge = Priorität)
+
+    def _add_img(u):
+        u = _clean_text(u) if u else None
+        if u:
+            images.append(u)
 
     # 1) JSON-LD (zuverlaessigste Quelle fuer Preis)
     for block in re.findall(
@@ -2249,7 +2255,7 @@ def fetch_product_meta(url):
             continue
         for node in _iter_jsonld_products(data):
             title = title or _clean_text(node.get("name"))
-            image_url = image_url or _jsonld_image(node.get("image"))
+            _add_img(_jsonld_image(node.get("image")))
             offers = node.get("offers")
             offer = offers[0] if isinstance(offers, list) and offers else offers
             if isinstance(offer, dict):
@@ -2269,8 +2275,11 @@ def fetch_product_meta(url):
         return _clean_text(c.group(1)) if c else None
 
     title = title or meta("og:title") or meta("twitter:title")
-    image_url = (image_url or meta("og:image") or meta("og:image:secure_url")
-                 or meta("twitter:image") or meta("twitter:image:src"))
+    # og/twitter-Bilder IMMER als zusätzliche Kandidaten aufnehmen (nicht nur als
+    # Fallback) – manche Shops liefern eine kaputte JSON-LD-Bild-URL, aber ein
+    # gültiges og:image (z.B. surf-center.com).
+    for _p in ("og:image", "og:image:secure_url", "twitter:image", "twitter:image:src"):
+        _add_img(meta(_p))
     if price is None:
         price = meta("product:price:amount") or meta("og:price:amount")
     currency = currency or meta("product:price:currency") or meta("og:price:currency")
@@ -2281,13 +2290,19 @@ def fetch_product_meta(url):
         if tm:
             title = _clean_text(tm.group(1))
 
-    if image_url:
-        image_url = urljoin(url, _clean_text(image_url) or "")
+    # Kandidaten absolutieren + deduplizieren (Reihenfolge erhalten).
+    seen, candidates = set(), []
+    for u in images:
+        au = urljoin(url, u)
+        if au not in seen:
+            seen.add(au)
+            candidates.append(au)
 
     return {
         "title": title or "",
         "price": _format_price(price, currency),
-        "image_url": image_url or "",
+        "image_url": candidates[0] if candidates else "",
+        "image_candidates": candidates,
     }
 
 
@@ -6992,8 +7007,13 @@ def _product_editor(spot, prod):
             st.error(meta["error"])
         else:
             img_bytes, img_mime = (None, None)
-            if meta.get("image_url"):
-                img_bytes, img_mime = download_image_bytes(meta["image_url"])
+            # Alle Bild-Kandidaten der Reihe nach probieren, bis eines lädt
+            # (z.B. JSON-LD-URL 404 -> og:image nehmen).
+            for _cand in (meta.get("image_candidates")
+                          or ([meta["image_url"]] if meta.get("image_url") else [])):
+                img_bytes, img_mime = download_image_bytes(_cand)
+                if img_bytes:
+                    break
             st.session_state[prefill_key] = {
                 "url": auto_url,
                 "title": meta.get("title") or "",
