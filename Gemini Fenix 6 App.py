@@ -8781,6 +8781,153 @@ if "user" not in st.session_state:
         )
         st.stop()
 
+# ==========================================================================
+#  Gast-Schnellzugang vom Spot-TV-QR (?join=1) – teilnehmen OHNE Konto.
+#  Spot + Sportart kommen aus der URL (vom TV gesetzt). Der Gast tippt nur
+#  seinen Namen und laedt eine FIT-Datei hoch; Board/Segel = "Guest", damit die
+#  Session sofort in der Bestenliste zaehlt. source="guest".
+# ==========================================================================
+def _guest_process_and_save(fit_source, sport, spot, name):
+    df = read_fit_file(fit_source)
+    if df is None or df.empty:
+        return None, "The FIT file contains no usable data."
+    best_1s = best_average_speed(df, 1)
+    best_30s = best_average_speed(df, 30)
+    best_500m = best_distance_speed(df, 500)
+    best_nm = best_distance_speed(df, 1852)
+    distance_km = (df["distance"].max() / 1000) if "distance" in df.columns else None
+    session_date = None
+    if "timestamp" in df.columns:
+        ts = df["timestamp"].dropna()
+        if not ts.empty:
+            session_date = ts.min().strftime("%Y-%m-%d %H:%M:%S")
+    lat = lon = None
+    if "lat" in df.columns and "lon" in df.columns:
+        gps = df.dropna(subset=["lat", "lon"])
+        if not gps.empty:
+            lat = float(gps["lat"].iloc[0])
+            lon = float(gps["lon"].iloc[0])
+    weather = None
+    _wt = surf_weather_time(df)
+    if _wt is not None and lat is not None:
+        weather = get_weather(lat, lon, _wt.strftime("%Y-%m-%dT%H:%M"))
+    runs = detect_runs(df)
+    longest_run_m = longest_run_km = None
+    if not runs.empty:
+        longest_run_m = float(runs["Distance m"].max())
+        longest_run_km = longest_run_m / 1000
+    spot_top = None
+    try:
+        _all = load_sessions(sport)
+        if spot and not _all.empty and {"surfspot", "speed_1s_kmh"}.issubset(_all.columns):
+            _m = pd.to_numeric(_all.loc[_all["surfspot"].astype(str) == spot, "speed_1s_kmh"],
+                               errors="coerce").max()
+            if pd.notna(_m):
+                spot_top = float(_m)
+    except Exception:
+        spot_top = None
+    trust = compute_trust_score(df, spot_top)
+
+    def _w(k):
+        return None if (weather is None or weather.get(k) is None) else weather.get(k)
+
+    entry = {
+        "sport": sport, "name": name.strip(), "date": session_date, "surfspot": spot,
+        "board": "Guest", "sail": "Guest", "gear_type": None, "filename": "guest-upload",
+        "total_distance_km": None if distance_km is None else round(distance_km, 2),
+        "longest_run_km": None if longest_run_km is None else round(longest_run_km, 3),
+        "longest_run_m": None if longest_run_m is None else round(longest_run_m, 2),
+        "speed_1s_kmh": None if best_1s is None else round(best_1s, 2),
+        "speed_1s_kn": None if best_1s is None else round(best_1s / 1.852, 2),
+        "speed_30s_kmh": None if best_30s is None else round(best_30s, 2),
+        "speed_30s_kn": None if best_30s is None else round(best_30s / 1.852, 2),
+        "speed_500m_kmh": None if best_500m is None else round(best_500m, 2),
+        "speed_nm_kmh": None if best_nm is None else round(best_nm, 2),
+        "wind_kmh": None if _w("wind") is None else round(_w("wind"), 1),
+        "gust_kmh": None if _w("gust") is None else round(_w("gust"), 1),
+        "wind_dir_deg": None if _w("dir") is None else round(_w("dir")),
+        "temp_c": None if _w("temp") is None else round(_w("temp"), 1),
+        "precip_mm": None if _w("precip") is None else round(_w("precip"), 1),
+        "weather_code": None if _w("code") is None else int(_w("code")),
+        "trust_score": trust.get("score") if isinstance(trust, dict) else None,
+        "source": "guest",
+    }
+    save_session(entry)
+    return entry, None
+
+
+def _render_guest_form(sport, spot):
+    st.markdown("### ⚡ Quick entry — no account")
+    st.caption(f"Spot **{spot}** and **{SPORT_META[sport]['label']}** are already set by this "
+               "screen. Just add your name and your session file.")
+    result = st.session_state.get("_guest_result")
+    if result:
+        st.success(f"🎉 You're on today's board, {result['name']}!")
+        cols = st.columns(3)
+        if result.get("s1"):
+            cols[0].metric("Top 2 s", f"{result['s1']:.1f} km/h")
+        if result.get("s30"):
+            cols[1].metric("Top 30 s", f"{result['s30']:.1f} km/h")
+        if result.get("dist"):
+            cols[2].metric("Distance", f"{result['dist']:.1f} km")
+        st.info("Want to keep your history, personal records and your per-spot rank? "
+                "Create a free account any time — it stays free.")
+        if st.button("Done"):
+            st.session_state.pop("_guest_result", None)
+            st.session_state.pop("_join_mode", None)
+            st.rerun()
+        return
+    name = st.text_input("Your name (shown on the leaderboard)", key="guest_name")
+    fit = st.file_uploader("Your session — FIT file (from your Garmin / phone)",
+                           type=["fit"], key="guest_fit")
+    can = bool(name.strip()) and fit is not None
+    if st.button("🏁 Add me to today's ranking", type="primary", disabled=not can,
+                 use_container_width=True):
+        with st.spinner("Reading your session…"):
+            entry, err = _guest_process_and_save(fit, sport, spot, name)
+        if err:
+            st.error(err)
+        elif entry.get("speed_1s_kmh") is None:
+            st.error("No GPS speed found in this file — is it a watersports FIT recording?")
+        else:
+            st.session_state["_guest_result"] = {
+                "name": name.strip(), "s1": entry.get("speed_1s_kmh"),
+                "s30": entry.get("speed_30s_kmh"), "dist": entry.get("total_distance_km"),
+            }
+            st.rerun()
+
+
+def render_join_landing(sport, spot):
+    st.markdown(f"## 📲 Join the ranking · {spot or 'this spot'}")
+    st.caption((SPORT_META.get(sport, {}).get("label", sport)) + (f" · {spot}" if spot else ""))
+    if not spot:
+        st.warning("This link has no spot — please scan the QR code on the Spot-TV screen again.")
+    mode = st.session_state.get("_join_mode")
+    if mode == "guest":
+        _render_guest_form(sport, spot)
+        if not st.session_state.get("_guest_result") and st.button("← Back"):
+            st.session_state.pop("_join_mode", None)
+            st.rerun()
+        return
+    st.write("How would you like to take part?")
+    c1, c2 = st.columns(2)
+    if c1.button("🧑‍💻 Create a free account", use_container_width=True):
+        st.session_state["_join_mode"] = "register"
+        st.rerun()
+    if c2.button("⚡ Just take part (no account)", use_container_width=True, disabled=not spot):
+        st.session_state["_join_mode"] = "guest"
+        st.rerun()
+    st.caption("Account = keeps your history, records & per-spot rank. "
+               "Guest = a one-off entry on today's board.")
+
+
+# Vom QR (?join=1) und noch nicht eingeloggt -> Auswahl Konto/Gast anzeigen.
+# "register" faellt zum normalen Login-/Registrierungs-Gate durch.
+if (st.query_params.get("join") == "1" and not st.session_state.get("user")
+        and st.session_state.get("_join_mode") != "register"):
+    render_join_landing(sport, (st.query_params.get("spot") or "").strip())
+    st.stop()
+
 current_user = st.session_state.get("user")
 
 if not current_user:
