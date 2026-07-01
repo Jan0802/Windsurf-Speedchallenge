@@ -5483,12 +5483,21 @@ def _spot_tv_live(cfg):
     top30 = _mx(scope, "speed_30s_kmh")
 
     leader = "–"
+    leader_board = "–"
+    leader_date = "–"
     if not scope.empty and "speed_1s_kmh" in scope.columns:
         t = scope.copy()
         t["_s"] = pd.to_numeric(t["speed_1s_kmh"], errors="coerce")
-        t = t.dropna(subset=["_s"])
+        t = t.dropna(subset=["_s"]).reset_index(drop=True)
         if not t.empty:
-            leader = str(t.loc[t["_s"].idxmax(), "name"])
+            row = t.loc[t["_s"].idxmax()]
+            leader = str(row["name"])
+            _b = str(row.get("board") or "").strip()
+            if _b and _b.lower() not in ("none", "nan", "null"):
+                leader_board = _b
+            _dt = pd.to_datetime(row.get("date"), errors="coerce")
+            if pd.notna(_dt):
+                leader_date = _dt.strftime("%d.%m.%Y")
 
     # Aktivitaets-Kacheln zaehlen ALLE heutigen Sessions (auch unvollstaendige).
     n_sessions = len(today_df)
@@ -5505,6 +5514,8 @@ def _spot_tv_live(cfg):
         _tv_card(f"🔥 Top 30s {period_word}", f"{top30:.1f}" if top30 else "–", "km/h" if top30 else ""),
         _tv_card("🏄 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
         _tv_card(leader_label, leader),
+        _tv_card("📅 Record date", leader_date),
+        _tv_card("🏄 Board", leader_board),
         _tv_card("🧭 Last activity", last_txt),
     ])
     rk = now.strftime("%H%M%S")  # wechselt je Refresh -> erzwingt Re-Mount (Animation)
