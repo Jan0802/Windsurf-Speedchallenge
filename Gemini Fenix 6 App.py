@@ -5632,24 +5632,15 @@ def _spot_tv_live(cfg):
     leader_label = "👑 Rider of the Day" if mode == "today" else f"👑 Top rider {period_word}"
     rk = now.strftime("%H%M%S")  # wechselt je Refresh -> erzwingt Re-Mount (Animation)
 
-    # Datum + Board des aktuell gezeigten Rekords: eigene, breite 2er-Reihe direkt
-    # unter dem Wetter (statt gequetscht in der 7er-Kachelreihe darunter).
-    top_cards = "".join([
-        _tv_card("📅 Record date", leader_date, f"best {metric_word}"),
-        _tv_card("🏄 Board", leader_board, f"best {metric_word}"),
-    ])
-    st.markdown(f"<div class='tv-cards' translate='no' data-r='r{rk}{metric}'>{top_cards}</div>",
-                unsafe_allow_html=True)
-
     cards = "".join([
         _tv_card(f"🏆 Top 2s {period_word}", f"{top1:.1f}" if top1 else "–",
                  ("km/h" + (f" · {top1kn:.1f} kn" if top1kn else "")) if top1 else ""),
         _tv_card(f"🔥 Top 30s {period_word}", f"{top30:.1f}" if top30 else "–", "km/h" if top30 else ""),
         _tv_card("🏄 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
         _tv_card(leader_label, leader),
-        _tv_card("🧭 Last activity", last_txt),
+        _tv_card("📅 Record date", leader_date, f"best {metric_word}"),
     ])
-    st.markdown(f"<div class='tv-cards' translate='no' data-r='{rk}'>{cards}</div>",
+    st.markdown(f"<div class='tv-cards' translate='no' data-r='{rk}{metric}'>{cards}</div>",
                 unsafe_allow_html=True)
 
     # metric / metric_lbl wurden oben bereits bestimmt (Kacheln + Leaderboard nutzen dieselbe Wertung).
