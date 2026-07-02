@@ -5825,6 +5825,21 @@ def render_spot_tv(cfg):
         height=0,
     )
 
+    # Sicherheitsnetz fuer den Dauerbetrieb: Solange die WebSocket-Verbindung
+    # lebt, aktualisiert das 30s-Fragment alles live. Faellt die Verbindung aus
+    # (Server-Neustart, Netzwerk, eingefrorener Tab), laedt sich die Seite nach
+    # 10 min komplett neu und ist wieder aktuell – ohne manuelles Refresh.
+    components.html(
+        """
+        <script>
+          setTimeout(function(){
+            try { window.parent.location.reload(); } catch (e) { location.reload(); }
+          }, 600000);
+        </script>
+        """,
+        height=0,
+    )
+
     event = f"<div class='event'>🏁 {cfg['event']}</div>" if cfg["event"] else ""
     title = cfg["spot"] or "Spot TV"
 
