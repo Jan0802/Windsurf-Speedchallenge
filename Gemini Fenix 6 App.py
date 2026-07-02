@@ -4873,6 +4873,157 @@ def read_fit_file(uploaded_file):
     return df
 
 
+# ---------------------------------------------------------------------------
+#  GPX / TCX Upload – App-freier Weg (Handy-Apps, Apple Watch, Suunto, Coros,
+#  Strava-/Garmin-Export …). Erzeugt dasselbe DataFrame wie read_fit_file
+#  (timestamp / lat / lon / speed_kmh / distance), damit die komplette
+#  Auswertung (2s/30s, 500 m/Seemeile, Runs, Wetter, Trust) unveraendert greift.
+# ---------------------------------------------------------------------------
+def _read_bytes(src):
+    """Bytes aus Streamlit-UploadedFile, file-like oder Pfad lesen."""
+    if hasattr(src, "getvalue"):
+        return src.getvalue()
+    if hasattr(src, "read"):
+        return src.read()
+    with open(src, "rb") as fh:
+        return fh.read()
+
+
+def _localname(tag):
+    """XML-Tag ohne Namespace, klein – robust gegen die vielen GPX/TCX-Dialekte."""
+    return str(tag).rsplit("}", 1)[-1].lower()
+
+
+def _points_to_df(points):
+    """Punktliste [{lat, lon, time, speed?, dist?}] -> Standard-DataFrame.
+    speed (m/s) und dist (kumuliert, m) sind optional; fehlen sie, werden sie
+    aus Position+Zeit per Haversine berechnet."""
+    if not points:
+        return pd.DataFrame()
+    df = pd.DataFrame(points)
+    if "lat" not in df.columns or "lon" not in df.columns:
+        return pd.DataFrame()
+    df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
+    df["lon"] = pd.to_numeric(df["lon"], errors="coerce")
+    df = df.dropna(subset=["lat", "lon"])
+    if df.empty:
+        return df
+
+    if "time" in df.columns:
+        ts = pd.to_datetime(df["time"], utc=True, errors="coerce")
+        try:
+            ts = ts.dt.tz_localize(None)   # naiv UTC, wie bei FIT
+        except (TypeError, AttributeError):
+            pass
+        df["timestamp"] = ts
+        if df["timestamp"].notna().any():
+            df = df.sort_values("timestamp")
+    df = df.reset_index(drop=True)
+
+    lat = df["lat"].to_numpy(dtype=float)
+    lon = df["lon"].to_numpy(dtype=float)
+    seg = np.zeros(len(df))
+    if len(df) > 1:
+        seg[1:] = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])
+
+    # Kumulierte Distanz: TCX liefert sie oft direkt, sonst aus Haversine.
+    if "dist" in df.columns and pd.to_numeric(df["dist"], errors="coerce").notna().all():
+        df["distance"] = pd.to_numeric(df["dist"], errors="coerce")
+    else:
+        df["distance"] = np.cumsum(seg)
+
+    # Geschwindigkeit: Geraete-Speed (m/s) bevorzugen, sonst aus Distanz/Zeit.
+    speed = None
+    if "speed" in df.columns:
+        sp = pd.to_numeric(df["speed"], errors="coerce")
+        if sp.notna().any():
+            speed = sp * 3.6
+    if (speed is None and "timestamp" in df.columns
+            and df["timestamp"].notna().all() and len(df) > 1):
+        t = (df["timestamp"] - df["timestamp"].iloc[0]).dt.total_seconds().to_numpy()
+        dt = np.diff(t, prepend=t[0])          # dt[0]=0 -> v[0]=0
+        with np.errstate(divide="ignore", invalid="ignore"):
+            v = np.where(dt > 0, seg / dt * 3.6, 0.0)
+        speed = pd.Series(v, index=df.index)
+    if speed is not None:
+        df["speed_kmh"] = pd.to_numeric(speed, errors="coerce").clip(lower=0)
+    return df
+
+
+def read_gpx_file(uploaded_file):
+    """GPX (Track-, Routen- oder Waypoints) -> Standard-DataFrame."""
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.fromstring(_read_bytes(uploaded_file))
+    except ET.ParseError:
+        return pd.DataFrame()
+    pts = []
+    for el in root.iter():
+        if _localname(el.tag) not in ("trkpt", "rtept", "wpt"):
+            continue
+        lat, lon = el.get("lat"), el.get("lon")
+        if lat is None or lon is None:
+            continue
+        t = spd = None
+        for ch in el.iter():
+            ln = _localname(ch.tag)
+            if ln == "time" and ch.text:
+                t = ch.text.strip()
+            elif ln == "speed" and ch.text:
+                try:
+                    spd = float(ch.text)
+                except ValueError:
+                    pass
+        pts.append({"lat": lat, "lon": lon, "time": t, "speed": spd})
+    return _points_to_df(pts)
+
+
+def read_tcx_file(uploaded_file):
+    """TCX (Garmin Training Center) -> Standard-DataFrame."""
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.fromstring(_read_bytes(uploaded_file))
+    except ET.ParseError:
+        return pd.DataFrame()
+    pts = []
+    for el in root.iter():
+        if _localname(el.tag) != "trackpoint":
+            continue
+        lat = lon = t = spd = dist = None
+        for ch in el.iter():
+            ln = _localname(ch.tag)
+            txt = (ch.text or "").strip()
+            if not txt:
+                continue
+            try:
+                if ln == "time":
+                    t = txt
+                elif ln == "latitudedegrees":
+                    lat = float(txt)
+                elif ln == "longitudedegrees":
+                    lon = float(txt)
+                elif ln == "distancemeters":
+                    dist = float(txt)
+                elif ln == "speed":
+                    spd = float(txt)
+            except ValueError:
+                pass
+        if lat is None or lon is None:
+            continue
+        pts.append({"lat": lat, "lon": lon, "time": t, "speed": spd, "dist": dist})
+    return _points_to_df(pts)
+
+
+def read_activity_file(src, filename=None):
+    """Dispatcher: waehlt Parser nach Dateiendung (.fit / .gpx / .tcx)."""
+    name = (filename or getattr(src, "name", "") or "").lower()
+    if name.endswith(".gpx"):
+        return read_gpx_file(src)
+    if name.endswith(".tcx"):
+        return read_tcx_file(src)
+    return read_fit_file(src)
+
+
 def surf_weather_time(df):
     """Repräsentative Zeit (UTC) fürs Wetter.
 
@@ -8984,9 +9135,9 @@ if "user" not in st.session_state:
 #  Session sofort in der Bestenliste zaehlt. source="guest".
 # ==========================================================================
 def _guest_process_and_save(fit_source, sport, spot, name):
-    df = read_fit_file(fit_source)
+    df = read_activity_file(fit_source)
     if df is None or df.empty:
-        return None, "The FIT file contains no usable data."
+        return None, "The file contains no usable GPS data (FIT / GPX / TCX)."
     best_1s = best_average_speed(df, 1)
     best_30s = best_average_speed(df, 30)
     best_500m = best_distance_speed(df, 500)
@@ -9074,8 +9225,8 @@ def _render_guest_form(sport, spot):
             st.rerun()
         return
     name = st.text_input("Your name (shown on the leaderboard)", key="guest_name")
-    fit = st.file_uploader("Your session — FIT file (from your Garmin / phone)",
-                           type=["fit"], key="guest_fit")
+    fit = st.file_uploader("Your session — FIT, GPX or TCX (from any watch or phone app)",
+                           type=["fit", "gpx", "tcx"], key="guest_fit")
     can = bool(name.strip()) and fit is not None
     if st.button("🏁 Add me to today's ranking", type="primary", disabled=not can,
                  use_container_width=True):
@@ -9084,7 +9235,7 @@ def _render_guest_form(sport, spot):
         if err:
             st.error(err)
         elif entry.get("speed_1s_kmh") is None:
-            st.error("No GPS speed found in this file — is it a watersports FIT recording?")
+            st.error("No GPS speed found in this file — is it a GPS watersports recording (FIT/GPX/TCX)?")
         else:
             st.session_state["_guest_result"] = {
                 "name": name.strip(), "s1": entry.get("speed_1s_kmh"),
@@ -9766,14 +9917,17 @@ with left:
             "below."
         )
         st.caption(
-            "🍏 **Apple Watch & others:** export the workout as a **.fit** file "
-            "(e.g. via the **HealthFit** app on Apple Watch) and upload it here – "
-            "GPS track, distance and the 2 s / 30 s top speeds are computed "
-            "automatically. Works with any watch that can export FIT."
+            "🍏 **No Garmin? No problem — upload FIT, GPX or TCX:** export your "
+            "session from almost any device or app (Apple Watch e.g. via **HealthFit**, "
+            "Suunto, Coros, phone GPS apps, or a **GPX/TCX export from Garmin Connect "
+            "or Strava**) and upload it here. GPS track, distance and the 2 s / 30 s "
+            "top speeds are computed automatically — speed is derived from the GPS "
+            "track when the file has no speed field."
         )
 
     if source == "📁 Upload file":
-        uploaded_file = st.file_uploader("Upload FIT file", type=["fit"])
+        uploaded_file = st.file_uploader("Upload session file — FIT, GPX or TCX",
+                                         type=["fit", "gpx", "tcx"])
 
         if uploaded_file is not None:
             fit_source = uploaded_file
@@ -9876,10 +10030,10 @@ if fit_source is not None:
     if not required_ok:
         st.warning("Please fully enter surf spot, board and sail first.")
 
-    df = read_fit_file(fit_source)
+    df = read_activity_file(fit_source, fit_name)
 
     if df.empty:
-        st.error("The file contains no record data.")
+        st.error("The file contains no usable GPS records (FIT / GPX / TCX).")
         st.stop()
 
     max_speed = None
