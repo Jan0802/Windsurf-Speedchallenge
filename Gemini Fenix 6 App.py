@@ -6928,6 +6928,170 @@ def _secret(name, default=""):
     return (v or os.environ.get(name) or default)
 
 
+# ---------------------------------------------------------------------------
+#  Strava-Anbindung ("Connect with Strava") – App-freier Import direkt aus
+#  Strava. Braucht eine eigene Strava-API-App (strava.com/settings/api):
+#    STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET  (als Secret/Env)
+#    STRAVA_REDIRECT_URI  (Default = App-Domain; muss zum "Authorization
+#                          Callback Domain" der Strava-App passen)
+#  Nutzt nur urllib (keine neue Dependency). Streams -> _points_to_df.
+# ---------------------------------------------------------------------------
+STRAVA_AUTH_URL = "https://www.strava.com/oauth/authorize"
+STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"
+STRAVA_API = "https://www.strava.com/api/v3"
+
+
+def _strava_cfg():
+    return (_secret("STRAVA_CLIENT_ID").strip(),
+            _secret("STRAVA_CLIENT_SECRET").strip(),
+            _secret("STRAVA_REDIRECT_URI", "https://app.mywatersessions.com/").strip())
+
+
+def _strava_enabled():
+    cid, sec, _ = _strava_cfg()
+    return bool(cid and sec)
+
+
+def _http_json(url, data=None, headers=None, timeout=25):
+    """Kleiner urllib-JSON-Helfer. data=dict -> POST (form), sonst GET."""
+    hdrs = {"User-Agent": "MyWaterSessions/1.0"}
+    if headers:
+        hdrs.update(headers)
+    if data is not None:
+        req = Request(url, data=urlencode(data).encode(), headers=hdrs, method="POST")
+    else:
+        req = Request(url, headers=hdrs)
+    with urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def strava_authorize_url(state="strava"):
+    cid, _, redirect = _strava_cfg()
+    q = urlencode({
+        "client_id": cid,
+        "response_type": "code",
+        "redirect_uri": redirect,
+        "approval_prompt": "auto",
+        "scope": "activity:read_all",
+        "state": state,
+    })
+    return f"{STRAVA_AUTH_URL}?{q}"
+
+
+def strava_exchange_code(code):
+    cid, sec, _ = _strava_cfg()
+    return _http_json(STRAVA_TOKEN_URL, data={
+        "client_id": cid, "client_secret": sec,
+        "code": code, "grant_type": "authorization_code",
+    })
+
+
+def strava_list_activities(token, per_page=30):
+    return _http_json(f"{STRAVA_API}/athlete/activities?per_page={int(per_page)}",
+                      headers={"Authorization": f"Bearer {token}"})
+
+
+def strava_activity_streams(token, act_id):
+    url = (f"{STRAVA_API}/activities/{int(act_id)}/streams"
+           "?keys=latlng,time,velocity_smooth,distance&key_by_type=true")
+    return _http_json(url, headers={"Authorization": f"Bearer {token}"})
+
+
+def strava_streams_to_df(streams, start_iso):
+    """Strava-Streams -> Standard-DataFrame (timestamp/lat/lon/speed_kmh/distance)."""
+    streams = streams or {}
+    latlng = (streams.get("latlng") or {}).get("data") or []
+    if not latlng:
+        return pd.DataFrame()
+    tsec = (streams.get("time") or {}).get("data") or []
+    vel = (streams.get("velocity_smooth") or {}).get("data") or []
+    dist = (streams.get("distance") or {}).get("data") or []
+    start = pd.to_datetime(start_iso, utc=True, errors="coerce")
+    if pd.notna(start):
+        start = start.tz_localize(None)   # naiv UTC, wie FIT
+    pts = []
+    for i, pair in enumerate(latlng):
+        if not (isinstance(pair, (list, tuple)) and len(pair) == 2):
+            continue
+        p = {"lat": pair[0], "lon": pair[1]}
+        if pd.notna(start) and i < len(tsec):
+            p["time"] = (start + pd.to_timedelta(tsec[i], unit="s")).isoformat()
+        if i < len(vel):
+            p["speed"] = vel[i]          # m/s
+        if i < len(dist):
+            p["dist"] = dist[i]          # kumuliert, m
+        pts.append(p)
+    return _points_to_df(pts)
+
+
+def _render_strava_import():
+    """Connect-with-Strava + Aktivitaetsauswahl. Legt die gewaehlte Aktivitaet
+    als DataFrame in st.session_state['_strava_df'] ab; der normale Upload-Flow
+    verarbeitet + speichert sie dann (Spot/Board/Segel wie beim Datei-Upload)."""
+    err = st.session_state.pop("_strava_error", None)
+    if err:
+        st.error(err)
+
+    token = st.session_state.get("_strava_token")
+    if not token:
+        st.link_button("🔗 Connect with Strava", strava_authorize_url(),
+                       use_container_width=True)
+        st.caption("Import a recording straight from Strava – no file needed.")
+        return
+
+    ath = st.session_state.get("_strava_athlete") or {}
+    who = (ath.get("firstname") or "").strip()
+    c1, c2 = st.columns([4, 1])
+    c1.caption(f"✅ Connected to Strava{(' as ' + who) if who else ''}.")
+    if c2.button("Disconnect", key="strava_disconnect"):
+        for k in ("_strava_token", "_strava_athlete", "_strava_acts"):
+            st.session_state.pop(k, None)
+        st.rerun()
+
+    acts = st.session_state.get("_strava_acts")
+    if acts is None:
+        try:
+            acts = strava_list_activities(token, per_page=30) or []
+        except Exception:  # noqa: BLE001
+            st.session_state.pop("_strava_token", None)
+            st.error("Could not load your Strava activities (session expired?). "
+                     "Please connect again.")
+            return
+        st.session_state["_strava_acts"] = acts
+
+    if not acts:
+        st.info("No recent activities found on Strava.")
+        return
+
+    labels = {}
+    for a in acts:
+        d = str(a.get("start_date_local") or a.get("start_date") or "")[:10]
+        km = (a.get("distance") or 0) / 1000.0
+        typ = a.get("sport_type") or a.get("type") or ""
+        labels[f"{d} · {a.get('name', '(no name)')} · {typ} · {km:.1f} km"] = a
+
+    choice = st.selectbox("Choose a Strava activity", list(labels.keys()),
+                          key="strava_act_choice")
+    if st.button("⬇️ Import this activity", type="primary",
+                 use_container_width=True, key="strava_import_btn"):
+        a = labels[choice]
+        with st.spinner("Fetching GPS track from Strava…"):
+            try:
+                streams = strava_activity_streams(token, a["id"])
+            except Exception:  # noqa: BLE001
+                st.error("Could not fetch the activity track from Strava.")
+                return
+            df = strava_streams_to_df(
+                streams, a.get("start_date") or a.get("start_date_local"))
+        if df is None or df.empty:
+            st.error("This activity has no GPS track (indoor recording?). "
+                     "Please pick another one.")
+            return
+        st.session_state["_strava_df"] = df
+        st.session_state["_strava_name"] = f"strava-{a.get('id')}"
+        st.rerun()
+
+
 def _cf_site_tag():
     # Optionaler GraphQL-siteTag-Filter. LEER = ganzen Account abfragen (richtig,
     # solange es nur eine Web-Analytics-Site gibt). Der Beacon-Token taugt hier
@@ -7726,6 +7890,23 @@ if "verify" in st.query_params:
         (st.success if _vres["ok"] else st.error)(_vres["msg"])
         st.link_button("➡️ Go to login", _app_base_url(), use_container_width=True)
     st.stop()
+
+# Strava OAuth-Rückkanal: nach "Connect with Strava" kehrt der Nutzer mit
+# ?code=…&state=strava… zurück. Code gegen ein Token tauschen, in der Session
+# ablegen, URL säubern und normal weiterlaufen – die Upload-Seite zeigt dann
+# die Aktivitätsauswahl.
+if st.query_params.get("state", "").startswith("strava") and "code" in st.query_params:
+    try:
+        _tok = strava_exchange_code(st.query_params.get("code"))
+        st.session_state["_strava_token"] = _tok.get("access_token")
+        st.session_state["_strava_athlete"] = _tok.get("athlete", {}) or {}
+        st.session_state.pop("_strava_acts", None)
+    except Exception:  # noqa: BLE001
+        st.session_state["_strava_error"] = "Strava connection failed. Please try again."
+    for _k in ("code", "scope", "state"):
+        if _k in st.query_params:
+            del st.query_params[_k]
+    st.rerun()
 
 logo_img = image_to_base64(app_path("assets", "windsurfer.png"))
 
@@ -9932,6 +10113,29 @@ with left:
         if uploaded_file is not None:
             fit_source = uploaded_file
             fit_name = uploaded_file.name
+
+        with st.expander("❓ No Garmin watch? How to get your FIT / GPX file"):
+            st.markdown(
+                "You can upload a session from **almost any watch or phone app** — "
+                "just export it as **FIT** or **GPX** and drop it above "
+                "(on your phone use the normal file picker).\n\n"
+                "**⌚ Garmin watch (any):** Garmin Connect app → open the activity → "
+                "**⋯ menu → Export original** (that's the FIT file) → upload it here. "
+                "*(Tip: with our watch app it uploads automatically — no export needed.)*\n\n"
+                "**🍏 Apple Watch:** record with **HealthFit** or a watersports app → "
+                "**Export → FIT** (or GPX) → upload here.\n\n"
+                "**📱 Waterspeed / Speedsurfing apps:** open the session → **Share / Export** "
+                "→ choose **GPX** (or FIT) → upload here.\n\n"
+                "**⌚ Suunto / COROS / Polar:** in the phone app open the activity → "
+                "**Export as GPX** → upload here.\n\n"
+                "**🔶 Strava:** open the activity → **⋯ → Export GPX** → upload here.\n\n"
+                "Speed, distance, GPS track and your 2 s / 30 s (and 500 m / nautical "
+                "mile) top speeds are all computed automatically."
+            )
+
+        if _strava_enabled():
+            st.markdown("**— or import from Strava —**")
+            _render_strava_import()
     else:
         st.caption(
             "Connect the watch via USB. Whether it shows up as a drive (e.g. "
@@ -10026,14 +10230,21 @@ required_ok = all([
 ])
 
 
+# Aus Strava importierte Aktivitaet (bereits als DataFrame in der Session)
+# durchlaeuft denselben Speicher-Weg wie ein Datei-Upload.
+_pre_df = st.session_state.get("_strava_df")
+if _pre_df is not None and fit_source is None:
+    fit_source = "_strava_"          # Sentinel: Block unten aktivieren
+    fit_name = st.session_state.get("_strava_name", "strava")
+
 if fit_source is not None:
     if not required_ok:
         st.warning("Please fully enter surf spot, board and sail first.")
 
-    df = read_activity_file(fit_source, fit_name)
+    df = _pre_df if _pre_df is not None else read_activity_file(fit_source, fit_name)
 
-    if df.empty:
-        st.error("The file contains no usable GPS records (FIT / GPX / TCX).")
+    if df is None or df.empty:
+        st.error("No usable GPS records found (FIT / GPX / TCX / Strava).")
         st.stop()
 
     max_speed = None
@@ -10281,6 +10492,10 @@ if fit_source is not None:
                     "Session was saved in the online ranking."
                 )
                 st.session_state["just_added"] = fit_name
+                # Strava-Import verbraucht – sonst wuerde er bei jedem Rerun
+                # erneut als "schon hochgeladen" erscheinen.
+                st.session_state.pop("_strava_df", None)
+                st.session_state.pop("_strava_name", None)
                 st.rerun()
 
     st.markdown("---")
