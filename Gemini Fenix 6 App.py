@@ -4443,6 +4443,9 @@ def _render_champion(ranking, is_wind):
         "speed_1s_kmh", ascending=False)
     weather = str(crows.iloc[0].get("Weather") or "–") if not crows.empty else "–"
     trust = str(crows.iloc[0].get("Trust") or "–") if not crows.empty else "–"
+    champ_board = str(crows.iloc[0].get("board") or "").strip() if not crows.empty else ""
+    if champ_board.lower() in ("none", "nan", "null"):
+        champ_board = ""
 
     tiles = []
     for key, label, unit, dec in metrics:
@@ -4453,14 +4456,18 @@ def _render_champion(ranking, is_wind):
 
     # Auffälliges Gold-Banner für die #1 – hebt den Führenden klar hervor,
     # statt ihn als kleine Zeile zwischen den Kacheln untergehen zu lassen.
-    champ_safe = (str(champ).replace("&", "&amp;")
-                  .replace("<", "&lt;").replace(">", "&gt;"))
+    def _esc(s):
+        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    champ_safe = _esc(champ)
+    board_html = (f"<div class='champ-board'>🏄 {_esc(champ_board)}</div>"
+                  if champ_board else "")
     st.markdown(
         "<div class='champ-banner' translate='no'>"
         "<div class='champ-crown'>🥇</div>"
         "<div class='champ-main'>"
         "<div class='champ-kicker'>#1 OVERALL</div>"
         f"<div class='champ-name'>{champ_safe}</div>"
+        f"{board_html}"
         "</div>"
         f"<div class='champ-pts'><span class='n'>{total_pts}</span>"
         "<span class='u'>pts</span></div>"
@@ -4478,6 +4485,8 @@ def _render_champion(ranking, is_wind):
         "color:#ffcf6b;opacity:.9;}"
         ".champ-name{font-size:38px;font-weight:900;line-height:1.1;color:#fff;"
         "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
+        ".champ-board{font-size:15px;font-weight:600;color:#ffe6b0;opacity:.85;"
+        "margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
         ".champ-pts{text-align:center;background:rgba(255,180,0,.18);"
         "border:1px solid rgba(255,196,60,.5);border-radius:14px;padding:8px 16px;}"
         ".champ-pts .n{display:block;font-size:30px;font-weight:900;"
