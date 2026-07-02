@@ -748,6 +748,10 @@ equip_shares_table = Table(
 spot_ads_table = Table(
     "spot_ads", DB_METADATA,
     Column("spot", String(200), primary_key=True),
+    # sport = "" -> gilt fuer ALLE Sportarten (Standard); ein Sportart-Schluessel
+    # (windsurf/kitesurf/…) ersetzt die "Alle"-Werbung fuer genau diese Sportart.
+    # Zusammen mit spot = zusammengesetzter Primaerschluessel.
+    Column("sport", String(40), primary_key=True, default="", server_default=""),
     Column("sponsor_name", String(200)),
     Column("sponsor_url", String(500)),
     Column("logo", LargeBinary),         # Bilddaten (PNG/JPG/WebP)
@@ -762,6 +766,8 @@ spot_products_table = Table(
     "spot_products", DB_METADATA,
     Column("id", Integer, primary_key=True),
     Column("spot", String(200), nullable=False),
+    # sport = "" -> fuer alle Sportarten; sonst nur fuer diese Sportart sichtbar.
+    Column("sport", String(40), nullable=False, default="", server_default=""),
     Column("title", String(200), nullable=False),
     Column("price", String(40)),
     Column("url", String(500)),
@@ -1820,14 +1826,37 @@ def regenerate_device_token(user_id):
 # ---- Spot-Werbung (Admin-Backoffice) ----
 
 @st.cache_resource(show_spinner=False)
+def _migrate_ad_sport(engine):
+    """Ergaenzt die 'sport'-Spalte (Werbung je Sportart) an bestehenden Tabellen
+    und stellt spot_ads auf den zusammengesetzten Schluessel (spot, sport) um.
+    Best-effort + je Anweisung eigenes try (Postgres); auf frischem SQLite legt
+    create_all das Schema bereits korrekt an."""
+    stmts = [
+        "ALTER TABLE spot_ads ADD COLUMN IF NOT EXISTS sport varchar(40) DEFAULT '' NOT NULL",
+        "UPDATE spot_ads SET sport='' WHERE sport IS NULL",
+        "ALTER TABLE spot_ads DROP CONSTRAINT IF EXISTS spot_ads_pkey",
+        "ALTER TABLE spot_ads ADD PRIMARY KEY (spot, sport)",
+        "ALTER TABLE spot_products ADD COLUMN IF NOT EXISTS sport varchar(40) DEFAULT '' NOT NULL",
+        "UPDATE spot_products SET sport='' WHERE sport IS NULL",
+    ]
+    for sql in stmts:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(sql))
+        except Exception:
+            pass   # bereits migriert / SQLite / bestehender PK -> ignorieren
+
+
 def _ensure_ad_tables():
     try:
-        spot_ads_table.create(get_engine(), checkfirst=True)
-        spot_products_table.create(get_engine(), checkfirst=True)
-        spot_info_table.create(get_engine(), checkfirst=True)
-        spot_images_table.create(get_engine(), checkfirst=True)
-        spot_managers_table.create(get_engine(), checkfirst=True)
-        feedback_table.create(get_engine(), checkfirst=True)
+        eng = get_engine()
+        spot_ads_table.create(eng, checkfirst=True)
+        spot_products_table.create(eng, checkfirst=True)
+        spot_info_table.create(eng, checkfirst=True)
+        spot_images_table.create(eng, checkfirst=True)
+        spot_managers_table.create(eng, checkfirst=True)
+        feedback_table.create(eng, checkfirst=True)
+        _migrate_ad_sport(eng)
     except Exception:
         logging.exception("Werbe-Tabellen konnten nicht angelegt werden")
     return True
@@ -2080,23 +2109,44 @@ def load_all_spot_info():
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def load_spot_ad(spot):
-    """Sponsor-Eintrag eines Spots (oder None)."""
+def _sport_all_clause(col, sport):
+    """WHERE-Klausel fuer eine Sportart. "" bedeutet 'Alle Sportarten' und matcht
+    auch NULL (Altbestand vor der Migration)."""
+    s = sport or ""
+    if s == "":
+        return (col == "") | (col.is_(None))
+    return col == s
+
+
+def load_spot_ad(spot, sport="", resolve=False):
+    """Sponsor-Eintrag eines Spots fuer eine Sportart (oder None).
+    resolve=True: faellt auf die 'Alle Sportarten'-Werbung ("") zurueck, wenn es
+    fuer diese Sportart keinen eigenen Eintrag gibt (fuer die TV-Anzeige)."""
     if not spot:
         return None
     _ensure_ad_tables()
+    sport = sport or ""
     with get_engine().connect() as conn:
         row = conn.execute(
-            select(spot_ads_table).where(spot_ads_table.c.spot == spot)
+            select(spot_ads_table).where(
+                spot_ads_table.c.spot == spot,
+                _sport_all_clause(spot_ads_table.c.sport, sport))
         ).mappings().first()
+        if row is None and resolve and sport != "":
+            row = conn.execute(
+                select(spot_ads_table).where(
+                    spot_ads_table.c.spot == spot,
+                    _sport_all_clause(spot_ads_table.c.sport, ""))
+            ).mappings().first()
     return dict(row) if row else None
 
 
 def save_spot_ad(spot, sponsor_name, sponsor_url, active,
-                 logo_bytes=None, logo_mime=None, clear_logo=False):
+                 logo_bytes=None, logo_mime=None, clear_logo=False, sport=""):
     if not spot:
         return
     _ensure_ad_tables()
+    sport = sport or ""
     values = {
         "sponsor_name": (sponsor_name or "").strip() or None,
         "sponsor_url": (sponsor_url or "").strip() or None,
@@ -2112,30 +2162,46 @@ def save_spot_ad(spot, sponsor_name, sponsor_url, active,
 
     with get_engine().begin() as conn:
         exists = conn.execute(
-            select(spot_ads_table.c.spot).where(spot_ads_table.c.spot == spot)
+            select(spot_ads_table.c.spot).where(
+                spot_ads_table.c.spot == spot,
+                _sport_all_clause(spot_ads_table.c.sport, sport))
         ).first()
         if exists:
             conn.execute(
-                update(spot_ads_table).where(spot_ads_table.c.spot == spot).values(**values)
+                update(spot_ads_table).where(
+                    spot_ads_table.c.spot == spot,
+                    _sport_all_clause(spot_ads_table.c.sport, sport)).values(**values)
             )
         else:
-            conn.execute(insert(spot_ads_table).values(spot=spot, **values))
+            conn.execute(insert(spot_ads_table).values(spot=spot, sport=sport, **values))
     _clear_ad_caches()
 
 
-def delete_spot_ad(spot):
+def delete_spot_ad(spot, sport=""):
     _ensure_ad_tables()
     with get_engine().begin() as conn:
-        conn.execute(delete(spot_ads_table).where(spot_ads_table.c.spot == spot))
+        conn.execute(delete(spot_ads_table).where(
+            spot_ads_table.c.spot == spot,
+            _sport_all_clause(spot_ads_table.c.sport, sport or "")))
     _clear_ad_caches()
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def load_spot_products(spot, only_active=False):
+def load_spot_products(spot, sport=None, only_active=False, include_all=False):
+    """Produkte eines Spots. sport=None -> alle (ungefiltert). sport="" -> nur
+    'Alle Sportarten'. sport="kite" -> nur diese Sportart, mit include_all=True
+    zusaetzlich die 'Alle Sportarten'-Produkte (fuer die TV-Anzeige)."""
     if not spot:
         return []
     _ensure_ad_tables()
     query = select(spot_products_table).where(spot_products_table.c.spot == spot)
+    if sport is not None:
+        s = sport or ""
+        col = spot_products_table.c.sport
+        if include_all and s != "":
+            query = query.where((col == s) | (col == "") | (col.is_(None)))
+        else:
+            query = query.where(_sport_all_clause(col, s))
     if only_active:
         query = query.where(spot_products_table.c.active == True)  # noqa: E712
     query = query.order_by(spot_products_table.c.sort_order, spot_products_table.c.id)
@@ -2145,10 +2211,11 @@ def load_spot_products(spot, only_active=False):
 
 
 def save_spot_product(product_id, spot, title, price, url, active, sort_order,
-                      image_bytes=None, image_mime=None, clear_image=False):
+                      image_bytes=None, image_mime=None, clear_image=False, sport=""):
     _ensure_ad_tables()
     values = {
         "spot": spot,
+        "sport": sport or "",
         "title": (title or "").strip(),
         "price": (price or "").strip() or None,
         "url": (url or "").strip() or None,
@@ -5650,10 +5717,10 @@ def _render_join_qr(cfg):
     else:
         qr_html = f"<div class='tv-join-qr tv-join-qr-text'>{url}</div>"
 
-    cards = _product_cards_html(cfg["spot"])
+    cards = _product_cards_html(cfg["spot"], cfg["sport"])
     deals_html = ""
     if cards:
-        ad = load_spot_ad(cfg["spot"]) or {}
+        ad = load_spot_ad(cfg["spot"], cfg["sport"], resolve=True) or {}
         sponsor = ad.get("sponsor_name")
         head = f"{sponsor} · Top Deals" if sponsor else "Top Deals"
         deals_html = (
@@ -5885,8 +5952,9 @@ def _spot_sponsor_img(cfg):
     if cfg["logo"]:
         return cfg["logo"], (cfg["sponsor"] or None)
 
-    # Im Backoffice gepflegter Eintrag hat Vorrang (sofern aktiv).
-    ad = load_spot_ad(cfg["spot"])
+    # Im Backoffice gepflegter Eintrag hat Vorrang (sofern aktiv). Sportart-Werbung
+    # zuerst, sonst Rueckfall auf die 'Alle Sportarten'-Werbung.
+    ad = load_spot_ad(cfg["spot"], cfg["sport"], resolve=True)
     if ad and ad.get("active", True):
         name = ad.get("sponsor_name") or (cfg["sponsor"] or None)
         uri = _bytes_to_data_uri(ad.get("logo"), ad.get("logo_mime"))
@@ -5997,7 +6065,7 @@ def render_spot_tv(cfg):
     # Sponsor/Werbung oben rechts, je Spot (auf hellem Chip, damit dunkle Logos
     # sichtbar bleiben). Logo wenn vorhanden, sonst "Presented by <Name>".
     ad_src, ad_name = _spot_sponsor_img(cfg)
-    ad_row = load_spot_ad(cfg["spot"]) or {}
+    ad_row = load_spot_ad(cfg["spot"], cfg["sport"], resolve=True) or {}
     ad_url = ad_row.get("sponsor_url") or ""
     if ad_src:
         chip = f"<div class='tv-sponsor-chip'><img src='{ad_src}' alt='sponsor'/></div>"
@@ -6718,10 +6786,11 @@ def render_spots_page(user=None):
         st.caption("No coordinates could be determined for this spot – no weather.")
 
 
-def _product_cards_html(spot):
-    """HTML-Karten (Bild + Titel + Preis, je Shop/Cafe-Link) der aktiven Produkte."""
+def _product_cards_html(spot, sport=""):
+    """HTML-Karten (Bild + Titel + Preis, je Shop/Cafe-Link) der aktiven Produkte.
+    Zeigt die Produkte der Sportart PLUS die 'Alle Sportarten'-Produkte."""
     cards = []
-    for p in load_spot_products(spot, only_active=True):
+    for p in load_spot_products(spot, sport=sport, only_active=True, include_all=True):
         img = _bytes_to_data_uri(p.get("image"), p.get("image_mime"))
         img_html = (
             f"<div class='tv-prod-img' style=\"background-image:url('{img}')\"></div>"
@@ -7374,7 +7443,20 @@ def render_admin_ads():
         st.info("Spot wählen oder eingeben, um die Werbung zu verwalten.")
         return
 
-    ad = load_spot_ad(spot) or {}
+    # Werbung je Sportart aufteilen: "" = Alle Sportarten (Standard), sonst pro Sportart.
+    def _sport_label(k):
+        return "🌐 Alle Sportarten" if k == "" else SPORT_META[k]["label"]
+    ad_sport = st.selectbox(
+        "Werbung für Sportart", [""] + list(SPORTS), format_func=_sport_label,
+        key="admin_ad_sport_sel",
+        help=("'Alle Sportarten' ist der Standard und läuft auf jeder Spot-TV-Ansicht. "
+              "Wähle eine Sportart, um für sie eigene Werbung/Produkte zu hinterlegen – "
+              "diese ersetzt auf der TV-Ansicht dieser Sportart die Standard-Werbung."))
+    if ad_sport:
+        st.caption(f"Du bearbeitest gerade die Werbung für **{_sport_label(ad_sport)}**. "
+                   "Ohne eigenen Eintrag zeigt diese Sportart die 'Alle Sportarten'-Werbung.")
+
+    ad = load_spot_ad(spot, ad_sport) or {}
 
     with st.expander("🔑 Sponsor-Zugang (Self-Service 'Admin 2' für diesen Spot)"):
         status = spot_manager_status(spot)
@@ -7404,10 +7486,10 @@ def render_admin_ads():
                 delete_spot_manager(spot)
                 _admin_flash(f"Sponsor-Zugang für {spot} gelöscht.")
 
-    st.markdown(f"### Sponsor für **{spot}**")
+    st.markdown(f"### Sponsor für **{spot}** · {_sport_label(ad_sport)}")
     if ad.get("logo"):
         st.image(bytes(ad["logo"]), width=200, caption="aktuelles Logo")
-    with st.form(f"ad_form_{spot}"):
+    with st.form(f"ad_form_{spot}_{ad_sport}"):
         name = st.text_input("Sponsor-Name", value=ad.get("sponsor_name") or "")
         url = st.text_input("Link (Shop/Café-Webseite)", value=ad.get("sponsor_url") or "")
         active = st.checkbox("Aktiv (auf dem TV anzeigen)", value=bool(ad.get("active", True)))
@@ -7419,21 +7501,21 @@ def render_admin_ads():
             spot, name, url, active,
             logo_bytes=logo_up.getvalue() if logo_up else None,
             logo_mime=logo_up.type if logo_up else None,
-            clear_logo=clear_logo,
+            clear_logo=clear_logo, sport=ad_sport,
         )
-        _admin_flash(f"Sponsor für {spot} gespeichert.")
-    if ad and st.button("🗑️ Sponsor-Eintrag löschen", key=f"del_ad_{spot}"):
-        delete_spot_ad(spot)
-        _admin_flash(f"Sponsor für {spot} gelöscht.")
+        _admin_flash(f"Sponsor für {spot} ({_sport_label(ad_sport)}) gespeichert.")
+    if ad and st.button("🗑️ Sponsor-Eintrag löschen", key=f"del_ad_{spot}_{ad_sport}"):
+        delete_spot_ad(spot, ad_sport)
+        _admin_flash(f"Sponsor für {spot} ({_sport_label(ad_sport)}) gelöscht.")
 
-    st.markdown("### Produkte / Angebote")
-    for prod in load_spot_products(spot):
+    st.markdown(f"### Produkte / Angebote · {_sport_label(ad_sport)}")
+    for prod in load_spot_products(spot, sport=ad_sport):
         flag = "✅" if prod.get("active") else "⛔"
         price = f" · {prod['price']}" if prod.get("price") else ""
         with st.expander(f"{flag} {prod['title']}{price}"):
-            _product_editor(spot, prod)
+            _product_editor(spot, prod, sport=ad_sport)
     st.markdown("#### ➕ Neues Produkt")
-    _product_editor(spot, None)
+    _product_editor(spot, None, sport=ad_sport)
 
     # --- Spot-Info (unten auf dem TV: Text links, Webcam/Bild rechts) ---
     info_head = st.columns([3, 1])
@@ -7535,9 +7617,9 @@ def render_admin_ads():
         _admin_flash(f"{len(new_imgs)} Bild(er) hinzugefügt.")
 
 
-def _product_editor(spot, prod):
+def _product_editor(spot, prod, sport=""):
     pid = prod["id"] if prod else None
-    suffix = pid if pid else "new"
+    suffix = f"{sport}_{pid if pid else 'new'}"
     prefill_key = f"prodprefill_{spot}_{suffix}"
     prefill = st.session_state.get(prefill_key, {})
 
@@ -7623,6 +7705,7 @@ def _product_editor(spot, prod):
             save_spot_product(
                 pid, spot, title, price, url, active, sort_order,
                 image_bytes=img_bytes, image_mime=img_mime, clear_image=clear_img,
+                sport=sport,
             )
             st.session_state.pop(prefill_key, None)
             _admin_flash("Produkt gespeichert.")
@@ -7754,13 +7837,13 @@ def _render_sponsor_fields(spot):
             st.rerun()
 
     st.markdown("### Produkte / Angebote")
-    for prod in load_spot_products(spot):
+    for prod in load_spot_products(spot, sport=""):
         flag = "✅" if prod.get("active") else "⛔"
         price = f" · {prod['price']}" if prod.get("price") else ""
         with st.expander(f"{flag} {prod['title']}{price}"):
-            _product_editor(spot, prod)
+            _product_editor(spot, prod, sport="")
     st.markdown("#### ➕ Neues Produkt")
-    _product_editor(spot, None)
+    _product_editor(spot, None, sport="")
 
     st.markdown("### Beschreibung")
     info = load_spot_info(spot) or {}
