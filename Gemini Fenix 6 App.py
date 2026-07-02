@@ -4460,15 +4460,15 @@ def _render_champion(ranking, is_wind):
         return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     champ_safe = _esc(champ)
     board_html = (f"<div class='champ-board'>🏄 {_esc(champ_board)}</div>"
-                  if champ_board else "")
+                  if champ_board else "<div class='champ-board'></div>")
     st.markdown(
         "<div class='champ-banner' translate='no'>"
         "<div class='champ-crown'>🥇</div>"
         "<div class='champ-main'>"
         "<div class='champ-kicker'>#1 OVERALL</div>"
         f"<div class='champ-name'>{champ_safe}</div>"
-        f"{board_html}"
         "</div>"
+        f"{board_html}"
         f"<div class='champ-pts'><span class='n'>{total_pts}</span>"
         "<span class='u'>pts</span></div>"
         "</div>"
@@ -4480,13 +4480,14 @@ def _render_champion(ranking, is_wind):
         "border-radius:16px;padding:14px 22px;margin:2px 0 16px;}"
         ".champ-crown{font-size:46px;line-height:1;"
         "filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));}"
-        ".champ-main{flex:1;min-width:0;}"
+        ".champ-main{min-width:0;flex:0 0 auto;}"
         ".champ-kicker{font-size:14px;font-weight:800;letter-spacing:3px;"
         "color:#ffcf6b;opacity:.9;}"
         ".champ-name{font-size:38px;font-weight:900;line-height:1.1;color:#fff;"
         "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
-        ".champ-board{font-size:15px;font-weight:600;color:#ffe6b0;opacity:.85;"
-        "margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
+        ".champ-board{flex:1;min-width:0;text-align:center;font-size:38px;"
+        "font-weight:800;color:#ffe6b0;line-height:1.1;padding:0 16px;"
+        "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
         ".champ-pts{text-align:center;background:rgba(255,180,0,.18);"
         "border:1px solid rgba(255,196,60,.5);border-radius:14px;padding:8px 16px;}"
         ".champ-pts .n{display:block;font-size:30px;font-weight:900;"
