@@ -2108,16 +2108,16 @@ def load_all_spot_info():
     return [dict(r) for r in rows if (r["description"] or "").strip()]
 
 
-@st.cache_data(ttl=60, show_spinner=False)
 def _sport_all_clause(col, sport):
     """WHERE-Klausel fuer eine Sportart. "" bedeutet 'Alle Sportarten' und matcht
-    auch NULL (Altbestand vor der Migration)."""
+    auch NULL (Altbestand vor der Migration). NICHT cachen (col ist unhashbar)."""
     s = sport or ""
     if s == "":
         return (col == "") | (col.is_(None))
     return col == s
 
 
+@st.cache_data(ttl=60, show_spinner=False)
 def load_spot_ad(spot, sport="", resolve=False):
     """Sponsor-Eintrag eines Spots fuer eine Sportart (oder None).
     resolve=True: faellt auf die 'Alle Sportarten'-Werbung ("") zurueck, wenn es
