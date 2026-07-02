@@ -4451,8 +4451,42 @@ def _render_champion(ranking, is_wind):
     tiles.append(("🌤 Weather", weather))
     tiles.append(("🛡 Trust", trust))
 
-    # Jede Kennzahl als eigene Glas-Kachel (st.metric = unser Standard-Glaskasten).
-    st.markdown(f"#### 🥇 #1 overall · {champ} · {total_pts} pts")
+    # Auffälliges Gold-Banner für die #1 – hebt den Führenden klar hervor,
+    # statt ihn als kleine Zeile zwischen den Kacheln untergehen zu lassen.
+    champ_safe = (str(champ).replace("&", "&amp;")
+                  .replace("<", "&lt;").replace(">", "&gt;"))
+    st.markdown(
+        "<div class='champ-banner' translate='no'>"
+        "<div class='champ-crown'>🥇</div>"
+        "<div class='champ-main'>"
+        "<div class='champ-kicker'>#1 OVERALL</div>"
+        f"<div class='champ-name'>{champ_safe}</div>"
+        "</div>"
+        f"<div class='champ-pts'><span class='n'>{total_pts}</span>"
+        "<span class='u'>pts</span></div>"
+        "</div>"
+        "<style>"
+        ".champ-banner{display:flex;align-items:center;gap:18px;"
+        "background:linear-gradient(100deg,rgba(255,196,60,.22),"
+        "rgba(255,150,0,.06) 60%,rgba(255,255,255,.02));"
+        "border:1px solid rgba(255,196,60,.45);border-left:6px solid #ffb400;"
+        "border-radius:16px;padding:14px 22px;margin:2px 0 16px;}"
+        ".champ-crown{font-size:46px;line-height:1;"
+        "filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));}"
+        ".champ-main{flex:1;min-width:0;}"
+        ".champ-kicker{font-size:14px;font-weight:800;letter-spacing:3px;"
+        "color:#ffcf6b;opacity:.9;}"
+        ".champ-name{font-size:38px;font-weight:900;line-height:1.1;color:#fff;"
+        "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
+        ".champ-pts{text-align:center;background:rgba(255,180,0,.18);"
+        "border:1px solid rgba(255,196,60,.5);border-radius:14px;padding:8px 16px;}"
+        ".champ-pts .n{display:block;font-size:30px;font-weight:900;"
+        "color:#ffd77a;line-height:1;}"
+        ".champ-pts .u{font-size:12px;letter-spacing:2px;"
+        "text-transform:uppercase;opacity:.8;}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
     n = len(tiles)
     per_row = n if n <= 4 else (n + 1) // 2   # >4 -> zwei gleichmäßige Reihen
     for start in range(0, n, per_row):
