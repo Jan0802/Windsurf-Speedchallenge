@@ -6770,8 +6770,11 @@ def _tv_bottom_info(cfg):
 def render_spots_page(user=None):
     """Reine Spot-Seite (Revierführer): Filter Land/Spot -> Beschreibung, Webcam/
     Bild, Foto-Galerie (+ User-Upload) und Wetter des gewählten Spots."""
-    st.markdown("## 🗺️ Spots")
-    st.caption(
+    # Kopfzeile: Titel links, Werbebanner oben rechts (unter der Navigation). Der
+    # Banner-Platzhalter wird weiter unten gefuellt, sobald der Spot feststeht.
+    _hdr_l, _hdr_r = st.columns([3, 1], vertical_alignment="center")
+    _hdr_l.markdown("## 🗺️ Spots")
+    _hdr_l.caption(
         "💡 Spot missing? Just type its name when you log a session "
         "(**Add session → New surf spot**, or **…or new spot** in the session editor) – "
         "it instantly becomes available to everyone and gets its own spot page."
@@ -6813,17 +6816,15 @@ def render_spots_page(user=None):
     ad = load_spot_ad(spot) or {}          # lokaler Sponsor (Name/Link)
     webcam = (info.get("webcam_url") or "").strip()
 
-    # Kopfzeile: Titel links, Werbebanner oben rechts (unter der Navigation).
+    # Werbebanner oben rechts (unter der Navigation) fuer den gewaehlten Spot.
     top_banner = _webcam_side_ad_html(wads, "right")
+    if top_banner:
+        _hdr_r.markdown(top_banner, unsafe_allow_html=True)
+
     heading = f"### {spot}"
     if chosen.get("country"):
         heading += f"  ·  📍 {chosen['country']}"
-    if top_banner:
-        _hc1, _hc2 = st.columns([3, 1], vertical_alignment="center")
-        _hc1.markdown(heading)
-        _hc2.markdown(top_banner, unsafe_allow_html=True)
-    else:
-        st.markdown(heading)
+    st.markdown(heading)
 
     desc = (chosen.get("description") or info.get("description") or "").strip()
     desc_html = (f"<div style='font-size:18px;line-height:1.6;'>{desc}</div>"
