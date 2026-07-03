@@ -2462,9 +2462,19 @@ def _optimize_image(data, mime, max_dim=1600, quality=82):
 
 _BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/*;q=0.8,*/*;q=0.7",
-    "Accept-Language": "de,en;q=0.8",
+                  "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,"
+              "image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+    # KEIN gzip anfordern (urllib entpackt nicht automatisch) -> unkomprimiert.
+    "Accept-Encoding": "identity",
+    # Sieht aus wie eine echte Browser-Navigation -> weniger Bot-403.
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-User": "?1",
+    "Sec-Fetch-Dest": "document",
+    "Upgrade-Insecure-Requests": "1",
+    "Connection": "keep-alive",
 }
 
 
@@ -2535,6 +2545,10 @@ def fetch_product_meta(url):
 
     try:
         raw, _ctype = _http_get(url)
+    except HTTPError as exc:  # noqa: BLE001 – HTTP-Status zeigen (403 = Bot-Sperre)
+        _hint = ("  Der Shop blockt automatische Abrufe – bitte Titel, Preis und Bild "
+                 "manuell eintragen.") if exc.code in (401, 403, 429, 503) else ""
+        return {"error": f"Seite nicht erreichbar (HTTP {exc.code})." + _hint}
     except Exception as exc:  # noqa: BLE001 – Netzwerk-/Parse-Fehler sauber melden
         return {"error": f"Seite nicht erreichbar ({type(exc).__name__})."}
 
