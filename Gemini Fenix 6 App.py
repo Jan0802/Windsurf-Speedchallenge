@@ -111,8 +111,19 @@ BETA_BADGE = (
     "Beta 0.76</span>"
 )
 
-# Datum des letzten Deploys (bei jedem Ausrollen aktualisieren) + Beta-Erklaerung.
-LAST_UPDATE = "1 Jul 2026"
+# Datum des letzten Deploys: automatisch aus der Aenderungszeit dieser Datei
+# (beim Deploy checkt Render die Datei frisch aus -> mtime = Deploy-Zeit). So
+# muss man nie manuell nachziehen. Faellt bei Fehlern auf ein festes Datum zurueck.
+def _last_update_str():
+    try:
+        _mt = os.path.getmtime(os.path.abspath(__file__))
+        _d = datetime.fromtimestamp(_mt)
+        return f"{_d.day} {_d.strftime('%b %Y')}"   # z.B. "3 Jul 2026"
+    except Exception:  # noqa: BLE001
+        return "1 Jul 2026"
+
+
+LAST_UPDATE = _last_update_str()
 BETA_WHY = (
     "**MyWaterSessions is brand new.** Everything here works, but it hasn't had a real "
     "load test yet — so far there simply haven't been many riders on the server at the "
