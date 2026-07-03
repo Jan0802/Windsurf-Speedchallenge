@@ -778,6 +778,20 @@ spot_products_table = Table(
     Column("created_at", DateTime, server_default=func.now()),
 )
 
+# Zwei Werbe-Banner (links/rechts) neben der Webcam auf dem Spot-TV, je Spot.
+# Ein Datensatz pro Spot haelt beide Seiten (Bild + Link).
+spot_webcam_ads_table = Table(
+    "spot_webcam_ads", DB_METADATA,
+    Column("spot", String(200), primary_key=True),
+    Column("left_image", LargeBinary),
+    Column("left_mime", String(50)),
+    Column("left_url", String(500)),
+    Column("right_image", LargeBinary),
+    Column("right_mime", String(50)),
+    Column("right_url", String(500)),
+    Column("updated_at", DateTime, server_default=func.now()),
+)
+
 # Sponsor-Self-Service ("Admin 2"): pro Spot ein eigenes Passwort, das Admin 1
 # vergibt. Damit pflegt der Werbekunde NUR seinen Spot (Logo/Produkte/Text).
 spot_managers_table = Table(
@@ -1856,6 +1870,7 @@ def _ensure_ad_tables():
         spot_images_table.create(eng, checkfirst=True)
         spot_managers_table.create(eng, checkfirst=True)
         feedback_table.create(eng, checkfirst=True)
+        spot_webcam_ads_table.create(eng, checkfirst=True)
         _migrate_ad_sport(eng)
     except Exception:
         logging.exception("Werbe-Tabellen konnten nicht angelegt werden")
@@ -1995,7 +2010,7 @@ def verify_spot_manager(spot, password):
 def _clear_ad_caches():
     for fn in (load_spot_ad, load_spot_products, load_spot_info, load_all_spot_info,
                load_spot_images, load_spot_image_ids, load_recent_spot_images,
-               _spot_thumb_uri):
+               _spot_thumb_uri, load_webcam_ads):
         try:
             fn.clear()
         except Exception:
@@ -2248,6 +2263,45 @@ def delete_spot_product(product_id):
         conn.execute(
             delete(spot_products_table).where(spot_products_table.c.id == int(product_id))
         )
+    _clear_ad_caches()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_webcam_ads(spot):
+    """Die zwei Werbe-Banner (links/rechts) neben der Webcam eines Spots (oder {})."""
+    if not spot:
+        return {}
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(spot_webcam_ads_table).where(spot_webcam_ads_table.c.spot == spot)
+        ).mappings().first()
+    return dict(row) if row else {}
+
+
+def save_webcam_ad(spot, side, image_bytes=None, image_mime=None, url=None, clear=False):
+    """Speichert einen der beiden Banner ('left'/'right') eines Spots (Upsert)."""
+    if not spot or side not in ("left", "right"):
+        return
+    _ensure_ad_tables()
+    values = {f"{side}_url": (url or "").strip() or None}
+    if clear:
+        values[f"{side}_image"] = None
+        values[f"{side}_mime"] = None
+    elif image_bytes is not None:
+        image_bytes, image_mime = _optimize_image(image_bytes, image_mime, max_dim=700)
+        values[f"{side}_image"] = image_bytes
+        values[f"{side}_mime"] = image_mime or "image/png"
+    with get_engine().begin() as conn:
+        exists = conn.execute(
+            select(spot_webcam_ads_table.c.spot)
+            .where(spot_webcam_ads_table.c.spot == spot)
+        ).first()
+        if exists:
+            conn.execute(update(spot_webcam_ads_table)
+                         .where(spot_webcam_ads_table.c.spot == spot).values(**values))
+        else:
+            conn.execute(insert(spot_webcam_ads_table).values(spot=spot, **values))
     _clear_ad_caches()
 
 
@@ -6108,13 +6162,43 @@ def render_spot_tv(cfg):
     _tv_bottom_info(cfg)
 
 
+def _webcam_embed_url(url):
+    """Ergaenzt bei YouTube-Embeds autoplay+mute+playsinline, damit das Video
+    ohne Klick startet (Browser erlauben Autoplay nur stummgeschaltet)."""
+    u = (url or "").strip()
+    if "youtube.com/embed" in u or "youtube-nocookie.com/embed" in u:
+        sep = "&" if "?" in u else "?"
+        add = [p for p in ("autoplay=1", "mute=1", "playsinline=1")
+               if p.split("=")[0] + "=" not in u]
+        if add:
+            u = u + sep + "&".join(add)
+    return u
+
+
+def _webcam_side_ad_html(wads, side):
+    """Bild-Banner (mit optionalem Link) fuer eine Seite neben der Webcam.
+    Leerer String, wenn nichts hinterlegt ist -> die Seite bleibt frei."""
+    uri = _bytes_to_data_uri(wads.get(f"{side}_image"), wads.get(f"{side}_mime"))
+    if not uri:
+        return ""
+    img = (f"<img src='{uri}' style='max-width:100%;max-height:300px;"
+           "border-radius:14px;display:block;'>")
+    url = (wads.get(f"{side}_url") or "").strip()
+    if url:
+        return f"<a href='{url}' target='_blank' rel='noopener'>{img}</a>"
+    return img
+
+
 def _tv_spot_info(cfg):
-    """Spot-Infobereich am unteren Rand des TV: Text + Webcam/Bild."""
+    """Spot-Infobereich am unteren Rand des TV: Beschreibung oben, darunter die
+    Webcam mittig mit optionaler Werbung links/rechts (sonst zentriert); ohne
+    Webcam Text + Bild nebeneinander."""
     info = load_spot_info(cfg["spot"])
     if not info:
         return
     desc = (info.get("description") or "").strip()
     webcam = (info.get("webcam_url") or "").strip()
+    wads = load_webcam_ads(cfg["spot"]) or {}
     img_ids = load_spot_image_ids(cfg["spot"])
     if img_ids:
         img_uri = _spot_thumb_uri(img_ids[0], max_dim=520)
@@ -6136,39 +6220,44 @@ def _tv_spot_info(cfg):
         unsafe_allow_html=True,
     )
 
-    # vertical_alignment="center": Bild mittig zur (oft höheren) Textspalte ->
-    # Leerraum verteilt sich symmetrisch, das Layout wirkt ausgewogen.
-    col_text, col_media = st.columns([1.3, 1], vertical_alignment="center")
-    with col_text:
+    if webcam:
+        # Beschreibung oben ueber die ganze Breite ...
         if desc:
-            st.markdown(f"<div class='tv-info-text'>{desc}</div>", unsafe_allow_html=True)
-    with col_media:
-        if webcam and _is_image_url(webcam):
-            # Snapshot-Webcam: Bild alle 60 s mit Cache-Buster neu laden.
-            components.html(
-                f"<img id='cam' src='{webcam}' "
-                "style='width:100%;height:320px;object-fit:cover;border-radius:16px;display:block;'>"
-                "<script>setInterval(function(){var c=document.getElementById('cam');"
-                "var u=c.src.split('?')[0];c.src=u+'?t='+Date.now();},60000);</script>",
-                height=328,
-            )
-        elif webcam:
-            # Einbettbare Seite (YouTube-Live/Windy/…): iFrame in EXAKT 16:9 und
-            # zentriert -> YouTube zeichnet keine schwarzen Balken (Rahmen = Video),
-            # das ganze Bild bleibt sichtbar. Platz links/rechts bleibt frei (Werbung).
-            components.html(
-                "<div style='width:100%;height:300px;display:flex;align-items:center;"
-                "justify-content:center;'>"
-                f"<iframe src='{webcam}' allow='autoplay; fullscreen' "
-                "style='height:100%;aspect-ratio:16/9;max-width:100%;border:0;"
-                "border-radius:16px;display:block;'></iframe></div>",
-                height=300,
-            )
-        elif img_uri:
-            st.markdown(
-                f"<img class='tv-info-img' src='{img_uri}' alt='Spot'>",
-                unsafe_allow_html=True,
-            )
+            st.markdown(f"<div class='tv-info-text' style='margin-bottom:14px;'>{desc}</div>",
+                        unsafe_allow_html=True)
+        # ... darunter: Werbung links | 16:9-Video mittig | Werbung rechts.
+        left = _webcam_side_ad_html(wads, "left")
+        right = _webcam_side_ad_html(wads, "right")
+        if _is_image_url(webcam):
+            cam = (f"<img id='cam' src='{webcam}' style='height:100%;aspect-ratio:16/9;"
+                   "object-fit:cover;border-radius:16px;display:block;'>"
+                   "<script>setInterval(function(){var c=document.getElementById('cam');"
+                   "var u=c.src.split('?')[0];c.src=u+'?t='+Date.now();},60000);</script>")
+        else:
+            cam = (f"<iframe src='{_webcam_embed_url(webcam)}' allow='autoplay; fullscreen' "
+                   "style='height:100%;aspect-ratio:16/9;max-width:100%;border:0;"
+                   "border-radius:16px;display:block;'></iframe>")
+        components.html(
+            "<div style='display:flex;align-items:center;justify-content:center;"
+            "gap:18px;height:320px;'>"
+            f"<div style='flex:1;display:flex;align-items:center;justify-content:center;"
+            f"max-height:100%;overflow:hidden;'>{left}</div>"
+            f"<div style='flex:0 0 auto;height:100%;display:flex;align-items:center;'>{cam}</div>"
+            f"<div style='flex:1;display:flex;align-items:center;justify-content:center;"
+            f"max-height:100%;overflow:hidden;'>{right}</div>"
+            "</div>",
+            height=330,
+        )
+    else:
+        # Keine Webcam: wie gehabt Text links, Bild rechts.
+        col_text, col_media = st.columns([1.3, 1], vertical_alignment="center")
+        with col_text:
+            if desc:
+                st.markdown(f"<div class='tv-info-text'>{desc}</div>", unsafe_allow_html=True)
+        with col_media:
+            if img_uri:
+                st.markdown(f"<img class='tv-info-img' src='{img_uri}' alt='Spot'>",
+                            unsafe_allow_html=True)
 
 
 _WCODE_EMOJI = {
@@ -6720,7 +6809,7 @@ def render_spots_page(user=None):
         components.html(
             "<div style='width:100%;height:340px;display:flex;align-items:center;"
             "justify-content:center;'>"
-            f"<iframe src='{webcam}' allow='autoplay; fullscreen' "
+            f"<iframe src='{_webcam_embed_url(webcam)}' allow='autoplay; fullscreen' "
             "style='height:100%;aspect-ratio:16/9;max-width:100%;border:0;"
             "border-radius:16px;display:block;'></iframe></div>",
             height=340)
@@ -7599,6 +7688,39 @@ def render_admin_ads():
                 update_spot_coords(spot, lat_in, lon_in)
             st.session_state.pop(info_prefill_key, None)
             _admin_flash("Spot-Info gespeichert.")
+
+    # --- Webcam-Werbung: zwei Banner links/rechts neben der Webcam auf dem TV ---
+    st.markdown("### 📢 Webcam-Werbung (links & rechts vom Video)")
+    st.caption("Zwei Banner, die auf dem Spot-TV links und rechts neben der Webcam "
+               "erscheinen (nur sichtbar, wenn oben eine Webcam-URL gesetzt ist). "
+               "Bild hochladen + optionaler Link.")
+    st.info("📐 **Beste Banner-Größe:** hochkant (Skyscraper) oder quadratisch – "
+            "z.B. **300×600** oder **400×400 px**. Das Banner wird auf max. **300 px Höhe** "
+            "skaliert und auf die Spaltenbreite neben dem Video begrenzt; sehr breite/quer "
+            "liegende Bilder wirken daneben klein. PNG/JPG/WebP, möglichst unter ~500 KB.")
+    _wads = load_webcam_ads(spot) or {}
+    _wc_cols = st.columns(2)
+    for _side, _col, _lbl in (("left", _wc_cols[0], "⬅️ Links"),
+                              ("right", _wc_cols[1], "➡️ Rechts")):
+        with _col:
+            st.markdown(f"**{_lbl}**")
+            if _wads.get(f"{_side}_image"):
+                st.image(bytes(_wads[f"{_side}_image"]), use_container_width=True)
+            _up = st.file_uploader("Banner (PNG/JPG/WebP)",
+                                   type=["png", "jpg", "jpeg", "webp"],
+                                   key=f"wcad_up_{spot}_{_side}")
+            _url = st.text_input("Link (optional)", value=_wads.get(f"{_side}_url") or "",
+                                 key=f"wcad_url_{spot}_{_side}")
+            _bc1, _bc2 = st.columns(2)
+            if _bc1.button("💾 Speichern", key=f"wcad_save_{spot}_{_side}"):
+                save_webcam_ad(spot, _side,
+                               image_bytes=_up.getvalue() if _up else None,
+                               image_mime=_up.type if _up else None, url=_url)
+                _admin_flash(f"Webcam-Werbung ({_lbl}) gespeichert.")
+            if _wads.get(f"{_side}_image") and _bc2.button(
+                    "🗑️ Bild entfernen", key=f"wcad_clr_{spot}_{_side}"):
+                save_webcam_ad(spot, _side, clear=True, url=_url)
+                _admin_flash(f"Banner ({_lbl}) entfernt.")
 
     # --- Bilder-Galerie (mehrere Bilder je Spot, ausserhalb des Formulars) ---
     st.markdown("#### 🖼️ Bilder (Galerie)")
