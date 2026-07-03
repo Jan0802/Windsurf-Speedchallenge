@@ -6222,15 +6222,14 @@ def _webcam_side_ad_html(wads, side):
 
 
 def _tv_spot_info(cfg):
-    """Spot-Infobereich am unteren Rand des TV: Beschreibung oben, darunter die
-    Webcam mittig mit optionaler Werbung links/rechts (sonst zentriert); ohne
-    Webcam Text + Bild nebeneinander."""
+    """Spot-Infobereich am unteren Rand des TV: Text + Webcam/Bild nebeneinander.
+    Werbung ist hier dem lokalen Sponsor vorbehalten (Logo/Produkte) – KEINE
+    Banner neben dem Video (die gibt es nur auf der normalen Spots-Seite)."""
     info = load_spot_info(cfg["spot"])
     if not info:
         return
     desc = (info.get("description") or "").strip()
     webcam = (info.get("webcam_url") or "").strip()
-    wads = load_webcam_ads(cfg["spot"]) or {}
     img_ids = load_spot_image_ids(cfg["spot"])
     if img_ids:
         img_uri = _spot_thumb_uri(img_ids[0], max_dim=520)
@@ -6252,44 +6251,34 @@ def _tv_spot_info(cfg):
         unsafe_allow_html=True,
     )
 
-    if webcam:
-        # Beschreibung oben ueber die ganze Breite ...
+    # Text links, Webcam/Bild rechts (vertikal mittig zueinander).
+    col_text, col_media = st.columns([1.3, 1], vertical_alignment="center")
+    with col_text:
         if desc:
-            st.markdown(f"<div class='tv-info-text' style='margin-bottom:14px;'>{desc}</div>",
+            st.markdown(f"<div class='tv-info-text'>{desc}</div>", unsafe_allow_html=True)
+    with col_media:
+        if webcam and _is_image_url(webcam):
+            # Snapshot-Webcam: Bild alle 60 s mit Cache-Buster neu laden.
+            components.html(
+                f"<img id='cam' src='{webcam}' "
+                "style='width:100%;height:320px;object-fit:cover;border-radius:16px;display:block;'>"
+                "<script>setInterval(function(){var c=document.getElementById('cam');"
+                "var u=c.src.split('?')[0];c.src=u+'?t='+Date.now();},60000);</script>",
+                height=328,
+            )
+        elif webcam:
+            # Zentriertes 16:9 -> keine schwarzen Balken; Autoplay (stumm).
+            components.html(
+                "<div style='width:100%;height:300px;display:flex;align-items:center;"
+                "justify-content:center;'>"
+                f"<iframe src='{_webcam_embed_url(webcam)}' allow='autoplay; fullscreen' "
+                "style='height:100%;aspect-ratio:16/9;max-width:100%;border:0;"
+                "border-radius:16px;display:block;'></iframe></div>",
+                height=300,
+            )
+        elif img_uri:
+            st.markdown(f"<img class='tv-info-img' src='{img_uri}' alt='Spot'>",
                         unsafe_allow_html=True)
-        # ... darunter: Werbung links | 16:9-Video mittig | Werbung rechts.
-        left = _webcam_side_ad_html(wads, "left")
-        right = _webcam_side_ad_html(wads, "right")
-        if _is_image_url(webcam):
-            cam = (f"<img id='cam' src='{webcam}' style='height:100%;aspect-ratio:16/9;"
-                   "object-fit:cover;border-radius:16px;display:block;'>"
-                   "<script>setInterval(function(){var c=document.getElementById('cam');"
-                   "var u=c.src.split('?')[0];c.src=u+'?t='+Date.now();},60000);</script>")
-        else:
-            cam = (f"<iframe src='{_webcam_embed_url(webcam)}' allow='autoplay; fullscreen' "
-                   "style='height:100%;aspect-ratio:16/9;max-width:100%;border:0;"
-                   "border-radius:16px;display:block;'></iframe>")
-        components.html(
-            "<div style='display:flex;align-items:center;justify-content:center;"
-            "gap:18px;height:320px;'>"
-            f"<div style='flex:1;display:flex;align-items:center;justify-content:center;"
-            f"max-height:100%;overflow:hidden;'>{left}</div>"
-            f"<div style='flex:0 0 auto;height:100%;display:flex;align-items:center;'>{cam}</div>"
-            f"<div style='flex:1;display:flex;align-items:center;justify-content:center;"
-            f"max-height:100%;overflow:hidden;'>{right}</div>"
-            "</div>",
-            height=330,
-        )
-    else:
-        # Keine Webcam: wie gehabt Text links, Bild rechts.
-        col_text, col_media = st.columns([1.3, 1], vertical_alignment="center")
-        with col_text:
-            if desc:
-                st.markdown(f"<div class='tv-info-text'>{desc}</div>", unsafe_allow_html=True)
-        with col_media:
-            if img_uri:
-                st.markdown(f"<img class='tv-info-img' src='{img_uri}' alt='Spot'>",
-                            unsafe_allow_html=True)
 
 
 _WCODE_EMOJI = {
