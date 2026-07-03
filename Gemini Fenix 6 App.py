@@ -800,6 +800,10 @@ spot_webcam_ads_table = Table(
     Column("right_image", LargeBinary),
     Column("right_mime", String(50)),
     Column("right_url", String(500)),
+    # Eigener "Sponsored by …"-Name + Link fuer die Webcam (ueberschreibt den
+    # allgemeinen Spot-Sponsor). Leer -> Rueckfall auf den Spot-Sponsor.
+    Column("sponsor_name", String(200)),
+    Column("sponsor_url", String(500)),
     Column("updated_at", DateTime, server_default=func.now()),
 )
 
@@ -1863,6 +1867,8 @@ def _migrate_ad_sport(engine):
         "ALTER TABLE spot_ads ADD PRIMARY KEY (spot, sport)",
         "ALTER TABLE spot_products ADD COLUMN IF NOT EXISTS sport varchar(40) DEFAULT '' NOT NULL",
         "UPDATE spot_products SET sport='' WHERE sport IS NULL",
+        "ALTER TABLE spot_webcam_ads ADD COLUMN IF NOT EXISTS sponsor_name varchar(200)",
+        "ALTER TABLE spot_webcam_ads ADD COLUMN IF NOT EXISTS sponsor_url varchar(500)",
     ]
     for sql in stmts:
         try:
@@ -2335,6 +2341,29 @@ def save_webcam_ad(spot, side, image_bytes=None, image_mime=None, url=None, clea
         image_bytes, image_mime = _optimize_image(image_bytes, image_mime, max_dim=700)
         values[f"{side}_image"] = image_bytes
         values[f"{side}_mime"] = image_mime or "image/png"
+    with get_engine().begin() as conn:
+        exists = conn.execute(
+            select(spot_webcam_ads_table.c.spot)
+            .where(spot_webcam_ads_table.c.spot == spot)
+        ).first()
+        if exists:
+            conn.execute(update(spot_webcam_ads_table)
+                         .where(spot_webcam_ads_table.c.spot == spot).values(**values))
+        else:
+            conn.execute(insert(spot_webcam_ads_table).values(spot=spot, **values))
+    _clear_ad_caches()
+
+
+def save_webcam_sponsor(spot, name, url):
+    """Eigener 'Sponsored by'-Name + Link fuer die Webcam eines Spots (Upsert).
+    Leer -> Rueckfall auf den allgemeinen Spot-Sponsor."""
+    if not spot:
+        return
+    _ensure_ad_tables()
+    values = {
+        "sponsor_name": (name or "").strip() or None,
+        "sponsor_url": (url or "").strip() or None,
+    }
     with get_engine().begin() as conn:
         exists = conn.execute(
             select(spot_webcam_ads_table.c.spot)
@@ -6835,7 +6864,8 @@ def render_spots_page(user=None):
     chosen = next((s for s in pool if s["spot"] == spot), {})
     info = load_spot_info(spot) or {}   # voll, inkl. Bild/Webcam
 
-    ad = load_spot_ad(spot) or {}          # lokaler Sponsor (Name/Link)
+    ad = load_spot_ad(spot) or {}          # allgemeiner Spot-Sponsor (Name/Link)
+    _wads = load_webcam_ads(spot) or {}    # ggf. eigener Webcam-Sponsor
     webcam = (info.get("webcam_url") or "").strip()
 
     # (Der Werbebanner sitzt jetzt oben rechts im Hero, s. render oben.)
@@ -6848,9 +6878,13 @@ def render_spots_page(user=None):
     desc_html = (f"<div style='font-size:18px;line-height:1.6;'>{desc}</div>"
                  if desc else "")
 
-    # "Sponsored by <Name>" (verlinkt) ueber der Webcam.
-    sname = (ad.get("sponsor_name") or "").strip()
-    surl = (ad.get("sponsor_url") or "").strip()
+    # "Sponsored by <Name>" (verlinkt) ueber der Webcam. Eigener Webcam-Sponsor
+    # hat Vorrang; ist keiner gesetzt, gilt der allgemeine Spot-Sponsor.
+    sname = (_wads.get("sponsor_name") or "").strip()
+    surl = (_wads.get("sponsor_url") or "").strip()
+    if not sname:
+        sname = (ad.get("sponsor_name") or "").strip()
+        surl = (ad.get("sponsor_url") or "").strip()
     spons_html = ""
     if sname:
         _txt = f"Sponsored by {sname}"
@@ -7790,6 +7824,18 @@ def render_admin_ads():
     if _wads.get("right_image") and _bc2.button("🗑️ Bild entfernen", key=f"wcad_clr_{spot}"):
         save_webcam_ad(spot, "right", clear=True, url=_url)
         _admin_flash("Werbebanner entfernt.")
+
+    st.markdown("**Sponsored-by-Text über der Webcam** (optional)")
+    _cs1, _cs2 = st.columns(2)
+    _csn = _cs1.text_input("Webcam-Sponsor Name", value=_wads.get("sponsor_name") or "",
+                           key=f"wcsp_name_{spot}")
+    _csu = _cs2.text_input("Webcam-Sponsor Link (optional)", value=_wads.get("sponsor_url") or "",
+                           key=f"wcsp_url_{spot}")
+    if st.button("💾 Webcam-Sponsor speichern", key=f"wcsp_save_{spot}"):
+        save_webcam_sponsor(spot, _csn, _csu)
+        _admin_flash("Webcam-Sponsor gespeichert.")
+    st.caption("Steht hier ein Name, wird er über der Webcam als 'Sponsored by …' gezeigt "
+               "(mit Link, falls angegeben). Leer lassen → es gilt der allgemeine Sponsor von oben.")
 
     # --- Bilder-Galerie (mehrere Bilder je Spot, ausserhalb des Formulars) ---
     st.markdown("#### 🖼️ Bilder (Galerie)")
