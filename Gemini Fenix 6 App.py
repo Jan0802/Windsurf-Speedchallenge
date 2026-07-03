@@ -2108,6 +2108,38 @@ def delete_spot_image(image_id):
     _clear_ad_caches()
 
 
+def rotate_spot_image(image_id, clockwise=True):
+    """Dreht ein Galerie-Bild um 90 Grad und speichert es zurueck (fuer quer
+    aufgenommene Fotos). clockwise=True -> im Uhrzeigersinn."""
+    _ensure_ad_tables()
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            select(spot_images_table.c.image).where(spot_images_table.c.id == int(image_id))
+        ).first()
+        if not row or not row[0]:
+            return
+        try:
+            from PIL import Image
+            im = Image.open(io.BytesIO(bytes(row[0])))
+            im.load()
+            im = im.transpose(Image.ROTATE_270 if clockwise else Image.ROTATE_90)
+            has_alpha = im.mode in ("RGBA", "LA") or (
+                im.mode == "P" and "transparency" in im.info)
+            buf = io.BytesIO()
+            if has_alpha:
+                im.convert("RGBA").save(buf, format="PNG", optimize=True)
+                mime = "image/png"
+            else:
+                im.convert("RGB").save(buf, format="JPEG", quality=85, optimize=True)
+                mime = "image/jpeg"
+            conn.execute(update(spot_images_table)
+                         .where(spot_images_table.c.id == int(image_id))
+                         .values(image=buf.getvalue(), image_mime=mime))
+        except Exception:  # noqa: BLE001 – bei Fehler Original behalten
+            return
+    _clear_ad_caches()
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def load_all_spot_info():
     """Alle Spots MIT Beschreibung (ohne Bild-Bytes – leichtgewichtig) fuer die
@@ -7735,7 +7767,14 @@ def render_admin_ads():
             with gcols[idx % 4]:
                 if gi.get("image"):
                     st.image(bytes(gi["image"]), use_container_width=True)
-                if st.button("🗑️", key=f"delimg_{gi['id']}", help="Dieses Bild löschen"):
+                bccw, bcw, bdel = st.columns(3)
+                if bccw.button("↺", key=f"rotl_{gi['id']}", help="Nach links drehen"):
+                    rotate_spot_image(gi["id"], clockwise=False)
+                    _admin_flash("Bild gedreht.")
+                if bcw.button("↻", key=f"rotr_{gi['id']}", help="Nach rechts drehen"):
+                    rotate_spot_image(gi["id"], clockwise=True)
+                    _admin_flash("Bild gedreht.")
+                if bdel.button("🗑️", key=f"delimg_{gi['id']}", help="Dieses Bild löschen"):
                     delete_spot_image(gi["id"])
                     _admin_flash("Bild gelöscht.")
     new_imgs = st.file_uploader(
@@ -7999,7 +8038,16 @@ def _render_sponsor_fields(spot):
             with gcols[idx % 4]:
                 if gi.get("image"):
                     st.image(bytes(gi["image"]), use_container_width=True)
-                if st.button("🗑️", key=f"sp_delimg_{gi['id']}", help="Dieses Bild löschen"):
+                bccw, bcw, bdel = st.columns(3)
+                if bccw.button("↺", key=f"sp_rotl_{gi['id']}", help="Nach links drehen"):
+                    rotate_spot_image(gi["id"], clockwise=False)
+                    st.session_state["_spotadmin_flash"] = "Bild gedreht."
+                    st.rerun()
+                if bcw.button("↻", key=f"sp_rotr_{gi['id']}", help="Nach rechts drehen"):
+                    rotate_spot_image(gi["id"], clockwise=True)
+                    st.session_state["_spotadmin_flash"] = "Bild gedreht."
+                    st.rerun()
+                if bdel.button("🗑️", key=f"sp_delimg_{gi['id']}", help="Dieses Bild löschen"):
                     delete_spot_image(gi["id"])
                     st.session_state["_spotadmin_flash"] = "Bild gelöscht."
                     st.rerun()
