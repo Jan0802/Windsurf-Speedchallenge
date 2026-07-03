@@ -6153,11 +6153,14 @@ def _tv_spot_info(cfg):
                 height=328,
             )
         elif webcam:
-            # Einbettbare Seite (YouTube-Live/Windy/…): als iFrame.
+            # Einbettbare Seite (YouTube-Live/Windy/…): iFrame in vollem 16:9 ueber
+            # die ganze Breite -> keine schwarzen Balken links/rechts. Dunkler
+            # Hintergrund + overflow:hidden fangen minimale Rundungsreste ab.
             components.html(
+                "<div style='width:100%;background:#0a2230;border-radius:16px;overflow:hidden;'>"
                 f"<iframe src='{webcam}' allow='autoplay; fullscreen' "
-                "style='width:100%;height:320px;border:0;border-radius:16px;'></iframe>",
-                height=328,
+                "style='width:100%;aspect-ratio:16/9;border:0;display:block;'></iframe></div>",
+                height=300,
             )
         elif img_uri:
             st.markdown(
@@ -6713,8 +6716,10 @@ def render_spots_page(user=None):
             "border-radius:16px;display:block;'>", height=388)
     elif webcam:
         components.html(
+            "<div style='width:100%;background:#0a2230;border-radius:16px;overflow:hidden;'>"
             f"<iframe src='{webcam}' allow='autoplay; fullscreen' "
-            "style='width:100%;height:380px;border:0;border-radius:16px;'></iframe>", height=388)
+            "style='width:100%;aspect-ratio:16/9;border:0;display:block;'></iframe></div>",
+            height=360)
 
     # Bilder-Galerie: die NEUESTEN 5 Bilder (User-Uploads + Admin), Uploader vermerkt.
     # Gecachte Thumbnails statt Voll-Bild-base64 -> viel kleinere Seitenlast.
