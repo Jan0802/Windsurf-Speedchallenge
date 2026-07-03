@@ -6770,11 +6770,8 @@ def _tv_bottom_info(cfg):
 def render_spots_page(user=None):
     """Reine Spot-Seite (Revierführer): Filter Land/Spot -> Beschreibung, Webcam/
     Bild, Foto-Galerie (+ User-Upload) und Wetter des gewählten Spots."""
-    # Kopfzeile: Titel links, Werbebanner oben rechts (unter der Navigation). Der
-    # Banner-Platzhalter wird weiter unten gefuellt, sobald der Spot feststeht.
-    _hdr_l, _hdr_r = st.columns([3, 1], vertical_alignment="center")
-    _hdr_l.markdown("## 🗺️ Spots")
-    _hdr_l.caption(
+    st.markdown("## 🗺️ Spots")
+    st.caption(
         "💡 Spot missing? Just type its name when you log a session "
         "(**Add session → New surf spot**, or **…or new spot** in the session editor) – "
         "it instantly becomes available to everyone and gets its own spot page."
@@ -6812,15 +6809,10 @@ def render_spots_page(user=None):
     chosen = next((s for s in pool if s["spot"] == spot), {})
     info = load_spot_info(spot) or {}   # voll, inkl. Bild/Webcam
 
-    wads = load_webcam_ads(spot) or {}
     ad = load_spot_ad(spot) or {}          # lokaler Sponsor (Name/Link)
     webcam = (info.get("webcam_url") or "").strip()
 
-    # Werbebanner oben rechts (unter der Navigation) fuer den gewaehlten Spot.
-    top_banner = _webcam_side_ad_html(wads, "right")
-    if top_banner:
-        _hdr_r.markdown(top_banner, unsafe_allow_html=True)
-
+    # (Der Werbebanner sitzt jetzt oben rechts im Hero, s. render oben.)
     heading = f"### {spot}"
     if chosen.get("country"):
         heading += f"  ·  📍 {chosen['country']}"
@@ -8263,7 +8255,7 @@ if sport == "windsurf" and logo_img:
 else:
     logo_icon = SPORT_META[sport]["emoji"]
 
-st.markdown(f"""
+_hero_html = f"""
 <div class="hero">
     <div class="hero-content">
         <div class="logo">MyWaterSessions<span class="logo-dot">.</span>{BETA_BADGE}</div>
@@ -8272,7 +8264,22 @@ st.markdown(f"""
         <p>The home for everyone active on the water</p>
     </div>
 </div>
-""", unsafe_allow_html=True)
+"""
+
+# Auf der Spots-Seite: Werbebanner oben rechts auf Hoehe des Logos (statt weiter
+# unten im "Niemandsland"). Spot kommt aus der URL (?spot=), den die Spots-Seite pflegt.
+_hero_banner = ""
+if _is_spots_view:
+    _hspot = (st.query_params.get("spot") or "").strip()
+    if _hspot:
+        _hero_banner = _webcam_side_ad_html(load_webcam_ads(_hspot) or {}, "right")
+
+if _hero_banner:
+    _hcl, _hcr = st.columns([4, 1], vertical_alignment="top")
+    _hcl.markdown(_hero_html, unsafe_allow_html=True)
+    _hcr.markdown(_hero_banner, unsafe_allow_html=True)
+else:
+    st.markdown(_hero_html, unsafe_allow_html=True)
 
 render_beta_note()
 
