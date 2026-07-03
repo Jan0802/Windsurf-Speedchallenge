@@ -6901,17 +6901,19 @@ def render_spots_page(user=None):
     if not sname:
         sname = (ad.get("sponsor_name") or "").strip()
         surl = (ad.get("sponsor_url") or "").strip()
-    spons_html = ""
+    # "Sponsored by …" – kommt in denselben Block wie das Video, zentriert direkt
+    # darueber (damit es exakt ueber dem Video sitzt, nicht linksbuendig daneben).
+    spons_inner = ""
     if sname:
         _txt = f"Sponsored by {sname}"
         if surl:
-            spons_html = (f"<a href='{surl}' target='_blank' rel='noopener' "
-                          "style='display:inline-block;margin:0 0 8px;font-size:15px;"
-                          "font-weight:700;color:#2bd4d9;text-decoration:none;'>"
-                          f"{_txt} ↗</a>")
+            spons_inner = (f"<a href='{surl}' target='_blank' rel='noopener' "
+                           "style='display:block;text-align:center;margin:0 0 6px;"
+                           "font-size:15px;font-weight:700;color:#2bd4d9;"
+                           f"text-decoration:none;'>{_txt} ↗</a>")
         else:
-            spons_html = ("<div style='margin:0 0 8px;font-size:15px;font-weight:700;"
-                          f"opacity:.85;'>{_txt}</div>")
+            spons_inner = ("<div style='text-align:center;margin:0 0 6px;font-size:15px;"
+                           f"font-weight:700;color:#bcd4dd;'>{_txt}</div>")
 
     if webcam:
         # Text links, Webcam rechts daneben.
@@ -6920,23 +6922,23 @@ def render_spots_page(user=None):
             if desc_html:
                 st.markdown(desc_html, unsafe_allow_html=True)
         with c_cam:
-            if spons_html:
-                st.markdown(spons_html, unsafe_allow_html=True)
             if _is_image_url(webcam):
                 components.html(
-                    f"<img id='cam' src='{webcam}' style='width:100%;height:300px;"
+                    spons_inner
+                    + f"<img id='cam' src='{webcam}' style='width:100%;height:300px;"
                     "object-fit:cover;border-radius:16px;display:block;'>"
                     "<script>setInterval(function(){var c=document.getElementById('cam');"
                     "var u=c.src.split('?')[0];c.src=u+'?t='+Date.now();},60000);</script>",
-                    height=308)
+                    height=338)
             else:
                 components.html(
-                    "<div style='width:100%;height:300px;display:flex;align-items:center;"
+                    spons_inner
+                    + "<div style='width:100%;height:300px;display:flex;align-items:center;"
                     "justify-content:center;'>"
                     f"<iframe src='{_webcam_embed_url(webcam)}' allow='autoplay; fullscreen' "
                     "style='height:100%;aspect-ratio:16/9;max-width:100%;border:0;"
                     "border-radius:16px;display:block;'></iframe></div>",
-                    height=300)
+                    height=332)
     else:
         # Keine Webcam -> Beschreibung ueber die ganze Breite.
         if desc_html:
