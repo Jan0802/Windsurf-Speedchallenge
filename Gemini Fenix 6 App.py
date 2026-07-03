@@ -2587,11 +2587,48 @@ def fetch_product_meta(url):
         price = meta("product:price:amount") or meta("og:price:amount")
     currency = currency or meta("product:price:currency") or meta("og:price:currency")
 
-    # 3) <title> als letzter Ausweg
+    # 2b) Fallback fuer Shops OHNE JSON-LD/OG (z.B. musicstore.de): Schema.org-
+    #     Mikrodaten (itemprop) + typische Produktbild-Klassen.
+    if price is None:
+        m = re.search(r'itemprop=["\']price["\'][^>]*\bcontent=["\']([^"\']+)["\']',
+                      page, re.I)
+        if m:
+            price = m.group(1)
+        else:  # Preis als Text-Inhalt, z.B. <span itemprop="price">139,00 €</span>
+            m = re.search(r'itemprop=["\']price["\'][^>]*>\s*([^<]+?)\s*<', page, re.I)
+            if m:
+                price = _clean_text(m.group(1))
+    if not currency:
+        mc = re.search(r'itemprop=["\']priceCurrency["\'][^>]*\bcontent=["\']([^"\']+)["\']',
+                       page, re.I)
+        if mc:
+            currency = mc.group(1)
+    if not images:
+        mi = re.search(r'itemprop=["\']image["\'][^>]*\bcontent=["\']([^"\']+)["\']', page, re.I)
+        if mi:
+            _add_img(mi.group(1))
+    if not images:
+        mi = re.search(r'<link[^>]+rel=["\']image_src["\'][^>]*href=["\']([^"\']+)["\']',
+                       page, re.I)
+        if mi:
+            _add_img(mi.group(1))
+    if not images:
+        # Erstes <img>, dessen class "product" enthaelt (z.B. productImageLarge).
+        for im in re.finditer(r'<img\b[^>]*\bclass=["\'][^"\']*product[^"\']*["\'][^>]*>',
+                              page, re.I):
+            s = re.search(r'\b(?:data-src|src)=["\']([^"\']+)["\']', im.group(0), re.I)
+            if s:
+                _add_img(s.group(1))
+                break
+
+    # 3) <title> als letzter Ausweg. Haeufiges " | Sitename"/" – Sitename"-Suffix
+    #    abschneiden (z.B. "Fame … Uke | Deutschland" -> "Fame … Uke").
     if not title:
         tm = re.search(r"<title[^>]*>(.*?)</title>", page, re.S | re.I)
         if tm:
             title = _clean_text(tm.group(1))
+            if title:
+                title = re.split(r"\s+[|–—]\s+", title)[0].strip() or title
 
     # Kandidaten absolutieren + deduplizieren (Reihenfolge erhalten).
     seen, candidates = set(), []
