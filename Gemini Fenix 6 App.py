@@ -6833,18 +6833,30 @@ def render_spots_page(user=None):
         )
 
     webcam = (info.get("webcam_url") or "").strip()
-    if webcam and _is_image_url(webcam):
+    if webcam:
+        # Webcam mittig mit optionaler Werbung links/rechts (aus dem Backoffice).
+        wads = load_webcam_ads(spot) or {}
+        left = _webcam_side_ad_html(wads, "left")
+        right = _webcam_side_ad_html(wads, "right")
+        if _is_image_url(webcam):
+            cam = (f"<img id='cam' src='{webcam}' style='height:100%;aspect-ratio:16/9;"
+                   "object-fit:cover;border-radius:16px;display:block;'>"
+                   "<script>setInterval(function(){var c=document.getElementById('cam');"
+                   "var u=c.src.split('?')[0];c.src=u+'?t='+Date.now();},60000);</script>")
+        else:
+            cam = (f"<iframe src='{_webcam_embed_url(webcam)}' allow='autoplay; fullscreen' "
+                   "style='height:100%;aspect-ratio:16/9;max-width:100%;border:0;"
+                   "border-radius:16px;display:block;'></iframe>")
         components.html(
-            f"<img src='{webcam}' style='width:100%;max-height:380px;object-fit:cover;"
-            "border-radius:16px;display:block;'>", height=388)
-    elif webcam:
-        components.html(
-            "<div style='width:100%;height:340px;display:flex;align-items:center;"
-            "justify-content:center;'>"
-            f"<iframe src='{_webcam_embed_url(webcam)}' allow='autoplay; fullscreen' "
-            "style='height:100%;aspect-ratio:16/9;max-width:100%;border:0;"
-            "border-radius:16px;display:block;'></iframe></div>",
-            height=340)
+            "<div style='display:flex;align-items:center;justify-content:center;"
+            "gap:18px;height:340px;'>"
+            f"<div style='flex:1;display:flex;align-items:center;justify-content:center;"
+            f"max-height:100%;overflow:hidden;'>{left}</div>"
+            f"<div style='flex:0 0 auto;height:100%;display:flex;align-items:center;'>{cam}</div>"
+            f"<div style='flex:1;display:flex;align-items:center;justify-content:center;"
+            f"max-height:100%;overflow:hidden;'>{right}</div>"
+            "</div>",
+            height=350)
 
     # Bilder-Galerie: die NEUESTEN 5 Bilder (User-Uploads + Admin), Uploader vermerkt.
     # Gecachte Thumbnails statt Voll-Bild-base64 -> viel kleinere Seitenlast.
