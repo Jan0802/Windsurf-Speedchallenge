@@ -6207,6 +6207,21 @@ def _webcam_embed_url(url):
     return u
 
 
+def _hero_banner_html(wads, height=210):
+    """Werbebanner fuer die Hero-Zeile der Spots-Seite: fixe Hoehe (fuellt den
+    Hero), Breite waechst proportional mit (Seitenverhaeltnis bleibt),
+    rechtsbuendig. Leerer String, wenn kein Banner hinterlegt ist."""
+    uri = _bytes_to_data_uri(wads.get("right_image"), wads.get("right_mime"))
+    if not uri:
+        return ""
+    img = (f"<img src='{uri}' style='height:{height}px;width:auto;max-width:100%;"
+           "object-fit:cover;border-radius:16px;display:block;margin-left:auto;'>")
+    url = (wads.get("right_url") or "").strip()
+    if url:
+        return f"<a href='{url}' target='_blank' rel='noopener'>{img}</a>"
+    return img
+
+
 def _webcam_side_ad_html(wads, side):
     """Bild-Banner (mit optionalem Link) fuer eine Seite neben der Webcam.
     Leerer String, wenn nichts hinterlegt ist -> die Seite bleibt frei."""
@@ -7746,8 +7761,9 @@ def render_admin_ads():
     st.caption("Ein Banner, das auf der öffentlichen Spots-Seite oben rechts (unter der "
                "Navigation) beim gewählten Spot erscheint. Bild hochladen + optionaler Link. "
                "Der 'Sponsored by …'-Hinweis über der Webcam kommt aus dem Sponsor-Feld ganz oben.")
-    st.info("📐 Beste Banner-Größe: eher quer/rechteckig, z.B. 300×250 oder 336×280 px "
-            "(Medium Rectangle). PNG/JPG/WebP, möglichst unter ~300 KB.")
+    st.info("📐 Beste Banner-Größe: **Querformat**, Seitenverhältnis ca. **3:1**, "
+            "z.B. **700×210** oder **600×200 px**. Es wird auf ~210 px Höhe skaliert "
+            "und füllt die Hero-Zeile oben rechts. PNG/JPG/WebP, möglichst unter ~300 KB.")
     _wads = load_webcam_ads(spot) or {}
     if _wads.get("right_image"):
         st.image(bytes(_wads["right_image"]), width=320)
@@ -8272,10 +8288,11 @@ _hero_banner = ""
 if _is_spots_view:
     _hspot = (st.query_params.get("spot") or "").strip()
     if _hspot:
-        _hero_banner = _webcam_side_ad_html(load_webcam_ads(_hspot) or {}, "right")
+        _hero_banner = _hero_banner_html(load_webcam_ads(_hspot) or {}, height=210)
 
 if _hero_banner:
-    _hcl, _hcr = st.columns([4, 1], vertical_alignment="top")
+    # Breitere Banner-Spalte, vertikal zentriert -> Banner fuellt die Hero-Hoehe.
+    _hcl, _hcr = st.columns([3, 1.5], vertical_alignment="center")
     _hcl.markdown(_hero_html, unsafe_allow_html=True)
     _hcr.markdown(_hero_banner, unsafe_allow_html=True)
 else:
