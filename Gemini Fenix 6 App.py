@@ -6235,16 +6235,32 @@ def render_spot_tv(cfg):
 
 
 def _webcam_embed_url(url):
-    """Ergaenzt bei YouTube-Embeds autoplay+mute+playsinline, damit das Video
-    ohne Klick startet (Browser erlauben Autoplay nur stummgeschaltet)."""
+    """Bringt YouTube-Links in die iFrame-faehige Embed-Form (nur /embed/ laesst
+    sich einbetten – /watch, /live, youtu.be, /shorts werden von YouTube im iFrame
+    abgelehnt) und haengt autoplay+mute+playsinline an (Autoplay nur stumm erlaubt).
+    Nicht-YouTube-URLs (Windy o.ae.) bleiben unveraendert."""
     u = (url or "").strip()
-    if "youtube.com/embed" in u or "youtube-nocookie.com/embed" in u:
-        sep = "&" if "?" in u else "?"
-        add = [p for p in ("autoplay=1", "mute=1", "playsinline=1")
-               if p.split("=")[0] + "=" not in u]
-        if add:
-            u = u + sep + "&".join(add)
-    return u
+    if not u:
+        return u
+    yt = None
+    if "youtube.com/embed/live_stream" in u:
+        yt = u                                    # Kanal-Live-Embed: schon ok
+    elif "youtube.com/embed/" in u or "youtube-nocookie.com/embed/" in u:
+        yt = u                                    # bereits Embed-Form
+    else:
+        m = re.search(
+            r"(?:youtube\.com/(?:watch\?(?:.*&)?v=|live/|shorts/)|youtu\.be/)"
+            r"([A-Za-z0-9_-]{6,})", u)
+        if m:
+            yt = "https://www.youtube.com/embed/" + m.group(1)
+    if yt is None:
+        return u
+    sep = "&" if "?" in yt else "?"
+    add = [p for p in ("autoplay=1", "mute=1", "playsinline=1")
+           if p.split("=")[0] + "=" not in yt]
+    if add:
+        yt = yt + sep + "&".join(add)
+    return yt
 
 
 def _hero_banner_html(wads, height=210):
@@ -7780,8 +7796,9 @@ def render_admin_ads():
         webcam = st.text_input(
             "Webcam- oder Bild-URL (optional, hat Vorrang vor Upload)",
             value=info.get("webcam_url") or "",
-            help="Direktes Bild (…/snapshot.jpg) lädt sich auto. neu; eine "
-                 "einbettbare Seite (YouTube-Live/Windy) wird als iFrame gezeigt.",
+            help="Ein normaler YouTube-Link (youtube.com/watch, /live oder youtu.be) "
+                 "reicht – er wird automatisch einbettbar gemacht. Auch Windy-Embeds "
+                 "oder ein direktes Bild (…/snapshot.jpg, lädt sich auto. neu) gehen.",
         )
         st.caption("📍 Koordinaten (für Wetter). Leer lassen = automatisches "
                    "Geocoding; hier setzen, um einen falschen Ort zu korrigieren.")
