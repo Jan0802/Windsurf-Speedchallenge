@@ -2478,8 +2478,18 @@ _BROWSER_HEADERS = {
 }
 
 
-def _http_get(url, max_bytes=3_000_000, timeout=12):
-    req = Request(url, headers=_BROWSER_HEADERS)
+# Manche Shops (z.B. musicstore.de) blocken „normale" Abrufe per WAF, liefern
+# aber Googlebot fuers SEO den vollen Inhalt aus -> als 403-Fallback probieren.
+_GOOGLEBOT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Encoding": "identity",
+    "From": "googlebot(at)googlebot.com",
+}
+
+
+def _http_get(url, max_bytes=3_000_000, timeout=12, headers=None):
+    req = Request(url, headers=headers or _BROWSER_HEADERS)
     with urlopen(req, timeout=timeout) as resp:
         ctype = resp.headers.get("Content-Type", "") or ""
         data = resp.read(max_bytes)
@@ -2543,14 +2553,26 @@ def fetch_product_meta(url):
     if not url.lower().startswith(("http://", "https://")):
         return {"error": "Bitte eine vollständige URL mit http(s):// angeben."}
 
-    try:
-        raw, _ctype = _http_get(url)
-    except HTTPError as exc:  # noqa: BLE001 – HTTP-Status zeigen (403 = Bot-Sperre)
-        _hint = ("  Der Shop blockt automatische Abrufe – bitte Titel, Preis und Bild "
-                 "manuell eintragen.") if exc.code in (401, 403, 429, 503) else ""
-        return {"error": f"Seite nicht erreichbar (HTTP {exc.code})." + _hint}
-    except Exception as exc:  # noqa: BLE001 – Netzwerk-/Parse-Fehler sauber melden
-        return {"error": f"Seite nicht erreichbar ({type(exc).__name__})."}
+    # Erst normaler Browser-Abruf; bei 401/403/429 einmal mit Googlebot-UA retryen.
+    raw = None
+    _err = None
+    for _hdrs in (_BROWSER_HEADERS, _GOOGLEBOT_HEADERS):
+        try:
+            raw, _ctype = _http_get(url, headers=_hdrs)
+            break
+        except HTTPError as exc:  # noqa: BLE001
+            _err = ("http", exc.code)
+            if exc.code not in (401, 403, 429):
+                break            # anderer HTTP-Fehler -> kein Bot-UA-Retry
+        except Exception as exc:  # noqa: BLE001
+            _err = ("other", type(exc).__name__)
+            break
+    if raw is None:
+        if _err and _err[0] == "http":
+            _hint = ("  Der Shop blockt automatische Abrufe – bitte Titel, Preis und "
+                     "Bild manuell eintragen.") if _err[1] in (401, 403, 429, 503) else ""
+            return {"error": f"Seite nicht erreichbar (HTTP {_err[1]})." + _hint}
+        return {"error": f"Seite nicht erreichbar ({_err[1] if _err else 'Fehler'})."}
 
     page = raw.decode("utf-8", errors="replace")
     title = price = currency = None
