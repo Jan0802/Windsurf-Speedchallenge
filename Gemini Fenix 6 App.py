@@ -5970,10 +5970,11 @@ def _tv_weather_html(lat, lon):
 <!DOCTYPE html><html><head><meta charset='utf-8'><style>
  html,body{background:transparent!important;margin:0;color:#eaf4ff;
    font-family:system-ui,-apple-system,sans-serif;}
- .row{display:flex;gap:16px;}
+ .row{display:flex;gap:12px;flex-wrap:wrap;}
  .c{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);
-    border-radius:18px;padding:10px 20px;flex:1;}
- .c .l{font-size:17px;opacity:.8;} .c .v{font-size:44px;font-weight:800;}
+    border-radius:18px;padding:10px 16px;flex:1 1 130px;min-width:0;}
+ .c .l{font-size:15px;opacity:.8;}
+ .c .v{font-size:clamp(26px,6vw,44px);font-weight:800;white-space:nowrap;}
 </style></head><body>
 <div id='w' class='row'>…</div>
 <script>
@@ -6002,6 +6003,21 @@ load(); setInterval(load, 600000);
 </script></body></html>
 """
     return html.replace("__LAT__", str(lat)).replace("__LON__", str(lon))
+
+
+def _is_mobile():
+    """Grobe Handy-/Tablet-Erkennung ueber den User-Agent (serverseitig, ohne JS).
+    Faellt bei aelteren Streamlit-Versionen sicher auf False (= Desktop) zurueck."""
+    try:
+        ua = st.context.headers.get("User-Agent", "") or ""
+    except Exception:  # noqa: BLE001
+        return False
+    return any(k in ua for k in ("Mobi", "Android", "iPhone", "iPad", "iPod"))
+
+
+def _weather_height():
+    """Wetter-iFrame: auf dem Handy hoeher (Kacheln brechen auf 2x2 um)."""
+    return 300 if _is_mobile() else 130
 
 
 @st.fragment(run_every=30)
@@ -6295,7 +6311,7 @@ def render_spot_tv(cfg):
     # sich ueber sein eigenes JS.
     coords = _spot_coords(cfg["spot"])
     if coords:
-        components.html(_tv_weather_html(coords[0], coords[1]), height=130)
+        components.html(_tv_weather_html(coords[0], coords[1]), height=_weather_height())
 
     _spot_tv_live(cfg)
 
@@ -7080,7 +7096,7 @@ def render_spots_page(user=None):
     if lat is not None and lon is not None:
         coords = (lat, lon)
         st.markdown("#### 🌬️ Weather")
-        components.html(_tv_weather_html(coords[0], coords[1]), height=130)
+        components.html(_tv_weather_html(coords[0], coords[1]), height=_weather_height())
         # 3-Tage-Kacheln mit Button je Tag -> Stundenansicht per Rerun (kein Reload).
         render_spots_forecast(spot, coords)
     else:
@@ -8411,6 +8427,17 @@ if bg_uri and st.session_state.get("_bg_sport") != sport:
         """.replace("__BG__", bg_uri),
         height=0,
     )
+
+# Mobile-Layout: auf schmalen Screens Spalten (st.columns) untereinander stapeln
+# statt nebeneinander (sonst „linkslastig") + keinen horizontalen Ueberlauf.
+st.markdown(
+    "<style>@media (max-width:640px){"
+    "[data-testid='stHorizontalBlock']{flex-wrap:wrap!important;}"
+    "[data-testid='stHorizontalBlock']>div{flex:1 1 100%!important;min-width:100%!important;}"
+    "html,body,[data-testid='stAppViewContainer']{overflow-x:hidden!important;}"
+    "}</style>",
+    unsafe_allow_html=True,
+)
 
 if sport == "windsurf" and logo_img:
     logo_icon = (
