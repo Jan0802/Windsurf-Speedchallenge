@@ -8454,7 +8454,14 @@ if bg_uri and st.session_state.get("_bg_sport") != sport:
 # keinen horizontalen Ueberlauf. Mehrere Selektoren, weil die Streamlit-Kennungen
 # je Version variieren (stHorizontalBlock/stColumn/column).
 st.markdown(
-    "<style>@media (max-width:640px){"
+    "<style>"
+    # WICHTIG (iOS): Eingabefelder MUESSEN >= 16px Schrift haben, sonst zoomt
+    # iPhone-Safari beim Antippen automatisch in die Seite ("alles wird groesser").
+    "input,textarea,select{font-size:16px!important;}"
+    "[data-baseweb='input'] input,[data-baseweb='base-input'] input,"
+    "[data-baseweb='textarea'] textarea,[data-baseweb='select'] input,"
+    "[data-baseweb='select'] [role='combobox']{font-size:16px!important;}"
+    "@media (max-width:640px){"
     # Spalten (Navi/Layout) untereinander stapeln; min-width:0 ist entscheidend,
     # damit breite Inhalte (Tabellen) die Spalte NICHT breiter als das Display
     # ziehen, sondern in ihrem eigenen Kasten scrollen.
