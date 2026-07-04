@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
+<link rel="manifest" href="/site.webmanifest">
+<title>MyWaterSessions – Changelog &amp; what's new (Beta 0.8)</title>
+<meta name="description" content="What's new in MyWaterSessions – the free speed-ranking &amp; spot guide for windsurf, kite, wing, SUP and wakeboard. Release notes and version history, updated continuously during the beta.">
+<link rel="canonical" href="https://mywatersessions.com/changelog.html">
+<meta name="theme-color" content="#06303a">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MyWaterSessions">
+<meta property="og:title" content="MyWaterSessions – Changelog (Beta 0.8)">
+<meta property="og:description" content="Release notes &amp; version history: new watersports features, uploads, spot guide, Spot-TV and more.">
+<meta property="og:url" content="https://mywatersessions.com/changelog.html">
+<meta property="og:image" content="https://mywatersessions.com/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="MyWaterSessions – Changelog (Beta 0.8)">
+<meta name="twitter:description" content="Release notes &amp; version history for MyWaterSessions.">
+<meta name="twitter:image" content="https://mywatersessions.com/og.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "MyWaterSessions",
+  "url": "https://mywatersessions.com/",
+  "applicationCategory": "SportsApplication",
+  "operatingSystem": "Web, Garmin Connect IQ",
+  "softwareVersion": "0.8",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+  "releaseNotes": "Beta 0.8: upload without a Garmin (FIT, GPX, TCX); new 500 m and nautical-mile speed disciplines; redesigned Garmin watch app with configurable screens; richer spot weather (wind, gusts, temperature, sunset); live webcam embeds with auto-play and a sponsor slot; advertising split per sport; contact/feedback form; guest quick-entry via Spot-TV QR code; mobile layout optimisation."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "MyWaterSessions", "item": "https://mywatersessions.com/" },
+    { "@type": "ListItem", "position": 2, "name": "Changelog", "item": "https://mywatersessions.com/changelog.html" }
+  ]
+}
+</script>
+
+<style>
+  :root{ --aqua:#2bd4d9; --ink:#06303a; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+        color:#eaf4ff; background:#06222e; line-height:1.6; }
+  a{ color:var(--aqua); }
+  .wrap{ max-width:900px; margin:0 auto; padding:0 20px; }
+  .hero{ background:
+      linear-gradient(180deg, rgba(6,34,46,.55), rgba(6,34,46,.92)),
+      radial-gradient(1200px 500px at 70% -10%, #0b6b8c, #06222e 60%);
+      padding:64px 0 40px; text-align:center; }
+  .logo{ font-size:clamp(30px,5vw,48px); font-weight:800; letter-spacing:-.5px; }
+  .logo .dot{ color:var(--aqua); }
+  .kicker{ font-size:14px; letter-spacing:3px; text-transform:uppercase; color:#8fd9e3; margin-top:10px; }
+  .badge{ display:inline-block; margin-top:14px; background:var(--aqua); color:var(--ink);
+          font-weight:800; padding:6px 14px; border-radius:999px; font-size:14px; }
+  .langnote{ font-size:13px; color:#9fc4cf; margin-top:12px; }
+  section{ padding:34px 0; }
+  .ver{ background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+        border-radius:18px; padding:22px 24px; margin:0 0 22px; }
+  .ver h2{ font-size:clamp(20px,3vw,26px); margin:0 0 2px; }
+  .ver .date{ color:#8fd9e3; font-size:14px; margin:0 0 14px; }
+  .grp{ font-weight:800; color:#bfe7ee; margin:16px 0 4px; }
+  ul{ margin:4px 0 0; padding-left:20px; }
+  li{ margin:6px 0; color:#dCeaf1; }
+  li b{ color:#fff; }
+  .cta{ text-align:center; margin-top:10px; }
+  .btn{ display:inline-block; background:var(--aqua); color:var(--ink); font-weight:800;
+        text-decoration:none; padding:13px 26px; border-radius:14px; font-size:17px; }
+  footer{ padding:30px 0 48px; color:#7fa6b2; font-size:13px; text-align:center; }
+  footer a{ color:#9fd9e3; margin:0 8px; }
+</style>
+<!-- Cloudflare Web Analytics (cookieless) -->
+<script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "c16ea8dadd7749e1826d6ea48f80ca6d"}'></script>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="logo">MyWaterSessions<span class="dot">.</span></div>
+    <div class="kicker">Changelog · What's new</div>
+    <div class="badge">Current version: Beta 0.8</div>
+    <div class="langnote">We add every improvement here so you (and search engines) can see the app is actively developed.</div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+
+    <div class="ver">
+      <h2>Beta 0.8</h2>
+      <p class="date">July 2026</p>
+
+      <div class="grp">📤 Upload &amp; recording</div>
+      <ul>
+        <li><b>Upload without a Garmin watch:</b> we now accept <b>FIT, GPX and TCX</b> files – from an Apple Watch (e.g. HealthFit), phone GPS apps, Suunto, COROS, or a <b>Garmin Connect / Strava export</b>. Speed, distance, GPS track and your 2 s / 30 s top speeds are computed automatically.</li>
+        <li><b>New speed disciplines:</b> <b>Best 500 m</b> and <b>Best nautical mile</b> rankings – on the website and on the watch.</li>
+        <li>A short in-app guide shows exactly how to export your session from other apps.</li>
+      </ul>
+
+      <div class="grp">⌚ Garmin watch app</div>
+      <ul>
+        <li><b>Redesigned training screens</b> in the app's look: big current speed, live 2 s and session max.</li>
+        <li><b>Configurable screens:</b> show/hide pages and switch the big unit (<b>km/h ↔ knots</b>) right from the watch settings.</li>
+      </ul>
+
+      <div class="grp">🗺️ Spots &amp; Spot-TV</div>
+      <ul>
+        <li>Spot weather now shows <b>wind, gusts &amp; direction, temperature and sunset</b>.</li>
+        <li><b>Live webcams</b> embed cleanly (YouTube &amp; co.) and start automatically; plus a spot <b>sponsor banner</b> and a "Sponsored by" credit for local partners.</li>
+        <li><b>Spot-TV</b> (café / shop screen): record date &amp; board tiles and an auto-refresh safeguard for always-on displays.</li>
+      </ul>
+
+      <div class="grp">🛠️ Backoffice &amp; ads</div>
+      <ul>
+        <li>Advertising can be <b>split per sport</b> per spot (e.g. different sponsors for kite vs. windsurf).</li>
+        <li><b>Rotate gallery photos</b>, a built-in <b>contact / feedback form</b>, and an improved product import that reads more shops' price &amp; image.</li>
+      </ul>
+
+      <div class="grp">📱 Community &amp; mobile</div>
+      <ul>
+        <li><b>Guest quick-entry:</b> scan the Spot-TV QR code and join today's ranking <b>without an account</b>.</li>
+        <li><b>Mobile layout optimised:</b> sections stack on phones and ranking tables are shown slimmed (date without the time, km/h only – swipe for more).</li>
+        <li>Installable web app (PWA), new icons and many small fixes.</li>
+      </ul>
+    </div>
+
+    <div class="ver">
+      <h2>Earlier (Beta 0.7x)</h2>
+      <p class="date">2026</p>
+      <ul>
+        <li>Community <b>speed rankings</b> (2 s, 30 s, longest run, total distance) with a fair <b>trust score</b> and a <b>performance index</b>.</li>
+        <li><b>Spot guide</b> with descriptions, photo galleries and a 3-day wind forecast; <b>Spot-TV</b> live leaderboard; <b>groups</b> &amp; community feed.</li>
+        <li>Multi-language user guide and dedicated, search-friendly spot pages.</li>
+      </ul>
+    </div>
+
+    <div class="cta">
+      <a class="btn" href="https://app.mywatersessions.com/">🌊 Open the app</a>
+    </div>
+
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>© MyWaterSessions · speed rankings &amp; spot guide for windsurf, kite, wing, SUP &amp; wakeboard</div>
+    <div style="margin-top:8px;">
+      <a href="/">Home</a> ·
+      <a href="/about.html">About</a> ·
+      <a href="/guide.html">Guide</a> ·
+      <a href="https://spots.mywatersessions.com/spots">Spots</a> ·
+      <a href="https://app.mywatersessions.com/">Open the app</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

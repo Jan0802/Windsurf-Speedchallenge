@@ -108,7 +108,7 @@ SPORTS = ("windsurf", "kitesurf", "wingsurf", "sup", "wakeboard")
 BETA_BADGE = (
     "<span style=\"font-size:.34em;font-weight:700;color:#fff;opacity:.85;"
     "vertical-align:super;margin-left:.45em;letter-spacing:0;white-space:nowrap;\">"
-    "Beta 0.76</span>"
+    "Beta 0.8</span>"
 )
 
 # Datum des letzten Deploys: automatisch aus der Aenderungszeit dieser Datei
@@ -138,6 +138,7 @@ def render_beta_note():
     c1.caption(f"🔧 Last update: {LAST_UPDATE}")
     with c2.popover("❓ Why Beta?"):
         st.markdown(BETA_WHY)
+        st.markdown("[📋 What's new — changelog](https://mywatersessions.com/changelog.html)")
 
 
 SPORT_META = {
