@@ -8429,12 +8429,19 @@ if bg_uri and st.session_state.get("_bg_sport") != sport:
     )
 
 # Mobile-Layout: auf schmalen Screens Spalten (st.columns) untereinander stapeln
-# statt nebeneinander (sonst „linkslastig") + keinen horizontalen Ueberlauf.
+# statt nebeneinander (sonst laufen z.B. die 7 Navi-Buttons ueber den Rand) +
+# keinen horizontalen Ueberlauf. Mehrere Selektoren, weil die Streamlit-Kennungen
+# je Version variieren (stHorizontalBlock/stColumn/column).
 st.markdown(
     "<style>@media (max-width:640px){"
     "[data-testid='stHorizontalBlock']{flex-wrap:wrap!important;}"
-    "[data-testid='stHorizontalBlock']>div{flex:1 1 100%!important;min-width:100%!important;}"
-    "html,body,[data-testid='stAppViewContainer']{overflow-x:hidden!important;}"
+    "[data-testid='stHorizontalBlock']>div,"
+    "[data-testid='stColumn'],[data-testid='column']{"
+    "flex:1 1 100%!important;min-width:100%!important;width:100%!important;}"
+    ".stButton>button,[data-testid='stBaseButton-secondary'],"
+    "[data-testid='stBaseButton-primary']{width:100%!important;}"
+    "html,body,.main,[data-testid='stAppViewContainer'],[data-testid='stMain']"
+    "{overflow-x:hidden!important;max-width:100%!important;}"
     "}</style>",
     unsafe_allow_html=True,
 )
