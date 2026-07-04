@@ -3784,7 +3784,8 @@ def render_personal_best_table(pb_table, pb_table_caption, total=0):
         if pb_table_caption:
             st.caption(pb_table_caption)
 
-        st.dataframe(pb_table, width="stretch", hide_index=True, height=df_height(len(pb_table)))
+        st.dataframe(_mobile_slim(pb_table), width="stretch", hide_index=True,
+                     height=df_height(len(pb_table)))
 
     st.markdown("---")
 
@@ -4915,7 +4916,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "speed_30s_kn": "30s kn",
         })
 
-        st.dataframe(r30, width="stretch", hide_index=True, height=df_height(len(r30)))
+        st.dataframe(_mobile_slim(r30), width="stretch", hide_index=True, height=df_height(len(r30)))
 
     with rcol2:
         st.markdown("### ⚡ Top speed 2 seconds")
@@ -4951,7 +4952,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "speed_1s_kn": "2s kn",
         })
 
-        st.dataframe(r1, width="stretch", hide_index=True, height=df_height(len(r1)))
+        st.dataframe(_mobile_slim(r1), width="stretch", hide_index=True, height=df_height(len(r1)))
 
     if {"speed_500m_kmh", "speed_nm_kmh"}.issubset(ranking.columns):
         rcol5, rcol6 = st.columns(2)
@@ -4979,7 +4980,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                     "date": "Date", "name": "Name", "surfspot": "Surf spot",
                     "board": "Board", "sail": gear_label, col: f"{unit_label} km/h",
                 })
-                st.dataframe(tab, width="stretch", hide_index=True, height=df_height(len(tab)))
+                st.dataframe(_mobile_slim(tab), width="stretch", hide_index=True,
+                             height=df_height(len(tab)))
 
         _dist_table(rcol5, "speed_500m_kmh", "📏 Best 500 m", "500m")
         _dist_table(rcol6, "speed_nm_kmh", "⚓ Best nautical mile", "nm")
@@ -5020,7 +5022,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "longest_run_m": "Run m",
         })
 
-        st.dataframe(rrun, width="stretch", hide_index=True, height=df_height(len(rrun)))
+        st.dataframe(_mobile_slim(rrun), width="stretch", hide_index=True,
+                     height=df_height(len(rrun)))
 
     with rcol4:
         st.markdown("### 👥 Longest total distance per rider")
@@ -5045,7 +5048,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "last_date": "Last session",
         })
 
-        st.dataframe(rtotal, width="stretch", hide_index=True, height=df_height(len(rtotal)))
+        st.dataframe(_mobile_slim(rtotal), width="stretch", hide_index=True,
+                     height=df_height(len(rtotal)))
 
     # Zusatz-Rankings aus den Uhr-Daten: Wind -> Sprünge, SUP -> Paddeln.
     # Sessions ohne die jeweiligen Werte fallen raus.
@@ -5078,7 +5082,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "sail": gear_label,
             metric: col_label,
         })
-        st.dataframe(tbl, width="stretch", hide_index=True, height=df_height(len(tbl)))
+        st.dataframe(_mobile_slim(tbl), width="stretch", hide_index=True,
+                     height=df_height(len(tbl)))
 
     if active_sport() == "sup":
         scol1, scol2 = st.columns(2)
@@ -6018,6 +6023,21 @@ def _is_mobile():
 def _weather_height():
     """Wetter-iFrame: auf dem Handy hoeher (Kacheln brechen auf 2x2 um)."""
     return 300 if _is_mobile() else 130
+
+
+def _mobile_slim(df):
+    """Nur auf dem Handy: Ranglisten-Tabelle schmaler machen – Datum ohne Uhrzeit
+    (nur YYYY-MM-DD) und die zweite Einheit (kn-Spalten) ausblenden. Auf dem
+    Desktop bleibt die volle Tabelle. Zeilenanzahl bleibt gleich."""
+    if not _is_mobile():
+        return df
+    df = df.copy()
+    if "Date" in df.columns:
+        df["Date"] = df["Date"].astype(str).str.slice(0, 10)
+    kn_cols = [c for c in df.columns if str(c).endswith(" kn")]
+    if kn_cols:
+        df = df.drop(columns=kn_cols)
+    return df
 
 
 @st.fragment(run_every=30)
@@ -8434,14 +8454,19 @@ if bg_uri and st.session_state.get("_bg_sport") != sport:
 # je Version variieren (stHorizontalBlock/stColumn/column).
 st.markdown(
     "<style>@media (max-width:640px){"
+    # Spalten (Navi/Layout) untereinander stapeln; min-width:0 ist entscheidend,
+    # damit breite Inhalte (Tabellen) die Spalte NICHT breiter als das Display
+    # ziehen, sondern in ihrem eigenen Kasten scrollen.
     "[data-testid='stHorizontalBlock']{flex-wrap:wrap!important;}"
     "[data-testid='stHorizontalBlock']>div,"
     "[data-testid='stColumn'],[data-testid='column']{"
-    "flex:1 1 100%!important;min-width:100%!important;width:100%!important;}"
-    ".stButton>button,[data-testid='stBaseButton-secondary'],"
-    "[data-testid='stBaseButton-primary']{width:100%!important;}"
-    "html,body,.main,[data-testid='stAppViewContainer'],[data-testid='stMain']"
-    "{overflow-x:hidden!important;max-width:100%!important;}"
+    "flex-basis:100%!important;min-width:0!important;}"
+    ".stButton>button{width:100%!important;}"
+    # Tabellen fitten aufs Display und scrollen intern statt die Seite zu sprengen.
+    "[data-testid='stDataFrame'],[data-testid='stTable'],[data-testid='stDataFrameResizable']"
+    "{max-width:100%!important;}"
+    # Belt-and-suspenders: kein horizontaler Seiten-Ueberlauf.
+    "[data-testid='stAppViewContainer'],[data-testid='stMain']{overflow-x:hidden!important;}"
     "}</style>",
     unsafe_allow_html=True,
 )
@@ -8582,6 +8607,10 @@ _GUIDE = {
              "<ul><li>Every session gets a <b>trust score</b> from GPS physics: max acceleration, course change at speed, GPS noise, point density and a comparison with the spot best.</li>"
              "<li>Watch sessions also get an <b>on-water check</b> and a device-verified baseline. Please keep it fair – obvious outliers lose trust.</li>"
              "<li><b>Privacy</b>: your GPS track is stored but shown <b>only to you</b>. The ranking shows name, spot, speed, equipment and weather. You can delete your data or account anytime. See the privacy policy.</li></ul>"),
+            ("On your phone",
+             "<ul><li>The app is <b>mobile-friendly</b>: side-by-side sections stack vertically so nothing runs off the screen.</li>"
+             "<li>Ranking tables are shown <b>slimmed</b> on phones: the <b>date without the time</b> and <b>only km/h</b> (the knots column is hidden). <b>Swipe sideways</b> inside a table to see the remaining columns (spot, board, sail, weather).</li>"
+             "<li>On a computer you always see the <b>full</b> tables (date + time, km/h <i>and</i> knots).</li></ul>"),
         ],
     },
     "de": {
@@ -8669,6 +8698,10 @@ _GUIDE = {
              "<ul><li>Jede Session bekommt einen <b>Trust-Score</b> aus GPS-Physik: max. Beschleunigung, Kursänderung bei Tempo, GPS-Rauschen, Punktdichte und Vergleich mit dem Spot-Bestwert.</li>"
              "<li>Uhr-Sessions bekommen zusätzlich einen <b>On-Water-Check</b> und einen geräteverifizierten Grundwert. Bitte fair bleiben – klare Ausreißer verlieren Trust.</li>"
              "<li><b>Datenschutz</b>: Dein GPS-Track wird gespeichert, aber <b>nur dir</b> angezeigt. Die Bestenliste zeigt Name, Spot, Speed, Material und Wetter. Du kannst deine Daten oder dein Konto jederzeit löschen. Siehe Datenschutzerklärung.</li></ul>"),
+            ("Am Handy",
+             "<ul><li>Die App ist <b>für Handys optimiert</b>: nebeneinander liegende Bereiche werden untereinander gestapelt, damit nichts über den Rand läuft.</li>"
+             "<li>Ranglisten-Tabellen werden am Handy <b>schlanker</b> angezeigt: <b>Datum ohne Uhrzeit</b> und <b>nur km/h</b> (die Knoten-Spalte ist ausgeblendet). Für die restlichen Spalten (Spot, Board, Segel, Wetter) in der Tabelle <b>seitlich wischen</b>.</li>"
+             "<li>Am Computer siehst du immer die <b>vollständigen</b> Tabellen (Datum + Uhrzeit, km/h <i>und</i> Knoten).</li></ul>"),
         ],
     },
     "nl": {
@@ -8756,6 +8789,10 @@ _GUIDE = {
              "<ul><li>Elke sessie krijgt een <b>trust-score</b> uit GPS-fysica: max. versnelling, koerswijziging bij snelheid, GPS-ruis, puntdichtheid en vergelijking met het spotrecord.</li>"
              "<li>Horlogesessies krijgen ook een <b>on-water-check</b> en een apparaat-geverifieerde basiswaarde. Speel eerlijk – duidelijke uitschieters verliezen trust.</li>"
              "<li><b>Privacy</b>: je GPS-track wordt opgeslagen maar <b>alleen aan jou</b> getoond. De ranglijst toont naam, spot, snelheid, materiaal en weer. Je kunt je gegevens of account altijd verwijderen. Zie het privacybeleid.</li></ul>"),
+            ("Op je telefoon",
+             "<ul><li>De app is <b>mobielvriendelijk</b>: naast elkaar staande delen worden onder elkaar gestapeld, zodat er niets buiten het scherm valt.</li>"
+             "<li>Ranglijst-tabellen worden op de telefoon <b>compacter</b> getoond: de <b>datum zonder tijd</b> en <b>alleen km/u</b> (de knopen-kolom is verborgen). <b>Veeg zijwaarts</b> in een tabel voor de overige kolommen (spot, board, zeil, weer).</li>"
+             "<li>Op een computer zie je altijd de <b>volledige</b> tabellen (datum + tijd, km/u <i>en</i> knopen).</li></ul>"),
         ],
     },
     "fr": {
@@ -8843,6 +8880,10 @@ _GUIDE = {
              "<ul><li>Chaque session reçoit un <b>score de confiance</b> basé sur la physique GPS : accélération max, changement de cap à vitesse, bruit GPS, densité de points et comparaison avec le record du spot.</li>"
              "<li>Les sessions montre reçoivent aussi un <b>contrôle « sur l'eau »</b> et une base vérifiée par l'appareil. Restez fair-play – les valeurs aberrantes perdent de la confiance.</li>"
              "<li><b>Vie privée</b> : votre trace GPS est stockée mais visible <b>uniquement par vous</b>. Le classement montre le nom, le spot, la vitesse, le matériel et la météo. Vous pouvez supprimer vos données ou votre compte à tout moment. Voir la politique de confidentialité.</li></ul>"),
+            ("Sur votre téléphone",
+             "<ul><li>L'appli est <b>adaptée au mobile</b> : les blocs côte à côte s'empilent verticalement pour que rien ne déborde de l'écran.</li>"
+             "<li>Les tableaux de classement sont <b>allégés</b> sur mobile : la <b>date sans l'heure</b> et <b>seulement km/h</b> (la colonne nœuds est masquée). <b>Faites défiler latéralement</b> dans un tableau pour voir les autres colonnes (spot, board, voile, météo).</li>"
+             "<li>Sur ordinateur, vous voyez toujours les tableaux <b>complets</b> (date + heure, km/h <i>et</i> nœuds).</li></ul>"),
         ],
     },
     "es": {
@@ -8930,6 +8971,10 @@ _GUIDE = {
              "<ul><li>Cada sesión recibe una <b>puntuación de confianza</b> basada en la física GPS: aceleración máx., cambio de rumbo a velocidad, ruido GPS, densidad de puntos y comparación con el récord del spot.</li>"
              "<li>Las sesiones del reloj reciben además un <b>control «sobre el agua»</b> y una base verificada por el dispositivo. Juega limpio – los valores atípicos pierden confianza.</li>"
              "<li><b>Privacidad</b>: tu traza GPS se guarda pero solo la ves <b>tú</b>. El ranking muestra el nombre, el spot, la velocidad, el material y el tiempo. Puedes borrar tus datos o tu cuenta cuando quieras. Consulta la política de privacidad.</li></ul>"),
+            ("En tu teléfono",
+             "<ul><li>La app está <b>optimizada para móvil</b>: los bloques que van uno al lado del otro se apilan en vertical para que nada se salga de la pantalla.</li>"
+             "<li>Las tablas de ranking se muestran <b>más compactas</b> en el móvil: la <b>fecha sin la hora</b> y <b>solo km/h</b> (la columna de nudos se oculta). <b>Desliza en horizontal</b> dentro de una tabla para ver las demás columnas (spot, tabla, vela, tiempo).</li>"
+             "<li>En el ordenador siempre ves las tablas <b>completas</b> (fecha + hora, km/h <i>y</i> nudos).</li></ul>"),
         ],
     },
 }
