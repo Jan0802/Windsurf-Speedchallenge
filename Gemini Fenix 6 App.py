@@ -1281,6 +1281,60 @@ def load_profiles():
     return profiles
 
 
+def _fin_sig(fin):
+    """Vergleichs-Signatur einer Finne (Marke/Groesse/Carbon) fuer Dedup."""
+    return (str((fin or {}).get("brand") or "").strip().lower(),
+            (fin or {}).get("size"), bool((fin or {}).get("carbon")))
+
+
+def _fin_label(fin):
+    """Anzeige-Label einer gespeicherten Finne, z.B. 'Select · 34 cm · Carbon'."""
+    fin = fin or {}
+    parts = []
+    if fin.get("brand"):
+        parts.append(str(fin["brand"]).strip())
+    if fin.get("size"):
+        try:
+            parts.append(f"{float(fin['size']):g} cm")
+        except (TypeError, ValueError):
+            pass
+    parts.append("Carbon" if fin.get("carbon") else "Alu")
+    return " · ".join(parts) if parts else "Fin"
+
+
+def add_profile_fin(name, sport, fin):
+    """Speichert eine Finne (Marke/Groesse/Carbon) in der `<sport>_fins`-Liste des
+    Profils (Dedup), damit sie spaeter wie Boards/Segel wieder waehlbar ist."""
+    if not name or not fin or not (fin.get("brand") or fin.get("size")):
+        return
+    key = f"{sport}_fins"
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            select(profiles_table.c.data).where(profiles_table.c.name == name)
+        ).first()
+        rider = {}
+        if row and row[0]:
+            try:
+                rider = json.loads(row[0])
+            except Exception:
+                rider = {}
+        lst = rider.setdefault(key, [])
+        entry = {"brand": (fin.get("brand") or None), "size": fin.get("size"),
+                 "carbon": bool(fin.get("carbon"))}
+        if not any(_fin_sig(x) == _fin_sig(entry) for x in lst):
+            lst.append(entry)
+        data = json.dumps(rider, ensure_ascii=False)
+        if row:
+            conn.execute(update(profiles_table).where(profiles_table.c.name == name)
+                         .values(data=data))
+        else:
+            conn.execute(insert(profiles_table).values(name=name, data=data))
+    try:
+        load_profiles.clear()
+    except Exception:
+        pass
+
+
 def update_profile(name, spot, board, gear, sport="windsurf"):
     if not name:
         return
@@ -9680,6 +9734,30 @@ def render_user_profile(user):
                     st.success(f"{gear_word}s updated.")
                     st.rerun()
 
+        # --- Finnen (nur Sportarten mit Fin): ganze Finne = Marke+Größe+Carbon ---
+        if "Fin" in gear_meta["gear_type_options"]:
+            fins = rider.get(f"{sport}_fins", []) or []
+            if _equip_open(("🐟 Fins", len(fins)), f"sec_fins_{user['id']}_{sport}"):
+                with st.form(f"equip_fins_{user['id']}_{sport}"):
+                    _labels = [_fin_label(f) for f in fins]
+                    keep = st.multiselect("Current fins", _labels, default=_labels,
+                                          label_visibility="collapsed")
+                    fc1, fc2 = st.columns([2, 1])
+                    nf_brand = fc1.text_input("Fin brand", key=f"pf_fin_brand_{sport}")
+                    nf_size = fc2.number_input("Size cm", min_value=0.0, step=0.5,
+                                               key=f"pf_fin_size_{sport}")
+                    nf_carbon = st.checkbox("Carbon", key=f"pf_fin_carbon_{sport}")
+                    if st.form_submit_button("Save fins", use_container_width=True):
+                        kept = [fins[_labels.index(_l)] for _l in keep]
+                        if nf_brand.strip() or nf_size:
+                            new_fin = {"brand": nf_brand.strip() or None,
+                                       "size": nf_size or None, "carbon": bool(nf_carbon)}
+                            if not any(_fin_sig(x) == _fin_sig(new_fin) for x in kept):
+                                kept.append(new_fin)
+                        set_profile_list(user["username"], f"{sport}_fins", kept)
+                        st.success("Fins updated.")
+                        st.rerun()
+
 
 def render_account_sidebar(user):
     with st.sidebar:
@@ -10696,17 +10774,31 @@ with left:
     fin_size_cm = None
     fin_brand = None
     fin_carbon = None
+    fin_is_new = False
     foil_front_cm2 = None
     if gear_type == "Fin":
-        _fin = st.number_input(
-            "Fin size in cm (optional)", min_value=0.0, step=0.5,
-            key=f"fin_size_{sport}",
+        _saved_fins = rider.get(f"{sport}_fins", []) or []
+        _fin_labels = [_fin_label(f) for f in _saved_fins]
+        _fin_pick = st.selectbox(
+            "🔻 Fin", [NEW_ENTRY] + _fin_labels, key=f"fin_pick_{sport}",
+            help="Pick a saved fin (fills brand/size/carbon) or add a new one.",
         )
-        fin_size_cm = _fin or None
-        _fb1, _fb2 = st.columns([2, 1])
-        fin_brand = (_fb1.text_input("Fin brand (optional)", key=f"fin_brand_{sport}")
-                     or "").strip() or None
-        fin_carbon = _fb2.checkbox("Carbon", key=f"fin_carbon_{sport}")
+        if _fin_pick == NEW_ENTRY:
+            fin_is_new = True
+            _fin = st.number_input(
+                "Fin size in cm (optional)", min_value=0.0, step=0.5,
+                key=f"fin_size_{sport}",
+            )
+            fin_size_cm = _fin or None
+            _fb1, _fb2 = st.columns([2, 1])
+            fin_brand = (_fb1.text_input("Fin brand (optional)", key=f"fin_brand_{sport}")
+                         or "").strip() or None
+            fin_carbon = _fb2.checkbox("Carbon", key=f"fin_carbon_{sport}")
+        else:
+            _f = _saved_fins[_fin_labels.index(_fin_pick)]
+            fin_size_cm = _f.get("size") or None
+            fin_brand = _f.get("brand") or None
+            fin_carbon = bool(_f.get("carbon"))
     elif gear_type == "Foil":
         _front = st.number_input(
             "Front wing size in cm² (optional)", min_value=0, step=10,
@@ -11150,6 +11242,11 @@ if fit_source is not None:
 
                 save_session(entry)
                 update_profile(name.strip(), spot.strip(), board_display, sail_display, active_sport())
+                # Neu eingegebene Finne fuers spaetere schnelle Auswaehlen speichern.
+                if gear_type == "Fin" and fin_is_new and (fin_brand or fin_size_cm):
+                    add_profile_fin(name.strip(), active_sport(),
+                                    {"brand": fin_brand, "size": fin_size_cm,
+                                     "carbon": fin_carbon})
                 update_spot_coords(spot.strip(), session_lat, session_lon)
 
                 # Top-3/Rekord-Ereignisse für die Gruppen-Mitglieder hinterlegen.
