@@ -8687,8 +8687,10 @@ _GUIDE = {
     "en": {
         "title": "MyWaterSessions – User Guide",
         "intro": ("MyWaterSessions is a community speed-ranking app for windsurfing, "
-                  "kitesurfing, wingsurfing, SUP and wakeboarding. Record your session on a Garmin "
-                  "watch (or upload a FIT file) and it appears in the online rankings – "
+                  "kitesurfing, wingsurfing, SUP and wakeboarding. It works with <b>any GPS "
+                  "watch</b>: record on a Garmin and it uploads automatically, or upload a "
+                  "<b>FIT / GPX / TCX</b> file from any other watch or phone. Your top speeds "
+                  "(2 s, 30 s, 500 m and nautical mile) appear in the online rankings – "
                   "plus a spot guide with weather forecast."),
         "footer": "Have fun and ride safe! · mywatersessions.com",
         "sections": [
@@ -8778,9 +8780,11 @@ _GUIDE = {
     "de": {
         "title": "MyWaterSessions – Anleitung",
         "intro": ("MyWaterSessions ist eine Community-Speed-Bestenliste für Windsurfen, "
-                  "Kitesurfen, Wingsurfen, SUP und Wakeboarden. Zeichne deine Session mit einer Garmin-Uhr "
-                  "auf (oder lade eine FIT-Datei hoch) – sie erscheint in der Online-Bestenliste. "
-                  "Dazu ein Spot-Guide mit Wettervorhersage."),
+                  "Kitesurfen, Wingsurfen, SUP und Wakeboarden. Es funktioniert mit <b>jeder "
+                  "GPS-Uhr</b>: mit einer Garmin aufzeichnen – sie lädt automatisch hoch – oder "
+                  "eine <b>FIT / GPX / TCX</b>-Datei von jeder anderen Uhr oder App hochladen. "
+                  "Deine Top-Speeds (2 s, 30 s, 500 m und Seemeile) erscheinen in der "
+                  "Online-Bestenliste. Dazu ein Spot-Guide mit Wettervorhersage."),
         "footer": "Viel Spaß und sicher unterwegs! · mywatersessions.com",
         "sections": [
             ("Konto erstellen",
@@ -8869,8 +8873,10 @@ _GUIDE = {
     "nl": {
         "title": "MyWaterSessions – Handleiding",
         "intro": ("MyWaterSessions is een community-snelheidsranglijst voor windsurfen, "
-                  "kitesurfen, wingsurfen, SUP en wakeboarden. Neem je sessie op met een Garmin-horloge "
-                  "(of upload een FIT-bestand) en hij verschijnt in de online ranglijst. "
+                  "kitesurfen, wingsurfen, SUP en wakeboarden. Het werkt met <b>elk GPS-horloge</b>: "
+                  "neem op met een Garmin en het uploadt automatisch, of upload een "
+                  "<b>FIT / GPX / TCX</b>-bestand van elk ander horloge of telefoon. Je topsnelheden "
+                  "(2 s, 30 s, 500 m en zeemijl) verschijnen in de online ranglijst. "
                   "Plus een spotgids met weersverwachting."),
         "footer": "Veel plezier en blijf veilig! · mywatersessions.com",
         "sections": [
@@ -8960,9 +8966,12 @@ _GUIDE = {
     "fr": {
         "title": "MyWaterSessions – Guide",
         "intro": ("MyWaterSessions est une appli de classement de vitesse communautaire pour le "
-                  "windsurf, le kitesurf, le wingfoil, le SUP et le wakeboard. Enregistrez votre "
-                  "session sur une montre Garmin (ou téléversez un fichier FIT) et elle apparaît "
-                  "dans les classements en ligne – avec un guide des spots et des prévisions météo."),
+                  "windsurf, le kitesurf, le wingfoil, le SUP et le wakeboard. Ça fonctionne avec "
+                  "<b>n'importe quelle montre GPS</b> : enregistrez sur une Garmin et la session se "
+                  "téléverse automatiquement, ou téléversez un fichier <b>FIT / GPX / TCX</b> depuis "
+                  "n'importe quelle autre montre ou téléphone. Vos meilleures vitesses (2 s, 30 s, "
+                  "500 m et mille nautique) apparaissent dans les classements en ligne – avec un "
+                  "guide des spots et des prévisions météo."),
         "footer": "Amusez-vous bien et ridez prudemment ! · mywatersessions.com",
         "sections": [
             ("Créer votre compte",
@@ -9051,9 +9060,11 @@ _GUIDE = {
     "es": {
         "title": "MyWaterSessions – Guía",
         "intro": ("MyWaterSessions es una app de ranking de velocidad comunitario para windsurf, "
-                  "kitesurf, wingfoil, SUP y wakeboard. Graba tu sesión en un reloj Garmin (o sube "
-                  "un archivo FIT) y aparece en los rankings online, además de una guía de spots "
-                  "con previsión meteorológica."),
+                  "kitesurf, wingfoil, SUP y wakeboard. Funciona con <b>cualquier reloj GPS</b>: "
+                  "graba con un Garmin y se sube automáticamente, o sube un archivo "
+                  "<b>FIT / GPX / TCX</b> desde cualquier otro reloj o teléfono. Tus mejores "
+                  "velocidades (2 s, 30 s, 500 m y milla náutica) aparecen en los rankings online, "
+                  "además de una guía de spots con previsión meteorológica."),
         "footer": "¡Diviértete y navega con seguridad! · mywatersessions.com",
         "sections": [
             ("Crear tu cuenta",
