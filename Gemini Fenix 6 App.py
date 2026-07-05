@@ -4625,10 +4625,10 @@ def render_rankings(results_container):
             st.caption("Choose which columns appear in the ranking tables and in "
                        "which order (the order = the order you tick them). Rank, Name "
                        "and the speed value are always shown. Save via ‚My start' to keep it.")
-            _all_opt_cols = _default_cols(_gear_label)   # feste Reihenfolge der Optionen
+            _all_opt_cols = _all_optional_cols(_gear_label)   # alle wählbaren Optionen
             _ck = f"rank_cols_{sport}"
             if _ck not in st.session_state:   # einmalig aus Preset/Default vorbelegen
-                _init = preset.get("columns") or _all_opt_cols
+                _init = preset.get("columns") or _default_cols(_gear_label)
                 st.session_state[_ck] = [c for c in _init if c in _all_opt_cols]
             st.multiselect("Columns", _all_opt_cols, key=_ck)
 
@@ -4938,6 +4938,20 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     # (Fragment-)Rerun, solange sich das gefilterte Ranking nicht ändert.
     ranking = _enrich_ranking(ranking)
 
+    # Finnen-Anzeige-Spalten einmalig ergänzen -> in allen Tabellen wählbar
+    # (Carbon als lesbarer Text). fin_cols wird an jede Tabellen-Auswahl gehängt.
+    fin_cols = []
+    if "fin_size_cm" in ranking.columns:
+        ranking["Fin size"] = pd.to_numeric(ranking["fin_size_cm"], errors="coerce")
+        fin_cols.append("Fin size")
+    if "fin_brand" in ranking.columns:
+        ranking["Fin brand"] = ranking["fin_brand"]
+        fin_cols.append("Fin brand")
+    if "fin_carbon" in ranking.columns:
+        ranking["Carbon"] = ranking["fin_carbon"].map(
+            {True: "Carbon", 1: "Carbon", False: "–", 0: "–"})
+        fin_cols.append("Carbon")
+
     # #1-Glaskarte oben (kombinierter Score) – direkt unter der Überschrift.
     _render_champion(ranking, active_sport() in ("windsurf", "kitesurf", "wingsurf", "wakeboard"))
 
@@ -4949,7 +4963,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     with rcol1:
         st.markdown("### 🏆 Best 30 seconds")
 
-        r30 = ranking[[
+        r30 = ranking[fin_cols + [
             "date",
             "name",
             "speed_30s_kmh",
@@ -4986,7 +5000,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     with rcol2:
         st.markdown("### ⚡ Top speed 2 seconds")
 
-        r1 = ranking[[
+        r1 = ranking[fin_cols + [
             "date",
             "name",
             "speed_1s_kmh",
@@ -5026,7 +5040,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         def _dist_table(container, col, title, unit_label):
             with container:
                 st.markdown(f"### {title}")
-                tab = ranking[[
+                tab = ranking[fin_cols + [
                     "date", "name", col, "surfspot", "board", "sail", "Weather", "Trust",
                 ]].copy()
                 tab = (
@@ -5057,7 +5071,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     with rcol3:
         st.markdown("### 🚩 Longest run")
 
-        rrun = ranking[[
+        rrun = ranking[fin_cols + [
             "date",
             "name",
             "longest_run_km",
@@ -5120,7 +5134,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     # Zusatz-Rankings aus den Uhr-Daten: Wind -> Sprünge, SUP -> Paddeln.
     # Sessions ohne die jeweiligen Werte fallen raus.
     def _metric_table(metric, title, col_label, decimals=1, empty_msg="No data yet."):
-        tbl = ranking[[
+        tbl = ranking[fin_cols + [
             "date", "name", metric, "surfspot", "board", "sail", "Weather", "Trust",
         ]].copy()
         tbl[metric] = pd.to_numeric(tbl[metric], errors="coerce")
@@ -6106,15 +6120,22 @@ def _mobile_slim(df):
     return df
 
 
+def _all_optional_cols(gear_label):
+    """Alle optional waehlbaren Ranglisten-Spalten (= Auswahl-Optionen, feste
+    Reihenfolge). Finnen-Details sind waehlbar, aber nicht im Default."""
+    return ["Date", "Surf spot", "Board", gear_label,
+            "Fin size", "Fin brand", "Carbon", "Weather", "Trust"]
+
+
 def _default_cols(gear_label):
-    """Standard-Spaltensatz (Reihenfolge), den der Nutzer anpassen kann."""
+    """Standard-Auswahl (ohne Finnen-Details), vom Nutzer anpassbar."""
     return ["Date", "Surf spot", "Board", gear_label, "Weather", "Trust"]
 
 
 def _order_table_cols(df, chosen, gear_label):
     """Zeigt Rank/Name/Speed (immer sichtbar) + die vom Nutzer gewaehlten,
     sortierten optionalen Spalten. Nicht-optionale Spalten bleiben vorn."""
-    optional = {"Date", "Surf spot", "Board", gear_label, "Weather", "Trust"}
+    optional = set(_all_optional_cols(gear_label))
     fixed = [c for c in df.columns if c not in optional]
     chosen_present = [c for c in (chosen or []) if c in df.columns and c in optional]
     return df[fixed + chosen_present]
