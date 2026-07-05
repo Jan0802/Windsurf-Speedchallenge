@@ -682,6 +682,8 @@ sessions_table = Table(
     Column("sail", String(200)),
     Column("gear_type", String(10)),  # "Fin" / "Foil" / "Twintip"
     Column("fin_size_cm", Float),         # optional, nur bei gear_type == "Fin"
+    Column("fin_brand", String(60)),      # optional, Finnen-Marke (nur bei "Fin")
+    Column("fin_carbon", Boolean),        # optional, Carbon-Finne ja/nein (nur "Fin")
     Column("foil_front_cm2", Float),      # optional, nur bei gear_type == "Foil"
     Column("filename", String(255)),
     Column("total_distance_km", Float),
@@ -899,6 +901,16 @@ user_prefs_table = Table(
 SESSION_FIELDS = [
     c.name for c in sessions_table.columns if c.name not in ("id", "created_at")
 ]
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _fin_brand_options(sport):
+    """Distinct Finnen-Marken (nicht leer) einer Sportart – fuer den Marken-Filter."""
+    df = load_sessions(sport)
+    if df is None or df.empty or "fin_brand" not in df.columns:
+        return []
+    vals = df["fin_brand"].dropna().astype(str).str.strip()
+    return sorted({v for v in vals if v})
 
 # track (GPS-Route als JSON) ist potenziell gross und wird nur in der Einzel-
 # Detailansicht (Karte) gebraucht. Daher in den Massen-Ladevorgaengen (Rankings,
@@ -4475,14 +4487,24 @@ def render_rankings(results_container):
     # Erweiterte (optionale) Filter – 0 bzw. (0,0) bedeutet „aus".
     front_max = st.session_state.get(f"rank_front_{sport}", 0)
     fin_max = st.session_state.get(f"rank_finmax_{sport}", 0.0)
+    fin_brand_f = st.session_state.get(f"rank_finbrand_{sport}", "All brands")
+    fin_carbon_f = st.session_state.get(f"rank_fincarbon_{sport}", "All")
     weight_from = st.session_state.get(f"rank_wfrom_{sport}", 0.0)
     weight_to = st.session_state.get(f"rank_wto_{sport}", 0.0)
+
+    # Anpassbare Tabellen-Spalten (Auswahl + Reihenfolge), pro Nutzer/Sport.
+    _gear_label = SPORT_META[sport]["gear_label"]
+    col_order = st.session_state.get(
+        f"rank_cols_{sport}", preset.get("columns") or _default_cols(_gear_label))
 
     extra = {
         "front_max": front_max,
         "fin_max": fin_max,
+        "fin_brand": fin_brand_f,
+        "fin_carbon": fin_carbon_f,
         "weight_from": weight_from,
         "weight_to": weight_to,
+        "columns": col_order,
     }
 
     # ---- Tabellen ZUERST (Hauptinhalt) in den Haupt-Container ----
@@ -4513,13 +4535,16 @@ def render_rankings(results_container):
                     "month": st.session_state.get(f"rank_month_{sport}", "Whole year"),
                     "day": st.session_state.get(f"rank_day_{sport}", "Whole month"),
                     "gear": st.session_state.get(f"rank_gear_{sport}", "All"),
+                    "columns": st.session_state.get(f"rank_cols_{sport}",
+                                                    _default_cols(_gear_label)),
                 })
                 st.success("Saved – will be loaded on start from now on.")
 
             if preset and st.button("↺ Reset", use_container_width=True):
                 delete_user_pref(username)
                 for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day",
-                           "rank_gear", "rank_front", "rank_finmax", "rank_wfrom", "rank_wto"):
+                           "rank_gear", "rank_front", "rank_finmax", "rank_finbrand",
+                           "rank_fincarbon", "rank_cols", "rank_wfrom", "rank_wto"):
                     st.session_state.pop(f"{_k}_{sport}", None)
                 st.rerun()
 
@@ -4595,6 +4620,18 @@ def render_rankings(results_container):
             index=_preset_index(gear_options, gear_filter), key=f"rank_gear_{sport}",
         )
 
+        # --- Anpassbare Tabellen-Spalten (Sichtbarkeit + Reihenfolge) ---
+        with st.expander("🧩 Table columns (show & order)", expanded=False):
+            st.caption("Choose which columns appear in the ranking tables and in "
+                       "which order (the order = the order you tick them). Rank, Name "
+                       "and the speed value are always shown. Save via ‚My start' to keep it.")
+            _all_opt_cols = _default_cols(_gear_label)   # feste Reihenfolge der Optionen
+            _ck = f"rank_cols_{sport}"
+            if _ck not in st.session_state:   # einmalig aus Preset/Default vorbelegen
+                _init = preset.get("columns") or _all_opt_cols
+                st.session_state[_ck] = [c for c in _init if c in _all_opt_cols]
+            st.multiselect("Columns", _all_opt_cols, key=_ck)
+
         # --- Erweiterte Filter (optional; 0 = aus) ---
         st.caption("Advanced filters (0 = off)")
         st.number_input(
@@ -4607,6 +4644,18 @@ def render_rankings(results_container):
             key=f"rank_finmax_{sport}",
             help="Only fin sessions with a fin size up to this value.",
         )
+        if "Fin" in SPORT_META[sport]["gear_type_options"]:
+            _brand_opts = ["All brands"] + _fin_brand_options(sport)
+            st.selectbox(
+                "Fin brand", _brand_opts,
+                index=_preset_index(_brand_opts, fin_brand_f), key=f"rank_finbrand_{sport}",
+                help="Only fin sessions of this brand.",
+            )
+            _carbon_opts = ["All", "Carbon only", "Non-carbon only"]
+            st.selectbox(
+                "Fin: carbon?", _carbon_opts,
+                index=_preset_index(_carbon_opts, fin_carbon_f), key=f"rank_fincarbon_{sport}",
+            )
         wcol1, wcol2 = st.columns(2)
         wcol1.number_input(
             "Weight from (kg)", min_value=0.0, step=1.0, key=f"rank_wfrom_{sport}",
@@ -4852,6 +4901,20 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         fs = pd.to_numeric(ranking["fin_size_cm"], errors="coerce")
         ranking = ranking[fs <= fin_max]
 
+    fin_brand_f = (extra.get("fin_brand") or "").strip()
+    if fin_brand_f and fin_brand_f != "All brands":
+        if "fin_brand" in ranking.columns:
+            ranking = ranking[ranking["fin_brand"].astype(str).str.strip() == fin_brand_f]
+        else:
+            ranking = ranking.iloc[0:0]
+
+    fin_carbon_f = extra.get("fin_carbon") or "All"
+    if fin_carbon_f != "All" and "fin_carbon" in ranking.columns:
+        if fin_carbon_f == "Carbon only":
+            ranking = ranking[ranking["fin_carbon"] == True]   # noqa: E712
+        elif fin_carbon_f == "Non-carbon only":
+            ranking = ranking[ranking["fin_carbon"] == False]  # noqa: E712
+
     weight_from = extra.get("weight_from") or 0
     weight_to = extra.get("weight_to") or 0
     if weight_from or weight_to:
@@ -4917,7 +4980,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "speed_30s_kn": "30s kn",
         })
 
-        st.dataframe(_mobile_slim(r30), width="stretch", hide_index=True, height=df_height(len(r30)))
+        st.dataframe(_order_table_cols(_mobile_slim(r30), extra.get("columns"), gear_label),
+                     width="stretch", hide_index=True, height=df_height(len(r30)))
 
     with rcol2:
         st.markdown("### ⚡ Top speed 2 seconds")
@@ -4953,7 +5017,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "speed_1s_kn": "2s kn",
         })
 
-        st.dataframe(_mobile_slim(r1), width="stretch", hide_index=True, height=df_height(len(r1)))
+        st.dataframe(_order_table_cols(_mobile_slim(r1), extra.get("columns"), gear_label),
+                     width="stretch", hide_index=True, height=df_height(len(r1)))
 
     if {"speed_500m_kmh", "speed_nm_kmh"}.issubset(ranking.columns):
         rcol5, rcol6 = st.columns(2)
@@ -4981,8 +5046,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                     "date": "Date", "name": "Name", "surfspot": "Surf spot",
                     "board": "Board", "sail": gear_label, col: f"{unit_label} km/h",
                 })
-                st.dataframe(_mobile_slim(tab), width="stretch", hide_index=True,
-                             height=df_height(len(tab)))
+                st.dataframe(_order_table_cols(_mobile_slim(tab), extra.get("columns"), gear_label),
+                             width="stretch", hide_index=True, height=df_height(len(tab)))
 
         _dist_table(rcol5, "speed_500m_kmh", "📏 Best 500 m", "500m")
         _dist_table(rcol6, "speed_nm_kmh", "⚓ Best nautical mile", "nm")
@@ -5023,8 +5088,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "longest_run_m": "Run m",
         })
 
-        st.dataframe(_mobile_slim(rrun), width="stretch", hide_index=True,
-                     height=df_height(len(rrun)))
+        st.dataframe(_order_table_cols(_mobile_slim(rrun), extra.get("columns"), gear_label),
+                     width="stretch", hide_index=True, height=df_height(len(rrun)))
 
     with rcol4:
         st.markdown("### 👥 Longest total distance per rider")
@@ -5049,8 +5114,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "last_date": "Last session",
         })
 
-        st.dataframe(_mobile_slim(rtotal), width="stretch", hide_index=True,
-                     height=df_height(len(rtotal)))
+        st.dataframe(_order_table_cols(_mobile_slim(rtotal), extra.get("columns"), gear_label),
+                     width="stretch", hide_index=True, height=df_height(len(rtotal)))
 
     # Zusatz-Rankings aus den Uhr-Daten: Wind -> Sprünge, SUP -> Paddeln.
     # Sessions ohne die jeweiligen Werte fallen raus.
@@ -5083,8 +5148,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             "sail": gear_label,
             metric: col_label,
         })
-        st.dataframe(_mobile_slim(tbl), width="stretch", hide_index=True,
-                     height=df_height(len(tbl)))
+        st.dataframe(_order_table_cols(_mobile_slim(tbl), extra.get("columns"), gear_label),
+                     width="stretch", hide_index=True, height=df_height(len(tbl)))
 
     if active_sport() == "sup":
         scol1, scol2 = st.columns(2)
@@ -6039,6 +6104,20 @@ def _mobile_slim(df):
     if kn_cols:
         df = df.drop(columns=kn_cols)
     return df
+
+
+def _default_cols(gear_label):
+    """Standard-Spaltensatz (Reihenfolge), den der Nutzer anpassen kann."""
+    return ["Date", "Surf spot", "Board", gear_label, "Weather", "Trust"]
+
+
+def _order_table_cols(df, chosen, gear_label):
+    """Zeigt Rank/Name/Speed (immer sichtbar) + die vom Nutzer gewaehlten,
+    sortierten optionalen Spalten. Nicht-optionale Spalten bleiben vorn."""
+    optional = {"Date", "Surf spot", "Board", gear_label, "Weather", "Trust"}
+    fixed = [c for c in df.columns if c not in optional]
+    chosen_present = [c for c in (chosen or []) if c in df.columns and c in optional]
+    return df[fixed + chosen_present]
 
 
 @st.fragment(run_every=30)
@@ -9320,18 +9399,38 @@ def render_session_editor(user):
             type_idx = type_opts.index(cur_type) if cur_type in type_opts else 0
             type_sel = st.selectbox("Type", type_opts, index=type_idx, key=f"es_type_{sid}")
 
+            # Finnen-Details (nur relevant/gespeichert, wenn Typ = Fin).
+            st.caption("Fin details (only used when Type = Fin):")
+            fesz, febr, fecb = st.columns([1, 2, 1])
+            fin_size_e = fesz.number_input(
+                "Size cm", min_value=0.0, step=0.5,
+                value=float(row.get("fin_size_cm") or 0.0), key=f"es_finsz_{sid}")
+            fin_brand_e = febr.text_input(
+                "Fin brand", value=str(row.get("fin_brand") or ""), key=f"es_finbr_{sid}")
+            fin_carbon_e = fecb.checkbox(
+                "Carbon", value=bool(row.get("fin_carbon")), key=f"es_fincb_{sid}")
+
             if st.form_submit_button("Save session", use_container_width=True):
                 def _pick(sel, new=None):
                     if new is not None and new.strip():
                         return new.strip()
                     return None if sel == "(empty)" else sel
 
+                gtype = _pick(type_sel)
                 fields = {
                     "surfspot": _pick(spot_sel, spot_new),
                     "board": _pick(board_sel),
                     "sail": _pick(gear_sel),
-                    "gear_type": _pick(type_sel),
+                    "gear_type": gtype,
                 }
+                if gtype == "Fin":
+                    fields["fin_size_cm"] = fin_size_e or None
+                    fields["fin_brand"] = (fin_brand_e or "").strip() or None
+                    fields["fin_carbon"] = bool(fin_carbon_e)
+                else:
+                    fields["fin_size_cm"] = None
+                    fields["fin_brand"] = None
+                    fields["fin_carbon"] = None
                 update_session(sid, fields)
 
                 if _session_is_complete(fields["surfspot"], fields["board"], fields["sail"]):
@@ -10572,8 +10671,10 @@ with left:
         key=f"gear_type_input_{sport}",
     )
 
-    # Je nach gear_type ein optionales Größenfeld (für späteres Filtern).
+    # Je nach gear_type optionale Detailfelder (für späteres Filtern).
     fin_size_cm = None
+    fin_brand = None
+    fin_carbon = None
     foil_front_cm2 = None
     if gear_type == "Fin":
         _fin = st.number_input(
@@ -10581,6 +10682,10 @@ with left:
             key=f"fin_size_{sport}",
         )
         fin_size_cm = _fin or None
+        _fb1, _fb2 = st.columns([2, 1])
+        fin_brand = (_fb1.text_input("Fin brand (optional)", key=f"fin_brand_{sport}")
+                     or "").strip() or None
+        fin_carbon = _fb2.checkbox("Carbon", key=f"fin_carbon_{sport}")
     elif gear_type == "Foil":
         _front = st.number_input(
             "Front wing size in cm² (optional)", min_value=0, step=10,
@@ -10996,6 +11101,8 @@ if fit_source is not None:
                     "sail": sail_display,
                     "gear_type": gear_type,
                     "fin_size_cm": fin_size_cm,
+                    "fin_brand": fin_brand,
+                    "fin_carbon": fin_carbon,
                     "foil_front_cm2": foil_front_cm2,
                     "filename": fit_name,
                     "total_distance_km": None if distance_km is None else round(distance_km, 2),
