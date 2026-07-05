@@ -7056,7 +7056,7 @@ def render_spots_page(user=None):
 
     # Bilder-Galerie: die NEUESTEN 5 Bilder (User-Uploads + Admin), Uploader vermerkt.
     # Gecachte Thumbnails statt Voll-Bild-base64 -> viel kleinere Seitenlast.
-    gallery = load_recent_spot_images(spot, 5)
+    gallery = load_recent_spot_images(spot, 6)
     if gallery:
         tiles = []
         for g in gallery:
@@ -7070,16 +7070,16 @@ def render_spots_page(user=None):
         if tiles:
             st.markdown(
                 "<style>"
-                # 5 Kacheln nebeneinander (breit); auf schmalen Screens automatisch weniger.
+                # 6 Kacheln -> Desktop 3x2, Handy 2x3 (beides geht gerade auf; mit
+                # 5 blieb im 2-Spalten-Raster das letzte Bild allein).
                 ".sp-gallery{display:grid;gap:14px;margin-top:10px;"
-                "grid-template-columns:repeat(5,1fr);}"
+                "grid-template-columns:repeat(3,1fr);}"
                 ".sp-tile{position:relative;height:240px;background-size:cover;"
                 "background-position:center;border-radius:16px;overflow:hidden;"
                 "box-shadow:0 6px 18px rgba(0,0,0,.18);}"
                 ".sp-cap{position:absolute;left:0;right:0;bottom:0;font-size:12px;"
                 "color:#fff;padding:16px 8px 6px;"
                 "background:linear-gradient(transparent,rgba(0,0,0,.6));}"
-                "@media (max-width:1200px){.sp-gallery{grid-template-columns:repeat(3,1fr);}}"
                 "@media (max-width:680px){.sp-gallery{grid-template-columns:repeat(2,1fr);}}"
                 "</style>"
                 f"<div class='sp-gallery'>{''.join(tiles)}</div>",
