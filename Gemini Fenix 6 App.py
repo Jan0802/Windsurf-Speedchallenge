@@ -8008,6 +8008,40 @@ def render_admin_ads():
     st.markdown("#### ➕ Neues Produkt")
     _product_editor(spot, None, sport=ad_sport)
 
+    with st.expander("🎸 MusicStore-Import (Demo) – JSON vom lokalen Scraper"):
+        st.caption(
+            "MusicStore blockt Server-IPs, daher lokal ziehen: "
+            "`py musicstore_scraper.py <URL> … --bundle produkte.json` – dann die Datei "
+            f"hier hochladen. Legt die Produkte für **{spot} · {_sport_label(ad_sport)}** "
+            "an (Titel, Preis, Link + Bild)."
+        )
+        _msf = st.file_uploader("Bundle-JSON", type=["json"],
+                                key=f"msimp_up_{spot}_{ad_sport}")
+        if _msf and st.button("📥 Produkte importieren",
+                              key=f"msimp_btn_{spot}_{ad_sport}"):
+            import base64 as _b64
+            try:
+                _items = json.loads(_msf.getvalue().decode("utf-8"))
+            except Exception as _e:  # noqa: BLE001
+                _items = None
+                st.error(f"JSON nicht lesbar: {_e}")
+            if _items:
+                _base = len(load_spot_products(spot, sport=ad_sport))
+                _n = 0
+                for _it in _items:
+                    _title = (_it.get("title") or "").strip()
+                    if not _title:
+                        continue
+                    _img = _it.get("image_b64")
+                    save_spot_product(
+                        None, spot, _title, _it.get("price"), _it.get("url"),
+                        True, _base + _n,
+                        image_bytes=_b64.b64decode(_img) if _img else None,
+                        image_mime=_it.get("image_mime"), sport=ad_sport,
+                    )
+                    _n += 1
+                _admin_flash(f"{_n} MusicStore-Produkt(e) importiert.")
+
     # --- Spot-Info (unten auf dem TV: Text links, Webcam/Bild rechts) ---
     info_head = st.columns([3, 1])
     info_head[0].markdown("### Spot-Info (unten auf dem TV)")
