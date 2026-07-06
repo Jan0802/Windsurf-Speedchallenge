@@ -769,6 +769,8 @@ spot_ads_table = Table(
     Column("sponsor_url", String(500)),
     # Überschrift über den Produkten auf dem TV. Leer -> "<Sponsor> · Top Deals".
     Column("products_heading", String(200)),
+    # Kleine Zeile über dem Sponsor-Logo (oben rechts). Leer -> "sponsored by".
+    Column("logo_caption", String(120)),
     Column("logo", LargeBinary),         # Bilddaten (PNG/JPG/WebP)
     Column("logo_mime", String(50)),     # z.B. image/png
     Column("active", Boolean, nullable=False, default=True),
@@ -1938,6 +1940,7 @@ def _migrate_ad_sport(engine):
         "ALTER TABLE spot_webcam_ads ADD COLUMN IF NOT EXISTS sponsor_name varchar(200)",
         "ALTER TABLE spot_webcam_ads ADD COLUMN IF NOT EXISTS sponsor_url varchar(500)",
         "ALTER TABLE spot_ads ADD COLUMN IF NOT EXISTS products_heading varchar(200)",
+        "ALTER TABLE spot_ads ADD COLUMN IF NOT EXISTS logo_caption varchar(120)",
     ]
     for sql in stmts:
         try:
@@ -2276,7 +2279,7 @@ def load_spot_ad(spot, sport="", resolve=False):
 
 def save_spot_ad(spot, sponsor_name, sponsor_url, active,
                  logo_bytes=None, logo_mime=None, clear_logo=False, sport="",
-                 products_heading=None):
+                 products_heading=None, logo_caption=None):
     if not spot:
         return
     _ensure_ad_tables()
@@ -2285,6 +2288,7 @@ def save_spot_ad(spot, sponsor_name, sponsor_url, active,
         "sponsor_name": (sponsor_name or "").strip() or None,
         "sponsor_url": (sponsor_url or "").strip() or None,
         "products_heading": (products_heading or "").strip() or None,
+        "logo_caption": (logo_caption or "").strip() or None,
         "active": bool(active),
     }
     if clear_logo:
@@ -6472,7 +6476,13 @@ def render_spot_tv(cfg):
     ad_row = load_spot_ad(cfg["spot"], cfg["sport"], resolve=True) or {}
     ad_url = ad_row.get("sponsor_url") or ""
     if ad_src:
-        chip = f"<div class='tv-sponsor-chip'><img src='{ad_src}' alt='sponsor'/></div>"
+        cap = (ad_row.get("logo_caption") or "").strip() or "sponsored by"
+        cap = cap.replace("<", "&lt;").replace(">", "&gt;")
+        cap_html = (f"<div class='tv-sponsor-cap' translate='no' style=\"font-size:13px;"
+                    f"color:#9fc4cf;text-align:center;margin:0 0 4px;letter-spacing:.4px;\">"
+                    f"{cap}</div>")
+        chip = (f"{cap_html}<div class='tv-sponsor-chip'>"
+                f"<img src='{ad_src}' alt='sponsor'/></div>")
         sponsor = f"<a href='{ad_url}' target='_blank' rel='noopener'>{chip}</a>" if ad_url else chip
     elif ad_name:
         sponsor = f"<div class='tv-presented'>Presented by <b>{ad_name}</b></div>"
@@ -7998,6 +8008,13 @@ def render_admin_ads():
     with st.form(f"ad_form_{spot}_{ad_sport}"):
         name = st.text_input("Sponsor-Name", value=ad.get("sponsor_name") or "")
         url = st.text_input("Link (Shop/Café-Webseite)", value=ad.get("sponsor_url") or "")
+        logo_cap = st.text_input(
+            "Text über dem Logo (optional)",
+            value=ad.get("logo_caption") or "",
+            placeholder="Leer = „sponsored by“",
+            help="Kleine Zeile über dem Sponsor-Logo oben rechts auf dem Spot-TV. "
+                 "Leer lassen → „sponsored by“.",
+        )
         prod_head = st.text_input(
             "Überschrift über den Produkten (optional)",
             value=ad.get("products_heading") or "",
@@ -8015,6 +8032,7 @@ def render_admin_ads():
             logo_bytes=logo_up.getvalue() if logo_up else None,
             logo_mime=logo_up.type if logo_up else None,
             clear_logo=clear_logo, sport=ad_sport, products_heading=prod_head,
+            logo_caption=logo_cap,
         )
         _admin_flash(f"Sponsor für {spot} ({_sport_label(ad_sport)}) gespeichert.")
     if ad and st.button("🗑️ Sponsor-Eintrag löschen", key=f"del_ad_{spot}_{ad_sport}"):
