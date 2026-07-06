@@ -6003,10 +6003,10 @@ def _tv_period_scope(df, now, period):
     return df[df["_date"] >= start]
 
 
-def _tv_leaderboard(scope, metric):
-    """Balken-Leaderboard (Top 10, best <metric> je Fahrer), 2-spaltig:
-    Plaetze 1..N/2 links, der Rest rechts. metric = '1s' oder '30s'."""
-    kmh_col = "speed_1s_kmh" if metric == "1s" else "speed_30s_kmh"
+def _tv_leaderboard(scope, kmh_col):
+    """Balken-Leaderboard (Top 10, bester Wert je Fahrer in kmh_col), 2-spaltig:
+    Plaetze 1..N/2 links, der Rest rechts. kmh_col = speed_1s_kmh /
+    speed_30s_kmh / speed_500m_kmh / speed_nm_kmh."""
     if scope is None or scope.empty or kmh_col not in scope.columns:
         return "<div class='tv-msg'>No entries yet.</div>"
     t = scope.copy()
@@ -6267,12 +6267,20 @@ def _spot_tv_live(cfg):
         if not t.empty:
             leader = str(t.loc[t["_s"].idxmax(), "name"])
 
-    # Angezeigte Leaderboard-Wertung (wechselt automatisch ~alle 60 s). Record
-    # date + Board richten sich danach: bei "30 s" gehoeren sie zum 30-s-Rekord.
-    metric = "30s" if (int(now.timestamp()) // 60) % 2 else "1s"
-    metric_lbl = "Top 2 s" if metric == "1s" else "Top 30 s"
-    metric_word = "2 s" if metric == "1s" else "30 s"
-    metric_col = "speed_1s_kmh" if metric == "1s" else "speed_30s_kmh"
+    # Leaderboard-Wertung wechselt automatisch alle 30 s. Bei Speed-Sportarten
+    # zusaetzlich 500 m + Seemeile; SUP/Wakeboard nur 2 s / 30 s. Record date +
+    # Board richten sich nach der aktuell gezeigten Wertung.
+    _metrics = [
+        ("1s", "speed_1s_kmh", "Top 2 s", "2 s"),
+        ("30s", "speed_30s_kmh", "Top 30 s", "30 s"),
+    ]
+    if cfg["sport"] in ("windsurf", "kitesurf", "wingsurf"):
+        _metrics += [
+            ("500m", "speed_500m_kmh", "Best 500 m", "500 m"),
+            ("nm", "speed_nm_kmh", "Best nautical mile", "naut. mile"),
+        ]
+    metric, metric_col, metric_lbl, metric_word = _metrics[
+        (int(now.timestamp()) // 30) % len(_metrics)]
     leader_board = "–"
     leader_date = "–"
     if not scope.empty and metric_col in scope.columns:
@@ -6314,11 +6322,11 @@ def _spot_tv_live(cfg):
     st.markdown(
         f"<div class='tv-rank-title' translate='no'>🏁 {scope_title} leaderboard · {metric_lbl}</div>",
         unsafe_allow_html=True)
-    st.markdown(f"<div data-r='{rk}{metric}'>" + _tv_leaderboard(scope, metric) + "</div>",
+    st.markdown(f"<div data-r='{rk}{metric}'>" + _tv_leaderboard(scope, metric_col) + "</div>",
                 unsafe_allow_html=True)
 
     st.markdown(f"<div class='tv-update' translate='no'>⏱️ Last update: {now.strftime('%H:%M')} "
-                f"· auto-refresh 30 s · 2 s / 30 s switch every 60 s</div>", unsafe_allow_html=True)
+                f"· auto-refresh 30 s · leaderboard switches every 30 s</div>", unsafe_allow_html=True)
 
 
 # Sponsor je Spot. logo = Dateiname in assets/, name/url optional.
@@ -7084,8 +7092,8 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
 
 @st.fragment(run_every=30)
 def _tv_bottom_info(cfg):
-    """Unterer Bereich: wechselt synchron zum Ranking (2s/30s) zwischen Spot-Info
-    und 3-Tage-Vorhersage. Gleiche Zeitformel wie der Metrik-Umschalter -> synchron.
+    """Unterer Bereich: wechselt alle 60 s zwischen Spot-Info und 3-Tage-Vorhersage
+    (bewusst langsamer als das Leaderboard, das alle 30 s die Wertung wechselt).
     Gibt es nur eins von beiden, wird dieses dauerhaft gezeigt."""
     info = load_spot_info(cfg["spot"]) or {}
     has_info = bool(
@@ -7096,8 +7104,8 @@ def _tv_bottom_info(cfg):
     has_fc = coords is not None and _fetch_forecast_3d(coords[0], coords[1]) is not None
 
     if has_info and has_fc:
-        # Phase 0 (= Ranking "2 s") -> Spot-Info, Phase 1 (= "30 s") -> Vorhersage.
-        phase = (int(datetime.now().timestamp()) // 30) % 2
+        # Alle 60 s umschalten: Phase 0 -> Spot-Info, Phase 1 -> Vorhersage.
+        phase = (int(datetime.now().timestamp()) // 60) % 2
         if phase:
             _tv_forecast(cfg, coords)
         else:
