@@ -6481,9 +6481,13 @@ def render_spot_tv(cfg):
         cap_html = (f"<div class='tv-sponsor-cap' translate='no' style=\"font-size:13px;"
                     f"color:#9fc4cf;text-align:center;margin:0 0 4px;letter-spacing:.4px;\">"
                     f"{cap}</div>")
-        chip = (f"{cap_html}<div class='tv-sponsor-chip'>"
-                f"<img src='{ad_src}' alt='sponsor'/></div>")
-        sponsor = f"<a href='{ad_url}' target='_blank' rel='noopener'>{chip}</a>" if ad_url else chip
+        chip_img = f"<div class='tv-sponsor-chip'><img src='{ad_src}' alt='sponsor'/></div>"
+        chip_link = (f"<a href='{ad_url}' target='_blank' rel='noopener'>{chip_img}</a>"
+                     if ad_url else chip_img)
+        # Caption + Logo als rechtsbuendige Spalte: schrumpft aufs Logo, Caption
+        # sitzt mittig darueber (statt im leeren Raum links).
+        sponsor = (f"<div style=\"display:inline-flex;flex-direction:column;"
+                   f"align-items:center;\">{cap_html}{chip_link}</div>")
     elif ad_name:
         sponsor = f"<div class='tv-presented'>Presented by <b>{ad_name}</b></div>"
     else:
