@@ -8785,14 +8785,12 @@ _GUIDE = {
              "<li>Then <b>log in</b>. Tick <i>Stay logged in</i> to stay signed in on your device.</li></ul>"),
             ("Install &amp; set up the watch app",
              "<ul><li>On your Garmin watch, install <b>WaterSession</b> from the Connect IQ Store.</li>"
-             "<li>In <b>Garmin Connect</b> (phone) → <b>Devices</b> → your watch → <b>Connect IQ Apps</b> → "
-             "<b>WaterSession</b> → <b>Settings</b>.</li>"
-             "<li>Paste your <b>Device Token</b> (required – see next step). Leave <b>Spot</b> empty to detect it automatically by GPS.</li>"
-             "<li><b>Sync</b> the watch.</li></ul>"),
-            ("Your Device Token",
-             "<ul><li>Log in on mywatersessions.com and open your <b>account / profile</b>.</li>"
-             "<li>Copy the <b>Device Token</b> shown there and paste it into the watch app settings.</li>"
-             "<li>The token links your sessions to your account – it's the only thing each rider must set.</li></ul>"),
+             "<li>Just open it – <b>no setup needed</b>. It records straight away and creates your personal <b>connect code</b>.</li>"
+             "<li>Optional: in <b>Garmin Connect → Devices → your watch → Connect IQ Apps → WaterSession → Settings</b> you can leave <b>Spot</b> empty (auto-detected by GPS) or switch km/h ↔ knots.</li></ul>"),
+            ("Connect your watch (see your ranking)",
+             "<ul><li>After a session the watch shows <b>your code</b> and “Connect at mywatersessions.com”.</li>"
+             "<li>Log in on mywatersessions.com, open your <b>account</b> and enter that code under <b>⌚ Connect watch</b>.</li>"
+             "<li>Then tap <b>↻ Resend</b> on the watch once – your rides land in your account, and every future session syncs automatically.</li></ul>"),
             ("Record a session",
              "<ul><li>Press <kbd>START</kbd> and pick <b>WaterSession</b> from the activity list.</li>"
              "<li>Switch screens with <kbd>UP</kbd>/<kbd>DOWN</kbd>: speed · jumps/paddle · totals · km/h · knots · distance · jump height/cadence · airtime/strokes.</li>"
@@ -8878,14 +8876,12 @@ _GUIDE = {
              "<li>Dann <b>einloggen</b>. <i>Angemeldet bleiben</i> hält dich auf deinem Gerät eingeloggt.</li></ul>"),
             ("Uhr-App installieren &amp; einrichten",
              "<ul><li>Installiere <b>WaterSession</b> aus dem Connect-IQ-Store auf deiner Garmin.</li>"
-             "<li>In <b>Garmin Connect</b> (Handy) → <b>Geräte</b> → deine Uhr → <b>Connect-IQ-Apps</b> → "
-             "<b>WaterSession</b> → <b>Einstellungen</b>.</li>"
-             "<li>Trage deinen <b>Device-Token</b> ein (Pflicht – siehe nächster Schritt). Lass <b>Spot</b> leer – er wird per GPS automatisch erkannt.</li>"
-             "<li>Uhr <b>synchronisieren</b>.</li></ul>"),
-            ("Dein Device-Token",
-             "<ul><li>Auf mywatersessions.com einloggen und dein <b>Profil / Konto</b> öffnen.</li>"
-             "<li>Den dort angezeigten <b>Device-Token</b> kopieren und in die App-Einstellungen einfügen.</li>"
-             "<li>Der Token ordnet deine Sessions deinem Konto zu – das Einzige, das jeder Fahrer setzen muss.</li></ul>"),
+             "<li>Einfach öffnen – <b>keine Einrichtung nötig</b>. Sie zeichnet sofort auf und erzeugt deinen persönlichen <b>Verbindungs-Code</b>.</li>"
+             "<li>Optional: unter <b>Garmin Connect → Geräte → deine Uhr → Connect-IQ-Apps → WaterSession → Einstellungen</b> kannst du <b>Spot</b> leer lassen (per GPS erkannt) oder km/h ↔ Knoten umstellen.</li></ul>"),
+            ("Uhr verbinden (deine Rangliste sehen)",
+             "<ul><li>Nach einer Session zeigt die Uhr <b>deinen Code</b> und „Connect at mywatersessions.com“.</li>"
+             "<li>Auf mywatersessions.com einloggen, dein <b>Konto</b> öffnen und den Code unter <b>⌚ Uhr verbinden</b> eingeben.</li>"
+             "<li>Dann auf der Uhr einmal <b>↻ Resend</b> tippen – deine Fahrten landen in deinem Konto, künftige Sessions synchronisieren automatisch.</li></ul>"),
             ("Session aufzeichnen",
              "<ul><li><kbd>START</kbd> drücken und <b>WaterSession</b> aus der Aktivitätsliste wählen.</li>"
              "<li>Mit <kbd>UP</kbd>/<kbd>DOWN</kbd> umschalten: Speed · Sprünge/Paddeln · Summen · km/h · Knoten · Distanz · Sprunghöhe/Kadenz · Airtime/Schläge.</li>"
@@ -8971,14 +8967,12 @@ _GUIDE = {
              "<li>Daarna <b>inloggen</b>. Vink <i>Ingelogd blijven</i> aan om ingelogd te blijven.</li></ul>"),
             ("Horloge-app installeren &amp; instellen",
              "<ul><li>Installeer <b>WaterSession</b> uit de Connect IQ Store op je Garmin.</li>"
-             "<li>In <b>Garmin Connect</b> (telefoon) → <b>Toestellen</b> → je horloge → <b>Connect IQ-apps</b> → "
-             "<b>WaterSession</b> → <b>Instellingen</b>.</li>"
-             "<li>Vul je <b>Device Token</b> in (verplicht – zie volgende stap). Laat <b>Spot</b> leeg – die wordt automatisch via GPS herkend.</li>"
-             "<li><b>Synchroniseer</b> het horloge.</li></ul>"),
-            ("Je Device Token",
-             "<ul><li>Log in op mywatersessions.com en open je <b>profiel / account</b>.</li>"
-             "<li>Kopieer de <b>Device Token</b> en plak die in de app-instellingen.</li>"
-             "<li>De token koppelt je sessies aan je account – het enige dat elke rider moet instellen.</li></ul>"),
+             "<li>Gewoon openen – <b>geen instellen nodig</b>. De app neemt meteen op en maakt je persoonlijke <b>verbindingscode</b> aan.</li>"
+             "<li>Optioneel: via <b>Garmin Connect → Toestellen → je horloge → Connect IQ-apps → WaterSession → Instellingen</b> kun je <b>Spot</b> leeg laten (via GPS herkend) of km/u ↔ knopen wisselen.</li></ul>"),
+            ("Horloge koppelen (zie je klassering)",
+             "<ul><li>Na een sessie toont het horloge <b>je code</b> en „Connect at mywatersessions.com“.</li>"
+             "<li>Log in op mywatersessions.com, open je <b>account</b> en vul de code in bij <b>⌚ horloge koppelen</b>.</li>"
+             "<li>Tik daarna één keer op <b>↻ Resend</b> op het horloge – je sessies komen in je account en volgende sessies synchroniseren automatisch.</li></ul>"),
             ("Een sessie opnemen",
              "<ul><li>Druk op <kbd>START</kbd> en kies <b>WaterSession</b> uit de activiteitenlijst.</li>"
              "<li>Wissel schermen met <kbd>UP</kbd>/<kbd>DOWN</kbd>: snelheid · sprongen/peddelen · totalen · km/u · knopen · afstand · spronghoogte/cadans · airtime/slagen.</li>"
@@ -9065,14 +9059,12 @@ _GUIDE = {
              "<li>Puis <b>connectez-vous</b>. Cochez <i>Rester connecté</i> pour rester connecté sur votre appareil.</li></ul>"),
             ("Installer &amp; configurer l'app de la montre",
              "<ul><li>Sur votre montre Garmin, installez <b>WaterSession</b> depuis le Connect IQ Store.</li>"
-             "<li>Dans <b>Garmin Connect</b> (téléphone) → <b>Appareils</b> → votre montre → <b>Applis Connect IQ</b> → "
-             "<b>WaterSession</b> → <b>Réglages</b>.</li>"
-             "<li>Collez votre <b>Device Token</b> (obligatoire – voir étape suivante). Laissez <b>Spot</b> vide pour une détection automatique par GPS.</li>"
-             "<li><b>Synchronisez</b> la montre.</li></ul>"),
-            ("Votre Device Token",
-             "<ul><li>Connectez-vous sur mywatersessions.com et ouvrez votre <b>compte / profil</b>.</li>"
-             "<li>Copiez le <b>Device Token</b> affiché et collez-le dans les réglages de l'app de la montre.</li>"
-             "<li>Le token relie vos sessions à votre compte – c'est la seule chose que chaque rider doit régler.</li></ul>"),
+             "<li>Ouvrez-la, c'est tout – <b>aucune configuration</b>. Elle enregistre aussitôt et crée votre <b>code de connexion</b> personnel.</li>"
+             "<li>Optionnel : dans <b>Garmin Connect → Appareils → votre montre → Applis Connect IQ → WaterSession → Réglages</b>, laissez <b>Spot</b> vide (détecté par GPS) ou basculez km/h ↔ nœuds.</li></ul>"),
+            ("Connecter votre montre (voir votre classement)",
+             "<ul><li>Après une session, la montre affiche <b>votre code</b> et « Connect at mywatersessions.com ».</li>"
+             "<li>Connectez-vous sur mywatersessions.com, ouvrez votre <b>compte</b> et saisissez ce code dans <b>⌚ Connecter la montre</b>.</li>"
+             "<li>Puis appuyez une fois sur <b>↻ Resend</b> sur la montre – vos sessions arrivent dans votre compte et les suivantes se synchronisent automatiquement.</li></ul>"),
             ("Enregistrer une session",
              "<ul><li>Appuyez sur <kbd>START</kbd> et choisissez <b>WaterSession</b> dans la liste des activités.</li>"
              "<li>Changez d'écran avec <kbd>UP</kbd>/<kbd>DOWN</kbd> : vitesse · sauts/pagaie · totaux · km/h · nœuds · distance · hauteur de saut/cadence · airtime/coups.</li>"
@@ -9158,14 +9150,12 @@ _GUIDE = {
              "<li>Luego <b>inicia sesión</b>. Marca <i>Seguir conectado</i> para mantener la sesión en tu dispositivo.</li></ul>"),
             ("Instalar &amp; configurar la app del reloj",
              "<ul><li>En tu reloj Garmin, instala <b>WaterSession</b> desde la Connect IQ Store.</li>"
-             "<li>En <b>Garmin Connect</b> (móvil) → <b>Dispositivos</b> → tu reloj → <b>Apps Connect IQ</b> → "
-             "<b>WaterSession</b> → <b>Ajustes</b>.</li>"
-             "<li>Pega tu <b>Device Token</b> (obligatorio – ver el paso siguiente). Deja <b>Spot</b> vacío para detectarlo automáticamente por GPS.</li>"
-             "<li><b>Sincroniza</b> el reloj.</li></ul>"),
-            ("Tu Device Token",
-             "<ul><li>Inicia sesión en mywatersessions.com y abre tu <b>cuenta / perfil</b>.</li>"
-             "<li>Copia el <b>Device Token</b> que aparece y pégalo en los ajustes de la app del reloj.</li>"
-             "<li>El token vincula tus sesiones a tu cuenta – es lo único que cada rider debe configurar.</li></ul>"),
+             "<li>Solo ábrela – <b>sin configuración</b>. Graba enseguida y crea tu <b>código de conexión</b> personal.</li>"
+             "<li>Opcional: en <b>Garmin Connect → Dispositivos → tu reloj → Apps Connect IQ → WaterSession → Ajustes</b> puedes dejar <b>Spot</b> vacío (se detecta por GPS) o cambiar km/h ↔ nudos.</li></ul>"),
+            ("Conecta tu reloj (ve tu clasificación)",
+             "<ul><li>Tras una sesión, el reloj muestra <b>tu código</b> y « Connect at mywatersessions.com ».</li>"
+             "<li>Inicia sesión en mywatersessions.com, abre tu <b>cuenta</b> e introduce el código en <b>⌚ Conectar reloj</b>.</li>"
+             "<li>Luego pulsa una vez <b>↻ Resend</b> en el reloj – tus sesiones entran en tu cuenta y las siguientes se sincronizan automáticamente.</li></ul>"),
             ("Grabar una sesión",
              "<ul><li>Pulsa <kbd>START</kbd> y elige <b>WaterSession</b> en la lista de actividades.</li>"
              "<li>Cambia de pantalla con <kbd>UP</kbd>/<kbd>DOWN</kbd>: velocidad · saltos/palada · totales · km/h · nudos · distancia · altura de salto/cadencia · airtime/paladas.</li>"
