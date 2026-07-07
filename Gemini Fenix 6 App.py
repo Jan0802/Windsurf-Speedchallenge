@@ -8368,19 +8368,27 @@ def render_admin_profiles():
     st.markdown("### Konto")
 
     if user:
-        st.markdown("**Geräte-Token (Uhr-Upload)**")
+        st.markdown("**⌚ Uhr verbinden**")
+        st.caption(
+            "Gib den **Code** ein, den die WaterSession-App auf der Uhr anzeigt "
+            "(nach einer Session bzw. beim „↻ Resend“ – „your code: …“). Damit landen "
+            "deine Sessions in diesem Konto. Danach auf der Uhr einmal „↻ Resend“ tippen, "
+            "um bereits gefahrene Sessions nachzuladen. (Alternativ ein fest hinterlegtes "
+            "Token einfügen.)"
+        )
         cur_tok = get_device_token(user["id"]) or ""
         with st.form(f"tok_{name}"):
-            tok_in = st.text_input(
-                "Token zuweisen (z.B. der in der Uhr fest hinterlegte)", value=cur_tok
-            )
+            tok_in = st.text_input("Code von der Uhr (oder Token)", value=cur_tok)
             tc1, tc2 = st.columns(2)
-            set_tok = tc1.form_submit_button("Token zuweisen")
+            set_tok = tc1.form_submit_button("🔗 Uhr verbinden")
             gen_tok = tc2.form_submit_button("Neuen Token erzeugen")
         if set_tok:
-            ok, msg = admin_set_device_token(user["id"], tok_in)
+            code = (tok_in or "").strip().replace(" ", "").replace("-", "")
+            if 0 < len(code) <= 8:
+                code = code.upper()   # kurzer Pairing-Code -> Großbuchstaben
+            ok, msg = admin_set_device_token(user["id"], code)
             if ok:
-                _admin_flash(msg)
+                _admin_flash("Uhr verbunden – jetzt auf der Uhr „↻ Resend“ tippen.")
             else:
                 st.error(msg)
         if gen_tok:
