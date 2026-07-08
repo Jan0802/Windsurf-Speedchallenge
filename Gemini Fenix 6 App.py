@@ -2850,6 +2850,81 @@ def admin_set_device_token(user_id, token):
     return True, "Token assigned."
 
 
+# --- SOS / Sicherheits-Check-in (Totmann-Timer) ---------------------------
+@st.cache_resource(show_spinner=False)
+def _ensure_sos_tables():
+    ddl = [
+        "CREATE TABLE IF NOT EXISTS sos_config (name VARCHAR(80) PRIMARY KEY,"
+        " enabled BOOLEAN DEFAULT FALSE, minutes INTEGER DEFAULT 120,"
+        " email VARCHAR(255), updated_at TIMESTAMP DEFAULT NOW())",
+        "CREATE TABLE IF NOT EXISTS safety_checkins (id SERIAL PRIMARY KEY,"
+        " name VARCHAR(80) NOT NULL, email VARCHAR(255), spot VARCHAR(200),"
+        " start_lat DOUBLE PRECISION, start_lon DOUBLE PRECISION,"
+        " started_at TIMESTAMP DEFAULT NOW(), deadline TIMESTAMP NOT NULL,"
+        " source VARCHAR(20), status VARCHAR(20) DEFAULT 'active',"
+        " created_at TIMESTAMP DEFAULT NOW())",
+    ]
+    try:
+        with get_engine().begin() as conn:
+            for d in ddl:
+                conn.execute(text(d))
+    except Exception:  # noqa: BLE001
+        logging.exception("SOS-Tabellen konnten nicht angelegt werden")
+    return True
+
+
+def load_sos_config(name):
+    _ensure_sos_tables()
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            text("SELECT enabled, minutes, email FROM sos_config WHERE name = :n"),
+            {"n": name},
+        ).mappings().first()
+    return dict(row) if row else {"enabled": False, "minutes": 120, "email": ""}
+
+
+def save_sos_config(name, enabled, minutes, email):
+    _ensure_sos_tables()
+    with get_engine().begin() as conn:
+        conn.execute(text(
+            "INSERT INTO sos_config (name, enabled, minutes, email, updated_at) "
+            "VALUES (:n, :e, :m, :mail, NOW()) "
+            "ON CONFLICT (name) DO UPDATE SET enabled = :e, minutes = :m, "
+            "email = :mail, updated_at = NOW()"),
+            {"n": name, "e": bool(enabled), "m": int(minutes),
+             "mail": (email or "").strip() or None})
+
+
+def sos_active(name):
+    """Aktiver Timer des Nutzers (oder None)."""
+    _ensure_sos_tables()
+    with get_engine().connect() as conn:
+        row = conn.execute(text(
+            "SELECT id, spot, started_at, deadline FROM safety_checkins "
+            "WHERE name = :n AND status = 'active' ORDER BY id DESC LIMIT 1"),
+            {"n": name}).mappings().first()
+    return dict(row) if row else None
+
+
+def sos_arm(name, email, minutes, spot=None):
+    _ensure_sos_tables()
+    with get_engine().begin() as conn:
+        conn.execute(text("UPDATE safety_checkins SET status='safe' "
+                          "WHERE name = :n AND status='active'"), {"n": name})
+        conn.execute(text(
+            "INSERT INTO safety_checkins (name, email, spot, started_at, deadline, source, status) "
+            "VALUES (:n, :mail, :spot, NOW(), NOW() + make_interval(mins => :m), 'web', 'active')"),
+            {"n": name, "mail": (email or "").strip() or None,
+             "spot": (spot or None), "m": int(minutes)})
+
+
+def sos_safe(name):
+    _ensure_sos_tables()
+    with get_engine().begin() as conn:
+        conn.execute(text("UPDATE safety_checkins SET status='safe' "
+                          "WHERE name = :n AND status='active'"), {"n": name})
+
+
 def admin_set_password(user_id, new_password):
     if not new_password or len(new_password) < 6:
         return False, "The password must be at least 6 characters long."
@@ -9864,6 +9939,46 @@ def render_user_profile(user):
                          use_container_width=True):
                 st.session_state[_tok_key] = regenerate_device_token(user["id"])
                 st.success("New token generated.")
+                st.rerun()
+
+        # --- SOS / Sicherheits-Check-in (Totmann-Timer) ---
+        st.markdown("**🆘 Safety check-in (SOS)**")
+        st.caption(
+            "Convenience dead-man's timer: if you don't confirm you're back in time, we email "
+            "your emergency contact (last known start position included). It arms automatically "
+            "when you start a session on the watch, and clears when your session uploads or when "
+            "you tap “I'm safe”. ⚠️ This is NOT a rescue service and cannot guarantee delivery – "
+            "never rely on it alone; use proper safety gear and tell someone in person."
+        )
+        _sos = load_sos_config(user["username"])
+        with st.form(f"sos_cfg_{user['id']}"):
+            sos_on = st.checkbox("Enable safety check-in", value=bool(_sos.get("enabled")))
+            sos_min = st.number_input(
+                "Alert if not back within (minutes)", min_value=15, max_value=1440, step=15,
+                value=int(_sos.get("minutes") or 120))
+            sos_mail = st.text_input("Emergency contact email", value=_sos.get("email") or "")
+            if st.form_submit_button("Save safety settings", use_container_width=True):
+                if sos_on and not _valid_email(sos_mail):
+                    st.error("Please enter a valid emergency contact email.")
+                else:
+                    save_sos_config(user["username"], sos_on, sos_min, sos_mail)
+                    st.success("Safety settings saved.")
+        _act = sos_active(user["username"])
+        if _act:
+            _dl = _act.get("deadline")
+            _dl_txt = _dl.strftime("%H:%M") if hasattr(_dl, "strftime") else "?"
+            st.warning(f"⏱️ Safety timer is ACTIVE – alert goes out around **{_dl_txt}** "
+                       "if you don't check in.")
+            if st.button("✅ I'm safe – stop timer", key=f"sos_safe_{user['id']}",
+                         use_container_width=True):
+                sos_safe(user["username"])
+                st.success("Safety timer stopped.")
+                st.rerun()
+        elif _sos.get("enabled") and (_sos.get("email") or "").strip():
+            if st.button("🆘 Start safety timer now", key=f"sos_arm_{user['id']}",
+                         use_container_width=True):
+                sos_arm(user["username"], _sos.get("email"), _sos.get("minutes") or 120)
+                st.success("Safety timer started – tap “I'm safe” when you're back.")
                 st.rerun()
 
         # --- Equipment teilen / übernehmen (gleiches Material über Konten) ---
