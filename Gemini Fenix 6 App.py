@@ -1951,7 +1951,13 @@ def _migrate_ad_sport(engine):
             pass   # bereits migriert / SQLite / bestehender PK -> ignorieren
 
 
+@st.cache_resource(show_spinner=False)
 def _ensure_ad_tables():
+    # PERFORMANCE: prozessweit gecacht -> laeuft genau EINMAL, nicht bei jedem
+    # Loader-Aufruf. Vorher: 7x create(checkfirst=True) = 7 DB-Roundtrips PRO
+    # Aufruf, und der Aufruf steckt in fast jedem Loader -> pro Seitenaufbau zig
+    # Roundtrips zur Neon-DB (mehrere Sekunden). Nach einem Deploy laeuft es im
+    # frischen Prozess neu, neue Tabellen/Spalten kommen also weiterhin an.
     try:
         eng = get_engine()
         spot_ads_table.create(eng, checkfirst=True)
