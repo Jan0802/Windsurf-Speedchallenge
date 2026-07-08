@@ -9892,156 +9892,176 @@ def render_user_profile(user):
             st.session_state[_profile_key] = get_user(user["username"]) or {}
         full = st.session_state[_profile_key]
 
-        # --- Account-Daten ---
-        st.markdown("**Account details**")
-        with st.form(f"profile_form_{user['id']}"):
-            email = st.text_input("Email", value=full.get("email") or "")
-            weight = st.number_input(
-                "Weight (kg)", min_value=0.0, max_value=300.0, step=0.5,
-                value=float(full.get("weight_kg") or 0.0),
-                help="0 = not set",
-            )
-            height = st.number_input(
-                "Height (cm)", min_value=0.0, max_value=260.0, step=0.5,
-                value=float(full.get("height_cm") or 0.0),
-                help="0 = not set",
-            )
+        def _section(text, key, count=None, default=False):
+            """Aufklappbarer Abschnitt (Button-Toggle mit ▸/▾). Verschachtelte
+            st.expander sind hier nicht erlaubt (wir sind schon im
+            'My profile'-Expander), daher dieser Toggle – reduziert das Scrollen,
+            besonders am Handy. Liefert True, wenn ausgeklappt."""
+            st.session_state.setdefault(key, default)
+            arrow = "▾" if st.session_state[key] else "▸"
+            suffix = f"  ({count})" if count is not None else ""
+            if st.button(f"{arrow}  {text}{suffix}", key=f"toggle_{key}",
+                         use_container_width=True):
+                st.session_state[key] = not st.session_state[key]
+                st.rerun()
+            return st.session_state[key]
 
-            if st.form_submit_button("Save profile", use_container_width=True):
-                if email and not _valid_email(email):
-                    st.error("Please enter a valid email address.")
-                else:
-                    update_user_account(
-                        user["id"], email=email,
-                        weight_kg=weight or None, height_cm=height or None,
-                    )
-                    st.session_state[_profile_key] = get_user(user["username"]) or {}
-                    st.success("Profile saved.")
+        # --- Account-Daten ---
+        if _section("👤 Account details", f"sec_acc_{user['id']}"):
+            with st.form(f"profile_form_{user['id']}"):
+                email = st.text_input("Email", value=full.get("email") or "")
+                weight = st.number_input(
+                    "Weight (kg)", min_value=0.0, max_value=300.0, step=0.5,
+                    value=float(full.get("weight_kg") or 0.0),
+                    help="0 = not set",
+                )
+                height = st.number_input(
+                    "Height (cm)", min_value=0.0, max_value=260.0, step=0.5,
+                    value=float(full.get("height_cm") or 0.0),
+                    help="0 = not set",
+                )
+
+                if st.form_submit_button("Save profile", use_container_width=True):
+                    if email and not _valid_email(email):
+                        st.error("Please enter a valid email address.")
+                    else:
+                        update_user_account(
+                            user["id"], email=email,
+                            weight_kg=weight or None, height_cm=height or None,
+                        )
+                        st.session_state[_profile_key] = get_user(user["username"]) or {}
+                        st.success("Profile saved.")
 
         # --- Passwort ändern ---
-        st.markdown("**Change password**")
-        with st.form(f"pw_form_{user['id']}"):
-            old_pw = st.text_input("Current password", type="password")
-            new_pw1 = st.text_input("New password (min. 6 characters)", type="password")
-            new_pw2 = st.text_input("Repeat new password", type="password")
+        if _section("🔒 Change password", f"sec_pw_{user['id']}"):
+            with st.form(f"pw_form_{user['id']}"):
+                old_pw = st.text_input("Current password", type="password")
+                new_pw1 = st.text_input("New password (min. 6 characters)", type="password")
+                new_pw2 = st.text_input("Repeat new password", type="password")
 
-            if st.form_submit_button("Change password", use_container_width=True):
-                if new_pw1 != new_pw2:
-                    st.error("The new passwords do not match.")
-                else:
-                    ok, msg = change_password(user["id"], old_pw, new_pw1)
-                    (st.success if ok else st.error)(msg)
+                if st.form_submit_button("Change password", use_container_width=True):
+                    if new_pw1 != new_pw2:
+                        st.error("The new passwords do not match.")
+                    else:
+                        ok, msg = change_password(user["id"], old_pw, new_pw1)
+                        (st.success if ok else st.error)(msg)
 
         # --- Uhr verbinden (Pairing-Code) ---
         _tok_key = f"_device_token_{user['id']}"
-        st.markdown("**⌚ Connect your watch**")
-        st.caption(
-            "Enter the short code the WaterSession app shows on your watch "
-            "(after a session, on the Resend screen: your code: …). This links your "
-            "rides to your account. Then tap Resend on the watch once to upload "
-            "sessions you already recorded – future ones sync automatically."
-        )
-        with st.form(f"connect_watch_{user['id']}"):
-            code_in = st.text_input("Watch code", placeholder="e.g. AB3KQ7")
-            if st.form_submit_button("🔗 Connect watch", use_container_width=True):
-                code = (code_in or "").strip().replace(" ", "").replace("-", "")
-                if 0 < len(code) <= 8:
-                    code = code.upper()
-                if not code:
-                    st.error("Please enter the code shown on your watch.")
-                else:
-                    ok, msg = admin_set_device_token(user["id"], code)
-                    if ok:
-                        st.session_state[_tok_key] = code
-                        st.success("Watch connected – now tap Resend on the watch.")
-                    else:
-                        st.error(msg)
-
-        with st.expander("Advanced: device token (manual setup)", expanded=False):
+        if _section("⌚ Connect your watch", f"sec_watch_{user['id']}"):
             st.caption(
-                "Old manual way: paste this token into the watch app settings in "
-                "Garmin Connect. Most people don't need this – the code above is easier."
+                "Enter the short code the WaterSession app shows on your watch "
+                "(after a session, on the Resend screen: your code: …). This links your "
+                "rides to your account. Then tap Resend on the watch once to upload "
+                "sessions you already recorded – future ones sync automatically."
             )
-            if _tok_key not in st.session_state:
-                st.session_state[_tok_key] = get_or_create_device_token(user["id"])
-            st.code(st.session_state[_tok_key], language=None)
-            if st.button("Regenerate token", key=f"regen_token_{user['id']}",
-                         use_container_width=True):
-                st.session_state[_tok_key] = regenerate_device_token(user["id"])
-                st.success("New token generated.")
-                st.rerun()
+            with st.form(f"connect_watch_{user['id']}"):
+                code_in = st.text_input("Watch code", placeholder="e.g. AB3KQ7")
+                if st.form_submit_button("🔗 Connect watch", use_container_width=True):
+                    code = (code_in or "").strip().replace(" ", "").replace("-", "")
+                    if 0 < len(code) <= 8:
+                        code = code.upper()
+                    if not code:
+                        st.error("Please enter the code shown on your watch.")
+                    else:
+                        ok, msg = admin_set_device_token(user["id"], code)
+                        if ok:
+                            st.session_state[_tok_key] = code
+                            st.success("Watch connected – now tap Resend on the watch.")
+                        else:
+                            st.error(msg)
+
+            with st.expander("Advanced: device token (manual setup)", expanded=False):
+                st.caption(
+                    "Old manual way: paste this token into the watch app settings in "
+                    "Garmin Connect. Most people don't need this – the code above is easier."
+                )
+                if _tok_key not in st.session_state:
+                    st.session_state[_tok_key] = get_or_create_device_token(user["id"])
+                st.code(st.session_state[_tok_key], language=None)
+                if st.button("Regenerate token", key=f"regen_token_{user['id']}",
+                             use_container_width=True):
+                    st.session_state[_tok_key] = regenerate_device_token(user["id"])
+                    st.success("New token generated.")
+                    st.rerun()
 
         # --- SOS / Sicherheits-Check-in (Totmann-Timer) ---
-        st.markdown("**🆘 Safety check-in (SOS)**")
-        st.caption(
-            "Convenience dead-man's timer: if you don't confirm you're back in time, we email "
-            "your emergency contact (last known start position included). It arms automatically "
-            "when you start a session on the watch, and clears when your session uploads or when "
-            "you tap “I'm safe”. ⚠️ This is NOT a rescue service and cannot guarantee delivery – "
-            "never rely on it alone; use proper safety gear and tell someone in person."
-        )
-        _sos = load_sos_config(user["username"])
-        with st.form(f"sos_cfg_{user['id']}"):
-            sos_on = st.checkbox("Enable safety check-in", value=bool(_sos.get("enabled")))
-            sos_min = st.number_input(
-                "Alert if not back within (minutes)", min_value=15, max_value=1440, step=15,
-                value=int(_sos.get("minutes") or 120))
-            sos_mail = st.text_input("Emergency contact email", value=_sos.get("email") or "")
-            if st.form_submit_button("Save safety settings", use_container_width=True):
-                if sos_on and not _valid_email(sos_mail):
-                    st.error("Please enter a valid emergency contact email.")
-                else:
-                    save_sos_config(user["username"], sos_on, sos_min, sos_mail)
-                    st.success("Safety settings saved.")
+        # Ein aktiver Timer erzwingt das Aufklappen + eine ACTIVE-Markierung im
+        # Titel, damit der "I'm safe"-Button nie hinter dem Toggle verschwindet.
+        _sos_key = f"sec_sos_{user['id']}"
         _act = sos_active(user["username"])
         if _act:
-            _dl = _act.get("deadline")
-            _dl_txt = _dl.strftime("%H:%M") if hasattr(_dl, "strftime") else "?"
-            st.warning(f"⏱️ Safety timer is ACTIVE – alert goes out around **{_dl_txt}** "
-                       "if you don't check in.")
-            if st.button("✅ I'm safe – stop timer", key=f"sos_safe_{user['id']}",
-                         use_container_width=True):
-                sos_safe(user["username"])
-                st.success("Safety timer stopped.")
-                st.rerun()
-        elif _sos.get("enabled") and (_sos.get("email") or "").strip():
-            if st.button("🆘 Start safety timer now", key=f"sos_arm_{user['id']}",
-                         use_container_width=True):
-                sos_arm(user["username"], _sos.get("email"), _sos.get("minutes") or 120)
-                st.success("Safety timer started – tap “I'm safe” when you're back.")
-                st.rerun()
+            st.session_state[_sos_key] = True
+        _sos_label = "🆘 Safety check-in (SOS)" + ("   ⏱️ ACTIVE" if _act else "")
+        if _section(_sos_label, _sos_key, default=bool(_act)):
+            st.caption(
+                "Convenience dead-man's timer: if you don't confirm you're back in time, we email "
+                "your emergency contact (last known start position included). It arms automatically "
+                "when you start a session on the watch, and clears when your session uploads or when "
+                "you tap “I'm safe”. ⚠️ This is NOT a rescue service and cannot guarantee delivery – "
+                "never rely on it alone; use proper safety gear and tell someone in person."
+            )
+            _sos = load_sos_config(user["username"])
+            with st.form(f"sos_cfg_{user['id']}"):
+                sos_on = st.checkbox("Enable safety check-in", value=bool(_sos.get("enabled")))
+                sos_min = st.number_input(
+                    "Alert if not back within (minutes)", min_value=15, max_value=1440, step=15,
+                    value=int(_sos.get("minutes") or 120))
+                sos_mail = st.text_input("Emergency contact email", value=_sos.get("email") or "")
+                if st.form_submit_button("Save safety settings", use_container_width=True):
+                    if sos_on and not _valid_email(sos_mail):
+                        st.error("Please enter a valid emergency contact email.")
+                    else:
+                        save_sos_config(user["username"], sos_on, sos_min, sos_mail)
+                        st.success("Safety settings saved.")
+            if _act:
+                _dl = _act.get("deadline")
+                _dl_txt = _dl.strftime("%H:%M") if hasattr(_dl, "strftime") else "?"
+                st.warning(f"⏱️ Safety timer is ACTIVE – alert goes out around **{_dl_txt}** "
+                           "if you don't check in.")
+                if st.button("✅ I'm safe – stop timer", key=f"sos_safe_{user['id']}",
+                             use_container_width=True):
+                    sos_safe(user["username"])
+                    st.success("Safety timer stopped.")
+                    st.rerun()
+            elif _sos.get("enabled") and (_sos.get("email") or "").strip():
+                if st.button("🆘 Start safety timer now", key=f"sos_arm_{user['id']}",
+                             use_container_width=True):
+                    sos_arm(user["username"], _sos.get("email"), _sos.get("minutes") or 120)
+                    st.success("Safety timer started – tap “I'm safe” when you're back.")
+                    st.rerun()
 
         # --- Equipment teilen / übernehmen (gleiches Material über Konten) ---
-        st.markdown("**🔗 Share equipment (family / friends)**")
-        st.caption(
-            "Use the same gear across accounts without typing it three times. Give "
-            "YOUR code to others so they can import your equipment (spots, boards, "
-            "sails…) – or enter someone's code below to import theirs. Only works "
-            "when both sides act (= mutual consent)."
-        )
-        _share_key = f"_share_code_{user['id']}"
-        if _share_key not in st.session_state:
-            st.session_state[_share_key] = get_or_create_share_code(user["username"])
-        st.caption("Your share code:")
-        st.code(st.session_state[_share_key], language=None)
-        if st.button("Regenerate share code", key=f"regen_share_{user['id']}",
-                     use_container_width=True):
-            st.session_state[_share_key] = regenerate_share_code(user["username"])
-            st.success("New code generated – the old one no longer works.")
-            st.rerun()
+        if _section("🔗 Share equipment (family / friends)", f"sec_share_{user['id']}"):
+            st.caption(
+                "Use the same gear across accounts without typing it three times. Give "
+                "YOUR code to others so they can import your equipment (spots, boards, "
+                "sails…) – or enter someone's code below to import theirs. Only works "
+                "when both sides act (= mutual consent)."
+            )
+            _share_key = f"_share_code_{user['id']}"
+            if _share_key not in st.session_state:
+                st.session_state[_share_key] = get_or_create_share_code(user["username"])
+            st.caption("Your share code:")
+            st.code(st.session_state[_share_key], language=None)
+            if st.button("Regenerate share code", key=f"regen_share_{user['id']}",
+                         use_container_width=True):
+                st.session_state[_share_key] = regenerate_share_code(user["username"])
+                st.success("New code generated – the old one no longer works.")
+                st.rerun()
 
-        with st.form(f"import_equip_{user['id']}"):
-            other_code = st.text_input("Import equipment with someone's code")
-            if st.form_submit_button("📥 Import equipment", use_container_width=True):
-                owner = owner_for_share_code(other_code)
-                if not owner:
-                    st.error("Unknown code.")
-                elif owner == user["username"]:
-                    st.warning("That's your own code.")
-                else:
-                    added = copy_equipment(owner, user["username"])
-                    st.success(f"Imported {added} item(s) from {owner}. ✅")
-                    st.rerun()
+            with st.form(f"import_equip_{user['id']}"):
+                other_code = st.text_input("Import equipment with someone's code")
+                if st.form_submit_button("📥 Import equipment", use_container_width=True):
+                    owner = owner_for_share_code(other_code)
+                    if not owner:
+                        st.error("Unknown code.")
+                    elif owner == user["username"]:
+                        st.warning("That's your own code.")
+                    else:
+                        added = copy_equipment(owner, user["username"])
+                        st.success(f"Imported {added} item(s) from {owner}. ✅")
+                        st.rerun()
 
         # --- Equipment (aktiver Sport; Spots sind sportübergreifend) ---
         st.markdown(f"**Equipment · {gear_meta['label']}**")
