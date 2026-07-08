@@ -5939,6 +5939,13 @@ def _spot_tv_config():
         trust = float(qp.get("trust", "0") or 0)
     except ValueError:
         trust = 0.0
+    # Skalierung fuers TV (wie Browser-Zoom). Default 75 %, damit es auf gaengigen
+    # Fernsehern ohne manuelles Zoomen passt; per &zoom=80 pro Gerät feinjustierbar.
+    try:
+        zoom = int(float(qp.get("zoom", "75") or 75))
+    except ValueError:
+        zoom = 75
+    zoom = max(40, min(zoom, 100))
     return {
         "spot": qp.get("spot", ""),
         "mode": qp.get("mode", "today"),       # today | week | month | year
@@ -5948,6 +5955,7 @@ def _spot_tv_config():
         "logo": qp.get("logo", ""),
         "event": qp.get("event", ""),
         "trust": trust,
+        "zoom": zoom,
         "base": qp.get("base", _app_base_url()),
     }
 
@@ -6435,6 +6443,15 @@ def _spot_tv_controls(cfg):
 def render_spot_tv(cfg):
     """Vollbild-Dashboard fuer einen Spot. Statischer Kopf + Live-Fragment."""
     st.markdown(_TV_CSS, unsafe_allow_html=True)
+
+    # Gesamt-Skalierung fuers TV (wie Browser-Zoom). Default 75 % -> passt ohne
+    # manuelles Zoomen am Fernseher; per URL &zoom=80 pro Gerät justierbar.
+    _tv_zoom = cfg.get("zoom", 75)
+    if _tv_zoom != 100:
+        st.markdown(
+            f"<style>.block-container{{zoom:{_tv_zoom}%;}}</style>",
+            unsafe_allow_html=True,
+        )
 
     # Browser-Auto-Uebersetzung (z.B. Chrome -> Deutsch) fuer die ganze Seite
     # abschalten, damit die Beschriftungen englisch bleiben UND die 30s-Refreshes
