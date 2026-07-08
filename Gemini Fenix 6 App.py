@@ -9667,23 +9667,44 @@ def render_user_profile(user):
                     ok, msg = change_password(user["id"], old_pw, new_pw1)
                     (st.success if ok else st.error)(msg)
 
-        # --- Geräte-Token für den Upload von der WaterSession-Uhr ---
-        st.markdown("**⌚ Watch upload (WaterSession)**")
-        st.caption(
-            "Enter this token in the watch app settings (Garmin Connect Mobile → "
-            "WaterSession → Settings → Device Token), together with the server URL "
-            "of your ingest service. Sessions then upload wirelessly after you "
-            "stop recording – no USB needed."
-        )
+        # --- Uhr verbinden (Pairing-Code) ---
         _tok_key = f"_device_token_{user['id']}"
-        if _tok_key not in st.session_state:
-            st.session_state[_tok_key] = get_or_create_device_token(user["id"])
-        st.code(st.session_state[_tok_key], language=None)
-        if st.button("Regenerate token", key=f"regen_token_{user['id']}",
-                     use_container_width=True):
-            st.session_state[_tok_key] = regenerate_device_token(user["id"])
-            st.success("New token generated – update it in the watch app.")
-            st.rerun()
+        st.markdown("**⌚ Connect your watch**")
+        st.caption(
+            "Enter the short code the WaterSession app shows on your watch "
+            "(after a session, on the Resend screen: your code: …). This links your "
+            "rides to your account. Then tap Resend on the watch once to upload "
+            "sessions you already recorded – future ones sync automatically."
+        )
+        with st.form(f"connect_watch_{user['id']}"):
+            code_in = st.text_input("Watch code", placeholder="e.g. AB3KQ7")
+            if st.form_submit_button("🔗 Connect watch", use_container_width=True):
+                code = (code_in or "").strip().replace(" ", "").replace("-", "")
+                if 0 < len(code) <= 8:
+                    code = code.upper()
+                if not code:
+                    st.error("Please enter the code shown on your watch.")
+                else:
+                    ok, msg = admin_set_device_token(user["id"], code)
+                    if ok:
+                        st.session_state[_tok_key] = code
+                        st.success("Watch connected – now tap Resend on the watch.")
+                    else:
+                        st.error(msg)
+
+        with st.expander("Advanced: device token (manual setup)", expanded=False):
+            st.caption(
+                "Old manual way: paste this token into the watch app settings in "
+                "Garmin Connect. Most people don't need this – the code above is easier."
+            )
+            if _tok_key not in st.session_state:
+                st.session_state[_tok_key] = get_or_create_device_token(user["id"])
+            st.code(st.session_state[_tok_key], language=None)
+            if st.button("Regenerate token", key=f"regen_token_{user['id']}",
+                         use_container_width=True):
+                st.session_state[_tok_key] = regenerate_device_token(user["id"])
+                st.success("New token generated.")
+                st.rerun()
 
         # --- Equipment teilen / übernehmen (gleiches Material über Konten) ---
         st.markdown("**🔗 Share equipment (family / friends)**")
