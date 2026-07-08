@@ -7253,9 +7253,11 @@ def render_spots_page(user=None):
         if desc_html:
             st.markdown(desc_html, unsafe_allow_html=True)
 
-    # Bilder-Galerie: die NEUESTEN 5 Bilder (User-Uploads + Admin), Uploader vermerkt.
-    # Gecachte Thumbnails statt Voll-Bild-base64 -> viel kleinere Seitenlast.
-    gallery = load_recent_spot_images(spot, 6)
+    # Bilder-Galerie: Handy/Tablet 6 Fotos (2 Spalten -> 3x2, geht sauber auf),
+    # Desktop 5 Fotos in EINER Reihe (Querformat-Bilder wirken über wenige breite
+    # Spalten sonst gestreckt). Gecachte Thumbnails -> kleine Seitenlast.
+    _gal_mobile = _is_mobile()
+    gallery = load_recent_spot_images(spot, 6 if _gal_mobile else 5)
     if gallery:
         tiles = []
         for g in gallery:
@@ -7267,12 +7269,11 @@ def render_spots_page(user=None):
                 f"<div class='sp-tile' style=\"background-image:url('{uri}')\">{cap}</div>"
             )
         if tiles:
+            _gal_cols = 2 if _gal_mobile else 5
             st.markdown(
                 "<style>"
-                # 6 Kacheln -> Desktop 3x2, Handy 2x3 (beides geht gerade auf; mit
-                # 5 blieb im 2-Spalten-Raster das letzte Bild allein).
                 ".sp-gallery{display:grid;gap:14px;margin-top:10px;"
-                "grid-template-columns:repeat(3,1fr);}"
+                "grid-template-columns:repeat(" + str(_gal_cols) + ",1fr);}"
                 ".sp-tile{position:relative;height:240px;background-size:cover;"
                 "background-position:center;border-radius:16px;overflow:hidden;"
                 "box-shadow:0 6px 18px rgba(0,0,0,.18);}"
