@@ -4784,6 +4784,17 @@ def df_height(n_rows, max_rows=15):
     return (rows + 1) * 35 + 3
 
 
+def _fmt_mmss(seconds):
+    """Sekunden -> 'm:ss' (z.B. 51 -> '0:51', 75 -> '1:15'). Leer bei ungültig."""
+    try:
+        s = int(round(float(seconds)))
+    except (TypeError, ValueError):
+        return ""
+    if s < 0:
+        return ""
+    return f"{s // 60}:{s % 60:02d}"
+
+
 def _render_champion(ranking, is_wind):
     """Glas-Karte mit der #1: kombinierter Score aus normalisiertem 2s/30s/
     längstem Run (bei Windsport zusätzlich Sprunghöhe + Airtime). Zeigt deren
@@ -5106,7 +5117,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     if {"speed_500m_kmh", "speed_nm_kmh"}.issubset(ranking.columns):
         rcol5, rcol6 = st.columns(2)
 
-        def _dist_table(container, col, title, unit_label):
+        def _dist_table(container, col, title, unit_label, dist_m):
             with container:
                 st.markdown(f"### {title}")
                 tab = ranking[fin_cols + [
@@ -5123,8 +5134,11 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                     st.caption("No entries yet – needs a FIT upload (or the watch update).")
                     return
                 tab.insert(0, "Rank", tab.index + 1)
-                tab[f"{unit_label} kn"] = (
-                    pd.to_numeric(tab[col], errors="coerce") / 1.852).round(2)
+                _spd = pd.to_numeric(tab[col], errors="coerce")
+                tab[f"{unit_label} kn"] = (_spd / 1.852).round(2)
+                # Zeit für die Strecke = dist_m / (km/h in m/s) = dist_m * 3.6 / km/h.
+                tab["Time"] = _spd.apply(
+                    lambda v: _fmt_mmss(dist_m * 3.6 / v) if pd.notna(v) and v > 0 else "")
                 tab = tab.rename(columns={
                     "date": "Date", "name": "Name", "surfspot": "Surf spot",
                     "board": "Board", "sail": gear_label, col: f"{unit_label} km/h",
@@ -5132,8 +5146,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 st.dataframe(_order_table_cols(_mobile_slim(tab), extra.get("columns"), gear_label),
                              width="stretch", hide_index=True, height=df_height(len(tab)))
 
-        _dist_table(rcol5, "speed_500m_kmh", "📏 Best 500 m", "500m")
-        _dist_table(rcol6, "speed_nm_kmh", "⚓ Best nautical mile", "nm")
+        _dist_table(rcol5, "speed_500m_kmh", "📏 Best 500 m", "500m", 500)
+        _dist_table(rcol6, "speed_nm_kmh", "⚓ Best nautical mile", "nm", 1852)
 
     rcol3, rcol4 = st.columns(2)
 
@@ -6022,10 +6036,11 @@ def _tv_period_scope(df, now, period):
     return df[df["_date"] >= start]
 
 
-def _tv_leaderboard(scope, kmh_col):
+def _tv_leaderboard(scope, kmh_col, dist_m=None):
     """Balken-Leaderboard (Top 10, bester Wert je Fahrer in kmh_col), 2-spaltig:
     Plaetze 1..N/2 links, der Rest rechts. kmh_col = speed_1s_kmh /
-    speed_30s_kmh / speed_500m_kmh / speed_nm_kmh."""
+    speed_30s_kmh / speed_500m_kmh / speed_nm_kmh. dist_m gesetzt (500/1852) ->
+    zusaetzlich die Zeit für die Strecke im Balken."""
     if scope is None or scope.empty or kmh_col not in scope.columns:
         return "<div class='tv-msg'>No entries yet.</div>"
     t = scope.copy()
@@ -6045,12 +6060,15 @@ def _tv_leaderboard(scope, kmh_col):
         col = colors.get(i, "#3aa0ff")
         pct = round(r["v"] / maxv * 100)   # Platz 1 = 100 %, Rest anteilig
         w = max(5, pct)
+        val = f"{r['v']:.1f}<small> km/h</small>"
+        if dist_m and r["v"] > 0:
+            val += f"<small> · {_fmt_mmss(dist_m * 3.6 / r['v'])}</small>"
         rows.append(
             f"<div class='lb-row'><span class='lb-pos'>{pos}</span>"
             f"<span class='lb-name'>{r['name']}</span>"
             f"<span class='lb-bar'><span class='lb-fill' style='width:{w}%;background:{col}'></span>"
             f"<span class='lb-pct'>{pct}%</span></span>"
-            f"<span class='lb-val'>{r['v']:.1f}<small> km/h</small></span></div>"
+            f"<span class='lb-val'>{val}</span></div>"
         )
     half = (len(rows) + 1) // 2  # 8 -> links 1-4 / rechts 5-8; 10 -> 1-5 / 6-10
     left = "".join(rows[:half])
@@ -6341,7 +6359,8 @@ def _spot_tv_live(cfg):
     st.markdown(
         f"<div class='tv-rank-title' translate='no'>🏁 {scope_title} leaderboard · {metric_lbl}</div>",
         unsafe_allow_html=True)
-    st.markdown(f"<div data-r='{rk}{metric}'>" + _tv_leaderboard(scope, metric_col) + "</div>",
+    _tv_dist_m = {"500m": 500, "nm": 1852}.get(metric)   # Zeit nur bei 500 m/Seemeile
+    st.markdown(f"<div data-r='{rk}{metric}'>" + _tv_leaderboard(scope, metric_col, _tv_dist_m) + "</div>",
                 unsafe_allow_html=True)
 
     st.markdown(f"<div class='tv-update' translate='no'>⏱️ Last update: {now.strftime('%H:%M')} "
