@@ -2238,7 +2238,7 @@ def load_all_spot_info():
     with get_engine().connect() as conn:
         rows = conn.execute(
             select(spot_info_table.c.spot, spot_info_table.c.country,
-                   spot_info_table.c.description)
+                   spot_info_table.c.description, spot_info_table.c.spot_class)
             .where(spot_info_table.c.description.isnot(None))
             .order_by(spot_info_table.c.spot)
         ).mappings().all()
@@ -7224,6 +7224,31 @@ def _spot_class_html_app(raw):
             "</div>" + body + disc + "</div>")
 
 
+def _spot_class_matches(raw, beginner, flat):
+    """Filter-Hilfe für die Spots-Seite: passt die Einstufung (JSON) zu den
+    aktiven Filtern? beginner = anfängergeeignet, flat = Flachwasser."""
+    if not raw:
+        return False
+    try:
+        c = json.loads(raw)
+    except (ValueError, TypeError):
+        return False
+    if not isinstance(c, dict):
+        return False
+    if beginner:
+        learn = str(c.get("learn") or "").lower()
+        lvl = c.get("level")
+        lvl = [str(x).lower() for x in lvl] if isinstance(lvl, list) else []
+        if not (learn == "yes" or "beginner" in lvl):
+            return False
+    if flat:
+        water = c.get("water")
+        water = [str(x).lower() for x in water] if isinstance(water, list) else []
+        if "flat" not in water:
+            return False
+    return True
+
+
 def render_spots_page(user=None):
     """Reine Spot-Seite (Revierführer): Filter Land/Spot -> Beschreibung, Webcam/
     Bild, Foto-Galerie (+ User-Upload) und Wetter des gewählten Spots."""
@@ -7250,9 +7275,19 @@ def render_spots_page(user=None):
         s for s in all_info
         if country == "All countries" or (s.get("country") or "").strip() == country
     ]
+    # Einstufungs-Filter (nur einblenden, wenn schon Klassifizierungs-Daten da sind).
+    if any((s.get("spot_class") or "").strip() for s in all_info):
+        ff1, ff2 = st.columns(2)
+        _f_beg = ff1.checkbox("🟢 Beginner-friendly", key="spots_f_beg",
+                              help="Only spots rated suitable for beginners.")
+        _f_flat = ff2.checkbox("🏞️ Flat water", key="spots_f_flat",
+                               help="Only spots with flat water.")
+        if _f_beg or _f_flat:
+            pool = [s for s in pool
+                    if _spot_class_matches(s.get("spot_class"), _f_beg, _f_flat)]
     names = [s["spot"] for s in pool]
     if not names:
-        st.info("No spots for this country.")
+        st.info("No spots match these filters – try removing a filter or picking another country.")
         return
     # Spot in der URL halten (bookmarkbar / direkt verlinkbar).
     url_spot = st.query_params.get("spot")
