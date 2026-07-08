@@ -9070,7 +9070,13 @@ _GUIDE = {
              "<ul><li>The <b>Spots</b> tab: filter by <b>country + spot</b> for a description, photo gallery, webcam and live weather.</li>"
              "<li><b>3-day forecast</b> with a 'worth it' traffic light (🟢/🟡/🔴) from wind strength &amp; the spot's best wind directions.</li>"
              "<li>Open a day for the <b>hourly view</b> (wind bars + frosted gust bars); toggle the <b>thermal / sea-breeze potential</b>.</li>"
+             "<li><b>Who is this spot for?</b> An orientation card shows the suitable level, whether it's good to learn, the water type, typical wind and things to watch out for – and you can filter the list by beginner-friendly / flat water. Guidance, not a guarantee.</li>"
              "<li><b>Upload your own spot photo</b> – the newest 5 are shown with the uploader's name.</li></ul>"),
+            ("Safety check-in (SOS) – optional",
+             "<ul><li>In your <b>account</b> you can switch on a personal <b>safety timer</b>: set the minutes and an <b>emergency e-mail</b>.</li>"
+             "<li>When you start a session on the watch it can <b>arm automatically</b>, or arm it yourself with <b>Start safety timer now</b>.</li>"
+             "<li>You <b>disarm</b> it by uploading your session afterwards (“I'm back”) or with <b>✅ I'm safe</b>. If the timer runs out, your contact gets an e-mail with your start spot.</li>"
+             "<li>It's a <b>convenience reminder, not a rescue service</b> – no delivery guarantee, and it never replaces a buddy, leash or the coastguard.</li></ul>"),
             ("Spot-TV – the café / shop screen",
              "<ul><li>A full-screen live board for a café, shop or club. Open it from the <b>Filter</b> panel: pick a spot → <b>Open Spot TV</b> (then press F11 for full screen).</li>"
              "<li>Shows a <b>leaderboard</b> with 🥇🥈🥉 and percentage bars (rank 1 = 100 %), the <b>rider of the day</b>, the current weather and the 3-day forecast (rotating with the spot info).</li>"
@@ -9161,7 +9167,13 @@ _GUIDE = {
              "<ul><li>Der Tab <b>Spots</b>: nach <b>Land + Spot</b> filtern für Beschreibung, Foto-Galerie, Webcam und aktuelles Wetter.</li>"
              "<li><b>3-Tage-Vorhersage</b> mit 'lohnt sich'-Ampel (🟢/🟡/🔴) aus Windstärke &amp; den besten Windrichtungen des Spots.</li>"
              "<li>Einen Tag für die <b>Stundenansicht</b> öffnen (Wind-Balken + gläserne Böen-Balken); <b>Thermik-/Seewind-Potenzial</b> ein-/ausblenden.</li>"
+             "<li><b>Für wen ist dieser Spot?</b> Eine Orientierungs-Karte zeigt passendes Level, ob man hier gut lernt, die Wasserart, typischen Wind und worauf man achten sollte – und du kannst die Liste nach anfängerfreundlich / Flachwasser filtern. Orientierung, keine Garantie.</li>"
              "<li><b>Eigenes Spot-Foto hochladen</b> – die neuesten 5 werden mit dem Namen des Uploaders gezeigt.</li></ul>"),
+            ("Sicherheits-Check-in (SOS) – optional",
+             "<ul><li>In deinem <b>Konto</b> kannst du einen persönlichen <b>Sicherheits-Timer</b> aktivieren: Minuten und eine <b>Notfall-E-Mail</b> festlegen.</li>"
+             "<li>Beim Start einer Session auf der Uhr kann er sich <b>automatisch scharf schalten</b>, oder du startest ihn selbst mit <b>Start safety timer now</b>.</li>"
+             "<li><b>Entwarnung</b>: durch den Session-Upload danach („bin zurück“) oder mit <b>✅ I'm safe</b>. Läuft der Timer ab, bekommt dein Kontakt eine E-Mail mit deinem Start-Spot.</li>"
+             "<li>Es ist eine <b>Erinnerungshilfe, kein Rettungsdienst</b> – keine Zustellgarantie, und ersetzt niemals Buddy, Leash oder die Küstenwache.</li></ul>"),
             ("Spot-TV – der Café-/Shop-Screen",
              "<ul><li>Ein Vollbild-Live-Screen für Café, Shop oder Club. Im <b>Filter</b>-Bereich öffnen: Spot wählen → <b>Open Spot TV</b> (danach F11 für Vollbild).</li>"
              "<li>Zeigt eine <b>Bestenliste</b> mit 🥇🥈🥉 und Prozentbalken (Platz 1 = 100 %), den <b>Rider of the Day</b>, das aktuelle Wetter und die 3-Tage-Vorhersage (wechselt mit der Spot-Info).</li>"
@@ -9252,7 +9264,13 @@ _GUIDE = {
              "<ul><li>Het tabblad <b>Spots</b>: filter op <b>land + spot</b> voor een beschrijving, fotogalerij, webcam en actueel weer.</li>"
              "<li><b>3-daagse verwachting</b> met een 'de moeite waard'-stoplicht (🟢/🟡/🔴) op basis van windkracht &amp; de beste windrichtingen van de spot.</li>"
              "<li>Open een dag voor de <b>uurweergave</b> (windbalken + matglazen vlaagbalken); zet het <b>thermiek-/zeewindpotentieel</b> aan/uit.</li>"
+             "<li><b>Voor wie is deze spot?</b> Een oriëntatiekaart toont het geschikte niveau, of je er goed leert, het watertype, de typische wind en waarop je moet letten – en je kunt de lijst filteren op beginnersvriendelijk / vlak water. Richtlijn, geen garantie.</li>"
              "<li><b>Upload je eigen spotfoto</b> – de nieuwste 5 worden getoond met de naam van de uploader.</li></ul>"),
+            ("Veiligheids-check-in (SOS) – optioneel",
+             "<ul><li>In je <b>account</b> zet je een persoonlijke <b>veiligheidstimer</b> aan: stel de minuten en een <b>noodmail</b> in.</li>"
+             "<li>Bij de start van een sessie op het horloge kan hij <b>automatisch scherpstellen</b>, of start hem zelf met <b>Start safety timer now</b>.</li>"
+             "<li><b>Ontwapenen</b>: door je sessie daarna te uploaden („ik ben terug“) of met <b>✅ I'm safe</b>. Loopt de timer af, dan krijgt je contact een e-mail met je startspot.</li>"
+             "<li>Het is een <b>hulpherinnering, geen reddingsdienst</b> – geen bezorggarantie, en vervangt nooit een buddy, leash of de kustwacht.</li></ul>"),
             ("Spot-TV – het café-/shopscherm",
              "<ul><li>Een volledig scherm live-board voor een café, shop of club. Open het in het <b>Filter</b>-paneel: kies een spot → <b>Open Spot TV</b> (daarna F11 voor volledig scherm).</li>"
              "<li>Toont een <b>ranglijst</b> met 🥇🥈🥉 en procentbalken (plek 1 = 100 %), de <b>rider of the day</b>, het actuele weer en de 3-daagse verwachting (wisselt met de spotinfo).</li>"
@@ -9344,7 +9362,13 @@ _GUIDE = {
              "<ul><li>L'onglet <b>Spots</b> : filtrez par <b>pays + spot</b> pour une description, une galerie photo, une webcam et la météo en direct.</li>"
              "<li><b>Prévision sur 3 jours</b> avec un feu « ça vaut le coup » (🟢/🟡/🔴) selon la force du vent &amp; les meilleures directions du spot.</li>"
              "<li>Ouvrez un jour pour la <b>vue horaire</b> (barres de vent + barres de rafales givrées) ; activez le <b>potentiel thermique / brise de mer</b>.</li>"
+             "<li><b>À qui convient ce spot ?</b> Une fiche d'orientation indique le niveau adapté, si l'on y apprend bien, le type d'eau, le vent typique et les points de vigilance – et vous pouvez filtrer la liste par « débutant » / « eau plate ». Indicatif, sans garantie.</li>"
              "<li><b>Téléversez votre propre photo de spot</b> – les 5 plus récentes sont affichées avec le nom de l'auteur.</li></ul>"),
+            ("Check-in de sécurité (SOS) – optionnel",
+             "<ul><li>Dans votre <b>compte</b>, activez un <b>minuteur de sécurité</b> personnel : réglez les minutes et un <b>e-mail d'urgence</b>.</li>"
+             "<li>Au démarrage d'une session sur la montre, il peut <b>s'armer automatiquement</b>, ou armez-le vous-même avec <b>Start safety timer now</b>.</li>"
+             "<li><b>Désarmement</b> : en téléversant votre session ensuite (« je suis rentré ») ou avec <b>✅ I'm safe</b>. Si le minuteur expire, votre contact reçoit un e-mail avec votre spot de départ.</li>"
+             "<li>C'est un <b>rappel pratique, pas un service de secours</b> – aucune garantie de livraison, et ne remplace jamais un binôme, un leash ou les secours en mer.</li></ul>"),
             ("Spot-TV – l'écran café / shop",
              "<ul><li>Un tableau en direct plein écran pour un café, un shop ou un club. Ouvrez-le depuis le panneau <b>Filter</b> : choisissez un spot → <b>Open Spot TV</b> (puis F11 pour le plein écran).</li>"
              "<li>Affiche un <b>classement</b> avec 🥇🥈🥉 et des barres de pourcentage (rang 1 = 100 %), le <b>rider du jour</b>, la météo actuelle et la prévision sur 3 jours (en alternance avec les infos du spot).</li>"
@@ -9435,7 +9459,13 @@ _GUIDE = {
              "<ul><li>La pestaña <b>Spots</b>: filtra por <b>país + spot</b> para una descripción, galería de fotos, webcam y tiempo en directo.</li>"
              "<li><b>Previsión a 3 días</b> con un semáforo «merece la pena» (🟢/🟡/🔴) según la fuerza del viento &amp; las mejores direcciones del spot.</li>"
              "<li>Abre un día para la <b>vista por horas</b> (barras de viento + barras de rachas esmeriladas); activa el <b>potencial térmico / brisa marina</b>.</li>"
+             "<li><b>¿Para quién es este spot?</b> Una ficha de orientación muestra el nivel adecuado, si se aprende bien, el tipo de agua, el viento típico y a qué prestar atención – y puedes filtrar la lista por «apto para principiantes» / «agua plana». Orientativo, sin garantía.</li>"
              "<li><b>Sube tu propia foto del spot</b> – se muestran las 5 más recientes con el nombre de quien las subió.</li></ul>"),
+            ("Check-in de seguridad (SOS) – opcional",
+             "<ul><li>En tu <b>cuenta</b> puedes activar un <b>temporizador de seguridad</b> personal: define los minutos y un <b>e-mail de emergencia</b>.</li>"
+             "<li>Al empezar una sesión en el reloj puede <b>armarse automáticamente</b>, o ármalo tú con <b>Start safety timer now</b>.</li>"
+             "<li><b>Desarmar</b>: subiendo tu sesión después («ya he vuelto») o con <b>✅ I'm safe</b>. Si el temporizador vence, tu contacto recibe un e-mail con tu spot de salida.</li>"
+             "<li>Es un <b>recordatorio práctico, no un servicio de rescate</b> – sin garantía de entrega, y nunca sustituye a un compañero, un leash o el servicio de salvamento.</li></ul>"),
             ("Spot-TV – la pantalla de café / tienda",
              "<ul><li>Un tablero en directo a pantalla completa para un café, tienda o club. Ábrelo desde el panel <b>Filter</b>: elige un spot → <b>Open Spot TV</b> (luego F11 para pantalla completa).</li>"
              "<li>Muestra un <b>ranking</b> con 🥇🥈🥉 y barras de porcentaje (puesto 1 = 100 %), el <b>rider del día</b>, el tiempo actual y la previsión a 3 días (alternando con la info del spot).</li>"
