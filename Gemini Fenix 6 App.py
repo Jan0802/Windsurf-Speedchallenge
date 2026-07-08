@@ -847,6 +847,7 @@ spot_info_table = Table(
     Column("webcam_url", String(500)),
     Column("country", String(80)),       # Land (fuer den Filter der Spots-Seite)
     Column("best_winds", String(120)),   # beste Windrichtungen, z.B. "SW, W, NW"
+    Column("spot_class", String),         # JSON: "Für wen geeignet?"-Einstufung (vom Ingest-KI-Job)
     Column("auto_filled", Boolean, nullable=False, default=False),  # KI-Entwurf?
     Column("updated_at", DateTime, server_default=func.now()),
 )
@@ -7147,6 +7148,82 @@ def _tv_bottom_info(cfg):
         _tv_forecast(cfg, coords)
 
 
+_SC_LEVEL_ICON = {"beginner": "🟢", "improver": "🟢", "advanced": "🟡", "pro": "🔴"}
+_SC_LEVEL_LABEL = {"beginner": "Beginner", "improver": "Improver",
+                   "advanced": "Advanced", "pro": "Pro"}
+_SC_WATER = {"flat": "🏞️ Flat water", "chop": "〰️ Chop", "wave": "🌊 Waves"}
+_SC_HAZARD = {"offshore wind": "⚠️ Offshore wind", "current": "🌀 Current",
+              "rocks/reef": "🪨 Rocks / reef", "shorebreak": "🌊 Shorebreak",
+              "cold water": "🧊 Cold water", "crowd": "👥 Crowded",
+              "zone closures": "🚫 Zone / season closures"}
+_SC_SPORT_ICON = {"yes": "✅", "limited": "🟡", "no": "❌", "na": "–"}
+
+
+def _spot_class_html_app(raw):
+    """„Für wen geeignet?"-Einstufung (JSON aus spot_class) als HTML-Block für die
+    App-Spots-Seite. Leer, wenn nichts Verwertbares da ist."""
+    if not raw:
+        return ""
+    try:
+        c = json.loads(raw)
+    except (ValueError, TypeError):
+        return ""
+    if not isinstance(c, dict):
+        return ""
+
+    def esc(s):
+        return str(s).replace("<", "&lt;").replace(">", "&gt;")
+
+    rows = []
+    lvl = c.get("level")
+    if isinstance(lvl, list) and lvl:
+        rows.append("<b>Level:</b> " + " · ".join(
+            f"{_SC_LEVEL_ICON.get(str(x).lower(), '')} "
+            f"{_SC_LEVEL_LABEL.get(str(x).lower(), esc(x))}" for x in lvl))
+    learn = str(c.get("learn") or "").lower()
+    if learn in ("yes", "limited", "no"):
+        rows.append("<b>Good to learn:</b> "
+                    + {"yes": "✅ Yes", "limited": "🟡 Limited", "no": "❌ No"}[learn])
+    water = c.get("water")
+    if isinstance(water, list) and water:
+        rows.append("<b>Water:</b> " + " · ".join(
+            _SC_WATER.get(str(x).lower(), esc(x)) for x in water))
+    wind = str(c.get("wind") or "").strip()
+    if wind:
+        rows.append("<b>Wind:</b> " + esc(wind))
+    hz = c.get("hazards")
+    if isinstance(hz, list) and hz:
+        rows.append("<b>Watch out:</b> " + " · ".join(
+            _SC_HAZARD.get(str(x).lower(), "⚠️ " + esc(x)) for x in hz))
+
+    sport_tbl = ""
+    sports = c.get("sports")
+    if isinstance(sports, dict) and sports:
+        cells = ""
+        for key, label in (("windsurf", "Windsurf"), ("kite", "Kite"),
+                           ("wing", "Wing"), ("sup", "SUP"), ("wakeboard", "Wake")):
+            v = str(sports.get(key) or "").lower()
+            if v not in ("yes", "limited", "no"):
+                continue
+            cells += ("<div style='text-align:center;min-width:60px'>"
+                      f"<div style='font-size:12px;color:#9fc4cf'>{label}</div>"
+                      f"<div style='font-size:20px'>{_SC_SPORT_ICON.get(v, '–')}</div></div>")
+        if cells:
+            sport_tbl = ("<div style='display:flex;gap:14px;flex-wrap:wrap;"
+                         f"margin-top:8px'>{cells}</div>")
+
+    if not rows and not sport_tbl:
+        return ""
+    body = "".join(f"<div style='margin:6px 0'>{r}</div>" for r in rows) + sport_tbl
+    disc = ("<div style='font-size:12px;color:#8fb0bb;margin-top:10px'>⚠️ Orientation only, "
+            "not a guarantee – conditions change daily. Check the forecast, ask local schools, "
+            "and don't go out alone if unsure. The biggest danger is usually the current.</div>")
+    return ("<div style='background:rgba(43,212,217,.07);border:1px solid rgba(43,212,217,.25);"
+            "border-radius:16px;padding:14px 18px;margin:10px 0'>"
+            "<div style='font-weight:800;color:#8fe3ff;margin-bottom:6px'>Who is this spot for?"
+            "</div>" + body + disc + "</div>")
+
+
 def render_spots_page(user=None):
     """Reine Spot-Seite (Revierführer): Filter Land/Spot -> Beschreibung, Webcam/
     Bild, Foto-Galerie (+ User-Upload) und Wetter des gewählten Spots."""
@@ -7252,6 +7329,11 @@ def render_spots_page(user=None):
         # Keine Webcam -> Beschreibung ueber die ganze Breite.
         if desc_html:
             st.markdown(desc_html, unsafe_allow_html=True)
+
+    # „Für wen geeignet?"-Einstufung (Level/Wasser/Wind/Gefahren/Sport), falls vorhanden.
+    _sc_html = _spot_class_html_app(info.get("spot_class"))
+    if _sc_html:
+        st.markdown(_sc_html, unsafe_allow_html=True)
 
     # Bilder-Galerie: Handy/Tablet 6 Fotos (2 Spalten -> 3x2, geht sauber auf),
     # Desktop 5 Fotos in EINER Reihe (Querformat-Bilder wirken über wenige breite
