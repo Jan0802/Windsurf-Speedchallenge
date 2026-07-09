@@ -7519,14 +7519,16 @@ def render_spots_page(user=None):
             _gal_cols = 2 if _gal_mobile else 5
             st.markdown(
                 "<style>"
-                ".sp-gallery{display:grid;gap:14px;margin-top:10px;"
+                # margin-bottom sorgt fuer klaren Abstand zum darunter liegenden
+                # "Add a photo"-Expander (sonst stossen sie aneinander / wirken ueberlappt).
+                ".sp-gallery{display:grid;gap:14px;margin-top:10px;margin-bottom:26px;"
                 "grid-template-columns:repeat(" + str(_gal_cols) + ",1fr);}"
                 ".sp-tile{position:relative;height:240px;background-size:cover;"
                 "background-position:center;border-radius:16px;overflow:hidden;"
                 "box-shadow:0 6px 18px rgba(0,0,0,.18);}"
                 ".sp-cap{position:absolute;left:0;right:0;bottom:0;font-size:12px;"
-                "color:#fff;padding:16px 8px 6px;"
-                "background:linear-gradient(transparent,rgba(0,0,0,.6));}"
+                "color:#fff;padding:10px 8px 6px;"
+                "background:linear-gradient(transparent,rgba(0,0,0,.5));}"
                 "@media (max-width:680px){.sp-gallery{grid-template-columns:repeat(2,1fr);}}"
                 "</style>"
                 f"<div class='sp-gallery'>{''.join(tiles)}</div>",
