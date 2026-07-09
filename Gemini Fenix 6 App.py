@@ -8183,16 +8183,94 @@ def render_admin():
 
     _fb_new = feedback_unhandled_count()
     fb_label = f"💬 Feedback ({_fb_new})" if _fb_new else "💬 Feedback"
-    tab_ads, tab_profiles, tab_analytics, tab_fb = st.tabs(
-        ["📣 Werbung pro Spot", "👤 Profile", "📊 Web Analytics", fb_label])
+    tab_ads, tab_spots, tab_profiles, tab_analytics, tab_fb = st.tabs(
+        ["📣 Werbung pro Spot", "📍 Spots", "👤 Profile", "📊 Web Analytics", fb_label])
     with tab_ads:
         render_admin_ads()
+    with tab_spots:
+        render_admin_spots()
     with tab_profiles:
         render_admin_profiles()
     with tab_analytics:
         render_admin_analytics()
     with tab_fb:
         render_admin_feedback()
+
+
+def render_admin_spots():
+    """Spots anlegen/bearbeiten: Name + Koordinaten. Schreibt in spots_table
+    (update_spot_coords = Upsert). Neue Spots erscheinen sofort in den Location-
+    Auswahlen (all_known_spots), im Wetter und im Spot-TV."""
+    st.caption(
+        "Spots selbst anlegen und ihre Koordinaten pflegen. Ein neuer Spot erscheint "
+        "sofort in den Location-Auswahlen, im Wetter und im Spot-TV. Die Beschreibung "
+        "und „Für wen geeignet?“ werden separat ergänzt."
+    )
+
+    coords = load_spots()                 # {name: {lat, lon}} – nur mit Koordinaten
+    all_names = all_known_spots()         # alle bekannten Namen (auch aus Sessions)
+
+    pick = st.selectbox(
+        "Vorhandenen Spot bearbeiten (optional)", ["– neuer Spot –"] + all_names,
+        key="admin_spot_pick")
+    # Auswahl in die Eingabefelder laden (einmal je Wechsel), damit Koordinaten
+    # bestehender Spots vorbelegt werden.
+    if st.session_state.get("_admin_spot_loaded") != pick:
+        st.session_state["_admin_spot_loaded"] = pick
+        if pick != "– neuer Spot –":
+            st.session_state["admin_spot_name"] = pick
+            st.session_state["admin_spot_lat"] = float((coords.get(pick) or {}).get("lat") or 0.0)
+            st.session_state["admin_spot_lon"] = float((coords.get(pick) or {}).get("lon") or 0.0)
+        else:
+            st.session_state["admin_spot_name"] = ""
+            st.session_state["admin_spot_lat"] = 0.0
+            st.session_state["admin_spot_lon"] = 0.0
+        st.rerun()
+
+    name = st.text_input("Spot-Name", key="admin_spot_name").strip()
+
+    if st.button("🔎 Koordinaten aus dem Namen suchen", use_container_width=True):
+        if not name:
+            st.warning("Bitte zuerst einen Namen eingeben.")
+        else:
+            geo = geocode_spot(name)
+            if geo:
+                st.session_state["admin_spot_lat"] = float(geo["lat"])
+                st.session_state["admin_spot_lon"] = float(geo["lon"])
+                st.success(f"Gefunden: {geo['lat']:.5f}, {geo['lon']:.5f} – bitte prüfen.")
+                st.rerun()
+            else:
+                st.warning("Keine Koordinaten gefunden – bitte manuell eintragen.")
+
+    c1, c2 = st.columns(2)
+    lat = c1.number_input("Latitude (Breitengrad)", min_value=-90.0, max_value=90.0,
+                          step=0.00001, format="%.5f", key="admin_spot_lat")
+    lon = c2.number_input("Longitude (Längengrad)", min_value=-180.0, max_value=180.0,
+                          step=0.00001, format="%.5f", key="admin_spot_lon")
+    st.caption("Tipp: In Google Maps auf den Punkt rechtsklicken → die beiden Zahlen "
+               "(Breite, Länge) kopieren und hier eintragen.")
+
+    if st.button("💾 Spot speichern", type="primary", use_container_width=True):
+        if not name:
+            st.error("Bitte einen Spot-Namen eingeben.")
+        elif abs(lat) < 0.0001 and abs(lon) < 0.0001:
+            st.error("Bitte gültige Koordinaten eingeben (0/0 liegt im Meer vor Afrika).")
+        else:
+            update_spot_coords(name, lat, lon)
+            st.success(f"Spot „{name}“ gespeichert ({lat:.5f}, {lon:.5f}).")
+            st.session_state["_admin_spot_loaded"] = None  # Liste/Karte neu laden
+            st.rerun()
+
+    if coords:
+        st.markdown("---")
+        st.markdown(f"**{len(coords)} Spots mit Koordinaten**")
+        _rows = [{"Spot": n, "Latitude": coords[n]["lat"], "Longitude": coords[n]["lon"]}
+                 for n in sorted(coords)]
+        _df = pd.DataFrame(_rows)
+        st.dataframe(_df, hide_index=True, width="stretch")
+        _map = _df.rename(columns={"Latitude": "lat", "Longitude": "lon"})[["lat", "lon"]].dropna()
+        if not _map.empty:
+            st.map(_map)
 
 
 def render_admin_ads():
