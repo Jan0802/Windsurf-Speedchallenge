@@ -3761,7 +3761,7 @@ def complete_sessions(df):
 def personal_bests(name, spot=None, year=None):
     """Beste Werte je Metrik für einen Fahrer, optional nach Spot/Jahr gefiltert."""
     df = load_rider_sessions(name, active_sport())
-    df = complete_sessions(df)
+    df = _drop_excluded(complete_sessions(df))
 
     if df.empty:
         return []
@@ -3792,7 +3792,8 @@ def personal_best_table(df, spot="All", year="All", board="All", max_bft=None, l
     (Anzeige-DataFrame, Filter-Beschriftung) zurück; der DataFrame ist leer, wenn
     keine passenden Sessions vorhanden sind.
     """
-    data = complete_sessions(df.copy())
+    # Sicher unplausible Sessions zaehlen auch nicht als persoenlicher Bestwert.
+    data = _drop_excluded(complete_sessions(df.copy()))
 
     if spot and spot != "All" and "surfspot" in data.columns:
         data = data[data["surfspot"].astype(str) == spot]
@@ -3986,6 +3987,23 @@ def render_session_history(name):
         # letzten 10, im Dropdown sind aber alle wählbar.
         history_full = history
         history = history_full.head(10)
+
+        # Transparenz: eigene, nicht gewertete Sessions (mit Grund) auflisten.
+        _excl_notes = []
+        for _, _r in history_full.iterrows():
+            _reason = _exclusion_reason(_r)
+            if _reason:
+                _d = _r.get("date")
+                _ds = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else "?"
+                _sp = _r.get("surfspot") or "?"
+                _excl_notes.append(f"{_ds} · {_sp}: {_reason}")
+        if _excl_notes:
+            st.warning(
+                "⚠️ **Not counted in the rankings** (data looks implausible):\n\n- "
+                + "\n- ".join(_excl_notes)
+                + "\n\nThese sessions stay here for you, but are kept out of the public "
+                  "rankings. If you think this is a mistake, get in touch."
+            )
 
         if history_full.empty:
             st.info("No sessions in the selected date range.")
@@ -4603,7 +4621,8 @@ def render_rankings(results_container):
     preset = load_user_pref(username)
 
     sport = active_sport()
-    ranking = complete_sessions(load_sessions(sport))
+    # Sicher unplausible Sessions (Fake/Fehler) aus der oeffentlichen Wertung nehmen.
+    ranking = _drop_excluded(complete_sessions(load_sessions(sport)))
 
     months = [
         "January", "February", "March", "April", "May", "June",
@@ -5819,7 +5838,9 @@ def compute_trust_score(df, spot_top_kmh=None):
             "status": _status(pen, 20.0),
         })
 
-    return {"score": int(max(0, min(100, round(score)))), "components": components, "note": ""}
+    # min. 1: die 0 bleibt als Sentinel "nicht auf Wasser" reserviert -> ein
+    # verrauschter, aber ehrlicher Track wird nie faelschlich hart ausgeschlossen.
+    return {"score": int(max(1, min(100, round(score)))), "components": components, "note": ""}
 
 
 def render_trust_score(result):
@@ -5857,6 +5878,61 @@ def _trust_badge(score):
 
     dot = "🟢" if s >= 80 else "🟡" if s >= 55 else "🔴"
     return f"{dot} {s}"
+
+
+# =====================================================================
+#  Harter Ausschluss aus der Wertung – NUR bei sicher unplausiblen
+#  (physikalisch unmoeglichen / eindeutig widerspruechlichen) Sessions.
+#  Grundsatz: im Zweifel NICHT ausschliessen (ehrliche Fahrer mit schlechtem
+#  GPS behalten ihre Wertung; die sehen nur einen niedrigeren Trust-Wert).
+#  Schwellen bewusst jenseits jedes Weltrekords / menschlich Moeglichen.
+# =====================================================================
+def _num_or_none(v):
+    try:
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return None
+        return float(v)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _exclusion_reason(row):
+    """Gibt einen kurzen Grund (str) zurueck, wenn die Session sicher unplausibel
+    ist – sonst None. 'row' ist eine DataFrame-Zeile (dict-artig)."""
+    s1 = _num_or_none(row.get("speed_1s_kmh"))
+    s30 = _num_or_none(row.get("speed_30s_kmh"))
+    mcad = _num_or_none(row.get("max_cadence_spm"))
+    dist = _num_or_none(row.get("total_distance_km"))
+    dur = _num_or_none(row.get("duration_s"))
+    ts = _num_or_none(row.get("trust_score"))
+
+    # Wasser-Sentinel aus dem Ingest: trust_score == 0 = GPS-Spur klar an Land.
+    if ts is not None and ts == 0:
+        return "GPS track was not on the water"
+    # Ueber jedem Weltrekord (Wind/Kite ~120 km/h).
+    if s1 is not None and s1 > 130:
+        return "Speed above any world record (>130 km/h)"
+    # Menschlich unmoegliche Paddel-Kadenz (real 40–70/min).
+    if mcad is not None and mcad > 120:
+        return "Paddle cadence physically impossible (>120 spm)"
+    # Kuerzeres Zeitfenster kann nicht langsamer sein als das laengere.
+    if s1 is not None and s30 is not None and s1 >= 5 and s30 > s1 + 1.0:
+        return "Inconsistent data (30 s peak faster than 2 s peak)"
+    # Schnittgeschwindigkeit kann nicht ueber der 2s-Hoechstspitze liegen.
+    if s1 is not None and s1 >= 5 and dist and dur and dur > 0:
+        avg = dist / (dur / 3600.0)
+        if avg > s1 * 1.10:
+            return "Inconsistent data (average faster than peak speed)"
+    return None
+
+
+def _drop_excluded(df):
+    """Entfernt sicher unplausible Sessions aus einer Wertung (oeffentliche
+    Rankings, Spot-TV, persoenliche Bestwerte). Leeres/kein DataFrame -> unveraendert."""
+    if df is None or df.empty:
+        return df
+    mask = df.apply(lambda r: _exclusion_reason(r) is None, axis=1)
+    return df[mask]
 
 
 def show_map(df):
@@ -6333,6 +6409,9 @@ def _spot_tv_live(cfg):
         return
 
     df = df[df["surfspot"].astype(str) == spot].copy()
+
+    # Sicher unplausible Sessions raus (wie im Web-Ranking).
+    df = _drop_excluded(df)
 
     # Trust-Filter: NULL (Uhr-Sessions ohne Trust) gilt als ok.
     if cfg["trust"] > 0 and "trust_score" in df.columns:
@@ -10831,7 +10910,7 @@ def _user_rank(name, sport, spot=None, metric="speed_1s_kmh"):
     """Rang des Fahrers in der vollständigen Bestenliste – beste Session je Fahrer
     nach `metric`, optional auf einen Spot eingegrenzt. {rank,total,value} oder
     None, wenn der Fahrer dort (noch) nicht vorkommt."""
-    df = complete_sessions(load_sessions(sport))
+    df = _drop_excluded(complete_sessions(load_sessions(sport)))
     if df is None or df.empty or metric not in df.columns or "name" not in df.columns:
         return None
     if spot and spot != "All" and "surfspot" in df.columns:
@@ -10922,7 +11001,7 @@ def _bp_rank_in(df, name, metric):
 def best_placement(name, sport):
     """Bester glaubwuerdiger Teilwertungs-Rang des Fahrers. -> dict mit top/others
     ODER {'fallback': ...} ODER None."""
-    df = complete_sessions(load_sessions(sport))
+    df = _drop_excluded(complete_sessions(load_sessions(sport)))
     if df is None or df.empty or "name" not in df.columns:
         return None
     df = df.copy()
@@ -11028,7 +11107,7 @@ def _bp_season_progress(name, sport):
     """Bester 2 s dieses Jahr vs. Vorjahr (für 'Fortschritt statt Absolutwert').
     -> (this_year, last_year_or_None) oder None."""
     df = load_rider_sessions(name, sport)
-    df = complete_sessions(df)
+    df = _drop_excluded(complete_sessions(df))
     if df is None or df.empty or "speed_1s_kmh" not in df.columns or "date" not in df.columns:
         return None
     d = df.copy()
