@@ -3527,14 +3527,17 @@ def delete_user_pref(username):
 
 # Anzeigegroesse (Desktop-Zoom in %) – im selben user_prefs-JSON unter "display_pct".
 # 100 = Standard. Bewusst nur Desktop/Tablet; Mobile hat sein eigenes Layout und
-# der Spot-TV seinen eigenen Zoom (beide bleiben unberuehrt).
-_DISPLAY_SIZES = {"Normal": 100, "Large": 125, "Extra large": 150}
+# der Spot-TV seinen eigenen Zoom (beide bleiben unberuehrt). Bei 150% ueberlappen
+# Streamlits interaktive Tabellen -> Obergrenze 125%.
+_DISPLAY_SIZES = {"Normal": 100, "Comfortable": 110, "Large": 125}
+_DISPLAY_MAX = max(_DISPLAY_SIZES.values())
 
 
 def _display_pct(username):
     """Gespeicherte Anzeigegroesse in %. Einmal je Nutzer/Session gecacht, damit
     nicht bei jedem Rerun die DB getroffen wird; laedt neu, wenn sich der
-    eingeloggte Nutzer aendert (z.B. Cookie-Login einige Reruns spaeter)."""
+    eingeloggte Nutzer aendert (z.B. Cookie-Login einige Reruns spaeter). Aeltere
+    zu grosse Werte (z.B. 150) werden auf die Obergrenze begrenzt."""
     if st.session_state.get("_display_pct_user") != username:
         pct = 100
         if username:
@@ -3542,7 +3545,7 @@ def _display_pct(username):
                 pct = int((load_user_pref(username) or {}).get("display_pct") or 100)
             except Exception:  # noqa: BLE001
                 pct = 100
-        st.session_state["_display_pct"] = max(100, min(200, pct))
+        st.session_state["_display_pct"] = max(100, min(_DISPLAY_MAX, pct))
         st.session_state["_display_pct_user"] = username
     return st.session_state["_display_pct"]
 
