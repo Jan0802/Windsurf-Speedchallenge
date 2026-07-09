@@ -3527,9 +3527,11 @@ def delete_user_pref(username):
 
 # Anzeigegroesse (Desktop-Zoom in %) – im selben user_prefs-JSON unter "display_pct".
 # 100 = Standard. Bewusst nur Desktop/Tablet; Mobile hat sein eigenes Layout und
-# der Spot-TV seinen eigenen Zoom (beide bleiben unberuehrt). Bei 150% ueberlappen
-# Streamlits interaktive Tabellen -> Obergrenze 125%.
-_DISPLAY_SIZES = {"Normal": 100, "Comfortable": 110, "Large": 125}
+# der Spot-TV seinen eigenen Zoom (beide bleiben unberuehrt). Der Zoom wird auf das
+# Wurzel-Element (html) gelegt -> verhaelt sich wie Browser-Zoom (Strg +) und
+# reserviert den Platz fuer Tabellen korrekt (kein Ueberlappen wie bei Zoom auf
+# einen Zwischen-Container).
+_DISPLAY_SIZES = {"Normal": 100, "Comfortable": 110, "Large": 125, "Extra large": 150}
 _DISPLAY_MAX = max(_DISPLAY_SIZES.values())
 
 
@@ -11138,14 +11140,15 @@ with st.sidebar:
             st.session_state["_display_pct_user"] = current_user["username"]
             st.rerun()
 
-# Zoom anwenden: nur ab Tablet-/Desktop-Breite (>640px), damit das Mobile-Layout
-# unberuehrt bleibt. Skaliert den kompletten App-Container (Sidebar + Inhalt) wie
-# ein Browser-Zoom; das fixe Hintergrundbild auf .stApp bleibt vollflaechig.
+# Zoom anwenden: auf das Wurzel-Element (html) -> verhaelt sich wie Browser-Zoom
+# (Strg +), skaliert die GANZE Seite gleichmaessig und reserviert den Platz fuer
+# Streamlits Tabellen korrekt (kein Ueberlappen). Nur ab Tablet-/Desktop-Breite
+# (>640px), damit das Mobile-Layout unberuehrt bleibt.
 _disp_pct = _display_pct(current_user["username"] if current_user else None)
 if _disp_pct and _disp_pct != 100:
     st.markdown(
         "<style>@media (min-width:641px){"
-        f"[data-testid='stAppViewContainer']{{zoom:{_disp_pct}%;}}"
+        f"html{{zoom:{_disp_pct}%;}}"
         "}</style>",
         unsafe_allow_html=True,
     )
