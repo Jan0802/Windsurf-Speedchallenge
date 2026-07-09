@@ -4730,8 +4730,16 @@ def render_rankings(results_container):
             # Einstieg ins Spot-TV (Vollbild-Live-Screen) fuer den aktuellen Spot.
             st.markdown("---")
             if spot_filter and spot_filter != "Overall":
+                # Zoom pro TV-Geraet (Cafe-Fernseher/Beamer) – wird an die URL gehaengt,
+                # damit man ihn nicht von Hand eintippen muss. 75 = Standard.
+                _tv_zoom = st.slider(
+                    "📺 Spot-TV zoom (%)", min_value=40, max_value=100, value=75, step=5,
+                    key=f"tv_zoom_{sport}",
+                    help="Smaller = more fits on the screen, larger = bigger. "
+                         "The value is saved in the link, so it applies on that TV.")
                 _tv_url = "?" + urlencode(
-                    {"tv": "1", "sport": sport, "spot": spot_filter, "mode": "today"}
+                    {"tv": "1", "sport": sport, "spot": spot_filter,
+                     "mode": "today", "zoom": _tv_zoom}
                 )
                 st.link_button(
                     f"📺 Open Spot TV · {spot_filter}", _tv_url, use_container_width=True
