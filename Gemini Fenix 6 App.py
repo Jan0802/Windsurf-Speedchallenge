@@ -3463,7 +3463,7 @@ def clear_data_caches():
     for fn in (
         load_sessions, load_rider_sessions, load_profiles, load_spots,
         list_groups, my_memberships, my_member_groups, group_member_names,
-        load_user_pref,
+        load_user_pref, _all_spot_names,
     ):
         try:
             fn.clear()
