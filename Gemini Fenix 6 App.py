@@ -3525,33 +3525,6 @@ def delete_user_pref(username):
     clear_data_caches()
 
 
-# Anzeigegroesse (Desktop-Zoom in %) – im selben user_prefs-JSON unter "display_pct".
-# 100 = Standard. Bewusst nur Desktop/Tablet; Mobile hat sein eigenes Layout und
-# der Spot-TV seinen eigenen Zoom (beide bleiben unberuehrt). Der Zoom wird auf das
-# Wurzel-Element (html) gelegt -> verhaelt sich wie Browser-Zoom (Strg +) und
-# reserviert den Platz fuer Tabellen korrekt (kein Ueberlappen wie bei Zoom auf
-# einen Zwischen-Container).
-_DISPLAY_SIZES = {"Normal": 100, "Comfortable": 110, "Large": 125, "Extra large": 150}
-_DISPLAY_MAX = max(_DISPLAY_SIZES.values())
-
-
-def _display_pct(username):
-    """Gespeicherte Anzeigegroesse in %. Einmal je Nutzer/Session gecacht, damit
-    nicht bei jedem Rerun die DB getroffen wird; laedt neu, wenn sich der
-    eingeloggte Nutzer aendert (z.B. Cookie-Login einige Reruns spaeter). Aeltere
-    zu grosse Werte (z.B. 150) werden auf die Obergrenze begrenzt."""
-    if st.session_state.get("_display_pct_user") != username:
-        pct = 100
-        if username:
-            try:
-                pct = int((load_user_pref(username) or {}).get("display_pct") or 100)
-            except Exception:  # noqa: BLE001
-                pct = 100
-        st.session_state["_display_pct"] = max(100, min(_DISPLAY_MAX, pct))
-        st.session_state["_display_pct_user"] = username
-    return st.session_state["_display_pct"]
-
-
 # =====================================================================
 #  Rekorde & Bestleistungen
 # =====================================================================
@@ -4699,10 +4672,7 @@ def render_rankings(results_container):
             )
 
             if st.button("💾 Save current filters", use_container_width=True):
-                # Bestehende Prefs laden und nur die Filter-Keys aktualisieren,
-                # damit z.B. die Anzeigegroesse ("display_pct") erhalten bleibt.
-                _pref = load_user_pref(username) or {}
-                _pref.update({
+                save_user_pref(username, {
                     "group": st.session_state.get(f"rank_group_{sport}", ALL_GROUP),
                     "spot": st.session_state.get(f"rank_spot_{sport}", "Overall"),
                     "year": st.session_state.get(f"rank_year_{sport}", "All years"),
@@ -4712,15 +4682,10 @@ def render_rankings(results_container):
                     "columns": st.session_state.get(f"rank_cols_{sport}",
                                                     _default_cols(_gear_label)),
                 })
-                save_user_pref(username, _pref)
                 st.success("Saved – will be loaded on start from now on.")
 
             if preset and st.button("↺ Reset", use_container_width=True):
-                # Nur die Filter zuruecksetzen – Anzeigegroesse (display_pct) behalten.
-                _keep_pct = (load_user_pref(username) or {}).get("display_pct")
                 delete_user_pref(username)
-                if _keep_pct and int(_keep_pct) != 100:
-                    save_user_pref(username, {"display_pct": int(_keep_pct)})
                 for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day",
                            "rank_gear", "rank_front", "rank_finmax", "rank_finbrand",
                            "rank_fincarbon", "rank_cols", "rank_wfrom", "rank_wto"):
@@ -7536,13 +7501,16 @@ def render_spots_page(user=None):
                 # "Add a photo"-Expander (sonst stossen sie aneinander / wirken ueberlappt).
                 ".sp-gallery{display:grid;gap:14px;margin-top:10px;margin-bottom:26px;"
                 "grid-template-columns:repeat(" + str(_gal_cols) + ",1fr);}"
-                ".sp-tile{position:relative;height:240px;background-size:cover;"
-                "background-position:center;border-radius:16px;overflow:hidden;"
-                "box-shadow:0 6px 18px rgba(0,0,0,.18);}"
+                # Grosse Spot-Bilder: waechst mit der Bildschirmbreite (bis 360px),
+                # damit die Galerie am Desktop schoen gross wirkt.
+                ".sp-tile{position:relative;height:clamp(260px,19vw,360px);"
+                "background-size:cover;background-position:center;border-radius:16px;"
+                "overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.18);}"
                 ".sp-cap{position:absolute;left:0;right:0;bottom:0;font-size:12px;"
                 "color:#fff;padding:10px 8px 6px;"
                 "background:linear-gradient(transparent,rgba(0,0,0,.5));}"
-                "@media (max-width:680px){.sp-gallery{grid-template-columns:repeat(2,1fr);}}"
+                "@media (max-width:680px){.sp-gallery{grid-template-columns:repeat(2,1fr);}"
+                ".sp-tile{height:200px;}}"
                 "</style>"
                 f"<div class='sp-gallery'>{''.join(tiles)}</div>",
                 unsafe_allow_html=True,
@@ -11127,39 +11095,6 @@ with st.sidebar:
     sidebar_tab_filter = st.expander("🔎 Filter", expanded=False)
     st.link_button("📖 Guide · Anleitung · Handleiding", "?seite=guide",
                    use_container_width=True)
-
-    # Anzeigegroesse (nur fuer eingeloggte Nutzer, pro Konto gespeichert). Skaliert
-    # die Seite am Computer/Tablet; Mobile und Spot-TV bleiben unveraendert.
-    if current_user:
-        _cur_pct = _display_pct(current_user["username"])
-        _size_labels = list(_DISPLAY_SIZES.keys())
-        _pct_values = list(_DISPLAY_SIZES.values())
-        _size_idx = _pct_values.index(_cur_pct) if _cur_pct in _pct_values else 0
-        _pick = st.selectbox(
-            "🔍 Display size", _size_labels, index=_size_idx,
-            help="Scales the site on computers/tablets. Mobile keeps its own layout, "
-                 "and Spot-TV is not affected.")
-        _new_pct = _DISPLAY_SIZES[_pick]
-        if _new_pct != _cur_pct:
-            _p = load_user_pref(current_user["username"]) or {}
-            _p["display_pct"] = _new_pct
-            save_user_pref(current_user["username"], _p)
-            st.session_state["_display_pct"] = _new_pct
-            st.session_state["_display_pct_user"] = current_user["username"]
-            st.rerun()
-
-# Zoom anwenden: auf das Wurzel-Element (html) -> verhaelt sich wie Browser-Zoom
-# (Strg +), skaliert die GANZE Seite gleichmaessig und reserviert den Platz fuer
-# Streamlits Tabellen korrekt (kein Ueberlappen). Nur ab Tablet-/Desktop-Breite
-# (>640px), damit das Mobile-Layout unberuehrt bleibt.
-_disp_pct = _display_pct(current_user["username"] if current_user else None)
-if _disp_pct and _disp_pct != 100:
-    st.markdown(
-        "<style>@media (min-width:641px){"
-        f"html{{zoom:{_disp_pct}%;}}"
-        "}</style>",
-        unsafe_allow_html=True,
-    )
 
 
 def autocollapse_sidebar():
