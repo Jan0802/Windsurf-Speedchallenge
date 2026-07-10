@@ -845,6 +845,10 @@ spot_info_table = Table(
     Column("image", LargeBinary),
     Column("image_mime", String(50)),
     Column("webcam_url", String(500)),
+    # Optionaler Klick-Link: zeigt ein Vorschaubild, das beim Klick die echte
+    # Live-Webcam in einem neuen Tab oeffnet (rechtlich sauberes Verlinken statt
+    # Einbetten). Greift nur, wenn webcam_url leer ist.
+    Column("webcam_link", String(500)),
     Column("country", String(80)),       # Land (fuer den Filter der Spots-Seite)
     Column("best_winds", String(120)),   # beste Windrichtungen, z.B. "SW, W, NW"
     Column("spot_class", String),         # JSON: "Für wen geeignet?"-Einstufung (vom Ingest-KI-Job)
@@ -2475,7 +2479,8 @@ def load_spot_info(spot):
 
 
 def save_spot_info(spot, description, webcam_url, country="", best_winds="",
-                   image_bytes=None, image_mime=None, clear_image=False):
+                   image_bytes=None, image_mime=None, clear_image=False,
+                   webcam_link=None):
     if not spot:
         return
     _ensure_ad_tables()
@@ -2486,6 +2491,10 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
         "best_winds": (best_winds or "").strip() or None,
         "auto_filled": False,   # manuell gespeichert = geprueft
     }
+    # Nur anfassen, wenn der Aufrufer den Link explizit uebergibt (None = unveraendert
+    # lassen, damit andere Speicher-Aufrufe den Link nicht versehentlich loeschen).
+    if webcam_link is not None:
+        values["webcam_link"] = (webcam_link or "").strip() or None
     if clear_image:
         values["image"] = None
         values["image_mime"] = None
@@ -7545,6 +7554,7 @@ def render_spots_page(user=None):
             spons_inner = ("<div style='text-align:center;margin:0 0 6px;font-size:15px;"
                            f"font-weight:700;color:#bcd4dd;'>{_txt}</div>")
 
+    weblink = (info.get("webcam_link") or "").strip()
     if webcam:
         # Text links, Webcam rechts daneben.
         c_text, c_cam = st.columns([1.3, 1], vertical_alignment="center")
@@ -7569,6 +7579,39 @@ def render_spots_page(user=None):
                     "style='height:100%;aspect-ratio:16/9;max-width:100%;border:0;"
                     "border-radius:16px;display:block;'></iframe></div>",
                     height=332)
+    elif weblink:
+        # Vorschaubild (Spot-Bild bzw. neuestes Galerie-Foto), das beim Klick die
+        # ECHTE Live-Webcam in einem neuen Tab oeffnet -> rechtlich sauberes
+        # Verlinken statt Einbetten (ideal fuer Demos vor der Anfrage).
+        poster = None
+        if info.get("image"):
+            poster = _bytes_to_data_uri(info.get("image"), info.get("image_mime"))
+        if not poster:
+            _g = load_recent_spot_images(spot, 1)
+            if _g:
+                poster = _spot_thumb_uri(_g[0]["id"], max_dim=800)
+        c_text, c_cam = st.columns([1.3, 1], vertical_alignment="center")
+        with c_text:
+            if desc_html:
+                st.markdown(desc_html, unsafe_allow_html=True)
+        with c_cam:
+            if poster:
+                st.markdown(
+                    spons_inner
+                    + f"<a href='{weblink}' target='_blank' rel='noopener' "
+                    "style='position:relative;display:block;border-radius:16px;overflow:hidden;'>"
+                    f"<img src='{poster}' style='width:100%;height:300px;object-fit:cover;"
+                    "display:block;'>"
+                    "<span style='position:absolute;left:0;right:0;bottom:0;padding:12px 10px 10px;"
+                    "background:linear-gradient(transparent,rgba(0,0,0,.7));color:#fff;"
+                    "font-weight:800;text-align:center;font-size:15px;'>🎥 Live-Webcam ansehen ↗"
+                    "</span></a>",
+                    unsafe_allow_html=True)
+            else:
+                # Kein Vorschaubild vorhanden -> wenigstens ein sauberer Link-Button.
+                if spons_inner:
+                    st.markdown(spons_inner, unsafe_allow_html=True)
+                st.link_button("🎥 Live-Webcam ansehen ↗", weblink, use_container_width=True)
     else:
         # Keine Webcam -> Beschreibung ueber die ganze Breite.
         if desc_html:
@@ -8570,6 +8613,13 @@ def render_admin_ads():
                  "reicht – er wird automatisch einbettbar gemacht. Auch Windy-Embeds "
                  "oder ein direktes Bild (…/snapshot.jpg, lädt sich auto. neu) gehen.",
         )
+        webcam_link = st.text_input(
+            "Webcam-Link (Klick öffnet die Live-Cam) – nur wenn oben KEINE URL steht",
+            value=info.get("webcam_link") or "",
+            help="Rechtlich sauber statt Einbetten: Es wird ein Vorschaubild gezeigt "
+                 "(Spot-Bild bzw. neuestes Galerie-Foto), das beim Klick die echte "
+                 "Live-Webcam in einem neuen Tab öffnet. Ideal für Demos vor der Anfrage.",
+        )
         st.caption("📍 Koordinaten (für Wetter). Leer lassen = automatisches "
                    "Geocoding; hier setzen, um einen falschen Ort zu korrigieren.")
         gc1, gc2 = st.columns(2)
@@ -8582,7 +8632,8 @@ def render_admin_ads():
             format="%.5f", step=0.001, key=f"lon_{spot}",
         )
         if st.form_submit_button("💾 Spot-Info speichern"):
-            save_spot_info(spot, desc, webcam, country=country, best_winds=best_winds)
+            save_spot_info(spot, desc, webcam, country=country, best_winds=best_winds,
+                           webcam_link=webcam_link)
             if lat_in is not None and lon_in is not None:
                 update_spot_coords(spot, lat_in, lon_in)
             st.session_state.pop(info_prefill_key, None)
