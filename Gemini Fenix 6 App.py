@@ -5936,6 +5936,7 @@ def _exclusion_reason(row):
     dist = _num_or_none(row.get("total_distance_km"))
     dur = _num_or_none(row.get("duration_s"))
     ts = _num_or_none(row.get("trust_score"))
+    src = str(row.get("source") or "").lower()
 
     # Wasser-Sentinel aus dem Ingest: trust_score == 0 = GPS-Spur klar an Land.
     if ts is not None and ts == 0:
@@ -5954,6 +5955,12 @@ def _exclusion_reason(row):
         avg = dist / (dur / 3600.0)
         if avg > s1 * 1.10:
             return "Inconsistent data (average faster than peak speed)"
+    # Uhr-Session mit klar niedrigem Trust (<=30): der Trust einer Uhr faellt NUR
+    # durch den Wasser-Check (an Land) bzw. eindeutige Widersprueche so tief –
+    # ehrliche Uhr-Sessions liegen bei ~80. Also = Auto-/Land-Test -> raus.
+    # (Nur source='watch'; verrauschte, aber ehrliche FIT-Uploads bleiben drin.)
+    if src == "watch" and ts is not None and ts <= 30:
+        return "GPS track was not on the water"
     return None
 
 
