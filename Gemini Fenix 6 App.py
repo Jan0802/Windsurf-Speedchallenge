@@ -2165,6 +2165,9 @@ def add_spot_image(spot, image_bytes, image_mime, uploaded_by=None):
     if not spot or not image_bytes:
         return
     image_bytes, image_mime = _optimize_image(image_bytes, image_mime)
+    # MIME sicher bestimmen (nie webp-Bytes als jpeg etikettieren -> sonst kein Render).
+    if not image_mime:
+        image_mime = _sniff_image_mime(image_bytes) or "image/jpeg"
     _ensure_ad_tables()
     with get_engine().begin() as conn:
         mx = conn.execute(
@@ -2172,7 +2175,7 @@ def add_spot_image(spot, image_bytes, image_mime, uploaded_by=None):
             .where(spot_images_table.c.spot == spot)
         ).scalar() or 0
         conn.execute(insert(spot_images_table).values(
-            spot=spot, image=image_bytes, image_mime=image_mime or "image/jpeg",
+            spot=spot, image=image_bytes, image_mime=image_mime,
             sort_order=int(mx) + 1, uploaded_by=uploaded_by,
         ))
     _clear_ad_caches()
@@ -2514,6 +2517,25 @@ def _bytes_to_data_uri(data, mime):
     # Postgres (Neon) liefert bytea als memoryview -> in bytes wandeln.
     b64 = base64.b64encode(bytes(data)).decode("ascii")
     return f"data:{mime or 'image/png'};base64,{b64}"
+
+
+def _sniff_image_mime(data):
+    """MIME aus den ersten Bytes erraten – Fallback, wenn der Browser keinen Typ
+    liefert. Verhindert, dass z.B. webp-Bytes faelschlich als image/jpeg
+    ausgeliefert werden (dann rendert der Browser das Bild nicht)."""
+    try:
+        b = bytes(data[:16])
+    except Exception:  # noqa: BLE001
+        return None
+    if b[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if b[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP":
+        return "image/webp"
+    if b[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    return None
 
 
 def _optimize_image(data, mime, max_dim=1600, quality=82):
