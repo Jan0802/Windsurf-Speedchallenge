@@ -9296,7 +9296,9 @@ _GUIDE = {
                   "watch</b>: record on a Garmin and it uploads automatically, or upload a "
                   "<b>FIT / GPX / TCX</b> file from any other watch or phone. Your top speeds "
                   "(2 s, 30 s, 500 m and nautical mile) appear in the online rankings – "
-                  "plus a spot guide with weather forecast."),
+                  "plus a spot guide with weather forecast. It works at <b>any spot in the "
+                  "world</b> – if yours isn't listed yet, just type its name when you log a "
+                  "session and it's created instantly, with its own page and weather."),
         "footer": "Have fun and ride safe! · mywatersessions.com",
         "sections": [
             ("Create your account",
@@ -9352,7 +9354,8 @@ _GUIDE = {
              "<li>Session detail: distance, average, peak speeds, jumps/paddling, detected <b>runs</b>, the <b>GPS map</b>, weather and trust.</li>"
              "<li><b>Complete my sessions</b>: set spot / board / sail on watch sessions so they count in the ranking.</li></ul>"),
             ("Spots &amp; weather forecast",
-             "<ul><li>The <b>Spots</b> tab: filter by <b>country + spot</b> for a description, photo gallery, webcam and live weather.</li>"
+             "<ul><li><b>Any spot in the world:</b> not just the ones listed – if yours isn't here yet, just type its name when you log a session and it instantly gets its own page, gallery and weather.</li>"
+             "<li>The <b>Spots</b> tab: filter by <b>country + spot</b> for a description, photo gallery, webcam and live weather.</li>"
              "<li><b>3-day forecast</b> with a 'worth it' traffic light (🟢/🟡/🔴) from wind strength &amp; the spot's best wind directions.</li>"
              "<li>Open a day for the <b>hourly view</b> (wind bars + frosted gust bars); toggle the <b>thermal / sea-breeze potential</b>.</li>"
              "<li><b>Who is this spot for?</b> An orientation card shows the suitable level, whether it's good to learn, the water type, typical wind and things to watch out for – and you can filter the list by beginner-friendly / flat water. Guidance, not a guarantee.</li>"
@@ -9393,7 +9396,10 @@ _GUIDE = {
                   "GPS-Uhr</b>: mit einer Garmin aufzeichnen – sie lädt automatisch hoch – oder "
                   "eine <b>FIT / GPX / TCX</b>-Datei von jeder anderen Uhr oder App hochladen. "
                   "Deine Top-Speeds (2 s, 30 s, 500 m und Seemeile) erscheinen in der "
-                  "Online-Bestenliste. Dazu ein Spot-Guide mit Wettervorhersage."),
+                  "Online-Bestenliste. Dazu ein Spot-Guide mit Wettervorhersage. Es "
+                  "funktioniert an <b>jedem Spot der Welt</b> – fehlt deiner noch, tippe beim "
+                  "Speichern einfach seinen Namen ein: Er wird sofort angelegt, mit eigener "
+                  "Seite und Wetter."),
         "footer": "Viel Spaß und sicher unterwegs! · mywatersessions.com",
         "sections": [
             ("Konto erstellen",
@@ -9449,7 +9455,8 @@ _GUIDE = {
              "<li>Session-Detail: Distanz, Schnitt, Spitzen, Sprünge/Paddeln, erkannte <b>Runs</b>, die <b>GPS-Karte</b>, Wetter und Trust.</li>"
              "<li><b>Complete my sessions</b>: bei Uhr-Sessions Spot / Board / Segel setzen, damit sie im Ranking zählen.</li></ul>"),
             ("Spots &amp; Wettervorhersage",
-             "<ul><li>Der Tab <b>Spots</b>: nach <b>Land + Spot</b> filtern für Beschreibung, Foto-Galerie, Webcam und aktuelles Wetter.</li>"
+             "<ul><li><b>Jeder Spot der Welt:</b> nicht nur die gelisteten – fehlt deiner noch, tippe beim Speichern einfach seinen Namen ein; er bekommt sofort eine eigene Seite, Galerie und Wetter.</li>"
+             "<li>Der Tab <b>Spots</b>: nach <b>Land + Spot</b> filtern für Beschreibung, Foto-Galerie, Webcam und aktuelles Wetter.</li>"
              "<li><b>3-Tage-Vorhersage</b> mit 'lohnt sich'-Ampel (🟢/🟡/🔴) aus Windstärke &amp; den besten Windrichtungen des Spots.</li>"
              "<li>Einen Tag für die <b>Stundenansicht</b> öffnen (Wind-Balken + gläserne Böen-Balken); <b>Thermik-/Seewind-Potenzial</b> ein-/ausblenden.</li>"
              "<li><b>Für wen ist dieser Spot?</b> Eine Orientierungs-Karte zeigt passendes Level, ob man hier gut lernt, die Wasserart, typischen Wind und worauf man achten sollte – und du kannst die Liste nach anfängerfreundlich / Flachwasser filtern. Orientierung, keine Garantie.</li>"
@@ -9490,7 +9497,9 @@ _GUIDE = {
                   "neem op met een Garmin en het uploadt automatisch, of upload een "
                   "<b>FIT / GPX / TCX</b>-bestand van elk ander horloge of telefoon. Je topsnelheden "
                   "(2 s, 30 s, 500 m en zeemijl) verschijnen in de online ranglijst. "
-                  "Plus een spotgids met weersverwachting."),
+                  "Plus een spotgids met weersverwachting. Het werkt op <b>elke spot ter "
+                  "wereld</b> – staat die van jou er nog niet bij, typ dan gewoon de naam bij "
+                  "het opslaan: hij wordt meteen aangemaakt, met eigen pagina en weer."),
         "footer": "Veel plezier en blijf veilig! · mywatersessions.com",
         "sections": [
             ("Account aanmaken",
@@ -9546,7 +9555,8 @@ _GUIDE = {
              "<li>Sessiedetail: afstand, gemiddelde, pieksnelheden, sprongen/peddelen, herkende <b>runs</b>, de <b>GPS-kaart</b>, weer en trust.</li>"
              "<li><b>Complete my sessions</b>: stel bij horlogesessies spot / board / zeil in zodat ze meetellen in de ranglijst.</li></ul>"),
             ("Spots &amp; weersverwachting",
-             "<ul><li>Het tabblad <b>Spots</b>: filter op <b>land + spot</b> voor een beschrijving, fotogalerij, webcam en actueel weer.</li>"
+             "<ul><li><b>Elke spot ter wereld:</b> niet alleen de vermelde – staat die van jou er nog niet bij, typ dan gewoon de naam bij het opslaan; hij krijgt meteen een eigen pagina, galerij en weer.</li>"
+             "<li>Het tabblad <b>Spots</b>: filter op <b>land + spot</b> voor een beschrijving, fotogalerij, webcam en actueel weer.</li>"
              "<li><b>3-daagse verwachting</b> met een 'de moeite waard'-stoplicht (🟢/🟡/🔴) op basis van windkracht &amp; de beste windrichtingen van de spot.</li>"
              "<li>Open een dag voor de <b>uurweergave</b> (windbalken + matglazen vlaagbalken); zet het <b>thermiek-/zeewindpotentieel</b> aan/uit.</li>"
              "<li><b>Voor wie is deze spot?</b> Een oriëntatiekaart toont het geschikte niveau, of je er goed leert, het watertype, de typische wind en waarop je moet letten – en je kunt de lijst filteren op beginnersvriendelijk / vlak water. Richtlijn, geen garantie.</li>"
@@ -9588,7 +9598,9 @@ _GUIDE = {
                   "téléverse automatiquement, ou téléversez un fichier <b>FIT / GPX / TCX</b> depuis "
                   "n'importe quelle autre montre ou téléphone. Vos meilleures vitesses (2 s, 30 s, "
                   "500 m et mille nautique) apparaissent dans les classements en ligne – avec un "
-                  "guide des spots et des prévisions météo."),
+                  "guide des spots et des prévisions météo. Ça marche sur <b>n'importe quel spot "
+                  "du monde</b> : si le vôtre n'y est pas encore, tapez simplement son nom en "
+                  "enregistrant une session – il est créé aussitôt, avec sa page et la météo."),
         "footer": "Amusez-vous bien et ridez prudemment ! · mywatersessions.com",
         "sections": [
             ("Créer votre compte",
@@ -9644,7 +9656,8 @@ _GUIDE = {
              "<li>Détail de la session : distance, moyenne, vitesses de pointe, sauts/pagaie, <b>runs</b> détectés, la <b>carte GPS</b>, météo et confiance.</li>"
              "<li><b>Compléter mes sessions</b> : renseignez spot / planche / voile sur les sessions de la montre pour qu'elles comptent au classement.</li></ul>"),
             ("Spots &amp; prévisions météo",
-             "<ul><li>L'onglet <b>Spots</b> : filtrez par <b>pays + spot</b> pour une description, une galerie photo, une webcam et la météo en direct.</li>"
+             "<ul><li><b>N'importe quel spot du monde :</b> pas seulement ceux listés – si le vôtre n'y est pas encore, tapez simplement son nom en enregistrant une session ; il obtient aussitôt sa page, sa galerie et la météo.</li>"
+             "<li>L'onglet <b>Spots</b> : filtrez par <b>pays + spot</b> pour une description, une galerie photo, une webcam et la météo en direct.</li>"
              "<li><b>Prévision sur 3 jours</b> avec un feu « ça vaut le coup » (🟢/🟡/🔴) selon la force du vent &amp; les meilleures directions du spot.</li>"
              "<li>Ouvrez un jour pour la <b>vue horaire</b> (barres de vent + barres de rafales givrées) ; activez le <b>potentiel thermique / brise de mer</b>.</li>"
              "<li><b>À qui convient ce spot ?</b> Une fiche d'orientation indique le niveau adapté, si l'on y apprend bien, le type d'eau, le vent typique et les points de vigilance – et vous pouvez filtrer la liste par « débutant » / « eau plate ». Indicatif, sans garantie.</li>"
@@ -9685,7 +9698,9 @@ _GUIDE = {
                   "graba con un Garmin y se sube automáticamente, o sube un archivo "
                   "<b>FIT / GPX / TCX</b> desde cualquier otro reloj o teléfono. Tus mejores "
                   "velocidades (2 s, 30 s, 500 m y milla náutica) aparecen en los rankings online, "
-                  "además de una guía de spots con previsión meteorológica."),
+                  "además de una guía de spots con previsión meteorológica. Funciona en "
+                  "<b>cualquier spot del mundo</b>: si el tuyo aún no está, solo escribe su nombre "
+                  "al guardar una sesión y se crea al instante, con su propia página y el tiempo."),
         "footer": "¡Diviértete y navega con seguridad! · mywatersessions.com",
         "sections": [
             ("Crear tu cuenta",
@@ -9741,7 +9756,8 @@ _GUIDE = {
              "<li>Detalle de la sesión: distancia, media, velocidades punta, saltos/palada, <b>runs</b> detectados, el <b>mapa GPS</b>, tiempo y confianza.</li>"
              "<li><b>Completar mis sesiones</b>: pon spot / tabla / vela en las sesiones del reloj para que cuenten en el ranking.</li></ul>"),
             ("Spots &amp; previsión meteorológica",
-             "<ul><li>La pestaña <b>Spots</b>: filtra por <b>país + spot</b> para una descripción, galería de fotos, webcam y tiempo en directo.</li>"
+             "<ul><li><b>Cualquier spot del mundo:</b> no solo los listados – si el tuyo aún no está, solo escribe su nombre al guardar una sesión y al instante tiene su propia página, galería y tiempo.</li>"
+             "<li>La pestaña <b>Spots</b>: filtra por <b>país + spot</b> para una descripción, galería de fotos, webcam y tiempo en directo.</li>"
              "<li><b>Previsión a 3 días</b> con un semáforo «merece la pena» (🟢/🟡/🔴) según la fuerza del viento &amp; las mejores direcciones del spot.</li>"
              "<li>Abre un día para la <b>vista por horas</b> (barras de viento + barras de rachas esmeriladas); activa el <b>potencial térmico / brisa marina</b>.</li>"
              "<li><b>¿Para quién es este spot?</b> Una ficha de orientación muestra el nivel adecuado, si se aprende bien, el tipo de agua, el viento típico y a qué prestar atención – y puedes filtrar la lista por «apto para principiantes» / «agua plana». Orientativo, sin garantía.</li>"
