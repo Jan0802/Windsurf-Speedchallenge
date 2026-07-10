@@ -849,6 +849,9 @@ spot_info_table = Table(
     # Live-Webcam in einem neuen Tab oeffnet (rechtlich sauberes Verlinken statt
     # Einbetten). Greift nur, wenn webcam_url leer ist.
     Column("webcam_link", String(500)),
+    # Admin-Haken "Gewaesser bestaetigt": ignoriert den (bei kleinen Binnenseen
+    # unzuverlaessigen) Wasser-Check fuer diesen Spot. Physik-Checks greifen weiter.
+    Column("water_ok", Boolean),
     Column("country", String(80)),       # Land (fuer den Filter der Spots-Seite)
     Column("best_winds", String(120)),   # beste Windrichtungen, z.B. "SW, W, NW"
     Column("spot_class", String),         # JSON: "Für wen geeignet?"-Einstufung (vom Ingest-KI-Job)
@@ -2110,7 +2113,7 @@ def verify_spot_manager(spot, password):
 def _clear_ad_caches():
     for fn in (load_spot_ad, load_spot_products, load_spot_info, load_all_spot_info,
                load_spot_images, load_spot_image_ids, load_recent_spot_images,
-               _spot_thumb_uri, load_webcam_ads):
+               _spot_thumb_uri, load_webcam_ads, _water_ok_spots):
         try:
             fn.clear()
         except Exception:
@@ -2480,7 +2483,7 @@ def load_spot_info(spot):
 
 def save_spot_info(spot, description, webcam_url, country="", best_winds="",
                    image_bytes=None, image_mime=None, clear_image=False,
-                   webcam_link=None):
+                   webcam_link=None, water_ok=None):
     if not spot:
         return
     _ensure_ad_tables()
@@ -2495,6 +2498,8 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
     # lassen, damit andere Speicher-Aufrufe den Link nicht versehentlich loeschen).
     if webcam_link is not None:
         values["webcam_link"] = (webcam_link or "").strip() or None
+    if water_ok is not None:
+        values["water_ok"] = bool(water_ok)
     if clear_image:
         values["image"] = None
         values["image_mime"] = None
@@ -4020,9 +4025,10 @@ def render_session_history(name):
         history = history_full.head(10)
 
         # Transparenz: eigene, nicht gewertete Sessions (mit Grund) auflisten.
+        _wl = _water_ok_spots()
         _excl_notes = []
         for _, _r in history_full.iterrows():
-            _reason = _exclusion_reason(_r)
+            _reason = _exclusion_reason(_r, _wl)
             if _reason:
                 _d = _r.get("date")
                 _ds = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else "?"
@@ -5927,9 +5933,26 @@ def _num_or_none(v):
         return None
 
 
-def _exclusion_reason(row):
+@st.cache_data(ttl=300, show_spinner=False)
+def _water_ok_spots():
+    """Spot-Namen mit Admin-Haken 'Gewaesser bestaetigt'. Dort wird der Wasser-
+    Check ignoriert (kleine Binnenseen kennt die freie API oft nicht und meldet
+    faelschlich 'Land'). Physik-Checks bleiben ueberall aktiv."""
+    try:
+        _ensure_ad_tables()
+        with get_engine().connect() as conn:
+            rows = conn.execute(
+                select(spot_info_table.c.spot).where(spot_info_table.c.water_ok.is_(True))
+            ).all()
+        return {r[0] for r in rows if r[0]}
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def _exclusion_reason(row, water_ok_spots=None):
     """Gibt einen kurzen Grund (str) zurueck, wenn die Session sicher unplausibel
-    ist – sonst None. 'row' ist eine DataFrame-Zeile (dict-artig)."""
+    ist – sonst None. 'row' ist eine DataFrame-Zeile (dict-artig). Fuer Spots in
+    'water_ok_spots' wird der Wasser-Check uebersprungen (Physik greift weiter)."""
     s1 = _num_or_none(row.get("speed_1s_kmh"))
     s30 = _num_or_none(row.get("speed_30s_kmh"))
     mcad = _num_or_none(row.get("max_cadence_spm"))
@@ -5937,9 +5960,11 @@ def _exclusion_reason(row):
     dur = _num_or_none(row.get("duration_s"))
     ts = _num_or_none(row.get("trust_score"))
     src = str(row.get("source") or "").lower()
+    spot = str(row.get("surfspot") or "").strip()
+    water_ok = bool(water_ok_spots) and spot in water_ok_spots
 
     # Wasser-Sentinel aus dem Ingest: trust_score == 0 = GPS-Spur klar an Land.
-    if ts is not None and ts == 0:
+    if not water_ok and ts is not None and ts == 0:
         return "GPS track was not on the water"
     # Ueber jedem Weltrekord (Wind/Kite ~120 km/h).
     if s1 is not None and s1 > 130:
@@ -5959,7 +5984,7 @@ def _exclusion_reason(row):
     # durch den Wasser-Check (an Land) bzw. eindeutige Widersprueche so tief –
     # ehrliche Uhr-Sessions liegen bei ~80. Also = Auto-/Land-Test -> raus.
     # (Nur source='watch'; verrauschte, aber ehrliche FIT-Uploads bleiben drin.)
-    if src == "watch" and ts is not None and ts <= 30:
+    if not water_ok and src == "watch" and ts is not None and ts <= 30:
         return "GPS track was not on the water"
     return None
 
@@ -5969,7 +5994,8 @@ def _drop_excluded(df):
     Rankings, Spot-TV, persoenliche Bestwerte). Leeres/kein DataFrame -> unveraendert."""
     if df is None or df.empty:
         return df
-    mask = df.apply(lambda r: _exclusion_reason(r) is None, axis=1)
+    wl = _water_ok_spots()
+    mask = df.apply(lambda r: _exclusion_reason(r, wl) is None, axis=1)
     return df[mask]
 
 
@@ -8627,6 +8653,15 @@ def render_admin_ads():
                  "(Spot-Bild bzw. neuestes Galerie-Foto), das beim Klick die echte "
                  "Live-Webcam in einem neuen Tab öffnet. Ideal für Demos vor der Anfrage.",
         )
+        water_ok = st.checkbox(
+            "✅ Gewässer bestätigt (Wasser-Check für diesen Spot ignorieren)",
+            value=bool(info.get("water_ok")),
+            help="Nur setzen, wenn dies ein echtes Revier ist, das die kostenlose "
+                 "Wasser-Erkennung nicht kennt (kleine Binnenseen). Dann werden Sessions "
+                 "hier NICHT mehr wegen 'nicht auf Wasser' aussortiert. Die Physik-Checks "
+                 "(unmögliche Speeds/Kadenz/Widersprüche) greifen weiter. NICHT bei "
+                 "deinem Auto-Test-See setzen – sonst zählen Landfahrten dort wieder.",
+        )
         st.caption("📍 Koordinaten (für Wetter). Leer lassen = automatisches "
                    "Geocoding; hier setzen, um einen falschen Ort zu korrigieren.")
         gc1, gc2 = st.columns(2)
@@ -8640,7 +8675,7 @@ def render_admin_ads():
         )
         if st.form_submit_button("💾 Spot-Info speichern"):
             save_spot_info(spot, desc, webcam, country=country, best_winds=best_winds,
-                           webcam_link=webcam_link)
+                           webcam_link=webcam_link, water_ok=water_ok)
             if lat_in is not None and lon_in is not None:
                 update_spot_coords(spot, lat_in, lon_in)
             st.session_state.pop(info_prefill_key, None)
