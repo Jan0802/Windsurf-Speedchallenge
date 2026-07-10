@@ -7611,7 +7611,7 @@ def render_spots_page(user=None):
                 "with the upload. Please upload only your own, appropriate photos."
             )
             up = st.file_uploader(
-                "Choose a photo", type=["jpg", "jpeg", "png"], key=f"spotphoto_{spot}"
+                "Choose a photo", type=["jpg", "jpeg", "png", "webp"], key=f"spotphoto_{spot}"
             )
             if up is not None and st.button("Upload photo", key=f"spotphoto_btn_{spot}"):
                 add_spot_image(spot, up.getvalue(), up.type, uploaded_by=user.get("id"))
