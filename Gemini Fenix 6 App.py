@@ -1947,7 +1947,7 @@ def regenerate_device_token(user_id):
 # ---- Spot-Werbung (Admin-Backoffice) ----
 
 @st.cache_resource(show_spinner=False)
-def _migrate_ad_sport(engine):
+def _migrate_ad_sport(_engine):
     """Ergaenzt die 'sport'-Spalte (Werbung je Sportart) an bestehenden Tabellen
     und stellt spot_ads auf den zusammengesetzten Schluessel (spot, sport) um.
     Best-effort + je Anweisung eigenes try (Postgres); auf frischem SQLite legt
@@ -1966,7 +1966,7 @@ def _migrate_ad_sport(engine):
     ]
     for sql in stmts:
         try:
-            with engine.begin() as conn:
+            with _engine.begin() as conn:
                 conn.execute(text(sql))
         except Exception:
             pass   # bereits migriert / SQLite / bestehender PK -> ignorieren
