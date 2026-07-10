@@ -2531,6 +2531,7 @@ def save_spot_rating(spot, username, ratings):
             conn.execute(insert(spot_ratings_table).values(
                 spot=spot, username=username, **values))
     load_spot_rating_summary.clear()
+    load_all_spot_ratings.clear()
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -2559,6 +2560,28 @@ def load_spot_rating_summary(spot):
             cat_means.append(m)
     if cat_means:
         out["overall"] = round(sum(cat_means) / len(cat_means), 1)
+    return out
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def load_all_spot_ratings():
+    """{spot: overall_avg} ueber ALLE Spots (Mittel der Kategorie-Mittel je Spot).
+    Fuer Sortierung/Anzeige der Spot-Liste ohne N Einzelabfragen."""
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        rows = conn.execute(select(spot_ratings_table)).mappings().all()
+    by_spot = {}
+    for r in rows:
+        by_spot.setdefault(r["spot"], []).append(r)
+    out = {}
+    for spot, rs in by_spot.items():
+        cat_means = []
+        for key, _ in _RATING_CATS:
+            vals = [x[key] for x in rs if x[key] is not None]
+            if vals:
+                cat_means.append(sum(vals) / len(vals))
+        if cat_means:
+            out[spot] = round(sum(cat_means) / len(cat_means), 1)
     return out
 
 
@@ -6956,6 +6979,15 @@ def _webcam_side_ad_html(wads, side):
     return img
 
 
+def _tv_rating_suffix(spot):
+    """Kompakter Sterne-Zusatz (Gesamtnote) fuer die TV-Titelzeile – oder ''."""
+    ov = (load_spot_rating_summary(spot) or {}).get("overall")
+    if ov is None:
+        return ""
+    return (f"<span style='font-size:.6em;font-weight:800;color:#f5c518;"
+            f"margin-left:16px;vertical-align:middle;'>★ {ov:.1f}/5</span>")
+
+
 def _tv_spot_info(cfg):
     """Spot-Infobereich am unteren Rand des TV: Text + Webcam/Bild nebeneinander.
     Werbung ist hier dem lokalen Sponsor vorbehalten (Logo/Produkte) – KEINE
@@ -6982,7 +7014,7 @@ def _tv_spot_info(cfg):
         ".tv-info-img{width:100%;height:320px;object-fit:cover;object-position:center;"
         "border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.18);display:block;}"
         "</style>"
-        f"<div class='tv-info-title'>ℹ️ {cfg['spot']}</div>",
+        f"<div class='tv-info-title'>ℹ️ {cfg['spot']}{_tv_rating_suffix(cfg['spot'])}</div>",
         unsafe_allow_html=True,
     )
 
@@ -7700,10 +7732,19 @@ def render_spots_page(user=None):
     if not names:
         st.info("No spots match these filters – try removing a filter or picking another country.")
         return
+    # Sterne-Bewertungen (Gesamtnote je Spot) fuer Sortierung + Anzeige im Dropdown.
+    _ratings = load_all_spot_ratings()
+    _sort = st.selectbox(
+        "Sort spots", ["A–Z", "Top rated ⭐"], key="spots_sort",
+        help="Order the spot list alphabetically or by best community rating.")
+    if _sort.startswith("Top"):
+        # Beste Bewertung zuerst; unbewertete Spots (rating fehlt) ans Ende (A–Z).
+        names.sort(key=lambda s: (-(_ratings.get(s) or -1), s))
+    _fmt_spot = (lambda s: f"{s}  ·  ⭐ {_ratings[s]:.1f}" if s in _ratings else s)
     # Spot in der URL halten (bookmarkbar / direkt verlinkbar).
     url_spot = st.query_params.get("spot")
     default_idx = names.index(url_spot) if url_spot in names else 0
-    spot = fcol2.selectbox("Spot", names, index=default_idx)
+    spot = fcol2.selectbox("Spot", names, index=default_idx, format_func=_fmt_spot)
     if spot != st.query_params.get("spot"):
         st.query_params["spot"] = spot
         st.session_state.pop("spots_fcday", None)   # anderer Spot -> Stundenansicht zu
@@ -9522,6 +9563,7 @@ _GUIDE = {
              "<li><b>3-day forecast</b> with a 'worth it' traffic light (🟢/🟡/🔴) from wind strength &amp; the spot's best wind directions.</li>"
              "<li>Open a day for the <b>hourly view</b> (wind bars + frosted gust bars); toggle the <b>thermal / sea-breeze potential</b>.</li>"
              "<li><b>Who is this spot for?</b> An orientation card shows the suitable level, whether it's good to learn, the water type, typical wind and things to watch out for – and you can filter the list by beginner-friendly / flat water. Guidance, not a guarantee.</li>"
+             "<li><b>Rate spots with stars</b> (conditions, infrastructure, ambience, beginner/advanced) – just tap the stars, no text needed; you see the community average.</li>"
              "<li><b>Upload your own spot photo</b> – the newest 5 are shown with the uploader's name.</li></ul>"),
             ("Safety check-in (SOS) – optional",
              "<ul><li>In your <b>account</b> you can switch on a personal <b>safety timer</b>: set the minutes and an <b>emergency e-mail</b>.</li>"
@@ -9623,6 +9665,7 @@ _GUIDE = {
              "<li><b>3-Tage-Vorhersage</b> mit 'lohnt sich'-Ampel (🟢/🟡/🔴) aus Windstärke &amp; den besten Windrichtungen des Spots.</li>"
              "<li>Einen Tag für die <b>Stundenansicht</b> öffnen (Wind-Balken + gläserne Böen-Balken); <b>Thermik-/Seewind-Potenzial</b> ein-/ausblenden.</li>"
              "<li><b>Für wen ist dieser Spot?</b> Eine Orientierungs-Karte zeigt passendes Level, ob man hier gut lernt, die Wasserart, typischen Wind und worauf man achten sollte – und du kannst die Liste nach anfängerfreundlich / Flachwasser filtern. Orientierung, keine Garantie.</li>"
+             "<li><b>Spots mit Sternen bewerten</b> (Bedingungen, Infrastruktur, Ambiente, Anfänger/Fortgeschrittene) – einfach die Sterne antippen, kein Text; du siehst den Community-Schnitt.</li>"
              "<li><b>Eigenes Spot-Foto hochladen</b> – die neuesten 5 werden mit dem Namen des Uploaders gezeigt.</li></ul>"),
             ("Sicherheits-Check-in (SOS) – optional",
              "<ul><li>In deinem <b>Konto</b> kannst du einen persönlichen <b>Sicherheits-Timer</b> aktivieren: Minuten und eine <b>Notfall-E-Mail</b> festlegen.</li>"
@@ -9723,6 +9766,7 @@ _GUIDE = {
              "<li><b>3-daagse verwachting</b> met een 'de moeite waard'-stoplicht (🟢/🟡/🔴) op basis van windkracht &amp; de beste windrichtingen van de spot.</li>"
              "<li>Open een dag voor de <b>uurweergave</b> (windbalken + matglazen vlaagbalken); zet het <b>thermiek-/zeewindpotentieel</b> aan/uit.</li>"
              "<li><b>Voor wie is deze spot?</b> Een oriëntatiekaart toont het geschikte niveau, of je er goed leert, het watertype, de typische wind en waarop je moet letten – en je kunt de lijst filteren op beginnersvriendelijk / vlak water. Richtlijn, geen garantie.</li>"
+             "<li><b>Spots met sterren beoordelen</b> (condities, infrastructuur, ambiance, beginners/gevorderden) – gewoon tikken, geen tekst; je ziet het community-gemiddelde.</li>"
              "<li><b>Upload je eigen spotfoto</b> – de nieuwste 5 worden getoond met de naam van de uploader.</li></ul>"),
             ("Veiligheids-check-in (SOS) – optioneel",
              "<ul><li>In je <b>account</b> zet je een persoonlijke <b>veiligheidstimer</b> aan: stel de minuten en een <b>noodmail</b> in.</li>"
@@ -9824,6 +9868,7 @@ _GUIDE = {
              "<li><b>Prévision sur 3 jours</b> avec un feu « ça vaut le coup » (🟢/🟡/🔴) selon la force du vent &amp; les meilleures directions du spot.</li>"
              "<li>Ouvrez un jour pour la <b>vue horaire</b> (barres de vent + barres de rafales givrées) ; activez le <b>potentiel thermique / brise de mer</b>.</li>"
              "<li><b>À qui convient ce spot ?</b> Une fiche d'orientation indique le niveau adapté, si l'on y apprend bien, le type d'eau, le vent typique et les points de vigilance – et vous pouvez filtrer la liste par « débutant » / « eau plate ». Indicatif, sans garantie.</li>"
+             "<li><b>Notez les spots avec des étoiles</b> (conditions, infrastructure, ambiance, débutant/confirmé) – il suffit de toucher, sans texte ; vous voyez la moyenne de la communauté.</li>"
              "<li><b>Téléversez votre propre photo de spot</b> – les 5 plus récentes sont affichées avec le nom de l'auteur.</li></ul>"),
             ("Check-in de sécurité (SOS) – optionnel",
              "<ul><li>Dans votre <b>compte</b>, activez un <b>minuteur de sécurité</b> personnel : réglez les minutes et un <b>e-mail d'urgence</b>.</li>"
@@ -9924,6 +9969,7 @@ _GUIDE = {
              "<li><b>Previsión a 3 días</b> con un semáforo «merece la pena» (🟢/🟡/🔴) según la fuerza del viento &amp; las mejores direcciones del spot.</li>"
              "<li>Abre un día para la <b>vista por horas</b> (barras de viento + barras de rachas esmeriladas); activa el <b>potencial térmico / brisa marina</b>.</li>"
              "<li><b>¿Para quién es este spot?</b> Una ficha de orientación muestra el nivel adecuado, si se aprende bien, el tipo de agua, el viento típico y a qué prestar atención – y puedes filtrar la lista por «apto para principiantes» / «agua plana». Orientativo, sin garantía.</li>"
+             "<li><b>Valora los spots con estrellas</b> (condiciones, infraestructura, ambiente, principiante/avanzado) – solo toca, sin texto; ves la media de la comunidad.</li>"
              "<li><b>Sube tu propia foto del spot</b> – se muestran las 5 más recientes con el nombre de quien las subió.</li></ul>"),
             ("Check-in de seguridad (SOS) – opcional",
              "<ul><li>En tu <b>cuenta</b> puedes activar un <b>temporizador de seguridad</b> personal: define los minutos y un <b>e-mail de emergencia</b>.</li>"
