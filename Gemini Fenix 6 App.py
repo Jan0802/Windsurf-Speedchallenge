@@ -859,6 +859,20 @@ spot_info_table = Table(
     Column("updated_at", DateTime, server_default=func.now()),
 )
 
+# Community-Sterne-Bewertung je Spot (nur Sterne, kein Text). Eine Zeile pro
+# (spot, username); jede Kategorie 1..5 Sterne, NULL = nicht bewertet.
+spot_ratings_table = Table(
+    "spot_ratings", DB_METADATA,
+    Column("spot", String(200), primary_key=True),
+    Column("username", String(150), primary_key=True),
+    Column("conditions", Integer),       # Bedingungen (Wind/Wasser)
+    Column("infrastructure", Integer),   # Parken/Rigging/Einstieg/Schulen/Gastro
+    Column("ambience", Integer),         # Landschaft/Atmosphaere
+    Column("beginner", Integer),         # geeignet fuer Anfaenger
+    Column("advanced", Integer),         # geeignet fuer Fortgeschrittene
+    Column("updated_at", DateTime, server_default=func.now()),
+)
+
 # Mehrere Bilder je Spot (Galerie auf der Spots-Seite). Bytes in der DB.
 # Persistenter Forecast-Fallback (überlebt Render-Deploys/Neustarts): letzter
 # erfolgreicher Open-Meteo-Abruf je (daily/hourly, Spot). Verhindert, dass nach
@@ -1974,6 +1988,7 @@ def _ensure_ad_tables():
         spot_managers_table.create(eng, checkfirst=True)
         feedback_table.create(eng, checkfirst=True)
         spot_webcam_ads_table.create(eng, checkfirst=True)
+        spot_ratings_table.create(eng, checkfirst=True)
         _migrate_ad_sport(eng)
     except Exception:
         logging.exception("Werbe-Tabellen konnten nicht angelegt werden")
@@ -2467,6 +2482,94 @@ def save_webcam_sponsor(spot, name, url):
         else:
             conn.execute(insert(spot_webcam_ads_table).values(spot=spot, **values))
     _clear_ad_caches()
+
+
+# --- Community-Sterne-Bewertung je Spot (nur Sterne) -------------------------
+_RATING_CATS = [
+    ("conditions", "Bedingungen"),
+    ("infrastructure", "Infrastruktur"),
+    ("ambience", "Ambiente"),
+    ("beginner", "Für Anfänger"),
+    ("advanced", "Für Fortgeschrittene"),
+]
+
+
+def load_spot_rating(spot, username):
+    """Eigene Bewertung eines Nutzers fuer einen Spot (dict je Kategorie) oder {}."""
+    if not spot or not username:
+        return {}
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(spot_ratings_table).where(
+                (spot_ratings_table.c.spot == spot)
+                & (spot_ratings_table.c.username == username))
+        ).mappings().first()
+    return dict(row) if row else {}
+
+
+def save_spot_rating(spot, username, ratings):
+    """Upsert der Sterne-Bewertung (1..5 je Kategorie; 0/None = nicht bewertet)."""
+    if not spot or not username:
+        return
+    _ensure_ad_tables()
+    values = {}
+    for key, _ in _RATING_CATS:
+        v = ratings.get(key)
+        values[key] = int(v) if v else None
+    with get_engine().begin() as conn:
+        exists = conn.execute(
+            select(spot_ratings_table.c.spot).where(
+                (spot_ratings_table.c.spot == spot)
+                & (spot_ratings_table.c.username == username))
+        ).first()
+        if exists:
+            conn.execute(update(spot_ratings_table).where(
+                (spot_ratings_table.c.spot == spot)
+                & (spot_ratings_table.c.username == username)).values(**values))
+        else:
+            conn.execute(insert(spot_ratings_table).values(
+                spot=spot, username=username, **values))
+    load_spot_rating_summary.clear()
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def load_spot_rating_summary(spot):
+    """Durchschnitt je Kategorie + Anzahl Bewertungen + Gesamtnote (Mittel der
+    Kategorie-Mittel). -> {"count": n, <cat>: avg|None, "overall": avg|None}."""
+    out = {"count": 0, "overall": None}
+    for key, _ in _RATING_CATS:
+        out[key] = None
+    if not spot:
+        return out
+    _ensure_ad_tables()
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(spot_ratings_table).where(spot_ratings_table.c.spot == spot)
+        ).mappings().all()
+    if not rows:
+        return out
+    out["count"] = len(rows)
+    cat_means = []
+    for key, _ in _RATING_CATS:
+        vals = [r[key] for r in rows if r[key] is not None]
+        if vals:
+            m = sum(vals) / len(vals)
+            out[key] = round(m, 1)
+            cat_means.append(m)
+    if cat_means:
+        out["overall"] = round(sum(cat_means) / len(cat_means), 1)
+    return out
+
+
+def _stars_html(avg, size="1em"):
+    """5-Sterne-Zeile (gold gefuellt / gedimmt) fuer einen 0..5-Durchschnitt."""
+    if avg is None:
+        return f"<span style='opacity:.3;font-size:{size};'>★★★★★</span>"
+    full = int(round(avg))
+    full = max(0, min(5, full))
+    return (f"<span style='color:#f5c518;font-size:{size};'>{'★' * full}</span>"
+            f"<span style='opacity:.28;font-size:{size};'>{'★' * (5 - full)}</span>")
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -7500,6 +7603,63 @@ def _spot_class_matches(raw, beginner, flat):
     return True
 
 
+def _render_spot_rating(spot, user):
+    """Community-Sterne-Bewertung eines Spots: Durchschnitt je Kategorie + eigene
+    Abgabe (nur eingeloggte Nutzer, 1 Bewertung je Spot, jederzeit aenderbar).
+    Bewusst NUR Sterne, kein Text."""
+    summary = load_spot_rating_summary(spot)
+    count = summary.get("count", 0)
+
+    header = "### ⭐ Spot rating"
+    if summary.get("overall") is not None:
+        header += f"  ·  {summary['overall']:.1f}/5"
+    st.markdown(header)
+
+    if count:
+        rows_html = ""
+        for key, label in _RATING_CATS:
+            avg = summary.get(key)
+            val_txt = f"{avg:.1f}" if avg is not None else "–"
+            rows_html += (
+                "<div style='display:flex;align-items:center;gap:10px;margin:4px 0;'>"
+                f"<span style='min-width:160px;'>{label}</span>"
+                f"{_stars_html(avg)}"
+                f"<span style='opacity:.65;min-width:32px;'>{val_txt}</span></div>"
+            )
+        st.markdown(
+            rows_html
+            + f"<div style='opacity:.6;font-size:13px;margin-top:4px;'>"
+              f"based on {count} rating{'s' if count != 1 else ''}</div>",
+            unsafe_allow_html=True)
+    else:
+        st.caption("No ratings yet – be the first to rate this spot ⭐")
+
+    if not user:
+        st.caption("Log in to rate this spot.")
+        return
+
+    own = load_spot_rating(spot, user["username"])
+    with st.expander("⭐ Rate this spot" + (" (edit yours)" if own else "")):
+        st.caption("Just tap the stars – no text needed. You can change it anytime.")
+        picks = {}
+        for key, label in _RATING_CATS:
+            skey = f"rate_{spot}_{key}"
+            # Eigene, gespeicherte Bewertung vorbelegen (st.feedback nutzt Index 0..4).
+            if skey not in st.session_state and own.get(key):
+                st.session_state[skey] = int(own[key]) - 1
+            st.markdown(f"**{label}**")
+            picks[key] = st.feedback("stars", key=skey)
+        if st.button("Save rating", key=f"rate_save_{spot}", type="primary",
+                     use_container_width=True):
+            data = {k: ((v + 1) if v is not None else None) for k, v in picks.items()}
+            if all(x is None for x in data.values()):
+                st.warning("Please rate at least one category.")
+            else:
+                save_spot_rating(spot, user["username"], data)
+                st.success("Thanks for your rating! ⭐")
+                st.rerun()
+
+
 def render_spots_page(user=None):
     """Reine Spot-Seite (Revierführer): Filter Land/Spot -> Beschreibung, Webcam/
     Bild, Foto-Galerie (+ User-Upload) und Wetter des gewählten Spots."""
@@ -7654,6 +7814,9 @@ def render_spots_page(user=None):
     _sc_html = _spot_class_html_app(info.get("spot_class"))
     if _sc_html:
         st.markdown(_sc_html, unsafe_allow_html=True)
+
+    # --- Community-Sterne-Bewertung (nur Sterne, kein Text) ---
+    _render_spot_rating(spot, user)
 
     # Bilder-Galerie: Handy/Tablet 6 Fotos (2 Spalten -> 3x2, geht sauber auf),
     # Desktop 5 Fotos in EINER Reihe (Querformat-Bilder wirken über wenige breite
