@@ -1197,7 +1197,7 @@ def update_session(session_id, fields):
     clear_data_caches()
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False, max_entries=8)
 def load_sessions(sport=None):
     """Sessions als DataFrame. sport=None -> alle Sportarten (z.B. für die
     geteilte Spot-Liste); sonst nur der angegebene Sport. sport ist Teil des
@@ -1220,7 +1220,7 @@ def load_sessions(sport=None):
     return df
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False, max_entries=20)
 def load_session_track(session_id):
     """Holt die (potenziell grosse) GPS-Route einer einzelnen Session per ID –
     bewusst getrennt von den Massen-Ladevorgaengen, nur fuer die Detailkarte."""
@@ -1263,7 +1263,7 @@ def session_exists(filename, name=None, sport=None):
         return bool(conn.execute(query).scalar())
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False, max_entries=64)
 def load_rider_sessions(name, sport=None):
     """Alle gespeicherten Sessions eines Fahrers, neueste zuerst (optional auf
     einen Sport eingegrenzt; sport ist Teil des Cache-Keys)."""
@@ -2144,7 +2144,7 @@ def _clear_ad_caches():
             pass
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False, max_entries=6)
 def load_spot_images(spot):
     """Alle Galerie-Bilder eines Spots inkl. Bytes (sortiert) – fuers Backoffice."""
     if not spot:
@@ -2175,7 +2175,7 @@ def load_spot_image_ids(spot):
     return [r[0] for r in rows]
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False, max_entries=80)
 def _spot_thumb_uri(image_id, max_dim=560):
     """Kleines, gecachtes Thumbnail (data-URI) eines Galerie-Bilds. Spart enorm
     Seitenlast gegenueber dem Voll-Bild-base64 in der Galerie."""
