@@ -729,6 +729,15 @@ spots_table = Table(
     Column("lon", Float),
 )
 
+# Eigener, serverseitiger Seitenaufruf-Zaehler der APP (Cloudflare misst nur
+# Landing/Spot-Seiten, NICHT die Streamlit-App). Zaehlt je (Tag, Bereich).
+app_pageviews_table = Table(
+    "app_pageviews", DB_METADATA,
+    Column("day", String(10), primary_key=True),   # ISO YYYY-MM-DD (UTC)
+    Column("view", String(40), primary_key=True),  # home / spots / results / admin / guide
+    Column("count", Integer, nullable=False, default=0),
+)
+
 auth_tokens_table = Table(
     "auth_tokens", DB_METADATA,
     Column("token", String(64), primary_key=True),
@@ -8393,6 +8402,60 @@ def _cf_web_analytics(days=30):
     }
 
 
+def _bump_pageview(view):
+    """Einen App-Seitenaufruf fuer (heute, view) hochzaehlen. Best-effort –
+    darf die App NIE stoeren."""
+    try:
+        day = datetime.utcnow().strftime("%Y-%m-%d")
+        with get_engine().begin() as conn:
+            res = conn.execute(
+                update(app_pageviews_table)
+                .where((app_pageviews_table.c.day == day)
+                       & (app_pageviews_table.c.view == view))
+                .values(count=app_pageviews_table.c.count + 1)
+            )
+            if res.rowcount == 0:
+                conn.execute(insert(app_pageviews_table).values(day=day, view=view, count=1))
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _track_pageview(view):
+    """Zaehlt einen Aufruf NUR bei echter Navigation (Wechsel des Bereichs) bzw.
+    beim ersten Laden/Reload – nicht bei jedem Streamlit-Rerun (Widget-Klick)."""
+    if st.session_state.get("_pv_current") == view:
+        return
+    st.session_state["_pv_current"] = view
+    _bump_pageview(view)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _app_pageviews(days=30):
+    """App-Seitenaufrufe (eigener Zaehler) im Zeitraum: Summe, je Bereich, je Tag."""
+    try:
+        end = datetime.utcnow().date()
+        start = end - timedelta(days=int(days) - 1)
+        start_s = start.isoformat()
+        with get_engine().connect() as conn:
+            rows = conn.execute(
+                select(app_pageviews_table)
+                .where(app_pageviews_table.c.day >= start_s)  # ISO-Strings: lexikografisch = chronologisch
+            ).all()
+        total = sum(r.count for r in rows)
+        by_view, by_day = {}, {}
+        for r in rows:
+            by_view[r.view] = by_view.get(r.view, 0) + r.count
+            by_day[r.day] = by_day.get(r.day, 0) + r.count
+        idx = [(start + timedelta(days=i)).isoformat() for i in range((end - start).days + 1)]
+        return {
+            "total": total,
+            "by_view": sorted(by_view.items(), key=lambda x: -x[1]),
+            "byDay": [{"date": d, "Views": by_day.get(d, 0)} for d in idx],
+        }
+    except Exception:  # noqa: BLE001
+        return None
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def _app_usage_stats(days=30):
     """Erste-Hand-Nutzung aus der eigenen DB: neue Mitglieder + hochgeladene
@@ -8462,6 +8525,7 @@ def render_admin_analytics():
     if c2.button("🔄 Aktualisieren", key="cf_refresh"):
         _cf_web_analytics.clear()
         _app_usage_stats.clear()
+        _app_pageviews.clear()
         st.rerun()
 
     data = _cf_web_analytics(days)
@@ -8525,6 +8589,26 @@ def render_admin_analytics():
             udf = pd.DataFrame(usage["byDay"])
             udf["date"] = pd.to_datetime(udf["date"])
             st.bar_chart(udf.set_index("date")[["Sessions", "New members"]])
+
+    # App-Seitenaufrufe (eigener serverseitiger Zaehler – misst app.mywatersessions.com,
+    # das Cloudflare gar nicht sieht: Startseite/Ranglisten, Spots, My Results, Guide, Backoffice).
+    st.markdown("**🖱️ App-Seitenaufrufe** (eigener Zähler – die App, die Cloudflare nicht misst)")
+    pv = _app_pageviews(days)
+    if not pv or not pv["total"]:
+        st.caption("Noch keine App-Aufrufe erfasst – wird ab jetzt gezählt.")
+    else:
+        st.metric("App-Aufrufe gesamt", _de(pv["total"]), help=f"in den letzten {days} Tagen")
+        if pv["byDay"]:
+            pvdf = pd.DataFrame(pv["byDay"])
+            pvdf["date"] = pd.to_datetime(pvdf["date"])
+            st.bar_chart(pvdf.set_index("date")[["Views"]])
+        if pv["by_view"]:
+            _names = {"home": "🏠 Startseite/Ranglisten", "spots": "🗺️ Spots",
+                      "results": "👤 My Results", "guide": "📖 Guide", "admin": "🔧 Backoffice"}
+            st.dataframe(
+                pd.DataFrame([{"Bereich": _names.get(v, v), "Aufrufe": c}
+                              for v, c in pv["by_view"]]),
+                hide_index=True, use_container_width=True)
 
 
 def _admin_stats():
@@ -8609,6 +8693,8 @@ def render_admin():
             st.query_params.clear()
             st.rerun()
         return
+
+    _track_pageview("admin")
 
     flash = st.session_state.pop("_admin_flash", None)
     if flash:
@@ -9425,6 +9511,10 @@ sport = active_sport()
 _is_spots_view = st.query_params.get("view") == "spots"
 _is_results_view = st.query_params.get("view") == "results"
 
+# Eigener App-Seitenaufruf-Zaehler (Cloudflare sieht die App nicht). Zaehlt nur
+# bei echter Navigation/Reload, nicht bei jedem Rerun.
+_track_pageview("spots" if _is_spots_view else "results" if _is_results_view else "home")
+
 # Header-Umschalter Sportarten + ganz rechts die reine Spots-Seite. Klick setzt
 # ?sport= bzw. ?view=spots in der URL (bleibt über Reload/Link erhalten).
 _sw_cols = st.columns([2] * len(SPORTS) + [2, 2])
@@ -10125,6 +10215,7 @@ def render_guide_downloads(key_prefix="", stacked=False):
 def render_guide_page():
     """Eigene, ausführliche Anleitungs-Seite (?seite=guide) in EN/DE/NL,
     plus Download-Buttons. Ohne Login erreichbar (wie die Rechtsseiten)."""
+    _track_pageview("guide")
     if st.button("← Back · Zurück · Terug", key="guide_back"):
         st.query_params.clear()
         st.rerun()
