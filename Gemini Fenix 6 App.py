@@ -8393,6 +8393,56 @@ def _cf_web_analytics(days=30):
     }
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _app_usage_stats(days=30):
+    """Erste-Hand-Nutzung aus der eigenen DB: neue Mitglieder + hochgeladene
+    Sessions pro Tag im Zeitraum, plus aktive Fahrer. Gruppierung in Python
+    (dialekt-unabhaengig). -> dict oder None."""
+    try:
+        end = datetime.utcnow().date()
+        start = end - timedelta(days=int(days) - 1)
+        start_dt = datetime(start.year, start.month, start.day)
+        with get_engine().connect() as conn:
+            u_dates = [
+                r[0] for r in conn.execute(
+                    select(users_table.c.created_at)
+                    .where(users_table.c.created_at >= start_dt)
+                ).all() if r[0] is not None
+            ]
+            s_rows = conn.execute(
+                select(sessions_table.c.created_at, sessions_table.c.name)
+                .where(sessions_table.c.created_at >= start_dt)
+            ).all()
+        idx = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+        reg = {d: 0 for d in idx}
+        ses = {d: 0 for d in idx}
+        riders = set()
+        for dt in u_dates:
+            d = dt.date()
+            if d in reg:
+                reg[d] += 1
+        for dt, name in s_rows:
+            if dt is None:
+                continue
+            d = dt.date()
+            if d in ses:
+                ses[d] += 1
+            if name:
+                riders.add(name)
+        return {
+            "days": int(days),
+            "new_members": sum(reg.values()),
+            "sessions": sum(ses.values()),
+            "active_riders": len(riders),
+            "byDay": [
+                {"date": d.isoformat(), "New members": reg[d], "Sessions": ses[d]}
+                for d in idx
+            ],
+        }
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def render_admin_analytics():
     st.caption(
         "Cookieless Web Analytics via Cloudflare (kein Tracking einzelner Besucher). "
@@ -8411,6 +8461,7 @@ def render_admin_analytics():
                         format_func=lambda d: f"letzte {d} Tage", key="cf_days")
     if c2.button("🔄 Aktualisieren", key="cf_refresh"):
         _cf_web_analytics.clear()
+        _app_usage_stats.clear()
         st.rerun()
 
     data = _cf_web_analytics(days)
@@ -8452,6 +8503,28 @@ def render_admin_analytics():
         st.markdown("**Nach Hostname** (Landing vs. Spots)")
         st.dataframe(pd.DataFrame(data["byHost"]), hide_index=True,
                      use_container_width=True)
+
+    # --- Erste-Hand-App-Nutzung (eigene DB) – misst, was Cloudflare NICHT sieht ---
+    # Cloudflare erfasst nur Landing + Spot-Seiten (Beacon), nicht die Streamlit-App.
+    st.markdown("---")
+    st.markdown("### 📲 App-Nutzung (eigene Daten)")
+    st.caption("Direkt aus der Datenbank – erfasst die App-Aktivität (Registrierungen, "
+               "Session-Uploads), die Cloudflare nicht sehen kann.")
+    usage = _app_usage_stats(days)
+    if not usage:
+        st.caption("–")
+    else:
+        u1, u2, u3 = st.columns(3)
+        u1.metric("🆕 Neue Mitglieder", _de(usage["new_members"]),
+                  help=f"in den letzten {days} Tagen")
+        u2.metric("🏄 Sessions hochgeladen", _de(usage["sessions"]),
+                  help=f"in den letzten {days} Tagen")
+        u3.metric("🧍 Aktive Fahrer", _de(usage["active_riders"]),
+                  help=f"mit Session in den letzten {days} Tagen")
+        if usage["byDay"]:
+            udf = pd.DataFrame(usage["byDay"])
+            udf["date"] = pd.to_datetime(udf["date"])
+            st.bar_chart(udf.set_index("date")[["Sessions", "New members"]])
 
 
 def _admin_stats():
