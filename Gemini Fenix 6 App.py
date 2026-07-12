@@ -4994,6 +4994,9 @@ def render_rankings(results_container):
                                          or [t for t in RANKING_TABLES_DEFAULT if t in _tbl_opts])
             st.multiselect("Rankings shown by default", _tbl_opts, key=_tk,
                            format_func=lambda k: RANKING_TABLE_LABELS.get(k, k))
+            st.checkbox("Show all rankings now (also the rest below)", key="rank_show_all",
+                        help="Temporarily show every ranking table. Your default selection "
+                             "above stays for the next visit.")
 
         # --- Anpassbare Tabellen-Spalten (Sichtbarkeit + Reihenfolge) ---
         with st.expander("🧩 Table columns (show & order)", expanded=False):
@@ -5528,19 +5531,14 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
 
     _render_pairs([t for t in _avail if t[0] in _selected])
 
-    _rest = [t for t in _avail if t[0] not in _selected]
-    if _rest:
-        if not st.session_state.get("_rank_show_all"):
-            if st.button(f"➕ Show more rankings ({len(_rest)})", key="rank_more",
-                         use_container_width=True,
-                         help="Choose which ones show by default in the Filter panel."):
-                st.session_state["_rank_show_all"] = True
-                st.rerun()
-        else:
+    # Den Rest zeigen, wenn im Filter „Show all rankings" aktiviert ist. Der
+    # Umschalter liegt bewusst im Filter (Sidebar) – ein Widget hier im Haupt-
+    # Container waere im Fragment nicht erlaubt (StreamlitFragmentWidgetsNotAllowed).
+    if st.session_state.get("rank_show_all"):
+        _rest = [t for t in _avail if t[0] not in _selected]
+        if _rest:
+            st.markdown("#### More rankings")
             _render_pairs(_rest)
-            if st.button("➖ Show fewer rankings", key="rank_less"):
-                st.session_state["_rank_show_all"] = False
-                st.rerun()
 
 
 def semicircles_to_degrees(value):
