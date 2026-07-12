@@ -6,3 +6,12 @@ primaryColor = "#2bd4d9"            # türkiser Akzent (Buttons, Links)
 backgroundColor = "#0a2540"         # tiefes Meerblau (Fallback hinter dem Bild)
 secondaryBackgroundColor = "#11385c"
 textColor = "#eaf4ff"
+
+[server]
+# Produktion: kein Datei-Watcher (spart Speicher/CPU) und ein kleineres Upload-
+# Limit (Fotos/FIT sind klein) -> schuetzt die 512-MB-Instanz vor Riesen-Uploads.
+fileWatcherType = "none"
+maxUploadSize = 25
+
+[browser]
+gatherUsageStats = false

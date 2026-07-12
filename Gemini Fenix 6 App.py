@@ -8519,6 +8519,20 @@ def render_admin_analytics():
         )
         return
 
+    # LAZY: st.tabs rendert ALLE Tab-Inhalte bei JEDEM Rerun serverseitig. Damit
+    # der (schwere) Cloudflare-Call + die vielen Tabellen/Charts NICHT bei jeder
+    # Backoffice-Interaktion mitlaufen und die 512-MB-Instanz belasten, wird das
+    # Dashboard erst auf Klick geladen.
+    if not st.session_state.get("_analytics_loaded"):
+        st.caption("Aus Speichergründen wird das Dashboard erst auf Klick geladen.")
+        if st.button("📊 Dashboard laden", key="cf_load", use_container_width=True):
+            st.session_state["_analytics_loaded"] = True
+            st.rerun()
+        return
+    if st.button("✕ Dashboard schließen (spart Speicher)", key="cf_unload"):
+        st.session_state["_analytics_loaded"] = False
+        st.rerun()
+
     c1, c2 = st.columns([2, 1])
     days = c1.selectbox("Zeitraum", [7, 30, 90], index=1,
                         format_func=lambda d: f"letzte {d} Tage", key="cf_days")
