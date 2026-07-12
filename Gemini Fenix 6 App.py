@@ -5388,6 +5388,19 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         st.dataframe(_order_table_cols(_mobile_slim(r1), extra.get("columns"), gear_label),
                      width="stretch", hide_index=True, height=df_height(len(r1)))
 
+    # Nur die zwei Kern-Tabellen (30 s / 2 s) sofort. Der Rest (500 m, Seemeile,
+    # Longest run, Gesamtstrecke, Sprünge/Kadenz) erst auf Klick -> spart pro
+    # Aufruf 5 pyarrow-Tabellen (Speicher/CPU/Bandbreite) und macht Reruns leichter.
+    if not st.session_state.get("_rank_show_all"):
+        if st.button("➕ Show more rankings", key="rank_more", use_container_width=True,
+                     help="500 m · nautical mile · longest run · total distance · jumps/airtime"):
+            st.session_state["_rank_show_all"] = True
+            st.rerun()
+        return
+    if st.button("➖ Show fewer rankings", key="rank_less"):
+        st.session_state["_rank_show_all"] = False
+        st.rerun()
+
     if {"speed_500m_kmh", "speed_nm_kmh"}.issubset(ranking.columns):
         rcol5, rcol6 = st.columns(2)
 
