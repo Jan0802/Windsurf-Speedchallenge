@@ -8696,6 +8696,10 @@ def render_admin():
 
     _track_pageview("admin")
 
+    # Diagnose: laufende Python-/Streamlit-Version sichtbar machen (Segfault-Suche).
+    import platform as _platform
+    st.caption(f"🐍 Python {_platform.python_version()} · Streamlit {st.__version__}")
+
     flash = st.session_state.pop("_admin_flash", None)
     if flash:
         st.success(flash)
