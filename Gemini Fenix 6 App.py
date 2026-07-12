@@ -3913,6 +3913,16 @@ RANKING_REQUIRED = ["surfspot", "board", "sail"]
 # (auch jenseits der Top N) sieht der Nutzer im persönlichen Bereich.
 RANKING_TOP_N = 15
 
+# Welche Ranking-Tabellen sofort erscheinen (Rest auf Klick). Nutzer kann die
+# Auswahl im Filter setzen und in „My start" speichern. Keys siehe _render_ranking_tables.
+RANKING_TABLES_DEFAULT = ["30s", "2s"]
+RANKING_TABLE_LABELS = {
+    "30s": "🏆 Best 30 s", "2s": "⚡ Top 2 s", "500m": "📏 Best 500 m",
+    "nm": "⚓ Nautical mile", "run": "🚩 Longest run", "total": "👥 Total distance",
+    "airtime": "🪂 Best airtime", "jump": "🚀 Highest jump",
+    "strokes": "🛶 Most strokes", "cadence": "⏱️ Max cadence",
+}
+
 
 def complete_sessions(df):
     """Nur Sessions, die fürs Ranking vollständig sind: Spot + Board + Segel/
@@ -4832,6 +4842,11 @@ def render_rankings(results_container):
     col_order = st.session_state.get(
         f"rank_cols_{sport}", preset.get("columns") or _default_cols(_gear_label))
 
+    # Welche Ranglisten sofort erscheinen (Rest auf Klick) – vom Nutzer im Filter
+    # waehlbar, aus dem Preset vorbelegt.
+    table_choice = st.session_state.get(
+        f"rank_tables_{sport}", preset.get("tables") or RANKING_TABLES_DEFAULT)
+
     extra = {
         "front_max": front_max,
         "fin_max": fin_max,
@@ -4840,6 +4855,7 @@ def render_rankings(results_container):
         "weight_from": weight_from,
         "weight_to": weight_to,
         "columns": col_order,
+        "tables": table_choice,
     }
 
     # ---- Tabellen ZUERST (Hauptinhalt) in den Haupt-Container ----
@@ -4872,6 +4888,8 @@ def render_rankings(results_container):
                     "gear": st.session_state.get(f"rank_gear_{sport}", "All"),
                     "columns": st.session_state.get(f"rank_cols_{sport}",
                                                     _default_cols(_gear_label)),
+                    "tables": st.session_state.get(f"rank_tables_{sport}",
+                                                   RANKING_TABLES_DEFAULT),
                 })
                 st.success("Saved – will be loaded on start from now on.")
 
@@ -4879,7 +4897,7 @@ def render_rankings(results_container):
                 delete_user_pref(username)
                 for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day",
                            "rank_gear", "rank_front", "rank_finmax", "rank_finbrand",
-                           "rank_fincarbon", "rank_cols", "rank_wfrom", "rank_wto"):
+                           "rank_fincarbon", "rank_cols", "rank_tables", "rank_wfrom", "rank_wto"):
                     st.session_state.pop(f"{_k}_{sport}", None)
                 st.rerun()
 
@@ -4962,6 +4980,20 @@ def render_rankings(results_container):
             f"🪙 {SPORT_META[sport]['gear_type_label']}", gear_options,
             index=_preset_index(gear_options, gear_filter), key=f"rank_gear_{sport}",
         )
+
+        # --- Welche Ranglisten sofort erscheinen (Rest auf Klick) ---
+        with st.expander("📋 Rankings shown (choose which load first)", expanded=False):
+            st.caption("Pick which ranking tables appear immediately; the rest load on "
+                       "click (faster & lighter). Save via ‚My start' to keep it.")
+            _tbl_opts = ["30s", "2s", "500m", "nm", "run", "total"] + (
+                ["strokes", "cadence"] if sport == "sup" else ["airtime", "jump"])
+            _tk = f"rank_tables_{sport}"
+            if _tk not in st.session_state:   # einmalig aus Preset/Default vorbelegen
+                _tinit = preset.get("tables") or RANKING_TABLES_DEFAULT
+                st.session_state[_tk] = ([t for t in _tinit if t in _tbl_opts]
+                                         or [t for t in RANKING_TABLES_DEFAULT if t in _tbl_opts])
+            st.multiselect("Rankings shown by default", _tbl_opts, key=_tk,
+                           format_func=lambda k: RANKING_TABLE_LABELS.get(k, k))
 
         # --- Anpassbare Tabellen-Spalten (Sichtbarkeit + Reihenfolge) ---
         with st.expander("🧩 Table columns (show & order)", expanded=False):
@@ -5309,248 +5341,206 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     # #1-Glaskarte oben (kombinierter Score) – direkt unter der Überschrift.
     _render_champion(ranking, active_sport() in ("windsurf", "kitesurf", "wingsurf", "wakeboard"))
 
-    # 2x2-Raster. width="stretch" (moderne API, ersetzt das veraltete
-    # use_container_width) lässt jede Tabelle ihre Box voll ausfüllen; bei vielen
-    # Spalten ist sie innerhalb der Box horizontal scrollbar.
-    rcol1, rcol2 = st.columns(2)
-
-    with rcol1:
-        st.markdown("### 🏆 Best 30 seconds")
-
-        r30 = ranking[fin_cols + [
-            "date",
-            "name",
-            "speed_30s_kmh",
-            "speed_30s_kn",
-            "surfspot",
-            "board",
-            "sail",
-            "Weather",
-            "Trust",
-        ]].copy()
-
-        # Pro Fahrer nur die beste Session (kein Mehrfach-Platzieren).
-        r30 = (
-            r30.sort_values("speed_30s_kmh", ascending=False)
-            .drop_duplicates(subset="name", keep="first")
-            .reset_index(drop=True)
-            .head(RANKING_TOP_N)
-        )
-        r30.insert(0, "Rank", r30.index + 1)
-
-        r30 = r30.rename(columns={
-            "date": "Date",
-            "name": "Name",
-            "surfspot": "Surf spot",
-            "board": "Board",
-            "sail": gear_label,
-            "speed_30s_kmh": "30s km/h",
-            "speed_30s_kn": "30s kn",
-        })
-
-        st.dataframe(_order_table_cols(_mobile_slim(r30), extra.get("columns"), gear_label),
-                     width="stretch", hide_index=True, height=df_height(len(r30)))
-
-    with rcol2:
-        st.markdown("### ⚡ Top speed 2 seconds")
-
-        r1 = ranking[fin_cols + [
-            "date",
-            "name",
-            "speed_1s_kmh",
-            "speed_1s_kn",
-            "surfspot",
-            "board",
-            "sail",
-            "Weather",
-            "Trust",
-        ]].copy()
-
-        # Pro Fahrer nur die beste Session.
-        r1 = (
-            r1.sort_values("speed_1s_kmh", ascending=False)
-            .drop_duplicates(subset="name", keep="first")
-            .reset_index(drop=True)
-            .head(RANKING_TOP_N)
-        )
-        r1.insert(0, "Rank", r1.index + 1)
-
-        r1 = r1.rename(columns={
-            "date": "Date",
-            "name": "Name",
-            "surfspot": "Surf spot",
-            "board": "Board",
-            "sail": gear_label,
-            "speed_1s_kmh": "2s km/h",
-            "speed_1s_kn": "2s kn",
-        })
-
-        st.dataframe(_order_table_cols(_mobile_slim(r1), extra.get("columns"), gear_label),
-                     width="stretch", hide_index=True, height=df_height(len(r1)))
-
-    # Nur die zwei Kern-Tabellen (30 s / 2 s) sofort. Der Rest (500 m, Seemeile,
-    # Longest run, Gesamtstrecke, Sprünge/Kadenz) erst auf Klick -> spart pro
-    # Aufruf 5 pyarrow-Tabellen (Speicher/CPU/Bandbreite) und macht Reruns leichter.
-    if not st.session_state.get("_rank_show_all"):
-        if st.button("➕ Show more rankings", key="rank_more", use_container_width=True,
-                     help="500 m · nautical mile · longest run · total distance · jumps/airtime"):
-            st.session_state["_rank_show_all"] = True
-            st.rerun()
-        return
-    if st.button("➖ Show fewer rankings", key="rank_less"):
-        st.session_state["_rank_show_all"] = False
-        st.rerun()
-
-    if {"speed_500m_kmh", "speed_nm_kmh"}.issubset(ranking.columns):
-        rcol5, rcol6 = st.columns(2)
-
-        def _dist_table(container, col, title, unit_label, dist_m):
-            with container:
-                st.markdown(f"### {title}")
-                tab = ranking[fin_cols + [
-                    "date", "name", col, "surfspot", "board", "sail", "Weather", "Trust",
-                ]].copy()
-                tab = (
-                    tab.dropna(subset=[col])
-                    .sort_values(col, ascending=False)
-                    .drop_duplicates(subset="name", keep="first")
-                    .reset_index(drop=True)
-                    .head(RANKING_TOP_N)
-                )
-                if tab.empty:
-                    st.caption("No entries yet – needs a FIT upload (or the watch update).")
-                    return
-                tab.insert(0, "Rank", tab.index + 1)
-                _spd = pd.to_numeric(tab[col], errors="coerce")
-                tab[f"{unit_label} kn"] = (_spd / 1.852).round(2)
-                # Zeit für die Strecke = dist_m / (km/h in m/s) = dist_m * 3.6 / km/h.
-                tab["Time"] = _spd.apply(
-                    lambda v: _fmt_mmss(dist_m * 3.6 / v) if pd.notna(v) and v > 0 else "")
-                tab = tab.rename(columns={
-                    "date": "Date", "name": "Name", "surfspot": "Surf spot",
-                    "board": "Board", "sail": gear_label, col: f"{unit_label} km/h",
-                })
-                st.dataframe(_order_table_cols(_mobile_slim(tab), extra.get("columns"), gear_label),
-                             width="stretch", hide_index=True, height=df_height(len(tab)))
-
-        _dist_table(rcol5, "speed_500m_kmh", "📏 Best 500 m", "500m", 500)
-        _dist_table(rcol6, "speed_nm_kmh", "⚓ Best nautical mile", "nm", 1852)
-
-    rcol3, rcol4 = st.columns(2)
-
-    with rcol3:
-        st.markdown("### 🚩 Longest run")
-
-        rrun = ranking[fin_cols + [
-            "date",
-            "name",
-            "longest_run_km",
-            "longest_run_m",
-            "surfspot",
-            "board",
-            "sail",
-            "Weather",
-            "Trust",
-        ]].copy()
-
-        # Pro Fahrer nur der beste (längste) Run.
-        rrun = (
-            rrun.sort_values("longest_run_m", ascending=False)
-            .drop_duplicates(subset="name", keep="first")
-            .reset_index(drop=True)
-            .head(RANKING_TOP_N)
-        )
-        rrun.insert(0, "Rank", rrun.index + 1)
-
-        rrun = rrun.rename(columns={
-            "date": "Date",
-            "name": "Name",
-            "surfspot": "Surf spot",
-            "board": "Board",
-            "sail": gear_label,
-            "longest_run_km": "Run km",
-            "longest_run_m": "Run m",
-        })
-
-        st.dataframe(_order_table_cols(_mobile_slim(rrun), extra.get("columns"), gear_label),
-                     width="stretch", hide_index=True, height=df_height(len(rrun)))
-
-    with rcol4:
-        st.markdown("### 👥 Longest total distance per rider")
-
-        rtotal = (
-            ranking
-            .groupby("name", as_index=False)
-            .agg(
-                total_distance_km=("total_distance_km", "sum"),
-                last_date=("date", "max"),
+    # --- Jede Rangliste als einzeln aufrufbarer Baustein (rendert in einen
+    # uebergebenen Container). So kann der Nutzer im Filter waehlen, welche SOFORT
+    # erscheinen; der Rest laedt auf Klick. Dynamisches 2-pro-Reihe-Layout.
+    def _r_30s(c):
+        with c:
+            st.markdown("### 🏆 Best 30 seconds")
+            r30 = ranking[fin_cols + [
+                "date", "name", "speed_30s_kmh", "speed_30s_kn",
+                "surfspot", "board", "sail", "Weather", "Trust",
+            ]].copy()
+            r30 = (
+                r30.sort_values("speed_30s_kmh", ascending=False)
+                .drop_duplicates(subset="name", keep="first")
+                .reset_index(drop=True).head(RANKING_TOP_N)
             )
-            .sort_values("total_distance_km", ascending=False)
-            .reset_index(drop=True)
-            .head(RANKING_TOP_N)
-        )
+            r30.insert(0, "Rank", r30.index + 1)
+            r30 = r30.rename(columns={
+                "date": "Date", "name": "Name", "surfspot": "Surf spot",
+                "board": "Board", "sail": gear_label,
+                "speed_30s_kmh": "30s km/h", "speed_30s_kn": "30s kn",
+            })
+            st.dataframe(_order_table_cols(_mobile_slim(r30), extra.get("columns"), gear_label),
+                         width="stretch", hide_index=True, height=df_height(len(r30)))
 
-        rtotal.insert(0, "Rank", rtotal.index + 1)
+    def _r_2s(c):
+        with c:
+            st.markdown("### ⚡ Top speed 2 seconds")
+            r1 = ranking[fin_cols + [
+                "date", "name", "speed_1s_kmh", "speed_1s_kn",
+                "surfspot", "board", "sail", "Weather", "Trust",
+            ]].copy()
+            r1 = (
+                r1.sort_values("speed_1s_kmh", ascending=False)
+                .drop_duplicates(subset="name", keep="first")
+                .reset_index(drop=True).head(RANKING_TOP_N)
+            )
+            r1.insert(0, "Rank", r1.index + 1)
+            r1 = r1.rename(columns={
+                "date": "Date", "name": "Name", "surfspot": "Surf spot",
+                "board": "Board", "sail": gear_label,
+                "speed_1s_kmh": "2s km/h", "speed_1s_kn": "2s kn",
+            })
+            st.dataframe(_order_table_cols(_mobile_slim(r1), extra.get("columns"), gear_label),
+                         width="stretch", hide_index=True, height=df_height(len(r1)))
 
-        rtotal = rtotal.rename(columns={
-            "name": "Name",
-            "total_distance_km": "Total distance km",
-            "last_date": "Last session",
-        })
+    def _dist_body(c, col, title, unit_label, dist_m):
+        with c:
+            st.markdown(f"### {title}")
+            tab = ranking[fin_cols + [
+                "date", "name", col, "surfspot", "board", "sail", "Weather", "Trust",
+            ]].copy()
+            tab = (
+                tab.dropna(subset=[col])
+                .sort_values(col, ascending=False)
+                .drop_duplicates(subset="name", keep="first")
+                .reset_index(drop=True).head(RANKING_TOP_N)
+            )
+            if tab.empty:
+                st.caption("No entries yet – needs a FIT upload (or the watch update).")
+                return
+            tab.insert(0, "Rank", tab.index + 1)
+            _spd = pd.to_numeric(tab[col], errors="coerce")
+            tab[f"{unit_label} kn"] = (_spd / 1.852).round(2)
+            tab["Time"] = _spd.apply(
+                lambda v: _fmt_mmss(dist_m * 3.6 / v) if pd.notna(v) and v > 0 else "")
+            tab = tab.rename(columns={
+                "date": "Date", "name": "Name", "surfspot": "Surf spot",
+                "board": "Board", "sail": gear_label, col: f"{unit_label} km/h",
+            })
+            st.dataframe(_order_table_cols(_mobile_slim(tab), extra.get("columns"), gear_label),
+                         width="stretch", hide_index=True, height=df_height(len(tab)))
 
-        st.dataframe(_order_table_cols(_mobile_slim(rtotal), extra.get("columns"), gear_label),
-                     width="stretch", hide_index=True, height=df_height(len(rtotal)))
+    def _r_500m(c):
+        _dist_body(c, "speed_500m_kmh", "📏 Best 500 m", "500m", 500)
 
-    # Zusatz-Rankings aus den Uhr-Daten: Wind -> Sprünge, SUP -> Paddeln.
-    # Sessions ohne die jeweiligen Werte fallen raus.
-    def _metric_table(metric, title, col_label, decimals=1, empty_msg="No data yet."):
-        tbl = ranking[fin_cols + [
-            "date", "name", metric, "surfspot", "board", "sail", "Weather", "Trust",
-        ]].copy()
-        tbl[metric] = pd.to_numeric(tbl[metric], errors="coerce")
-        tbl = tbl[tbl[metric] > 0].dropna(subset=[metric])
-        tbl = (
-            tbl.sort_values(metric, ascending=False)
-            .drop_duplicates(subset="name", keep="first")
-            .reset_index(drop=True)
-            .head(RANKING_TOP_N)
-        )
-        st.markdown(title)
-        if tbl.empty:
-            st.caption(empty_msg)
-            return
-        tbl.insert(0, "Rank", tbl.index + 1)
-        if decimals == 0:
-            tbl[metric] = tbl[metric].round(0).astype(int)
-        else:
-            tbl[metric] = tbl[metric].round(decimals)
-        tbl = tbl.rename(columns={
-            "date": "Date",
-            "name": "Name",
-            "surfspot": "Surf spot",
-            "board": "Board",
-            "sail": gear_label,
-            metric: col_label,
-        })
-        st.dataframe(_order_table_cols(_mobile_slim(tbl), extra.get("columns"), gear_label),
-                     width="stretch", hide_index=True, height=df_height(len(tbl)))
+    def _r_nm(c):
+        _dist_body(c, "speed_nm_kmh", "⚓ Best nautical mile", "nm", 1852)
 
+    def _r_run(c):
+        with c:
+            st.markdown("### 🚩 Longest run")
+            rrun = ranking[fin_cols + [
+                "date", "name", "longest_run_km", "longest_run_m",
+                "surfspot", "board", "sail", "Weather", "Trust",
+            ]].copy()
+            rrun = (
+                rrun.sort_values("longest_run_m", ascending=False)
+                .drop_duplicates(subset="name", keep="first")
+                .reset_index(drop=True).head(RANKING_TOP_N)
+            )
+            rrun.insert(0, "Rank", rrun.index + 1)
+            rrun = rrun.rename(columns={
+                "date": "Date", "name": "Name", "surfspot": "Surf spot",
+                "board": "Board", "sail": gear_label,
+                "longest_run_km": "Run km", "longest_run_m": "Run m",
+            })
+            st.dataframe(_order_table_cols(_mobile_slim(rrun), extra.get("columns"), gear_label),
+                         width="stretch", hide_index=True, height=df_height(len(rrun)))
+
+    def _r_total(c):
+        with c:
+            st.markdown("### 👥 Longest total distance per rider")
+            rtotal = (
+                ranking.groupby("name", as_index=False)
+                .agg(total_distance_km=("total_distance_km", "sum"),
+                     last_date=("date", "max"))
+                .sort_values("total_distance_km", ascending=False)
+                .reset_index(drop=True).head(RANKING_TOP_N)
+            )
+            rtotal.insert(0, "Rank", rtotal.index + 1)
+            rtotal = rtotal.rename(columns={
+                "name": "Name", "total_distance_km": "Total distance km",
+                "last_date": "Last session",
+            })
+            st.dataframe(_order_table_cols(_mobile_slim(rtotal), extra.get("columns"), gear_label),
+                         width="stretch", hide_index=True, height=df_height(len(rtotal)))
+
+    def _metric_body(c, metric, title, col_label, decimals=1, empty_msg="No data yet."):
+        with c:
+            tbl = ranking[fin_cols + [
+                "date", "name", metric, "surfspot", "board", "sail", "Weather", "Trust",
+            ]].copy()
+            tbl[metric] = pd.to_numeric(tbl[metric], errors="coerce")
+            tbl = tbl[tbl[metric] > 0].dropna(subset=[metric])
+            tbl = (
+                tbl.sort_values(metric, ascending=False)
+                .drop_duplicates(subset="name", keep="first")
+                .reset_index(drop=True).head(RANKING_TOP_N)
+            )
+            st.markdown(title)
+            if tbl.empty:
+                st.caption(empty_msg)
+                return
+            tbl.insert(0, "Rank", tbl.index + 1)
+            if decimals == 0:
+                tbl[metric] = tbl[metric].round(0).astype(int)
+            else:
+                tbl[metric] = tbl[metric].round(decimals)
+            tbl = tbl.rename(columns={
+                "date": "Date", "name": "Name", "surfspot": "Surf spot",
+                "board": "Board", "sail": gear_label, metric: col_label,
+            })
+            st.dataframe(_order_table_cols(_mobile_slim(tbl), extra.get("columns"), gear_label),
+                         width="stretch", hide_index=True, height=df_height(len(tbl)))
+
+    def _r_strokes(c):
+        _metric_body(c, "strokes", "### 🛶 Most paddle strokes", "Strokes",
+                     decimals=0, empty_msg="No paddle data yet.")
+
+    def _r_cadence(c):
+        _metric_body(c, "max_cadence_spm", "### ⏱️ Max strokes / minute", "Max spm",
+                     decimals=0, empty_msg="No paddle data yet.")
+
+    def _r_airtime(c):
+        _metric_body(c, "max_airtime_s", "### 🪂 Best airtime", "Airtime s",
+                     empty_msg="No jump data yet – record a session with jumps on the watch.")
+
+    def _r_jump(c):
+        _metric_body(c, "max_jump_m", "### 🚀 Highest jump", "Jump m",
+                     empty_msg="No jump data yet – record a session with jumps on the watch.")
+
+    # Verfuegbare Tabellen (sport-/datenabhaengig) in kanonischer Reihenfolge.
+    _avail = [("30s", _r_30s), ("2s", _r_2s)]
+    if "speed_500m_kmh" in ranking.columns:
+        _avail.append(("500m", _r_500m))
+    if "speed_nm_kmh" in ranking.columns:
+        _avail.append(("nm", _r_nm))
+    _avail += [("run", _r_run), ("total", _r_total)]
     if active_sport() == "sup":
-        scol1, scol2 = st.columns(2)
-        with scol1:
-            _metric_table("strokes", "### 🛶 Most paddle strokes", "Strokes",
-                          decimals=0, empty_msg="No paddle data yet.")
-        with scol2:
-            _metric_table("max_cadence_spm", "### ⏱️ Max strokes / minute", "Max spm",
-                          decimals=0, empty_msg="No paddle data yet.")
+        _avail += [("strokes", _r_strokes), ("cadence", _r_cadence)]
     else:
-        jcol1, jcol2 = st.columns(2)
-        with jcol1:
-            _metric_table("max_airtime_s", "### 🪂 Best airtime", "Airtime s",
-                          empty_msg="No jump data yet – record a session with jumps on the watch.")
-        with jcol2:
-            _metric_table("max_jump_m", "### 🚀 Highest jump", "Jump m",
-                          empty_msg="No jump data yet – record a session with jumps on the watch.")
+        _avail += [("airtime", _r_airtime), ("jump", _r_jump)]
+
+    _keys = [k for k, _ in _avail]
+    _selected = [k for k in (extra.get("tables") or RANKING_TABLES_DEFAULT) if k in _keys]
+    if not _selected:
+        _selected = [k for k in RANKING_TABLES_DEFAULT if k in _keys] or _keys[:2]
+
+    def _render_pairs(items):
+        for i in range(0, len(items), 2):
+            cols = st.columns(2)
+            items[i][1](cols[0])
+            if i + 1 < len(items):
+                items[i + 1][1](cols[1])
+
+    _render_pairs([t for t in _avail if t[0] in _selected])
+
+    _rest = [t for t in _avail if t[0] not in _selected]
+    if _rest:
+        if not st.session_state.get("_rank_show_all"):
+            if st.button(f"➕ Show more rankings ({len(_rest)})", key="rank_more",
+                         use_container_width=True,
+                         help="Choose which ones show by default in the Filter panel."):
+                st.session_state["_rank_show_all"] = True
+                st.rerun()
+        else:
+            _render_pairs(_rest)
+            if st.button("➖ Show fewer rankings", key="rank_less"):
+                st.session_state["_rank_show_all"] = False
+                st.rerun()
 
 
 def semicircles_to_degrees(value):
