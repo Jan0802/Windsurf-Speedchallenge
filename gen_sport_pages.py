@@ -9,7 +9,7 @@ LANG_NAME = {"en": "EN", "de": "DE", "nl": "NL", "fr": "FR", "es": "ES"}
 BASE = "https://mywatersessions.com"
 APP = "https://app.mywatersessions.com"
 SPOTS = "https://spots.mywatersessions.com/spots"
-BEACON = ("<script defer src='https://static.cloudflareinsights.com/beacon.min.js' "
+BEACON = ("<script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' "
           "data-cf-beacon='{\"token\": \"c16ea8dadd7749e1826d6ea48f80ca6d\"}'></script>")
 
 SLUGS = ["windsurf", "kitesurf", "wingfoil", "sup", "wakeboard"]
