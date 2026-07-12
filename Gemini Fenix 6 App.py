@@ -4994,9 +4994,8 @@ def render_rankings(results_container):
                                          or [t for t in RANKING_TABLES_DEFAULT if t in _tbl_opts])
             st.multiselect("Rankings shown by default", _tbl_opts, key=_tk,
                            format_func=lambda k: RANKING_TABLE_LABELS.get(k, k))
-            st.checkbox("Show all rankings now (also the rest below)", key="rank_show_all",
-                        help="Temporarily show every ranking table. Your default selection "
-                             "above stays for the next visit.")
+            st.caption("On the page, use the “➕ Show more rankings” link under the tables "
+                       "to load the rest on demand.")
 
         # --- Anpassbare Tabellen-Spalten (Sichtbarkeit + Reihenfolge) ---
         with st.expander("🧩 Table columns (show & order)", expanded=False):
@@ -5531,14 +5530,30 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
 
     _render_pairs([t for t in _avail if t[0] in _selected])
 
-    # Den Rest zeigen, wenn im Filter „Show all rankings" aktiviert ist. Der
-    # Umschalter liegt bewusst im Filter (Sidebar) – ein Widget hier im Haupt-
-    # Container waere im Fragment nicht erlaubt (StreamlitFragmentWidgetsNotAllowed).
-    if st.session_state.get("rank_show_all"):
-        _rest = [t for t in _avail if t[0] not in _selected]
-        if _rest:
+    # Rest per INLINE-LINK nachladen. Bewusst ein <a>-Link (Anzeige, kein Widget)
+    # statt st.button, denn dieses Fragment schreibt in einen externen Haupt-
+    # Container -> Widgets sind dort verboten (StreamlitFragmentWidgetsNotAllowed).
+    # Der Link setzt ?rank=all in der URL; der Renderer liest das aus.
+    _rest = [t for t in _avail if t[0] not in _selected]
+    if _rest:
+        _qp = {k: v for k, v in st.query_params.items()}
+        if _qp.get("rank") == "all":
             st.markdown("#### More rankings")
             _render_pairs(_rest)
+            _q = {k: v for k, v in _qp.items() if k != "rank"}
+            _href = ("?" + urlencode(_q)) if _q else "?"
+            st.markdown(
+                f"<a href='{_href}' target='_self' style='display:inline-block;margin-top:10px;"
+                "color:#2bd4d9;font-weight:700;text-decoration:none;'>➖ Show fewer rankings</a>",
+                unsafe_allow_html=True)
+        else:
+            _href = "?" + urlencode({**_qp, "rank": "all"})
+            st.markdown(
+                f"<a href='{_href}' target='_self' style='display:inline-block;margin-top:10px;"
+                "padding:8px 16px;border-radius:12px;background:rgba(43,212,217,.15);"
+                "color:#2bd4d9;font-weight:800;text-decoration:none;'>"
+                f"➕ Show more rankings ({len(_rest)}) ↓</a>",
+                unsafe_allow_html=True)
 
 
 def semicircles_to_degrees(value):
