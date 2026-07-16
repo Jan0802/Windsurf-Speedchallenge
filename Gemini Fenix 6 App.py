@@ -10961,7 +10961,7 @@ def render_user_profile(user):
                     st.success("Saved – used for the sail recommendation.")
                     st.rerun()
             if not load_user_weights().get(user["username"]):
-                st.caption("⚠️ Set your weight under „Account details" – it's needed for the "
+                st.caption("⚠️ Set your weight under Account details – it is needed for the "
                            "sail recommendation.")
 
         # --- Equipment (aktiver Sport; Spots sind sportübergreifend) ---
