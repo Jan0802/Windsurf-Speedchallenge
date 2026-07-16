@@ -7193,7 +7193,7 @@ def _fetch_hourly_forecast_raw(lat, lon):
         "latitude": round(float(lat), 4),
         "longitude": round(float(lon), 4),
         "hourly": ("wind_speed_10m,wind_gusts_10m,wind_direction_10m,"
-                   "shortwave_radiation,cloud_cover"),
+                   "temperature_2m,weather_code,shortwave_radiation,cloud_cover"),
         "wind_speed_unit": "kmh",
         "timezone": "auto",
         "forecast_days": 3,
@@ -7448,6 +7448,8 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
     ds = hourly.get("wind_direction_10m") or []
     rad_arr = hourly.get("shortwave_radiation") or []
     cloud_arr = hourly.get("cloud_cover") or []
+    temp_arr = hourly.get("temperature_2m") or []
+    code_arr = hourly.get("weather_code") or []
     rows = []
     for i, t in enumerate(times):
         if t[:10] != target:
@@ -7462,6 +7464,8 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
             ds[i] if i < len(ds) else None,
             rad_arr[i] if i < len(rad_arr) else None,
             cloud_arr[i] if i < len(cloud_arr) else None,
+            temp_arr[i] if i < len(temp_arr) else None,
+            code_arr[i] if i < len(code_arr) else None,
         ))
     if not rows:
         st.info("No hourly data for this day.")
@@ -7471,12 +7475,26 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
     wvals = [r[1] for r in rows if r[1] is not None]
     ref = max(70.0, max(gvals + wvals, default=0))   # auf max. Boe skalieren
     bars = []
-    for hh, w, g, d, rad, cloud in rows:
+    for hh, w, g, d, rad, cloud, temp, code in rows:
         wv = w or 0
         gv = g if g is not None else wv
         w_pct = max(4, min(100, wv / ref * 100))
         g_pct = max(w_pct, min(100, gv / ref * 100))   # Boe >= Wind -> hoeher
         comp = _COMPASS[round(d / 22.5) % 16] if d is not None else ""
+        # Wetter-Icon: bevorzugt aus weather_code, sonst aus Bewoelkung.
+        wx = ""
+        if code is not None:
+            try:
+                wx = _WCODE_EMOJI.get(int(code), "")
+            except Exception:  # noqa: BLE001
+                wx = ""
+        if not wx and cloud is not None:
+            try:
+                _c = float(cloud)
+                wx = "☀️" if _c < 20 else "🌤️" if _c < 50 else "⛅" if _c < 85 else "☁️"
+            except Exception:  # noqa: BLE001
+                wx = ""
+        temp_txt = f"{round(float(temp))}°" if temp is not None else ""
         therm = ""
         if show_thermal:
             lvl = _thermal_level(rad, cloud, hh)
@@ -7484,12 +7502,14 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
             therm = f"<div class='hb-therm' title='{_THERMAL_LABEL[lvl]}'>{dots}</div>"
         bars.append(
             "<div class='hb-col'>"
+            f"<div class='hb-wx'>{wx}</div>"
             f"<div class='hb-val'>{round(wv)}</div>"
             "<div class='hb-track'>"
             f"<div class='hb-gust' style='height:{g_pct}%'></div>"
             f"<div class='hb-bar' style='height:{w_pct}%;background:rgb({_wind_color(wv)})'></div>"
             "</div>"
             f"<div class='hb-hr'>{hh}h</div>"
+            f"<div class='hb-temp'>{temp_txt}</div>"
             f"<div class='hb-dir'>{comp}</div>"
             f"<div class='hb-gust-val'>⤴ {round(gv)}</div>"
             f"{therm}"
@@ -7497,7 +7517,7 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         )
 
     legend = ("🟡 too little · 🟢 good · 🔴 too strong &nbsp;·&nbsp; "
-              "⤴ gusts = frosted bar")
+              "⤴ gusts = frosted bar &nbsp;·&nbsp; 🌡️ air temp · ☀️/☁️ sky")
     if show_thermal:
         legend += ("&nbsp;·&nbsp; 🌡️ thermal/sea-breeze potential "
                    "(<span style='color:#f5a623;'>● ●● ●●●</span> = weak→strong)")
@@ -7510,6 +7530,8 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         ".hb-legend{font-size:14px;opacity:.7;margin-bottom:12px;}"
         ".hb-row{display:flex;gap:6px;align-items:flex-end;}"
         ".hb-col{flex:1 1 0;text-align:center;}"
+        ".hb-wx{font-size:17px;line-height:1;margin-bottom:3px;min-height:18px;}"
+        ".hb-temp{font-size:13px;font-weight:700;opacity:.9;margin-top:1px;}"
         ".hb-val{font-size:15px;font-weight:800;margin-bottom:4px;}"
         ".hb-track{position:relative;height:180px;}"
         # Gläserner Böen-Balken (frosted) hinter dem farbigen Wind-Balken.
