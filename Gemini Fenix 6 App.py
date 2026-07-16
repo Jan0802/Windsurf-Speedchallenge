@@ -8838,6 +8838,40 @@ def render_admin_spots():
         "Land", key="admin_spot_country",
         help="z.B. Deutschland – steuert die Länder-Auswahl auf der Spots-Seite.")
 
+    if st.button("🤖 KI-Beschreibung holen (Claude)", use_container_width=True):
+        _sk = _secret("SEED_KEY", "").strip()
+        _ingest = os.environ.get("INGEST_URL", "https://ingest-kxxw.onrender.com").rstrip("/")
+        if not name:
+            st.warning("Bitte zuerst einen Spot-Namen eingeben.")
+        elif not _sk:
+            st.warning("SEED_KEY fehlt in der App-Umgebung. In Render → App-Service → "
+                       "Environment die Variable **SEED_KEY** (derselbe Wert wie im Ingest) "
+                       "setzen – danach funktioniert der KI-Abruf direkt hier.")
+        else:
+            # Koordinaten zuerst sichern (helfen der KI, den Spot eindeutig zu finden).
+            if abs(lat) > 0.0001 or abs(lon) > 0.0001:
+                update_spot_coords(name, lat, lon)
+            _q = urlencode({"key": _sk, "spot": name, "hint": country.strip(), "force": "1"})
+            try:
+                with st.spinner("Claude schreibt die Beschreibung …"):
+                    _req = Request(f"{_ingest}/enrich_spots?{_q}",
+                                   headers={"User-Agent": "MyWaterSessions/1.0"})
+                    with urlopen(_req, timeout=60) as _resp:
+                        json.loads(_resp.read().decode("utf-8"))
+                load_spot_info.clear()
+                load_all_spot_info.clear()
+                _new = load_spot_info(name) or {}
+                if (_new.get("description") or "").strip():
+                    st.session_state["admin_spot_desc"] = _new.get("description")
+                    st.session_state["admin_spot_country"] = _new.get("country") or country
+                    st.session_state["_admin_spot_loaded"] = pick  # Rerun soll Felder nicht ueberschreiben
+                    st.success("KI-Beschreibung erzeugt & gespeichert – bitte oben prüfen.")
+                    st.rerun()
+                else:
+                    st.warning("Keine Beschreibung erhalten – bitte manuell eintragen.")
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"KI-Abruf fehlgeschlagen: {exc}")
+
     if st.button("💾 Spot speichern", type="primary", use_container_width=True):
         if not name:
             st.error("Bitte einen Spot-Namen eingeben.")
