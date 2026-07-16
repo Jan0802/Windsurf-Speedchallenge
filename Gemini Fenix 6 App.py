@@ -8777,8 +8777,9 @@ def render_admin_spots():
     Auswahlen (all_known_spots), im Wetter und im Spot-TV."""
     st.caption(
         "Spots selbst anlegen und ihre Koordinaten pflegen. Ein neuer Spot erscheint "
-        "sofort in den Location-Auswahlen, im Wetter und im Spot-TV. Die Beschreibung "
-        "und „Für wen geeignet?“ werden separat ergänzt."
+        "sofort in den Location-Auswahlen, im Wetter und im Spot-TV. Setze gleich hier "
+        "eine Beschreibung + Land, damit der Spot auch im Revierführer (Spots-Seite) "
+        "erscheint. („Für wen geeignet?“ kommt weiterhin per KI.)"
     )
 
     coords = load_spots()                 # {name: {lat, lon}} – nur mit Koordinaten
@@ -8792,13 +8793,18 @@ def render_admin_spots():
     if st.session_state.get("_admin_spot_loaded") != pick:
         st.session_state["_admin_spot_loaded"] = pick
         if pick != "– neuer Spot –":
+            _i = load_spot_info(pick) or {}
             st.session_state["admin_spot_name"] = pick
             st.session_state["admin_spot_lat"] = float((coords.get(pick) or {}).get("lat") or 0.0)
             st.session_state["admin_spot_lon"] = float((coords.get(pick) or {}).get("lon") or 0.0)
+            st.session_state["admin_spot_desc"] = _i.get("description") or ""
+            st.session_state["admin_spot_country"] = _i.get("country") or ""
         else:
             st.session_state["admin_spot_name"] = ""
             st.session_state["admin_spot_lat"] = 0.0
             st.session_state["admin_spot_lon"] = 0.0
+            st.session_state["admin_spot_desc"] = ""
+            st.session_state["admin_spot_country"] = ""
         st.rerun()
 
     name = st.text_input("Spot-Name", key="admin_spot_name").strip()
@@ -8824,6 +8830,14 @@ def render_admin_spots():
     st.caption("Tipp: In Google Maps auf den Punkt rechtsklicken → die beiden Zahlen "
                "(Breite, Länge) kopieren und hier eintragen.")
 
+    st.markdown("**Für den Revierführer (sonst erscheint der Spot NICHT auf der Spots-Seite):**")
+    desc = st.text_area(
+        "Beschreibung", key="admin_spot_desc", height=120,
+        help="Ohne Beschreibung wird der Spot auf der Spots-Seite nicht angezeigt.")
+    country = st.text_input(
+        "Land", key="admin_spot_country",
+        help="z.B. Deutschland – steuert die Länder-Auswahl auf der Spots-Seite.")
+
     if st.button("💾 Spot speichern", type="primary", use_container_width=True):
         if not name:
             st.error("Bitte einen Spot-Namen eingeben.")
@@ -8831,7 +8845,12 @@ def render_admin_spots():
             st.error("Bitte gültige Koordinaten eingeben (0/0 liegt im Meer vor Afrika).")
         else:
             update_spot_coords(name, lat, lon)
-            st.success(f"Spot „{name}“ gespeichert ({lat:.5f}, {lon:.5f}).")
+            # Beschreibung/Land nur schreiben, wenn gesetzt (Webcam-URL erhalten).
+            if desc.strip() or country.strip():
+                _ex = load_spot_info(name) or {}
+                save_spot_info(name, desc, _ex.get("webcam_url") or "", country=country)
+            _extra = " – im Revierführer sichtbar" if desc.strip() else ""
+            st.success(f"Spot „{name}“ gespeichert ({lat:.5f}, {lon:.5f}){_extra}.")
             st.session_state["_admin_spot_loaded"] = None  # Liste/Karte neu laden
             st.rerun()
 
