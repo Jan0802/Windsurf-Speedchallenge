@@ -4879,7 +4879,10 @@ def render_rankings(results_container):
             )
 
             if st.button("💾 Save current filters", use_container_width=True):
-                save_user_pref(username, {
+                # Bestehende Prefs laden und nur die Filter-Keys aktualisieren, damit
+                # z.B. das Standard-Board (fav_board*) NICHT ueberschrieben wird.
+                _pref_save = load_user_pref(username) or {}
+                _pref_save.update({
                     "group": st.session_state.get(f"rank_group_{sport}", ALL_GROUP),
                     "spot": st.session_state.get(f"rank_spot_{sport}", "Overall"),
                     "year": st.session_state.get(f"rank_year_{sport}", "All years"),
@@ -4891,10 +4894,16 @@ def render_rankings(results_container):
                     "tables": st.session_state.get(f"rank_tables_{sport}",
                                                    RANKING_TABLES_DEFAULT),
                 })
+                save_user_pref(username, _pref_save)
                 st.success("Saved – will be loaded on start from now on.")
 
             if preset and st.button("↺ Reset", use_container_width=True):
+                # Nur Filter zuruecksetzen – Standard-Board (fav_board*) behalten.
+                _keep = {k: v for k, v in (load_user_pref(username) or {}).items()
+                         if k in ("fav_board", "fav_board_vol")}
                 delete_user_pref(username)
+                if _keep:
+                    save_user_pref(username, _keep)
                 for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day",
                            "rank_gear", "rank_front", "rank_finmax", "rank_finbrand",
                            "rank_fincarbon", "rank_cols", "rank_tables", "rank_wfrom", "rank_wto"):
@@ -7427,6 +7436,70 @@ def render_spots_forecast(spot, coords):
             st.rerun()
 
 
+_SAIL_K = 1.5  # Freeride-Faustformel: Segel m² ~ K × Gewicht(kg) / Wind(kn)
+
+
+def _parse_board_volume(s):
+    """Volumen (Liter) aus einem Board-String, z.B. 'Tabou Rocket + 133L' -> 133."""
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*[lL]\b", str(s or "")) or \
+        re.search(r"(\d+(?:[.,]\d+)?)", str(s or ""))
+    try:
+        return float(m.group(1).replace(",", ".")) if m else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _own_sail_sizes(username, sport):
+    """[(size_m2, label)] aus den Segeln des Nutzers (Groesse in m², 2–15)."""
+    if not username:
+        return []
+    gear = (load_profiles().get(username, {}) or {}).get(SPORT_META[sport]["gear_key"], []) or []
+    out = []
+    for g in gear:
+        m = re.search(r"(\d+(?:[.,]\d+)?)\s*m", str(g)) or re.search(r"(\d+(?:[.,]\d+)?)", str(g))
+        try:
+            v = float(m.group(1).replace(",", ".")) if m else None
+        except Exception:  # noqa: BLE001
+            v = None
+        if v and 2.0 <= v <= 15.0:
+            out.append((v, str(g)))
+    return sorted(out)
+
+
+def _sail_ctx_for(username, sport):
+    """Vorberechnete Basis fuer die Segel-Empfehlung (einmal pro Render) oder None.
+    Nur Windsurf (dort gilt die Segelgroesse-Formel)."""
+    if sport != "windsurf" or not username:
+        return None
+    weight = load_user_weights().get(username)
+    if not weight:
+        return None
+    try:
+        vol = float((load_user_pref(username) or {}).get("fav_board_vol") or 0) or None
+    except Exception:  # noqa: BLE001
+        vol = None
+    return (float(weight), _own_sail_sizes(username, sport), vol)
+
+
+def _sail_pick(wind_kmh, ctx):
+    """Empfohlene Segelgroesse (str) fuer eine Windstaerke aus dem eigenen Quiver
+    (bei Zwischenwert das kleinere = boeensicher); ohne Quiver die Zielgroesse mit '~'."""
+    if not ctx or not wind_kmh:
+        return None
+    weight, sizes, vol = ctx
+    knots = wind_kmh / 1.852
+    if knots < 6:
+        return None  # zu wenig Wind zum Angleiten
+    target = _SAIL_K * weight / knots
+    if vol:
+        ref = weight + 30.0
+        target *= min(1.15, max(0.9, (ref / vol) ** 0.25))
+    if not sizes:
+        return f"~{target:.1f}"
+    best = min(sizes, key=lambda s: (abs(s[0] - target), s[0] - target))
+    return f"{best[0]:g}"
+
+
 def _render_hourly(spot, coords, day_index, show_thermal=False):
     """Stundenansicht (9–21 Uhr) eines Tages als Balken: Hoehe=Windstaerke,
     Farbe fliessend (gelb zu wenig -> gruen gut -> rot zu stark), Zahl in km/h.
@@ -7475,6 +7548,8 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
     wvals = [r[1] for r in rows if r[1] is not None]
     ref = max(70.0, max(gvals + wvals, default=0))   # auf max. Boe skalieren
     bars = []
+    # Segel-Empfehlung (nur Windsurf + eingeloggt + Gewicht): einmal vorberechnen.
+    _sail_ctx = _sail_ctx_for((st.session_state.get("user") or {}).get("username"), active_sport())
     for hh, w, g, d, rad, cloud, temp, code in rows:
         wv = w or 0
         gv = g if g is not None else wv
@@ -7495,6 +7570,8 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
             except Exception:  # noqa: BLE001
                 wx = ""
         temp_txt = f"{round(float(temp))}°" if temp is not None else ""
+        sail_txt = _sail_pick(wv, _sail_ctx)
+        sail_html = f"<div class='hb-sail'>🎽 {sail_txt}</div>" if sail_txt else ""
         therm = ""
         if show_thermal:
             lvl = _thermal_level(rad, cloud, hh)
@@ -7512,6 +7589,7 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
             f"<div class='hb-temp'>{temp_txt}</div>"
             f"<div class='hb-dir'>{comp}</div>"
             f"<div class='hb-gust-val'>⤴ {round(gv)}</div>"
+            f"{sail_html}"
             f"{therm}"
             "</div>"
         )
@@ -7521,6 +7599,8 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
     if show_thermal:
         legend += ("&nbsp;·&nbsp; 🌡️ thermal/sea-breeze potential "
                    "(<span style='color:#f5a623;'>● ●● ●●●</span> = weak→strong)")
+    if _sail_ctx:
+        legend += "&nbsp;·&nbsp; <span style='color:#2bd4d9;'>🎽 your sail size (m²)</span>"
 
     st.markdown(
         "<style>"
@@ -7543,6 +7623,7 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         ".hb-hr{font-size:13px;opacity:.75;margin-top:5px;}"
         ".hb-dir{font-size:12px;opacity:.55;}"
         ".hb-gust-val{font-size:11px;opacity:.5;}"
+        ".hb-sail{font-size:12px;font-weight:800;color:#2bd4d9;margin-top:2px;}"
         ".hb-therm{color:#f5a623;font-size:13px;margin-top:3px;letter-spacing:1px;min-height:16px;}"
         "</style>"
         "<div class='hb-wrap'>"
@@ -10845,6 +10926,43 @@ def render_user_profile(user):
                         added = copy_equipment(owner, user["username"])
                         st.success(f"Imported {added} item(s) from {owner}. ✅")
                         st.rerun()
+
+        # --- Sail advisor: Standard-Board fuer die Segel-Empfehlung (Windsurf) ---
+        if _section("🎯 Sail advisor (standard board)", f"sec_advisor_{user['id']}"):
+            st.caption(
+                "Pick your usual windsurf board. Together with your weight and your sails "
+                "we recommend the right sail per hour in the spot forecast (hourly view)."
+            )
+            _wb = (load_profiles().get(user["username"], {}) or {}).get(
+                SPORT_META["windsurf"]["boards_key"], []) or []
+            _pref = load_user_pref(user["username"]) or {}
+            _cur = _pref.get("fav_board") or ""
+            if not _wb:
+                st.caption("Add your windsurf boards under Equipment first, then pick one here.")
+            else:
+                _opts = ["– none –"] + _wb
+                _sel = st.selectbox(
+                    "Standard board", _opts,
+                    index=_opts.index(_cur) if _cur in _opts else 0,
+                    key=f"favboard_sel_{user['id']}")
+                if st.button("💾 Save standard board", key=f"favboard_save_{user['id']}",
+                             use_container_width=True):
+                    _p = load_user_pref(user["username"]) or {}
+                    if _sel == "– none –":
+                        _p.pop("fav_board", None)
+                        _p.pop("fav_board_vol", None)
+                    else:
+                        _p["fav_board"] = _sel
+                        _v = _parse_board_volume(_sel)
+                        _p["fav_board_vol"] = _v if _v else None
+                        if _p["fav_board_vol"] is None:
+                            _p.pop("fav_board_vol", None)
+                    save_user_pref(user["username"], _p)
+                    st.success("Saved – used for the sail recommendation.")
+                    st.rerun()
+            if not load_user_weights().get(user["username"]):
+                st.caption("⚠️ Set your weight under „Account details" – it's needed for the "
+                           "sail recommendation.")
 
         # --- Equipment (aktiver Sport; Spots sind sportübergreifend) ---
         st.markdown(f"**Equipment · {gear_meta['label']}**")
