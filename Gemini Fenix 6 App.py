@@ -2683,6 +2683,28 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
     _clear_ad_caches()
 
 
+def save_spot_class(spot, class_json):
+    """Manuelle „Für wen geeignet?"-Einstufung speichern (überschreibt die KI-Werte
+    in spot_class). class_json = fertiger JSON-String oder None/"" zum Leeren."""
+    if not spot:
+        return
+    _ensure_ad_tables()
+    val = (class_json or "").strip() or None
+    with get_engine().begin() as conn:
+        exists = conn.execute(
+            select(spot_info_table.c.spot).where(spot_info_table.c.spot == spot)
+        ).first()
+        if exists:
+            conn.execute(update(spot_info_table).where(spot_info_table.c.spot == spot)
+                         .values(spot_class=val, auto_filled=False))
+        else:
+            conn.execute(insert(spot_info_table).values(
+                spot=spot, spot_class=val, auto_filled=False))
+    _clear_ad_caches()
+    load_spot_info.clear()
+    load_all_spot_info.clear()
+
+
 def _is_image_url(url):
     """True, wenn die URL direkt auf ein Bild zeigt (Snapshot-Webcam)."""
     return bool(re.search(r"\.(jpe?g|png|webp|gif)(\?|$)", (url or "").split("#")[0], re.I))
@@ -8942,7 +8964,8 @@ def render_admin_spots():
         "Spots selbst anlegen und ihre Koordinaten pflegen. Ein neuer Spot erscheint "
         "sofort in den Location-Auswahlen, im Wetter und im Spot-TV. Setze gleich hier "
         "eine Beschreibung + Land, damit der Spot auch im Revierführer (Spots-Seite) "
-        "erscheint. („Für wen geeignet?“ kommt weiterhin per KI.)"
+        "erscheint. Die „Für wen geeignet?“-Einstufung (Anfänger/Flachwasser …) kannst du "
+        "unten manuell setzen oder per KI holen und dann korrigieren."
     )
 
     coords = load_spots()                 # {name: {lat, lon}} – nur mit Koordinaten
@@ -9049,6 +9072,91 @@ def render_admin_spots():
             _extra = " – im Revierführer sichtbar" if desc.strip() else ""
             st.success(f"Spot „{name}“ gespeichert ({lat:.5f}, {lon:.5f}){_extra}.")
             st.session_state["_admin_spot_loaded"] = None  # Liste/Karte neu laden
+            st.rerun()
+
+    # ---- „Für wen geeignet?"-Einstufung manuell setzen/korrigieren (überschreibt KI) ----
+    if name:
+        st.markdown("---")
+        st.markdown("**🎯 „Für wen geeignet?“ – manuell einstufen / KI korrigieren**")
+        st.caption(
+            "Überschreibt die KI-Einstufung dieses Spots. Für den Filter "
+            "**🟢 Beginner-friendly** muss „Level“ *beginner* enthalten ODER „Zum Lernen“ "
+            "= *yes* sein; für **🏞️ Flat water** muss „Wasser“ *flat* enthalten.")
+
+        _raw_sc = (load_spot_info(name) or {}).get("spot_class")
+        try:
+            _cur = json.loads(_raw_sc) if _raw_sc else {}
+        except (ValueError, TypeError):
+            _cur = {}
+        if not isinstance(_cur, dict):
+            _cur = {}
+
+        def _as_list(v):
+            return [str(x).lower() for x in v] if isinstance(v, list) else []
+
+        _LEVELS = ["beginner", "improver", "advanced", "pro"]
+        _WATERS = ["flat", "chop", "wave"]
+        _HAZARDS = ["offshore wind", "current", "rocks/reef", "shorebreak",
+                    "cold water", "crowd", "zone closures"]
+        _LEARN = ["–", "yes", "limited", "no"]
+        _SPORT_OPTS = ["na", "yes", "limited", "no"]
+        _SPORTS = [("windsurf", "Windsurf"), ("kite", "Kite"), ("wing", "Wing"),
+                   ("sup", "SUP"), ("wakeboard", "Wake")]
+
+        _cur_level = [x for x in _as_list(_cur.get("level")) if x in _LEVELS]
+        _cur_water = [x for x in _as_list(_cur.get("water")) if x in _WATERS]
+        _cur_haz = [x for x in _as_list(_cur.get("hazards")) if x in _HAZARDS]
+        _cur_learn = str(_cur.get("learn") or "").lower()
+        _cur_sports = _cur.get("sports") if isinstance(_cur.get("sports"), dict) else {}
+
+        e1, e2 = st.columns(2)
+        _lvl = e1.multiselect("Level", _LEVELS, default=_cur_level,
+                              key=f"sc_level_{name}")
+        _learn_sel = e2.selectbox(
+            "Zum Lernen geeignet?", _LEARN,
+            index=_LEARN.index(_cur_learn) if _cur_learn in _LEARN else 0,
+            key=f"sc_learn_{name}")
+        _wtr = st.multiselect("Wasser", _WATERS, default=_cur_water,
+                              key=f"sc_water_{name}")
+        _wind = st.text_input("Wind (kurzer Text, z. B. unreliable, SW/NE)",
+                              value=str(_cur.get("wind") or ""), key=f"sc_wind_{name}")
+        _haz = st.multiselect("Gefahren", _HAZARDS, default=_cur_haz,
+                              key=f"sc_haz_{name}")
+
+        st.caption("Sportarten (Eignung):")
+        _scols = st.columns(len(_SPORTS))
+        _sports_val = {}
+        for _i, (_k, _lbl) in enumerate(_SPORTS):
+            _cv = str(_cur_sports.get(_k) or "na").lower()
+            if _cv not in _SPORT_OPTS:
+                _cv = "na"
+            _sports_val[_k] = _scols[_i].selectbox(
+                _lbl, _SPORT_OPTS, index=_SPORT_OPTS.index(_cv),
+                key=f"sc_sport_{_k}_{name}")
+
+        sc1, sc2 = st.columns([3, 1])
+        if sc1.button("💾 Einstufung speichern", type="primary",
+                      use_container_width=True, key=f"sc_save_{name}"):
+            _obj = {
+                "level": _lvl,
+                "learn": "" if _learn_sel == "–" else _learn_sel,
+                "water": _wtr,
+                "wind": _wind.strip(),
+                "hazards": _haz,
+                "sports": _sports_val,
+            }
+            save_spot_class(name, json.dumps(_obj, ensure_ascii=False))
+            _flags = []
+            if "beginner" in _lvl or _learn_sel == "yes":
+                _flags.append("🟢 Beginner-friendly")
+            if "flat" in _wtr:
+                _flags.append("🏞️ Flat water")
+            _hint = (" – erscheint jetzt unter: " + ", ".join(_flags)) if _flags else ""
+            st.success(f"Einstufung für „{name}“ gespeichert{_hint}.")
+            st.rerun()
+        if sc2.button("🗑️ Leeren", use_container_width=True, key=f"sc_clear_{name}"):
+            save_spot_class(name, None)
+            st.success(f"Einstufung für „{name}“ geleert (KI kann sie neu setzen).")
             st.rerun()
 
     if coords:
