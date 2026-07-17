@@ -7436,7 +7436,14 @@ def render_spots_forecast(spot, coords):
             st.rerun()
 
 
-_SAIL_K = 1.5  # Freeride-Faustformel: Segel m² ~ K × Gewicht(kg) / Wind(kn)
+# Segel-/Schirm-Empfehlung je Sportart: Groesse m² ~ k × Gewicht(kg) / Wind(kn).
+# k/min_kn aus gaengigen Groessen-Charts kalibriert; Board-Volumen-Feinschliff nur
+# Windsurf (Kite/Wing haengen am Foil/Schirm, Boardvolumen kaum relevant).
+_ADVISOR = {
+    "windsurf": {"k": 1.5,  "min_kn": 6, "board": True,  "emoji": "🎽"},
+    "kitesurf": {"k": 2.3,  "min_kn": 9, "board": False, "emoji": "🪁"},
+    "wingsurf": {"k": 0.95, "min_kn": 8, "board": False, "emoji": "🪽"},
+}
 
 
 def _parse_board_volume(s):
@@ -7461,39 +7468,43 @@ def _own_sail_sizes(username, sport):
             v = float(m.group(1).replace(",", ".")) if m else None
         except Exception:  # noqa: BLE001
             v = None
-        if v and 2.0 <= v <= 15.0:
+        if v and 2.0 <= v <= 19.0:   # 2–19 deckt Wing (klein) bis Kite (gross) ab
             out.append((v, str(g)))
     return sorted(out)
 
 
 def _sail_ctx_for(username, sport):
-    """Vorberechnete Basis fuer die Segel-Empfehlung (einmal pro Render) oder None.
-    Nur Windsurf (dort gilt die Segelgroesse-Formel)."""
-    if sport != "windsurf" or not username:
+    """Vorberechnete Basis fuer die Groessen-Empfehlung (einmal pro Render) oder None.
+    Unterstuetzt Windsurf/Kite/Wing (siehe _ADVISOR); Board-Volumen nur Windsurf."""
+    cfg = _ADVISOR.get(sport)
+    if not cfg or not username:
         return None
     weight = load_user_weights().get(username)
     if not weight:
         return None
-    try:
-        vol = float((load_user_pref(username) or {}).get("fav_board_vol") or 0) or None
-    except Exception:  # noqa: BLE001
-        vol = None
-    return (float(weight), _own_sail_sizes(username, sport), vol)
+    vol = None
+    if cfg["board"]:
+        try:
+            vol = float((load_user_pref(username) or {}).get("fav_board_vol") or 0) or None
+        except Exception:  # noqa: BLE001
+            vol = None
+    return {"weight": float(weight), "sizes": _own_sail_sizes(username, sport),
+            "vol": vol, "k": cfg["k"], "min_kn": cfg["min_kn"], "emoji": cfg["emoji"]}
 
 
 def _sail_pick(wind_kmh, ctx):
-    """Empfohlene Segelgroesse (str) fuer eine Windstaerke aus dem eigenen Quiver
-    (bei Zwischenwert das kleinere = boeensicher); ohne Quiver die Zielgroesse mit '~'."""
+    """Empfohlene Groesse (str) fuer eine Windstaerke aus dem eigenen Quiver (bei
+    Zwischenwert das kleinere = boeensicher); ohne Quiver die Zielgroesse mit '~'."""
     if not ctx or not wind_kmh:
         return None
-    weight, sizes, vol = ctx
     knots = wind_kmh / 1.852
-    if knots < 6:
-        return None  # zu wenig Wind zum Angleiten
-    target = _SAIL_K * weight / knots
-    if vol:
-        ref = weight + 30.0
-        target *= min(1.15, max(0.9, (ref / vol) ** 0.25))
+    if knots < ctx["min_kn"]:
+        return None  # zu wenig Wind zum Angleiten/Fahren
+    target = ctx["k"] * ctx["weight"] / knots
+    if ctx["vol"]:
+        ref = ctx["weight"] + 30.0
+        target *= min(1.15, max(0.9, (ref / ctx["vol"]) ** 0.25))
+    sizes = ctx["sizes"]
     if not sizes:
         return f"~{target:.1f}"
     best = min(sizes, key=lambda s: (abs(s[0] - target), s[0] - target))
@@ -7571,7 +7582,8 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
                 wx = ""
         temp_txt = f"{round(float(temp))}°" if temp is not None else ""
         sail_txt = _sail_pick(wv, _sail_ctx)
-        sail_html = f"<div class='hb-sail'>🎽 {sail_txt}</div>" if sail_txt else ""
+        sail_html = (f"<div class='hb-sail'>{_sail_ctx['emoji']} {sail_txt}</div>"
+                     if sail_txt else "")
         therm = ""
         if show_thermal:
             lvl = _thermal_level(rad, cloud, hh)
@@ -7600,7 +7612,9 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         legend += ("&nbsp;·&nbsp; 🌡️ thermal/sea-breeze potential "
                    "(<span style='color:#f5a623;'>● ●● ●●●</span> = weak→strong)")
     if _sail_ctx:
-        legend += "&nbsp;·&nbsp; <span style='color:#2bd4d9;'>🎽 your sail size (m²)</span>"
+        _gl = SPORT_META[active_sport()]["gear_label"].lower()
+        legend += (f"&nbsp;·&nbsp; <span style='color:#2bd4d9;'>{_sail_ctx['emoji']} "
+                   f"your {_gl} size (m²)</span>")
 
     st.markdown(
         "<style>"
@@ -10931,7 +10945,9 @@ def render_user_profile(user):
         if _section("🎯 Sail advisor (standard board)", f"sec_advisor_{user['id']}"):
             st.caption(
                 "Pick your usual windsurf board. Together with your weight and your sails "
-                "we recommend the right sail per hour in the spot forecast (hourly view)."
+                "we recommend the right sail per hour in the spot forecast (hourly view). "
+                "Kite & wing need no board here – they use your weight + your kites/wings "
+                "automatically."
             )
             _wb = (load_profiles().get(user["username"], {}) or {}).get(
                 SPORT_META["windsurf"]["boards_key"], []) or []
