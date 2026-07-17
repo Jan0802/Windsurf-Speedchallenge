@@ -2523,11 +2523,11 @@ def save_webcam_sponsor(spot, name, url):
 
 # --- Community-Sterne-Bewertung je Spot (nur Sterne) -------------------------
 _RATING_CATS = [
-    ("conditions", "Bedingungen"),
-    ("infrastructure", "Infrastruktur"),
-    ("ambience", "Ambiente"),
-    ("beginner", "Für Anfänger"),
-    ("advanced", "Für Fortgeschrittene"),
+    ("conditions", "Conditions"),
+    ("infrastructure", "Infrastructure"),
+    ("ambience", "Ambience"),
+    ("beginner", "For beginners"),
+    ("advanced", "For advanced"),
 ]
 
 
@@ -7587,8 +7587,10 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
     wvals = [r[1] for r in rows if r[1] is not None]
     ref = max(70.0, max(gvals + wvals, default=0))   # auf max. Boe skalieren
     bars = []
-    # Segel-Empfehlung (nur Windsurf + eingeloggt + Gewicht): einmal vorberechnen.
-    _sail_ctx = _sail_ctx_for((st.session_state.get("user") or {}).get("username"), active_sport())
+    # Groessen-Empfehlung (Windsurf/Kite/Wing + eingeloggt + Gewicht): einmal vorberechnen.
+    _uname = (st.session_state.get("user") or {}).get("username")
+    _sail_ctx = _sail_ctx_for(_uname, active_sport())
+    _any_sail = False
     for hh, w, g, d, rad, cloud, temp, code in rows:
         wv = w or 0
         gv = g if g is not None else wv
@@ -7610,6 +7612,8 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
                 wx = ""
         temp_txt = f"{round(float(temp))}°" if temp is not None else ""
         sail_txt = _sail_pick(wv, _sail_ctx)
+        if sail_txt:
+            _any_sail = True
         sail_html = (f"<div class='hb-sail'>{_sail_ctx['emoji']} {sail_txt}</div>"
                      if sail_txt else "")
         therm = ""
@@ -7677,9 +7681,19 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         unsafe_allow_html=True,
     )
 
-
-@st.fragment(run_every=30)
-def _tv_bottom_info(cfg):
+    # Warum steht (k)eine Groessen-Empfehlung da? Kurzer Hinweis fuer eingeloggte
+    # Nutzer in einer unterstuetzten Sportart – erklaert das Ausbleiben.
+    if _uname and active_sport() in _ADVISOR:
+        _gl = SPORT_META[active_sport()]["gear_label"].lower()
+        if _sail_ctx is None:
+            st.caption(f"🎽 Set your weight in your profile (Account details) to get a "
+                       f"per-hour {_gl} size recommendation here.")
+        elif not _any_sail:
+            st.caption(f"🎽 Too light for a {_gl} recommendation on this day "
+                       "(needs more wind to get going).")
+        elif not _sail_ctx.get("sizes"):
+            st.caption(f"🎽 Showing a target size (~). Add your {_gl}s in your equipment "
+                       "to see which of YOUR sizes fits.")
     """Unterer Bereich: wechselt alle 60 s zwischen Spot-Info und 3-Tage-Vorhersage
     (bewusst langsamer als das Leaderboard, das alle 30 s die Wertung wechselt).
     Gibt es nur eins von beiden, wird dieses dauerhaft gezeigt."""
