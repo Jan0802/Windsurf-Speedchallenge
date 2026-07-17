@@ -8902,17 +8902,21 @@ def render_admin():
 
     _fb_new = feedback_unhandled_count()
     fb_label = f"💬 Feedback ({_fb_new})" if _fb_new else "💬 Feedback"
-    tab_ads, tab_spots, tab_profiles, tab_analytics, tab_fb = st.tabs(
-        ["📣 Werbung pro Spot", "📍 Spots", "👤 Profile", "📊 Web Analytics", fb_label])
-    with tab_ads:
+    # WICHTIG: st.tabs rendert ALLE Tab-Inhalte bei jedem Rerun serverseitig – auf
+    # der 512-MB-Instanz fuehrte das im Backoffice (Karte/Profile/Analytics
+    # gleichzeitig) zu Segfaults/502. Radio -> nur der gewaehlte Bereich rendert.
+    _sections = ["📣 Werbung pro Spot", "📍 Spots", "👤 Profile", "📊 Web Analytics", fb_label]
+    _pick = st.radio("Bereich", _sections, horizontal=True, key="admin_section",
+                     label_visibility="collapsed")
+    if _pick == _sections[0]:
         render_admin_ads()
-    with tab_spots:
+    elif _pick == _sections[1]:
         render_admin_spots()
-    with tab_profiles:
+    elif _pick == _sections[2]:
         render_admin_profiles()
-    with tab_analytics:
+    elif _pick == _sections[3]:
         render_admin_analytics()
-    with tab_fb:
+    else:
         render_admin_feedback()
 
 
