@@ -2390,6 +2390,34 @@ def load_spot_products(spot, sport=None, only_active=False, include_all=False):
     return [dict(r) for r in rows]
 
 
+# Globaler Haupt-Sponsor (Fallback fuer Spots OHNE eigenen Sponsor). Als normaler
+# spot_ads-Eintrag unter diesem Sentinel-Namen gepflegt -> volle Wiederverwendung
+# der Logo-/Produkt-/Caption-Verwaltung im Backoffice.
+GLOBAL_AD_SPOT = "★ Main sponsor (all spots)"
+
+
+def _ad_active_content(ad):
+    """True, wenn eine Werbung aktiv ist UND Inhalt hat (Name/Logo/Link)."""
+    return bool(ad and ad.get("active", True)
+                and (ad.get("sponsor_name") or ad.get("logo") or ad.get("sponsor_url")))
+
+
+def _resolve_tv_ad(spot, sport):
+    """TV-Sponsor: eigener Spot-Sponsor, sonst der globale Haupt-Sponsor (Fallback)."""
+    ad = load_spot_ad(spot, sport, resolve=True)
+    if _ad_active_content(ad):
+        return ad
+    g = load_spot_ad(GLOBAL_AD_SPOT, sport, resolve=True)
+    return g if _ad_active_content(g) else ad
+
+
+def _tv_product_cards(spot, sport):
+    """Produkt-Karten des Spots; hat der Spot keinen eigenen Sponsor -> die des
+    globalen Haupt-Sponsors (konsistent mit dem angezeigten Logo)."""
+    src = spot if _ad_active_content(load_spot_ad(spot, sport, resolve=True)) else GLOBAL_AD_SPOT
+    return _product_cards_html(src, sport)
+
+
 def save_spot_product(product_id, spot, title, price, url, active, sort_order,
                       image_bytes=None, image_mime=None, clear_image=False, sport=""):
     _ensure_ad_tables()
@@ -6479,10 +6507,10 @@ def _render_join_qr(cfg):
     else:
         qr_html = f"<div class='tv-join-qr tv-join-qr-text'>{url}</div>"
 
-    cards = _product_cards_html(cfg["spot"], cfg["sport"])
+    cards = _tv_product_cards(cfg["spot"], cfg["sport"])
     deals_html = ""
     if cards:
-        ad = load_spot_ad(cfg["spot"], cfg["sport"], resolve=True) or {}
+        ad = _resolve_tv_ad(cfg["spot"], cfg["sport"]) or {}
         sponsor = ad.get("sponsor_name")
         # Freie Überschrift aus dem Backoffice hat Vorrang; sonst der Default.
         head = (ad.get("products_heading") or "").strip() or (
@@ -6781,8 +6809,8 @@ def _spot_sponsor_img(cfg):
         return cfg["logo"], (cfg["sponsor"] or None)
 
     # Im Backoffice gepflegter Eintrag hat Vorrang (sofern aktiv). Sportart-Werbung
-    # zuerst, sonst Rueckfall auf die 'Alle Sportarten'-Werbung.
-    ad = load_spot_ad(cfg["spot"], cfg["sport"], resolve=True)
+    # zuerst, dann 'Alle Sportarten', sonst der globale Haupt-Sponsor (Fallback).
+    ad = _resolve_tv_ad(cfg["spot"], cfg["sport"])
     if ad and ad.get("active", True):
         name = ad.get("sponsor_name") or (cfg["sponsor"] or None)
         uri = _bytes_to_data_uri(ad.get("logo"), ad.get("logo_mime"))
@@ -6902,7 +6930,7 @@ def render_spot_tv(cfg):
     # Sponsor/Werbung oben rechts, je Spot (auf hellem Chip, damit dunkle Logos
     # sichtbar bleiben). Logo wenn vorhanden, sonst "Presented by <Name>".
     ad_src, ad_name = _spot_sponsor_img(cfg)
-    ad_row = load_spot_ad(cfg["spot"], cfg["sport"], resolve=True) or {}
+    ad_row = _resolve_tv_ad(cfg["spot"], cfg["sport"]) or {}
     ad_url = ad_row.get("sponsor_url") or ""
     if ad_src:
         cap = (ad_row.get("logo_caption") or "").strip() or "sponsored by"
@@ -9025,13 +9053,18 @@ def render_admin_ads():
     spots = _all_spot_names()
 
     col_a, col_b = st.columns(2)
-    choice = col_a.selectbox("Spot wählen", ["– auswählen –"] + spots, key="admin_ad_spot")
+    choice = col_a.selectbox("Spot wählen", ["– auswählen –", GLOBAL_AD_SPOT] + spots,
+                             key="admin_ad_spot")
     new_spot = col_b.text_input("…oder neuer Spot-Name", key="admin_ad_newspot").strip()
     spot = new_spot or (choice if choice != "– auswählen –" else "")
 
     if not spot:
         st.info("Spot wählen oder eingeben, um die Werbung zu verwalten.")
         return
+    if spot == GLOBAL_AD_SPOT:
+        st.info("🌐 **Globaler Haupt-Sponsor** – Logo & Produkte hier erscheinen auf **jedem** "
+                "Spot-TV, das **keinen eigenen** Sponsor hat (z. B. MusicStore überall). Sobald "
+                "ein Spot einen eigenen Sponsor bekommt, ersetzt dieser dort den globalen.")
 
     # Werbung je Sportart aufteilen: "" = Alle Sportarten (Standard), sonst pro Sportart.
     def _sport_label(k):
