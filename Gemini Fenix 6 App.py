@@ -7716,6 +7716,10 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         elif not _sail_ctx.get("sizes"):
             st.caption(f"🎽 Showing a target size (~). Add your {_gl}s in your equipment "
                        "to see which of YOUR sizes fits.")
+
+
+@st.fragment(run_every=30)
+def _tv_bottom_info(cfg):
     """Unterer Bereich: wechselt alle 60 s zwischen Spot-Info und 3-Tage-Vorhersage
     (bewusst langsamer als das Leaderboard, das alle 30 s die Wertung wechselt).
     Gibt es nur eins von beiden, wird dieses dauerhaft gezeigt."""
