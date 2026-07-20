@@ -713,6 +713,7 @@ sessions_table = Table(
     Column("start_lat", Float),          # Startposition (von der Uhr)
     Column("start_lon", Float),
     Column("track", String),             # GPS-Route als JSON [[lat,lon],...]
+    Column("gybes", String),             # Halsen der Uhr als JSON [{t,approach,apex,flip,recovery}]
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -1140,6 +1141,7 @@ _WATCH_COLUMNS = {
     "start_lat": "DOUBLE PRECISION",
     "start_lon": "DOUBLE PRECISION",
     "track": "TEXT",
+    "gybes": "TEXT",
 }
 
 @st.cache_resource(show_spinner=False)
@@ -8259,8 +8261,98 @@ def _detect_gybes(track_pts, v_kn, t_min, min_entry_kn=10.0, turn_deg=90.0):
         ret = (exit_ / entry * 100.0) if entry > 0 else 0.0
         color = "#25c26b" if ret >= 70 else ("#e0b000" if ret >= 50 else "#e5484d")
         out.append({"n": k, "i": i, "t": float(t_min[i]),
-                    "entry": entry, "exit": exit_, "ret": ret, "color": color})
+                    "entry": entry, "exit": exit_, "ret": ret, "color": color,
+                    "src": "track"})
     return out
+
+
+def _parse_watch_gybes(raw):
+    """Von der Uhr gesendete Halsen (JSON [{t,approach,apex,flip,recovery}] in kn,
+    -1 = kein Messpunkt) -> Liste oder None."""
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return None
+    data = raw
+    if isinstance(raw, str):
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            return None
+    return data if isinstance(data, list) and data else None
+
+
+def _watch_gybes_to_markers(wg, t_min, v_kn):
+    """Uhr-Halsen in dieselbe Marker-Form wie die Track-Erkennung bringen
+    (auf der Kurve platziert über die nächstgelegene Zeit)."""
+    out = []
+    for k, g in enumerate(wg, 1):
+        tmin = float(g.get("t") or 0) / 60.0
+        i = int(np.argmin(np.abs(t_min - tmin))) if len(t_min) else 0
+        appr = g.get("approach") or 0
+        rec = g.get("recovery") or 0
+        ret = (rec / appr * 100.0) if (appr > 0 and rec > 0) else 0.0
+        color = "#25c26b" if ret >= 70 else ("#e0b000" if ret >= 50 else "#e5484d")
+        out.append({"n": k, "i": i, "t": tmin,
+                    "entry": appr if appr > 0 else 0, "exit": rec if rec > 0 else 0,
+                    "ret": ret, "color": color, "src": "watch", "phases": g})
+    return out
+
+
+def _render_gybe_detail_watch(gybe, glide_kn):
+    """Einzel-Halsen-Detail aus den EXAKTEN, on-device (1 Hz) berechneten Phasen
+    der Uhr: 4 Kennzahlen + 4-Phasen-Balkenprofil."""
+    ph = gybe["phases"]
+    approach = ph.get("approach")
+    apex = ph.get("apex")
+    flip = ph.get("flip")
+    recovery = ph.get("recovery")
+
+    def _v(x):
+        return None if x is None or x < 0 else float(x)
+
+    approach, apex, flip, recovery = _v(approach), _v(apex), _v(flip), _v(recovery)
+    kept = (recovery / approach * 100.0) if (approach and recovery) else None
+
+    st.markdown(f"#### 🔍 Gybe {gybe['n']} — phase analysis (from watch, per second)")
+    c = st.columns(4)
+    c[0].metric("① Approach −50 m", "–" if approach is None else f"{approach:.1f} kn")
+    c[1].metric("② Apex", "–" if apex is None else f"{apex:.1f} kn",
+                None if (apex is None or approach is None) else f"{apex - approach:+.1f} vs approach",
+                delta_color="off")
+    c[2].metric("③ Rig flip +10 m", "–" if flip is None else f"{flip:.1f} kn")
+    c[3].metric("④ Recovery +50 m", "–" if recovery is None else f"{recovery:.1f} kn",
+                None if kept is None else f"{kept:.0f}% kept", delta_color="off")
+
+    # 4-Phasen-Balkenprofil (Speed je Phase) mit Gleitschwelle.
+    phases = [("Approach", approach, "#2bd4d9"), ("Apex", apex, "#e5484d"),
+              ("Flip +10m", flip, "#e0b000"), ("Recovery", recovery, "#25c26b")]
+    vals = [v for _, v, _ in phases if v is not None]
+    y_max = max(max(vals) * 1.15 if vals else 8.0, glide_kn * 1.2, 8.0)
+    W, H = 460.0, 190.0
+    L, R, T, B = 34.0, 12.0, 12.0, 26.0
+    px0, px1, py0, py1 = L, W - R, T, H - B
+    bw = (px1 - px0) / len(phases)
+    gy = py1 - (min(glide_kn, y_max) / y_max) * (py1 - py0)
+    bars = ""
+    for idx, (lbl, v, col) in enumerate(phases):
+        cx = px0 + bw * (idx + 0.5)
+        if v is not None:
+            bh = (min(v, y_max) / y_max) * (py1 - py0)
+            bars += (f"<rect x='{px0 + bw * idx + bw * 0.2:.1f}' y='{py1 - bh:.1f}' "
+                     f"width='{bw * 0.6:.1f}' height='{bh:.1f}' fill='{col}' rx='3'/>"
+                     f"<text x='{cx:.1f}' y='{py1 - bh - 4:.1f}' fill='#eaf4ff' "
+                     f"font-size='11' font-weight='700' text-anchor='middle'>{v:.1f}</text>")
+        bars += (f"<text x='{cx:.1f}' y='{H - 8:.1f}' fill='#7fa6b2' font-size='10' "
+                 f"text-anchor='middle'>{lbl}</text>")
+    svg = (f"<svg viewBox='0 0 {W:.0f} {H:.0f}' width='100%' style='max-width:480px;"
+           "background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);"
+           f"border-radius:12px'>{bars}"
+           f"<line x1='{px0}' y1='{gy:.1f}' x2='{px1}' y2='{gy:.1f}' stroke='#e0b000' "
+           "stroke-width='1' stroke-dasharray='5 4'/>"
+           f"<text x='{px1 - 2:.1f}' y='{gy - 4:.1f}' fill='#e0b000' font-size='10' "
+           f"text-anchor='end'>glide ~{glide_kn:.0f} kn</text></svg>")
+    components.html(f"<div style='font-family:system-ui,sans-serif'>{svg}</div>", height=200)
+    st.caption("Exact phase speeds, computed on the watch second-by-second. "
+               "🟦 approach · 🟥 apex · 🟨 rig-flip · 🟩 recovery.")
 
 
 def _render_gybe_detail(track_pts, v_kn, gybe, glide_kn, dt):
@@ -8438,8 +8530,13 @@ def _render_speed_curve(track_pts, duration_s, record):
                f"<text x='{tx + 6:.1f}' y='{ty - 4:.1f}' fill='#eaf4ff' font-size='11' "
                f"font-weight='700'>top {top_kn:.1f} kn</text>")
 
-    # Halsen/Wenden erkennen und als nummerierte Marker auf die Kurve setzen.
-    gybes = _detect_gybes(track_pts, v_kn, t_min)
+    # Halsen: bevorzugt die EXAKTEN, von der Uhr berechneten Werte; sonst grobe
+    # Erkennung aus dem Track. Als nummerierte Marker auf die Kurve setzen.
+    _watch_g = _parse_watch_gybes(record.get("gybes"))
+    if _watch_g:
+        gybes = _watch_gybes_to_markers(_watch_g, t_min, v_kn)
+    else:
+        gybes = _detect_gybes(track_pts, v_kn, t_min)
     gmarks = ""
     for g in gybes:
         gx, gy = X(g["t"]), Y(float(v_kn[g["i"]]))
@@ -8502,9 +8599,13 @@ def _render_speed_curve(track_pts, duration_s, record):
             "<th style='padding:3px 10px'>Entry</th><th style='padding:3px 10px'>Exit</th>"
             "<th style='padding:3px 10px'>Kept</th></tr>" + rows + "</table>",
             unsafe_allow_html=True)
-        st.caption("🟢 ≥70% kept · 🟡 50–70% · 🔴 <50%. Detected from course reversals "
-                   "at planing speed. Coarse at the current ~"
-                   f"{dt:.0f}s GPS rate — a higher watch sampling rate will sharpen this.")
+        if gybes[0].get("src") == "watch":
+            st.caption("🟢 ≥70% kept · 🟡 50–70% · 🔴 <50%. Computed on the watch "
+                       "second-by-second — pick a gybe below for the exact phase speeds.")
+        else:
+            st.caption("🟢 ≥70% kept · 🟡 50–70% · 🔴 <50%. Detected from course reversals "
+                       f"at planing speed. Coarse at the current ~{dt:.0f}s GPS rate — the "
+                       "watch update computes this per second.")
 
         # Einzelne Halse zur Detailanalyse auswählen.
         _sid = record.get("id")
@@ -8514,7 +8615,11 @@ def _render_speed_curve(track_pts, duration_s, record):
         if _sel != "–":
             _gi = int(_sel.split()[1]) - 1
             if 0 <= _gi < len(gybes):
-                _render_gybe_detail(track_pts, v_kn, gybes[_gi], glide_kn, dt)
+                _g = gybes[_gi]
+                if _g.get("src") == "watch":
+                    _render_gybe_detail_watch(_g, glide_kn)
+                else:
+                    _render_gybe_detail(track_pts, v_kn, _g, glide_kn, dt)
 
 
 def render_history_overview(record):
