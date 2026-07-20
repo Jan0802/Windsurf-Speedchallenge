@@ -8263,6 +8263,90 @@ def _detect_gybes(track_pts, v_kn, t_min, min_entry_kn=10.0, turn_deg=90.0):
     return out
 
 
+def _render_gybe_detail(track_pts, v_kn, gybe, glide_kn, dt):
+    """Einzel-Halsen-Detail: 4 Phasen relativ zum Scheitelpunkt (Anfahrt −50 m,
+    Einlenken→Scheitel, Scheitel→+10 m Rigg-Flip, Ausfahrt +50 m) + gezoomte
+    Speed-über-Distanz-Kurve. Werte aus dem GPS-Track (grob), später von der Uhr."""
+    lat = np.array([p[0] for p in track_pts], dtype=float)
+    lon = np.array([p[1] for p in track_pts], dtype=float)
+    seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])   # len = len(v_kn)
+    dist_end = np.cumsum(seg)                                  # Distanz am Segment-Ende
+    gi = gybe["i"]
+    d_apex = float(dist_end[gi])
+    rel = dist_end - d_apex                                    # Meter relativ zum Scheitel
+
+    def _phase(lo, hi, agg):
+        m = (rel >= lo) & (rel < hi)
+        return float(agg(v_kn[m])) if m.any() else None
+
+    approach = _phase(-50, -10, np.max)      # Anfahrt-Referenz
+    apex = float(v_kn[gi])                    # Scheitel (tiefster Punkt)
+    flip = _phase(0, 10, np.min)             # Rigg-Flip-Zone
+    recovery = _phase(10, 50, np.max)        # Ausfahrt / wieder angeglitten
+    kept = (recovery / approach * 100.0) if (approach and recovery) else None
+
+    st.markdown(f"#### 🔍 Gybe {gybe['n']} — phase analysis")
+    c = st.columns(4)
+    c[0].metric("① Approach −50 m", "–" if approach is None else f"{approach:.1f} kn")
+    c[1].metric("② Apex", f"{apex:.1f} kn",
+                None if approach is None else f"{apex - approach:+.1f} vs approach",
+                delta_color="off")
+    c[2].metric("③ Rig flip +10 m", "–" if flip is None else f"{flip:.1f} kn")
+    c[3].metric("④ Recovery +50 m", "–" if recovery is None else f"{recovery:.1f} kn",
+                None if kept is None else f"{kept:.0f}% kept", delta_color="off")
+
+    # Gezoomte Speed-über-Distanz-Kurve (−60 .. +60 m um den Scheitel).
+    win = (rel >= -60) & (rel <= 60)
+    if win.sum() >= 2:
+        W, H = 680.0, 200.0
+        L, R, T, B = 40.0, 12.0, 14.0, 24.0
+        px0, px1, py0, py1 = L, W - R, T, H - B
+        wv = v_kn[win]
+        y_max = max(float(np.max(wv)) * 1.12, glide_kn * 1.2, 8.0)
+        y_max = float(np.ceil(y_max / 2.0) * 2.0)
+
+        def X(m):
+            return px0 + ((m + 60.0) / 120.0) * (px1 - px0)
+
+        def Y(kn):
+            return py1 - (min(kn, y_max) / y_max) * (py1 - py0)
+
+        # Phasen-Bänder: Anfahrt (−50..−10), Rigg-Flip (0..+10), Ausfahrt (+10..+50).
+        bands = (f"<rect x='{X(-50):.1f}' y='{py0}' width='{X(-10) - X(-50):.1f}' "
+                 f"height='{py1 - py0:.1f}' fill='rgba(43,212,217,.10)'/>"
+                 f"<rect x='{X(0):.1f}' y='{py0}' width='{X(10) - X(0):.1f}' "
+                 f"height='{py1 - py0:.1f}' fill='rgba(229,72,77,.14)'/>"
+                 f"<rect x='{X(10):.1f}' y='{py0}' width='{X(50) - X(10):.1f}' "
+                 f"height='{py1 - py0:.1f}' fill='rgba(37,194,107,.12)'/>")
+        apexline = (f"<line x1='{X(0):.1f}' y1='{py0}' x2='{X(0):.1f}' y2='{py1:.1f}' "
+                    "stroke='#eaf4ff' stroke-width='1' stroke-dasharray='3 3'/>"
+                    f"<text x='{X(0):.1f}' y='{py0 + 9:.1f}' fill='#eaf4ff' font-size='9' "
+                    "text-anchor='middle'>apex</text>")
+        gy = Y(glide_kn)
+        gline = (f"<line x1='{px0}' y1='{gy:.1f}' x2='{px1}' y2='{gy:.1f}' "
+                 "stroke='#e0b000' stroke-width='1' stroke-dasharray='5 4'/>")
+        rw = rel[win]
+        poly = " ".join(f"{X(float(rw[i])):.1f},{Y(float(wv[i])):.1f}"
+                        for i in range(len(wv)))
+        dots = "".join(f"<circle cx='{X(float(rw[i])):.1f}' cy='{Y(float(wv[i])):.1f}' "
+                       "r='2.6' fill='#2bd4d9'/>" for i in range(len(wv)))
+        xlab = "".join(
+            f"<text x='{X(m):.1f}' y='{H - 8:.1f}' fill='#7fa6b2' font-size='9' "
+            f"text-anchor='middle'>{m:+.0f}</text>" for m in (-50, -10, 0, 10, 50))
+        svg = (f"<svg viewBox='0 0 {W:.0f} {H:.0f}' width='100%' style='max-width:700px;"
+               "background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);"
+               f"border-radius:12px'>{bands}{gline}{apexline}"
+               f"<polyline points='{poly}' fill='none' stroke='#2bd4d9' stroke-width='1.6'/>"
+               f"{dots}{xlab}"
+               f"<text x='{(px0 + px1) / 2:.1f}' y='{H - 0.5:.1f}' fill='#7fa6b2' "
+               "font-size='9' text-anchor='middle'>distance from apex (m)</text></svg>")
+        components.html(f"<div style='font-family:system-ui,sans-serif'>{svg}</div>",
+                        height=210)
+    st.caption("🟦 approach · 🟥 rig-flip zone · 🟩 recovery. Phases from the current "
+               f"~{dt:.0f}s GPS track (coarse — often 0–1 points per section); the watch "
+               "update will compute these per second on-device for exact phase speeds.")
+
+
 def _render_speed_curve(track_pts, duration_s, record):
     """Speed-über-Zeit-Kurve (Inline-SVG, kein matplotlib) mit Gleitschwelle,
     schattierten Runs, hervorgehobenem längstem Run und echtem Top-Speed."""
@@ -8421,6 +8505,16 @@ def _render_speed_curve(track_pts, duration_s, record):
         st.caption("🟢 ≥70% kept · 🟡 50–70% · 🔴 <50%. Detected from course reversals "
                    "at planing speed. Coarse at the current ~"
                    f"{dt:.0f}s GPS rate — a higher watch sampling rate will sharpen this.")
+
+        # Einzelne Halse zur Detailanalyse auswählen.
+        _sid = record.get("id")
+        _opts = ["–"] + [f"Gybe {g['n']}" for g in gybes]
+        _sel = st.selectbox("🔍 Analyze a single gybe", _opts,
+                            key=f"gybe_sel_{_sid}")
+        if _sel != "–":
+            _gi = int(_sel.split()[1]) - 1
+            if 0 <= _gi < len(gybes):
+                _render_gybe_detail(track_pts, v_kn, gybes[_gi], glide_kn, dt)
 
 
 def render_history_overview(record):
