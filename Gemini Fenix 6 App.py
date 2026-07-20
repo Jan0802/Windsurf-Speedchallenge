@@ -8190,6 +8190,155 @@ def _parse_track(raw):
     return pts or None
 
 
+# Gleitschwelle (Knoten) je Sportart – Referenzlinie in der Speedkurve.
+_GLIDE_KN = {"windsurf": 12.0, "kitesurf": 11.0, "wingsurf": 11.0,
+             "sup": 5.0, "wakeboard": 15.0}
+
+
+def _speed_series_from_track(track_pts, duration_s):
+    """Rekonstruiert (Zeit in min, Speed in kn) aus dem GPS-Track (Positionen,
+    kein Zeitstempel) – 1 Wert je Segment, dt aus Dauer/Punktzahl geschätzt.
+    Gibt (t_min[np], v_kn[np], dt_s) zurück oder None bei zu wenig Punkten."""
+    if not track_pts or len(track_pts) < 4:
+        return None
+    n = len(track_pts)
+    dt = (float(duration_s) / (n - 1)) if duration_s and n > 1 else 5.0
+    if dt <= 0:
+        dt = 5.0
+    lat = np.array([p[0] for p in track_pts], dtype=float)
+    lon = np.array([p[1] for p in track_pts], dtype=float)
+    seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])   # Meter je Segment
+    v_kmh = seg / dt * 3.6
+    v_kn = v_kmh / 1.852
+    t_min = (np.arange(1, n) * dt) / 60.0
+    return t_min, v_kn, dt
+
+
+def _render_speed_curve(track_pts, duration_s, record):
+    """Speed-über-Zeit-Kurve (Inline-SVG, kein matplotlib) mit Gleitschwelle,
+    schattierten Runs, hervorgehobenem längstem Run und echtem Top-Speed."""
+    series = _speed_series_from_track(track_pts, duration_s)
+    if series is None:
+        return
+    t_min, v_kn, dt = series
+    n_seg = len(v_kn)
+    glide_kn = _GLIDE_KN.get(active_sport(), 10.0)
+
+    # Runs erkennen – gleiche Schwellen wie das Ranking (Start 10 km/h, Ende 5,
+    # Glitch > 120 km/h), damit der markierte längste Run zum KPI-Wert passt.
+    start_kn, end_kn, glitch_kn, min_m = 10.0 / 1.852, 5.0 / 1.852, 120.0 / 1.852, 50.0
+    lat = np.array([p[0] for p in track_pts], dtype=float)
+    lon = np.array([p[1] for p in track_pts], dtype=float)
+    seg_m = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])
+    runs = []                       # (start_idx, end_idx, dist_m)
+    in_run = False
+    r_start = 0
+    r_dist = 0.0
+    for i in range(n_seg):
+        sp = v_kn[i]
+        if sp > glitch_kn:
+            continue
+        if not in_run and sp >= start_kn:
+            in_run, r_start, r_dist = True, i, seg_m[i]
+        elif in_run:
+            if sp <= end_kn:
+                if r_dist >= min_m:
+                    runs.append((r_start, i, r_dist))
+                in_run, r_dist = False, 0.0
+            else:
+                r_dist += seg_m[i]
+    if in_run and r_dist >= min_m:
+        runs.append((r_start, n_seg - 1, r_dist))
+    longest = max(runs, key=lambda r: r[2]) if runs else None
+
+    # Echter Top-Speed: höchster Nicht-Glitch-Wert der (10-s-)Kurve.
+    valid = v_kn[v_kn <= glitch_kn]
+    top_kn = float(np.max(valid)) if valid.size else float(np.max(v_kn))
+    top_i = int(np.argmax(np.where(v_kn <= glitch_kn, v_kn, -1)))
+
+    # --- SVG-Geometrie ---
+    W, H = 700.0, 240.0
+    L, R, T, B = 42.0, 12.0, 14.0, 26.0
+    px0, px1, py0, py1 = L, W - R, T, H - B
+    t_total = float(t_min[-1]) if t_min[-1] > 0 else 1.0
+    y_max = max(float(np.max(valid)) if valid.size else 10.0, glide_kn * 1.25, 8.0)
+    y_max = float(np.ceil(y_max / 2.0) * 2.0)
+
+    def X(tm):
+        return px0 + (tm / t_total) * (px1 - px0)
+
+    def Y(kn):
+        return py1 - (min(kn, y_max) / y_max) * (py1 - py0)
+
+    # Kurve ggf. ausdünnen (kompaktes SVG), max ~320 Punkte.
+    step = max(1, n_seg // 320)
+    poly = " ".join(f"{X(float(t_min[i])):.1f},{Y(float(v_kn[i])):.1f}"
+                    for i in range(0, n_seg, step))
+
+    bands = ""
+    for (a, b, _d) in runs:
+        x = X(float(t_min[a]))
+        w = max(1.0, X(float(t_min[b])) - x)
+        is_long = longest is not None and (a, b) == (longest[0], longest[1])
+        fill = "rgba(43,212,217,.22)" if is_long else "rgba(43,212,217,.08)"
+        bands += f"<rect x='{x:.1f}' y='{py0:.1f}' width='{w:.1f}' height='{py1 - py0:.1f}' fill='{fill}'/>"
+
+    gy = Y(glide_kn)
+    grid = (f"<line x1='{px0}' y1='{gy:.1f}' x2='{px1}' y2='{gy:.1f}' "
+            "stroke='#e0b000' stroke-width='1' stroke-dasharray='5 4'/>"
+            f"<text x='{px1 - 2:.1f}' y='{gy - 4:.1f}' fill='#e0b000' font-size='11' "
+            f"text-anchor='end'>glide ~{glide_kn:.0f} kn</text>")
+    # y-Achse: 0 / y_max
+    for kn in (0.0, y_max):
+        yy = Y(kn)
+        grid += (f"<text x='{px0 - 5:.1f}' y='{yy + 3:.1f}' fill='#7fa6b2' font-size='10' "
+                 f"text-anchor='end'>{kn:.0f}</text>")
+    # x-Achse: 0 / Mitte / Ende (Minuten)
+    xticks = ""
+    for tm in (0.0, t_total / 2.0, t_total):
+        xx = X(tm)
+        xticks += (f"<text x='{xx:.1f}' y='{H - 8:.1f}' fill='#7fa6b2' font-size='10' "
+                   f"text-anchor='middle'>{tm:.0f}</text>")
+
+    tx, ty = X(float(t_min[top_i])), Y(top_kn)
+    topmark = (f"<circle cx='{tx:.1f}' cy='{ty:.1f}' r='3.5' fill='#eaf4ff'/>"
+               f"<text x='{tx + 6:.1f}' y='{ty - 4:.1f}' fill='#eaf4ff' font-size='11' "
+               f"font-weight='700'>top {top_kn:.1f} kn</text>")
+
+    svg = (
+        f"<svg viewBox='0 0 {W:.0f} {H:.0f}' width='100%' "
+        f"style='max-width:720px;background:rgba(255,255,255,.04);border:1px solid "
+        "rgba(255,255,255,.12);border-radius:14px'>"
+        f"{bands}{grid}"
+        f"<polyline points='{poly}' fill='none' stroke='#2bd4d9' stroke-width='1.6' "
+        "stroke-linejoin='round'/>"
+        f"{topmark}{xticks}"
+        f"<text x='{(px0 + px1) / 2:.1f}' y='{H - 0.5:.1f}' fill='#7fa6b2' font-size='10' "
+        "text-anchor='middle'>time (min)</text>"
+        "</svg>"
+    )
+
+    st.markdown("## 📈 Speed over time")
+    glide_share = float(np.mean(v_kn >= glide_kn) * 100.0) if n_seg else 0.0
+    k1, k2, k3, k4 = st.columns(4)
+    _d = record.get("total_distance_km")
+    _lr = record.get("longest_run_km")
+    _t2 = record.get("speed_1s_kmh")
+    k1.metric("Distance", "–" if _d is None or pd.isna(_d) else f"{float(_d):.2f} km")
+    k2.metric("Top 2 s", "–" if _t2 is None or pd.isna(_t2) else f"{float(_t2) / 1.852:.1f} kn")
+    k3.metric("Glide share", f"{glide_share:.0f} %")
+    k4.metric("Longest run", "–" if _lr is None or pd.isna(_lr) else f"{float(_lr):.2f} km")
+    components.html(
+        f"<div style='margin:0;font-family:system-ui,sans-serif'>{svg}</div>",
+        height=250,
+    )
+    if longest is not None:
+        _mins = (float(t_min[longest[1]]) - float(t_min[longest[0]]))
+        st.caption(f"🟦 Highlighted band = longest run ({longest[2] / 1000.0:.2f} km · "
+                   f"{_mins:.1f} min). Curve reconstructed from the GPS track "
+                   f"(~{dt:.0f}s sampling); the watch app will provide a finer curve.")
+
+
 def render_history_overview(record):
     """Session-Übersicht aus den gespeicherten Ranking-Werten (ohne Roh-FIT)."""
 
@@ -8312,8 +8461,12 @@ def render_history_overview(record):
         p2.metric("Max cadence", "–" if not _has(max_cadence) else f"{int(max_cadence)} spm")
         p3.metric("Cadence (end)", "–" if not _has(cadence) else f"{int(cadence)} spm")
 
-    # Karte aus der von der Uhr gesendeten Route (per ID nachgeladen, falls da).
+    # Track einmal laden (für Speedkurve UND Karte).
     track_pts = _parse_track(load_session_track(record.get("id")))
+
+    # Speed-über-Zeit-Kurve aus dem Track (Gleitschwelle, Runs, Top-Speed).
+    _render_speed_curve(track_pts, num("duration_s"), record)
+
     if track_pts:
         st.markdown("## 🗺️ Track")
         show_map(pd.DataFrame(track_pts, columns=["lat", "lon"]))
