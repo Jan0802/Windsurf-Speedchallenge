@@ -8214,6 +8214,55 @@ def _speed_series_from_track(track_pts, duration_s):
     return t_min, v_kn, dt
 
 
+def _bearing_deg(lat1, lon1, lat2, lon2):
+    """Kurs (0–360°) von Punkt 1 nach Punkt 2."""
+    p1, p2 = np.radians(lat1), np.radians(lat2)
+    dlon = np.radians(lon2 - lon1)
+    x = np.sin(dlon) * np.cos(p2)
+    y = np.cos(p1) * np.sin(p2) - np.sin(p1) * np.cos(p2) * np.cos(dlon)
+    return (np.degrees(np.arctan2(x, y)) + 360.0) % 360.0
+
+
+def _detect_gybes(track_pts, v_kn, t_min, min_entry_kn=10.0, turn_deg=90.0):
+    """Halsen/Wenden aus dem Track: großer Kurswechsel (Bearing vorher vs.
+    nachher > turn_deg), angefahren mit Fahrt (> min_entry_kn). Grob, da der
+    Uhr-Track nur alle paar Sekunden abtastet – reicht für Anzahl + Speed-Erhalt
+    (Einfahrt- vs. Ausfahrt-Tempo). Liefert Liste mit Nr./Zeit/Speeds/Erhalt %."""
+    n = len(track_pts)
+    if n < 6:
+        return []
+    brng = [_bearing_deg(track_pts[i][0], track_pts[i][1],
+                         track_pts[i + 1][0], track_pts[i + 1][1]) for i in range(n - 1)]
+
+    def adiff(a, b):
+        return abs((b - a + 180.0) % 360.0 - 180.0)
+
+    cand = []
+    for i in range(1, len(brng) - 1):
+        if adiff(brng[i - 1], brng[i + 1]) < turn_deg:
+            continue
+        entry = float(np.max(v_kn[max(0, i - 2):i])) if i > 0 else 0.0
+        if entry < min_entry_kn:
+            continue
+        exit_ = float(np.max(v_kn[i + 1:min(len(v_kn), i + 3)])) if i + 1 < len(v_kn) else 0.0
+        cand.append((i, adiff(brng[i - 1], brng[i + 1]), entry, exit_))
+    # dicht beieinanderliegende Treffer (eine breite Halse) zusammenfassen.
+    merged = []
+    for c in cand:
+        if merged and c[0] - merged[-1][0] <= 2:
+            if c[1] > merged[-1][1]:
+                merged[-1] = c
+        else:
+            merged.append(c)
+    out = []
+    for k, (i, _turn, entry, exit_) in enumerate(merged, 1):
+        ret = (exit_ / entry * 100.0) if entry > 0 else 0.0
+        color = "#25c26b" if ret >= 70 else ("#e0b000" if ret >= 50 else "#e5484d")
+        out.append({"n": k, "i": i, "t": float(t_min[i]),
+                    "entry": entry, "exit": exit_, "ret": ret, "color": color})
+    return out
+
+
 def _render_speed_curve(track_pts, duration_s, record):
     """Speed-über-Zeit-Kurve (Inline-SVG, kein matplotlib) mit Gleitschwelle,
     schattierten Runs, hervorgehobenem längstem Run und echtem Top-Speed."""
@@ -8305,6 +8354,16 @@ def _render_speed_curve(track_pts, duration_s, record):
                f"<text x='{tx + 6:.1f}' y='{ty - 4:.1f}' fill='#eaf4ff' font-size='11' "
                f"font-weight='700'>top {top_kn:.1f} kn</text>")
 
+    # Halsen/Wenden erkennen und als nummerierte Marker auf die Kurve setzen.
+    gybes = _detect_gybes(track_pts, v_kn, t_min)
+    gmarks = ""
+    for g in gybes:
+        gx, gy = X(g["t"]), Y(float(v_kn[g["i"]]))
+        gmarks += (f"<circle cx='{gx:.1f}' cy='{gy:.1f}' r='7' fill='{g['color']}' "
+                   "fill-opacity='.9' stroke='#06222e' stroke-width='1'/>"
+                   f"<text x='{gx:.1f}' y='{gy + 3.5:.1f}' fill='#06222e' font-size='9' "
+                   f"font-weight='800' text-anchor='middle'>{g['n']}</text>")
+
     svg = (
         f"<svg viewBox='0 0 {W:.0f} {H:.0f}' width='100%' "
         f"style='max-width:720px;background:rgba(255,255,255,.04);border:1px solid "
@@ -8312,7 +8371,7 @@ def _render_speed_curve(track_pts, duration_s, record):
         f"{bands}{grid}"
         f"<polyline points='{poly}' fill='none' stroke='#2bd4d9' stroke-width='1.6' "
         "stroke-linejoin='round'/>"
-        f"{topmark}{xticks}"
+        f"{topmark}{gmarks}{xticks}"
         f"<text x='{(px0 + px1) / 2:.1f}' y='{H - 0.5:.1f}' fill='#7fa6b2' font-size='10' "
         "text-anchor='middle'>time (min)</text>"
         "</svg>"
@@ -8337,6 +8396,31 @@ def _render_speed_curve(track_pts, duration_s, record):
         st.caption(f"🟦 Highlighted band = longest run ({longest[2] / 1000.0:.2f} km · "
                    f"{_mins:.1f} min). Curve reconstructed from the GPS track "
                    f"(~{dt:.0f}s sampling); the watch app will provide a finer curve.")
+
+    # --- Halsen-Analyse (Beta) -------------------------------------------
+    if gybes:
+        planing = sum(1 for g in gybes if g["ret"] >= 70)
+        avg_ret = sum(g["ret"] for g in gybes) / len(gybes)
+        st.markdown(f"**🔄 Gybe analysis (beta):** {len(gybes)} detected · "
+                    f"**{planing} carried through** (≥70% speed kept) · "
+                    f"Ø speed kept {avg_ret:.0f}%")
+        rows = "".join(
+            f"<tr><td style='padding:3px 10px'><b style='color:{g['color']}'>●</b> {g['n']}</td>"
+            f"<td style='padding:3px 10px'>{g['t']:.1f} min</td>"
+            f"<td style='padding:3px 10px'>{g['entry']:.1f} kn</td>"
+            f"<td style='padding:3px 10px'>{g['exit']:.1f} kn</td>"
+            f"<td style='padding:3px 10px'><b>{g['ret']:.0f}%</b></td></tr>"
+            for g in gybes)
+        st.markdown(
+            "<table style='font-size:13px;border-collapse:collapse'>"
+            "<tr style='color:#8fd9e3;text-align:left'>"
+            "<th style='padding:3px 10px'>Gybe</th><th style='padding:3px 10px'>Time</th>"
+            "<th style='padding:3px 10px'>Entry</th><th style='padding:3px 10px'>Exit</th>"
+            "<th style='padding:3px 10px'>Kept</th></tr>" + rows + "</table>",
+            unsafe_allow_html=True)
+        st.caption("🟢 ≥70% kept · 🟡 50–70% · 🔴 <50%. Detected from course reversals "
+                   "at planing speed. Coarse at the current ~"
+                   f"{dt:.0f}s GPS rate — a higher watch sampling rate will sharpen this.")
 
 
 def render_history_overview(record):
