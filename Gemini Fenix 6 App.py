@@ -7546,6 +7546,103 @@ def _own_sail_sizes(username, sport):
     return sorted(out)
 
 
+# --- Finnenberater (Windsurf) — reine Faustregel-Arithmetik, kein DB/Netz -----
+# Vorlage: finnenberater-sizing-logik.md des Users. Startwerte, spaeter gegen
+# echte Session-Daten kalibrierbar. Bereich ±1 cm ausgeben, nicht exakt.
+_FIN_BOARD_MOD = {"slalom": 0, "freerace": 1, "freeride": 3, "freemove": 2,
+                  "freestyle": -3}
+_FIN_GOAL_MOD = {"allround": 0, "speed": -1, "early": 2, "control": 1}
+_FIN_BOARDS = [("Slalom / Speed", "slalom"), ("Freerace", "freerace"),
+               ("Freeride", "freeride"), ("Freemove", "freemove"),
+               ("Freestyle", "freestyle"), ("Wave", "wave")]
+_FIN_GOALS = [("Allround", "allround"), ("Top speed", "speed"),
+              ("Early planing / light wind", "early"), ("Control & comfort", "control")]
+
+
+def _fin_advice(sail_m2, weight_kg, board_key, goal_key, weedy, depth_cm):
+    """Empfohlene Finnengroesse (cm) + Typ/Material + Tiefen-Check. Wave = Sonderfall."""
+    if board_key == "wave":
+        return {"wave": True}
+    basis = 22.0 + 2.0 * float(sail_m2)
+    b = _FIN_BOARD_MOD.get(board_key, 3)
+    w = max(-3.0, min(3.0, (float(weight_kg) - 85.0) / 12.0))
+    g = _FIN_GOAL_MOD.get(goal_key, 0)
+    weed = 2.0 if weedy else 0.0
+    fin = int(round(basis + b + w + g + weed))
+    if weedy:
+        ftype, mat = "Weed fin", "GRP or carbon — main thing is stiff"
+    elif board_key == "slalom" or goal_key == "speed":
+        ftype, mat = "Straight slalom fin", "Carbon (stiff, fast)"
+    elif board_key == "freestyle":
+        ftype, mat = "Freestyle fin (short)", "Carbon or GRP"
+    else:
+        ftype, mat = "Straight freeride fin", "Carbon = faster · GRP = tough all-round"
+    depth = None
+    if depth_cm and depth_cm > 0:
+        reserve = depth_cm - fin
+        if reserve >= 12:
+            depth = ("ok", f"Safe — ~{reserve:.0f} cm reserve to the bottom.")
+        elif reserve >= 4:
+            depth = ("warn", f"Tight — only ~{reserve:.0f} cm reserve. Consider a smaller fin.")
+        else:
+            depth = ("bad", f"Grounding risk — ~{reserve:.0f} cm. Use a clearly shorter fin.")
+    return {"fin": fin, "lo": fin - 1, "hi": fin + 1, "type": ftype,
+            "material": mat, "weed": weedy, "depth": depth}
+
+
+def _render_fin_advisor(username):
+    """Aufklappbarer Finnenberater in My Results (nur Windsurf). Rechnet lokal
+    (Faustregel), keine DB-Abfrage ausser Gewicht/Segel, die eh geladen sind."""
+    if active_sport() != "windsurf":
+        return
+    with st.expander("🔧 Fin advisor (beta)", expanded=False):
+        st.caption("Rule-of-thumb fin size for windsurf, from your sail, weight, board type "
+                   "and goal. A guide, not gospel — manufacturer specs always win.")
+        _w0 = load_user_weights().get(username)
+        _sizes = [s for s, _ in _own_sail_sizes(username, "windsurf")]
+        _sail0 = _sizes[len(_sizes) // 2] if _sizes else 7.0
+
+        c1, c2 = st.columns(2)
+        board_key = c1.selectbox("Board type", [b for _, b in _FIN_BOARDS],
+                                 format_func=lambda k: dict((v, l) for l, v in _FIN_BOARDS)[k],
+                                 key=f"fin_board_{username}")
+        goal_key = c2.selectbox("Goal", [g for _, g in _FIN_GOALS],
+                                format_func=lambda k: dict((v, l) for l, v in _FIN_GOALS)[k],
+                                key=f"fin_goal_{username}")
+        c3, c4 = st.columns(2)
+        sail = c3.number_input("Sail size (m²)", min_value=2.0, max_value=15.0,
+                               value=float(_sail0), step=0.1, key=f"fin_sail_{username}")
+        weight = c4.number_input("Weight incl. wetsuit (kg)", min_value=30.0, max_value=160.0,
+                                 value=float(_w0 or 85.0), step=1.0, key=f"fin_weight_{username}")
+        c5, c6 = st.columns(2)
+        weedy = c5.checkbox("Weedy spot", key=f"fin_weed_{username}")
+        depth = c6.number_input("Shallowest water depth (cm, 0 = unknown)", min_value=0,
+                                max_value=500, value=0, step=5, key=f"fin_depth_{username}")
+
+        adv = _fin_advice(sail, weight, board_key, goal_key, weedy, depth)
+        if adv.get("wave"):
+            st.info("🌊 Wave boards don't follow the sail-size curve (box type, single vs. "
+                    "multi-fin and wave size matter more). No reliable rule-of-thumb here — "
+                    "go by your board's manufacturer recommendation.")
+            return
+        st.markdown(
+            f"<div style='background:rgba(43,212,217,.10);border:1px solid rgba(43,212,217,.3);"
+            f"border-radius:14px;padding:14px 18px;margin:6px 0'>"
+            f"<div style='font-size:30px;font-weight:800;color:#8fe3ff'>{adv['lo']}–{adv['hi']} cm</div>"
+            f"<div style='margin-top:4px'><b>{adv['type']}</b> · {adv['material']}</div></div>",
+            unsafe_allow_html=True)
+        if adv["depth"]:
+            _st, _msg = adv["depth"]
+            _col = {"ok": "#25c26b", "warn": "#e0b000", "bad": "#e5484d"}[_st]
+            st.markdown(f"<div style='border-left:4px solid {_col};padding:6px 12px;"
+                        f"margin:4px 0;background:rgba(255,255,255,.04);border-radius:8px'>"
+                        f"{'🟢' if _st=='ok' else '🟡' if _st=='warn' else '🔴'} {_msg}</div>",
+                        unsafe_allow_html=True)
+        st.caption("Shown as a ±1 cm range. Weed fins run ~2 cm longer than the straight "
+                   "equivalent. If you're unsure or the fin is a no-name shape, trust the "
+                   "maker's number over this estimate.")
+
+
 def _sail_ctx_for(username, sport):
     """Vorberechnete Basis fuer die Groessen-Empfehlung (einmal pro Render) oder None.
     Unterstuetzt Windsurf/Kite/Wing (siehe _ADVISOR); Board-Volumen nur Windsurf."""
@@ -12625,6 +12722,11 @@ def render_my_results_page(user):
     selected = render_session_history(name)
     if selected is not None:
         render_history_overview(selected)
+
+    st.markdown("---")
+
+    # --- Finnenberater (Windsurf, aufklappbar; reine Faustregel, kein Serverkost) ---
+    _render_fin_advisor(name)
 
     st.markdown("---")
 
