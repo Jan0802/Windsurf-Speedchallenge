@@ -8297,146 +8297,141 @@ def _watch_gybes_to_markers(wg, t_min, v_kn):
     return out
 
 
-def _render_gybe_detail_watch(gybe, glide_kn):
-    """Einzel-Halsen-Detail aus den EXAKTEN, on-device (1 Hz) berechneten Phasen
-    der Uhr: 4 Kennzahlen + 4-Phasen-Balkenprofil."""
-    ph = gybe["phases"]
-    approach = ph.get("approach")
-    apex = ph.get("apex")
-    flip = ph.get("flip")
-    recovery = ph.get("recovery")
+def _render_gybe_detail(track_pts, v_kn, t_min, gybe, glide_kn, dt):
+    """Ereignisbasierte Einzel-Halsen-Diagnose (Modell aus halsen-diagnose.md):
+    geometrischer Apex (schärfster Carve) UND Speed-Minimum werden GETRENNT
+    bestimmt; daraus Kernaussagen (durchgeglitten?, Sekunden unter Gleitgrenze,
+    Lage des Minimums zum Apex, Recovery) + Klartext-Diagnose + Sekundenkurve.
+    Läuft auf dem (groben) Track; das Uhr-Fenster liefert später exakte Werte."""
+    n_seg = len(v_kn)
+    gi = int(gybe["i"])
+    wseg = max(3, int(round(18.0 / dt)))          # ~±18 s Fenster
+    a = max(0, gi - wseg)
+    b = min(n_seg, gi + wseg + 1)
+    st.markdown(f"#### 🔍 Gybe {gybe['n']} — diagnosis")
+    if b - a < 3:
+        st.info("The GPS track is too coarse around this gybe for a detailed "
+                "diagnosis. The watch update will record it per second.")
+        return
 
-    def _v(x):
-        return None if x is None or x < 0 else float(x)
+    def _adiff(x, y):
+        d = (y - x + 180.0) % 360.0 - 180.0
+        return abs(d)
 
-    approach, apex, flip, recovery = _v(approach), _v(apex), _v(flip), _v(recovery)
-    kept = (recovery / approach * 100.0) if (approach and recovery) else None
+    def _brg(j):
+        return _bearing_deg(track_pts[j][0], track_pts[j][1],
+                            track_pts[j + 1][0], track_pts[j + 1][1])
 
-    st.markdown(f"#### 🔍 Gybe {gybe['n']} — phase analysis (from watch, per second)")
-    c = st.columns(4)
-    c[0].metric("① Approach −50 m", "–" if approach is None else f"{approach:.1f} kn")
-    c[1].metric("② Apex", "–" if apex is None else f"{apex:.1f} kn",
-                None if (apex is None or approach is None) else f"{apex - approach:+.1f} vs approach",
-                delta_color="off")
-    c[2].metric("③ Rig flip +10 m", "–" if flip is None else f"{flip:.1f} kn")
-    c[3].metric("④ Recovery +50 m", "–" if recovery is None else f"{recovery:.1f} kn",
-                None if kept is None else f"{kept:.0f}% kept", delta_color="off")
+    # Geometrischer Apex = Segment mit der stärksten Kursänderung (schärfster Carve).
+    iap = gi
+    turn_best = -1.0
+    for j in range(a + 1, b):
+        tr = _adiff(_brg(j - 1), _brg(j))
+        if tr > turn_best:
+            turn_best, iap = tr, j
+    imin = a + int(np.argmin(v_kn[a:b]))          # Speed-Minimum (getrennt vom Apex)
+    min_kn = float(v_kn[imin])
+    apex_kn = float(v_kn[iap])
+    entry = float(np.max(v_kn[a:iap + 1]))        # Höchsttempo bis zum Apex
+    recovery = float(np.max(v_kn[iap:b]))         # Höchsttempo nach dem Apex
+    kept = (recovery / entry * 100.0) if entry > 0 else None
+    secs_below = float(np.sum(v_kn[a:b] < glide_kn)) * dt
+    dpos = (imin - iap) * dt                       # Sek.: <0 Min vor Apex, >0 danach
 
-    # 4-Phasen-Balkenprofil (Speed je Phase) mit Gleitschwelle.
-    phases = [("Approach", approach, "#2bd4d9"), ("Apex", apex, "#e5484d"),
-              ("Flip +10m", flip, "#e0b000"), ("Recovery", recovery, "#25c26b")]
-    vals = [v for _, v, _ in phases if v is not None]
-    y_max = max(max(vals) * 1.15 if vals else 8.0, glide_kn * 1.2, 8.0)
-    W, H = 460.0, 190.0
-    L, R, T, B = 34.0, 12.0, 12.0, 26.0
+    carried = min_kn >= glide_kn
+    c = st.columns(5)
+    c[0].metric("Approach", f"{entry:.1f} kn")
+    c[1].metric("At apex", f"{apex_kn:.1f} kn")
+    c[2].metric("Min speed", f"{min_kn:.1f} kn",
+                f"{min_kn - glide_kn:+.1f} vs glide", delta_color="off")
+    c[3].metric("Recovery", f"{recovery:.1f} kn")
+    c[4].metric("Speed kept", "–" if kept is None else f"{kept:.0f} %")
+
+    # --- Klartext-Diagnose (Regeln aus der md) ---
+    head = ("✅ **Planed through** — you stayed on the plane."
+            if carried else "⚠️ **Dropped off the plane** in this gybe.")
+    bullets = []
+    bullets.append(f"Lowest speed **{min_kn:.1f} kn** vs glide ~{glide_kn:.0f} kn.")
+    if secs_below <= 1:
+        bullets.append("Only briefly below planing — that's fine. 👍")
+    elif secs_below >= 3:
+        bullets.append(f"~{secs_below:.0f}s below planing — **the gybe sank**.")
+    else:
+        bullets.append(f"~{secs_below:.0f}s below planing.")
+    if dpos <= -dt:
+        bullets.append("Slowest point **before** the apex → likely **entered too hard / braked**.")
+    elif dpos >= dt:
+        bullets.append("Slowest point **after** the apex → likely **stuck in the rig change** "
+                       "(power back on too late).")
+    else:
+        bullets.append("Slowest point **around** the apex.")
+    if kept is not None and kept >= 95:
+        bullets.append("Exit is dialled — the loss is **early** in the turn.")
+    elif kept is not None and kept < 80:
+        bullets.append("Still slow on the **exit** — check powering up after the flip.")
+    if entry < glide_kn + 3:
+        bullets.append("Low approach speed — **carry more speed in** as a reserve.")
+    box = "#123a2a" if carried else "#3a1f12"
+    edge = "#25c26b" if carried else "#e0862b"
+    st.markdown(
+        f"<div style='background:{box};border-left:4px solid {edge};border-radius:10px;"
+        f"padding:10px 14px;margin:6px 0'>{head}<ul style='margin:6px 0 0;padding-left:18px'>"
+        + "".join(f"<li style='margin:3px 0'>{x}</li>" for x in bullets)
+        + "</ul></div>", unsafe_allow_html=True)
+
+    # --- Sekundenkurve um den Apex (Zeit relativ zum Apex) ---
+    W, H = 680.0, 210.0
+    L, R, T, B = 40.0, 12.0, 14.0, 26.0
     px0, px1, py0, py1 = L, W - R, T, H - B
-    bw = (px1 - px0) / len(phases)
-    gy = py1 - (min(glide_kn, y_max) / y_max) * (py1 - py0)
-    bars = ""
-    for idx, (lbl, v, col) in enumerate(phases):
-        cx = px0 + bw * (idx + 0.5)
-        if v is not None:
-            bh = (min(v, y_max) / y_max) * (py1 - py0)
-            bars += (f"<rect x='{px0 + bw * idx + bw * 0.2:.1f}' y='{py1 - bh:.1f}' "
-                     f"width='{bw * 0.6:.1f}' height='{bh:.1f}' fill='{col}' rx='3'/>"
-                     f"<text x='{cx:.1f}' y='{py1 - bh - 4:.1f}' fill='#eaf4ff' "
-                     f"font-size='11' font-weight='700' text-anchor='middle'>{v:.1f}</text>")
-        bars += (f"<text x='{cx:.1f}' y='{H - 8:.1f}' fill='#7fa6b2' font-size='10' "
-                 f"text-anchor='middle'>{lbl}</text>")
-    svg = (f"<svg viewBox='0 0 {W:.0f} {H:.0f}' width='100%' style='max-width:480px;"
+    ts = (t_min[a:b] - t_min[iap]) * 60.0          # Sekunden relativ zum Apex
+    wv = v_kn[a:b]
+    t0, t1 = float(ts[0]), float(ts[-1])
+    if t1 <= t0:
+        t1 = t0 + 1.0
+    y_max = max(float(np.max(wv)) * 1.12, glide_kn * 1.25, 8.0)
+    y_max = float(np.ceil(y_max / 2.0) * 2.0)
+
+    def X(s):
+        return px0 + ((s - t0) / (t1 - t0)) * (px1 - px0)
+
+    def Y(kn):
+        return py1 - (min(kn, y_max) / y_max) * (py1 - py0)
+
+    gy = Y(glide_kn)
+    ax = X(0.0)
+    parts = [
+        f"<rect x='{px0}' y='{gy:.1f}' width='{px1 - px0:.1f}' height='{py1 - gy:.1f}' "
+        "fill='rgba(229,72,77,.10)'/>",                       # Zone unter Gleitgrenze
+        f"<line x1='{px0}' y1='{gy:.1f}' x2='{px1}' y2='{gy:.1f}' stroke='#e0b000' "
+        "stroke-width='1' stroke-dasharray='5 4'/>",
+        f"<text x='{px1 - 2:.1f}' y='{gy - 4:.1f}' fill='#e0b000' font-size='10' "
+        f"text-anchor='end'>glide ~{glide_kn:.0f} kn</text>",
+        f"<line x1='{ax:.1f}' y1='{py0}' x2='{ax:.1f}' y2='{py1:.1f}' stroke='#eaf4ff' "
+        "stroke-width='1' stroke-dasharray='3 3'/>",
+        f"<text x='{ax:.1f}' y='{py0 + 9:.1f}' fill='#eaf4ff' font-size='9' "
+        "text-anchor='middle'>apex</text>",
+    ]
+    poly = " ".join(f"{X(float(ts[i])):.1f},{Y(float(wv[i])):.1f}" for i in range(len(wv)))
+    parts.append(f"<polyline points='{poly}' fill='none' stroke='#2bd4d9' stroke-width='1.6'/>")
+    for i in range(len(wv)):
+        col = "#e5484d" if wv[i] < glide_kn else "#2bd4d9"
+        parts.append(f"<circle cx='{X(float(ts[i])):.1f}' cy='{Y(float(wv[i])):.1f}' "
+                     f"r='2.6' fill='{col}'/>")
+    # Speed-Minimum markieren
+    parts.append(f"<circle cx='{X(dpos):.1f}' cy='{Y(min_kn):.1f}' r='4.5' fill='none' "
+                 "stroke='#e5484d' stroke-width='2'/>")
+    parts.append(f"<text x='{X(dpos):.1f}' y='{Y(min_kn) + 16:.1f}' fill='#e5484d' "
+                 "font-size='9' text-anchor='middle'>min</text>")
+    for s in (t0, 0.0, t1):
+        parts.append(f"<text x='{X(s):.1f}' y='{H - 8:.1f}' fill='#7fa6b2' font-size='9' "
+                     f"text-anchor='middle'>{s:+.0f}s</text>")
+    svg = (f"<svg viewBox='0 0 {W:.0f} {H:.0f}' width='100%' style='max-width:700px;"
            "background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);"
-           f"border-radius:12px'>{bars}"
-           f"<line x1='{px0}' y1='{gy:.1f}' x2='{px1}' y2='{gy:.1f}' stroke='#e0b000' "
-           "stroke-width='1' stroke-dasharray='5 4'/>"
-           f"<text x='{px1 - 2:.1f}' y='{gy - 4:.1f}' fill='#e0b000' font-size='10' "
-           f"text-anchor='end'>glide ~{glide_kn:.0f} kn</text></svg>")
-    components.html(f"<div style='font-family:system-ui,sans-serif'>{svg}</div>", height=200)
-    st.caption("Exact phase speeds, computed on the watch second-by-second. "
-               "🟦 approach · 🟥 apex · 🟨 rig-flip · 🟩 recovery.")
-
-
-def _render_gybe_detail(track_pts, v_kn, gybe, glide_kn, dt):
-    """Einzel-Halsen-Detail: 4 Phasen relativ zum Scheitelpunkt (Anfahrt −50 m,
-    Einlenken→Scheitel, Scheitel→+10 m Rigg-Flip, Ausfahrt +50 m) + gezoomte
-    Speed-über-Distanz-Kurve. Werte aus dem GPS-Track (grob), später von der Uhr."""
-    lat = np.array([p[0] for p in track_pts], dtype=float)
-    lon = np.array([p[1] for p in track_pts], dtype=float)
-    seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])   # len = len(v_kn)
-    dist_end = np.cumsum(seg)                                  # Distanz am Segment-Ende
-    gi = gybe["i"]
-    d_apex = float(dist_end[gi])
-    rel = dist_end - d_apex                                    # Meter relativ zum Scheitel
-
-    def _phase(lo, hi, agg):
-        m = (rel >= lo) & (rel < hi)
-        return float(agg(v_kn[m])) if m.any() else None
-
-    approach = _phase(-50, -10, np.max)      # Anfahrt-Referenz
-    apex = float(v_kn[gi])                    # Scheitel (tiefster Punkt)
-    flip = _phase(0, 10, np.min)             # Rigg-Flip-Zone
-    recovery = _phase(10, 50, np.max)        # Ausfahrt / wieder angeglitten
-    kept = (recovery / approach * 100.0) if (approach and recovery) else None
-
-    st.markdown(f"#### 🔍 Gybe {gybe['n']} — phase analysis")
-    c = st.columns(4)
-    c[0].metric("① Approach −50 m", "–" if approach is None else f"{approach:.1f} kn")
-    c[1].metric("② Apex", f"{apex:.1f} kn",
-                None if approach is None else f"{apex - approach:+.1f} vs approach",
-                delta_color="off")
-    c[2].metric("③ Rig flip +10 m", "–" if flip is None else f"{flip:.1f} kn")
-    c[3].metric("④ Recovery +50 m", "–" if recovery is None else f"{recovery:.1f} kn",
-                None if kept is None else f"{kept:.0f}% kept", delta_color="off")
-
-    # Gezoomte Speed-über-Distanz-Kurve (−60 .. +60 m um den Scheitel).
-    win = (rel >= -60) & (rel <= 60)
-    if win.sum() >= 2:
-        W, H = 680.0, 200.0
-        L, R, T, B = 40.0, 12.0, 14.0, 24.0
-        px0, px1, py0, py1 = L, W - R, T, H - B
-        wv = v_kn[win]
-        y_max = max(float(np.max(wv)) * 1.12, glide_kn * 1.2, 8.0)
-        y_max = float(np.ceil(y_max / 2.0) * 2.0)
-
-        def X(m):
-            return px0 + ((m + 60.0) / 120.0) * (px1 - px0)
-
-        def Y(kn):
-            return py1 - (min(kn, y_max) / y_max) * (py1 - py0)
-
-        # Phasen-Bänder: Anfahrt (−50..−10), Rigg-Flip (0..+10), Ausfahrt (+10..+50).
-        bands = (f"<rect x='{X(-50):.1f}' y='{py0}' width='{X(-10) - X(-50):.1f}' "
-                 f"height='{py1 - py0:.1f}' fill='rgba(43,212,217,.10)'/>"
-                 f"<rect x='{X(0):.1f}' y='{py0}' width='{X(10) - X(0):.1f}' "
-                 f"height='{py1 - py0:.1f}' fill='rgba(229,72,77,.14)'/>"
-                 f"<rect x='{X(10):.1f}' y='{py0}' width='{X(50) - X(10):.1f}' "
-                 f"height='{py1 - py0:.1f}' fill='rgba(37,194,107,.12)'/>")
-        apexline = (f"<line x1='{X(0):.1f}' y1='{py0}' x2='{X(0):.1f}' y2='{py1:.1f}' "
-                    "stroke='#eaf4ff' stroke-width='1' stroke-dasharray='3 3'/>"
-                    f"<text x='{X(0):.1f}' y='{py0 + 9:.1f}' fill='#eaf4ff' font-size='9' "
-                    "text-anchor='middle'>apex</text>")
-        gy = Y(glide_kn)
-        gline = (f"<line x1='{px0}' y1='{gy:.1f}' x2='{px1}' y2='{gy:.1f}' "
-                 "stroke='#e0b000' stroke-width='1' stroke-dasharray='5 4'/>")
-        rw = rel[win]
-        poly = " ".join(f"{X(float(rw[i])):.1f},{Y(float(wv[i])):.1f}"
-                        for i in range(len(wv)))
-        dots = "".join(f"<circle cx='{X(float(rw[i])):.1f}' cy='{Y(float(wv[i])):.1f}' "
-                       "r='2.6' fill='#2bd4d9'/>" for i in range(len(wv)))
-        xlab = "".join(
-            f"<text x='{X(m):.1f}' y='{H - 8:.1f}' fill='#7fa6b2' font-size='9' "
-            f"text-anchor='middle'>{m:+.0f}</text>" for m in (-50, -10, 0, 10, 50))
-        svg = (f"<svg viewBox='0 0 {W:.0f} {H:.0f}' width='100%' style='max-width:700px;"
-               "background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);"
-               f"border-radius:12px'>{bands}{gline}{apexline}"
-               f"<polyline points='{poly}' fill='none' stroke='#2bd4d9' stroke-width='1.6'/>"
-               f"{dots}{xlab}"
-               f"<text x='{(px0 + px1) / 2:.1f}' y='{H - 0.5:.1f}' fill='#7fa6b2' "
-               "font-size='9' text-anchor='middle'>distance from apex (m)</text></svg>")
-        components.html(f"<div style='font-family:system-ui,sans-serif'>{svg}</div>",
-                        height=210)
-    st.caption("🟦 approach · 🟥 rig-flip zone · 🟩 recovery. Phases from the current "
-               f"~{dt:.0f}s GPS track (coarse — often 0–1 points per section); the watch "
-               "update will compute these per second on-device for exact phase speeds.")
+           f"border-radius:12px'>{''.join(parts)}</svg>")
+    components.html(f"<div style='font-family:system-ui,sans-serif'>{svg}</div>", height=220)
+    st.caption("🔴 = below the glide threshold · ○ = speed minimum · dashed = geometric "
+               f"apex (sharpest carve). Reconstructed from the ~{dt:.0f}s GPS track — the "
+               "watch update sends a per-second window for an exact diagnosis.")
 
 
 def _render_speed_curve(track_pts, duration_s, record):
@@ -8615,11 +8610,7 @@ def _render_speed_curve(track_pts, duration_s, record):
         if _sel != "–":
             _gi = int(_sel.split()[1]) - 1
             if 0 <= _gi < len(gybes):
-                _g = gybes[_gi]
-                if _g.get("src") == "watch":
-                    _render_gybe_detail_watch(_g, glide_kn)
-                else:
-                    _render_gybe_detail(track_pts, v_kn, _g, glide_kn, dt)
+                _render_gybe_detail(track_pts, v_kn, t_min, gybes[_gi], glide_kn, dt)
 
 
 def render_history_overview(record):
