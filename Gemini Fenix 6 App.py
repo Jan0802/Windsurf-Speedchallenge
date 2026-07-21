@@ -7632,17 +7632,33 @@ def _render_fin_advisor(username):
                                 format_func=lambda k: dict((v, l) for l, v in _FIN_GOALS)[k],
                                 key=f"fin_goal_{username}")
 
-        # Boardtyp automatisch aus dem gewählten Board ableiten (wechselt mit dem
-        # Board), aber überschreibbar. Bei Board-Wechsel den Typ-State neu setzen.
+        # Boardtyp: gespeicherter Typ dieses Boards (falls hinterlegt) hat Vorrang,
+        # sonst aus dem Namen geraten; wechselt mit dem Board, bleibt überschreibbar.
+        _saved_types = (load_user_pref(username) or {}).get("board_types", {}) or {}
         _tkey = f"fin_type_{username}"
         _pbkey = f"_fin_prevboard_{username}"
         if st.session_state.get(_pbkey) != board_name:
             st.session_state[_pbkey] = board_name
-            st.session_state[_tkey] = _infer_board_type(board_name)
+            st.session_state[_tkey] = (_saved_types.get(board_name)
+                                       or _infer_board_type(board_name))
+        _is_saved = _saved_types.get(board_name) is not None
         board_key = st.selectbox(
             "Board type", [b for _, b in _FIN_BOARDS],
             format_func=lambda k: dict((v, l) for l, v in _FIN_BOARDS)[k], key=_tkey,
-            help="Auto-detected from your board name — change it if it's off.")
+            help=("Your saved type for this board." if _is_saved
+                  else "Auto-detected from the board name — change it if it's off."))
+        # Typ optional pro Board merken (dann wird nicht mehr geraten).
+        if board_name != "(no boards saved)" and not (_is_saved
+                and _saved_types.get(board_name) == board_key):
+            if st.button("💾 Remember this type for this board",
+                         key=f"fin_savetype_{username}", use_container_width=True):
+                _p = load_user_pref(username) or {}
+                _bt = dict(_p.get("board_types") or {})
+                _bt[board_name] = board_key
+                _p["board_types"] = _bt
+                save_user_pref(username, _p)
+                st.success("Saved — this board now defaults to that type.")
+                st.rerun()
         c3, c4 = st.columns(2)
         sail = c3.number_input("Sail size (m²)", min_value=2.0, max_value=15.0,
                                value=float(_sail0), step=0.1, key=f"fin_sail_{username}")
