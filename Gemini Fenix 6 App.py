@@ -7557,6 +7557,22 @@ _FIN_BOARDS = [("Slalom / Speed", "slalom"), ("Freerace", "freerace"),
                ("Freestyle", "freestyle"), ("Wave", "wave")]
 _FIN_GOALS = [("Allround", "allround"), ("Top speed", "speed"),
               ("Early planing / light wind", "early"), ("Control & comfort", "control")]
+# Boardtyp aus dem Board-Namen erraten (Startwerte, vom Nutzer überschreibbar).
+_FIN_TYPE_KEYWORDS = [
+    ("wave", ["wave"]),
+    ("freestyle", ["freestyle", "flare", "skate"]),
+    ("freerace", ["freerace", "free race", "gt-r", "gtr", "vmax", "v-max"]),
+    ("slalom", ["isonic", "i-sonic", "ispeed", "i-speed", "falcon", "slalom", "speed", "warp"]),
+    ("freemove", ["freemove", "free move"]),
+]
+
+
+def _infer_board_type(name):
+    n = (name or "").lower()
+    for key, kws in _FIN_TYPE_KEYWORDS:
+        if any(kw in n for kw in kws):
+            return key
+    return "freeride"
 
 
 def _fin_advice(sail_m2, weight_kg, board_key, goal_key, weedy, depth_cm):
@@ -7602,13 +7618,31 @@ def _render_fin_advisor(username):
         _sizes = [s for s, _ in _own_sail_sizes(username, "windsurf")]
         _sail0 = _sizes[len(_sizes) // 2] if _sizes else 7.0
 
+        # Board aus dem eigenen Equipment wählen (Default = Lieblingsboard aus dem
+        # Segel-Berater); der Boardtyp wird aus dem Namen erraten, ist aber änderbar.
+        _boards = (load_profiles().get(username, {}) or {}).get("boards", []) or []
+        _fav = (load_user_pref(username) or {}).get("fav_board") or ""
+        _board_opts = list(_boards) if _boards else ["(no boards saved)"]
+        _bidx = _board_opts.index(_fav) if _fav in _board_opts else 0
+
         c1, c2 = st.columns(2)
-        board_key = c1.selectbox("Board type", [b for _, b in _FIN_BOARDS],
-                                 format_func=lambda k: dict((v, l) for l, v in _FIN_BOARDS)[k],
-                                 key=f"fin_board_{username}")
+        board_name = c1.selectbox("Your board", _board_opts, index=_bidx,
+                                  key=f"fin_boardname_{username}")
         goal_key = c2.selectbox("Goal", [g for _, g in _FIN_GOALS],
                                 format_func=lambda k: dict((v, l) for l, v in _FIN_GOALS)[k],
                                 key=f"fin_goal_{username}")
+
+        # Boardtyp automatisch aus dem gewählten Board ableiten (wechselt mit dem
+        # Board), aber überschreibbar. Bei Board-Wechsel den Typ-State neu setzen.
+        _tkey = f"fin_type_{username}"
+        _pbkey = f"_fin_prevboard_{username}"
+        if st.session_state.get(_pbkey) != board_name:
+            st.session_state[_pbkey] = board_name
+            st.session_state[_tkey] = _infer_board_type(board_name)
+        board_key = st.selectbox(
+            "Board type", [b for _, b in _FIN_BOARDS],
+            format_func=lambda k: dict((v, l) for l, v in _FIN_BOARDS)[k], key=_tkey,
+            help="Auto-detected from your board name — change it if it's off.")
         c3, c4 = st.columns(2)
         sail = c3.number_input("Sail size (m²)", min_value=2.0, max_value=15.0,
                                value=float(_sail0), step=0.1, key=f"fin_sail_{username}")
