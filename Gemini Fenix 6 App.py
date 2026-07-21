@@ -8902,6 +8902,63 @@ def _track_svg(track_pts, duration_s):
     return svg, int(H) + 8
 
 
+_MAP_TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>html,body,#map{height:100%;margin:0;background:#06222e;}
+.leaflet-container{background:#06222e;} .leaflet-control-attribution{font-size:10px;}</style>
+</head><body><div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+var pts=__PTS__, cols=__COLS__;
+try{
+  var map=L.map('map',{scrollWheelZoom:true});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
+  for(var i=0;i<cols.length;i++){
+    L.polyline([pts[i],pts[i+1]],{color:cols[i],weight:4,opacity:.95,lineCap:'round'}).addTo(map);
+  }
+  var line=L.polyline(pts);
+  map.fitBounds(line.getBounds().pad(0.15));
+  L.circleMarker(pts[0],{radius:6,color:'#0a3',fillColor:'#25c26b',fillOpacity:1,weight:2}).addTo(map);
+  L.circleMarker(pts[pts.length-1],{radius:6,color:'#a11',fillColor:'#e5484d',fillOpacity:1,weight:2}).addTo(map);
+}catch(e){document.getElementById('map').innerHTML=
+  "<div style='color:#9fc4cf;font-family:sans-serif;padding:16px'>Map could not load.</div>";}
+</script></body></html>"""
+
+
+def _track_map_html(track_pts, duration_s):
+    """Interaktive Leaflet-Karte (OpenStreetMap-Kacheln, verschieb-/zoombar) mit
+    speed-gefärbter Tracklinie. Rendert im BROWSER (iFrame) -> fast keine Server-
+    last, anders als pydeck. Gibt (html, height) zurück oder ("", 0)."""
+    if not track_pts or len(track_pts) < 2:
+        return "", 0
+    n0 = len(track_pts)
+    step = max(1, (n0 - 1) // 500)
+    pts = track_pts[::step]
+    n = len(pts)
+    if n < 2:
+        return "", 0
+    lat = np.array([p[0] for p in pts], dtype=float)
+    lon = np.array([p[1] for p in pts], dtype=float)
+    seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])
+    dt = ((float(duration_s) / (n0 - 1)) * step) if duration_s and n0 > 1 else 5.0 * step
+    v = seg / max(dt, 0.1) * 3.6 / 1.852
+    vmax = float(np.percentile(v, 95)) if v.size else 1.0
+    if vmax <= 0:
+        vmax = 1.0
+    cols = []
+    for i in range(n - 1):
+        t = min(1.0, float(v[i]) / vmax)
+        r = int(0x5b + (0x2b - 0x5b) * t)
+        g = int(0x7b + (0xd4 - 0x7b) * t)
+        b = int(0x86 + (0xd9 - 0x86) * t)
+        cols.append("rgb(%d,%d,%d)" % (r, g, b))
+    pts_js = json.dumps([[round(p[0], 5), round(p[1], 5)] for p in pts])
+    html = (_MAP_TEMPLATE.replace("__PTS__", pts_js)
+            .replace("__COLS__", json.dumps(cols)))
+    return html, 430
+
+
 def render_history_overview(record):
     """Session-Übersicht aus den gespeicherten Ranking-Werten (ohne Roh-FIT)."""
 
@@ -9032,15 +9089,19 @@ def render_history_overview(record):
 
     if track_pts:
         st.markdown("## 🗺️ Track")
-        _tsvg, _th = _track_svg(track_pts, num("duration_s"))
-        if _tsvg:
-            components.html(f"<div style='font-family:system-ui,sans-serif'>{_tsvg}</div>",
-                            height=_th)
-            st.caption("🟢 start · 🔴 finish · line colour = speed (dim → aqua)")
-        # Pydeck-Karte auf 512 MB ein Speicherfresser -> vorerst deaktiviert.
-        # Zum Reaktivieren die naechste Zeile einkommentieren (und ggf. das SVG oben
-        # entfernen). Fuer echte Kartenkacheln braucht es mehr RAM (Upgrade 2 GB).
-        # show_map(pd.DataFrame(track_pts, columns=["lat", "lon"]))
+        # Interaktive Leaflet-Karte (OSM-Kacheln, verschieb-/zoombar) – rendert im
+        # Browser, daher fast keine Serverlast (im Gegensatz zu pydeck/st.map, das
+        # auf 512 MB Segfaults auslöste). Fallback: leichte SVG-Linie (_track_svg).
+        _mhtml, _mh = _track_map_html(track_pts, num("duration_s"))
+        if _mhtml:
+            components.html(_mhtml, height=_mh, scrolling=False)
+            st.caption("🟢 start · 🔴 finish · line colour = speed (dim → aqua) · "
+                       "drag to pan, scroll to zoom")
+        else:
+            _tsvg, _th = _track_svg(track_pts, num("duration_s"))
+            if _tsvg:
+                components.html(f"<div style='font-family:system-ui,sans-serif'>{_tsvg}</div>",
+                                height=_th)
 
     st.caption(
         "ℹ️ Individual runs and max/avg speed are only available right after the "
