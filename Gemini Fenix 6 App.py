@@ -6869,7 +6869,7 @@ def _spot_tv_controls(cfg):
         spot_opts = [cfg["spot"]] + spot_opts
     groups = ["All"] + [g["name"] for g in list_groups()]
 
-    cols = st.columns([1, 1, 1, 1, 2, 2, 1.3])
+    cols = st.columns([1, 1, 1, 1, 1.8, 1.8, 1.8, 1.1])
     for i, (mkey, mlabel) in enumerate(modes):
         if cols[i].button(mlabel, key=f"tvmode_{mkey}", use_container_width=True,
                           type="primary" if cfg["mode"] == mkey else "secondary"):
@@ -6877,6 +6877,17 @@ def _spot_tv_controls(cfg):
             st.rerun()
 
     with cols[4]:
+        _sport_opts = list(SPORTS)
+        _spidx = _sport_opts.index(cfg["sport"]) if cfg["sport"] in _sport_opts else 0
+        spsel = st.selectbox(
+            "Sport", _sport_opts, index=_spidx, label_visibility="collapsed",
+            key="tv_sport_sel",
+            format_func=lambda k: SPORT_META.get(k, {}).get("label", k))
+        if spsel and spsel != cfg["sport"]:
+            st.query_params["sport"] = spsel
+            st.rerun()
+
+    with cols[5]:
         idx = spot_opts.index(cfg["spot"]) if cfg["spot"] in spot_opts else 0
         sel = st.selectbox("Spot", spot_opts, index=idx,
                            label_visibility="collapsed", key="tv_spot_sel")
@@ -6884,7 +6895,7 @@ def _spot_tv_controls(cfg):
             st.query_params["spot"] = sel
             st.rerun()
 
-    with cols[5]:
+    with cols[6]:
         gidx = groups.index(cfg["group"]) if cfg["group"] in groups else 0
         gsel = st.selectbox("Group", groups, index=gidx,
                             label_visibility="collapsed", key="tv_group_sel")
@@ -6896,7 +6907,7 @@ def _spot_tv_controls(cfg):
                 del st.query_params["group"]
             st.rerun()
 
-    with cols[6]:
+    with cols[7]:
         if st.button("← Exit", use_container_width=True, key="tv_exit"):
             for k in ("tv", "mode", "group"):
                 if k in st.query_params:
@@ -6951,6 +6962,16 @@ def render_spot_tv(cfg):
     event = f"<div class='event'>🏁 {cfg['event']}</div>" if cfg["event"] else ""
     title = cfg["spot"] or "Spot TV"
 
+    # Aktuelle Sportart als gläsernes Kästchen unter dem Spot-Namen (Wechsel über
+    # das Dropdown in den Controls direkt darunter).
+    _sp_label = SPORT_META.get(cfg["sport"], {}).get("label", cfg["sport"] or "—")
+    sport_chip = (
+        "<div style='display:inline-block;margin-top:8px;padding:5px 18px;"
+        "border-radius:999px;background:rgba(43,212,217,.14);"
+        "border:1px solid rgba(43,212,217,.45);color:#8fe3ff;font-weight:800;"
+        "font-size:20px;letter-spacing:.5px;backdrop-filter:blur(4px);'>"
+        f"{_sp_label}</div>")
+
     # Sponsor/Werbung oben rechts, je Spot (auf hellem Chip, damit dunkle Logos
     # sichtbar bleiben). Logo wenn vorhanden, sonst "Presented by <Name>".
     ad_src, ad_name = _spot_sponsor_img(cfg)
@@ -6977,7 +6998,7 @@ def render_spot_tv(cfg):
     st.markdown(
         "<div class='tv-header'>"
         f"<div class='tv-brand'>MyWaterSessions<span class='dot'>.</span>{BETA_BADGE}</div>"
-        f"<div class='tv-spot'><div class='name'>{title}</div>{event}</div>"
+        f"<div class='tv-spot'><div class='name'>{title}</div>{sport_chip}{event}</div>"
         f"<div class='sponsor'>{sponsor}</div>"
         "</div>",
         unsafe_allow_html=True,
