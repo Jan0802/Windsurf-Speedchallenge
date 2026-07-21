@@ -8503,6 +8503,32 @@ def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
     dpos = float(times_sec[vmin_i] - times_sec[apex_i])       # <0 Min vor Apex
     carried = min_kn >= glide_kn
 
+    # Zu grob (kein Sekunden-Stream)? Dann keine irreführende Phasen-Grafik/Detail-
+    # Diagnose, sondern eine ehrliche Kurzinfo. Ab ~3,5 s/Punkt ist ein 7–10-s-Manöver
+    # nur 1–2 Messpunkte -> Apex/Min/Recovery-Split unzuverlässig.
+    coarse = dt > 3.5
+
+    def _b(s):    # **fett** -> <b>fett</b> fuer den HTML-Block
+        return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
+
+    if coarse:
+        c = st.columns(4)
+        c[0].metric("Approach", f"{entry:.1f} kn")
+        c[1].metric("Min speed", f"{min_kn:.1f} kn",
+                    f"{min_kn - glide_kn:+.1f} vs glide", delta_color="off")
+        c[2].metric("Recovery", f"{recovery:.1f} kn")
+        c[3].metric("Speed kept", "–" if kept is None else f"{kept:.0f} %")
+        _head = ("✅ **Planed through** — you kept planing through the turn."
+                 if carried else "⚠️ **Dropped off the plane** in this gybe.")
+        if kept is not None:
+            _head += f" You kept about **{kept:.0f}%** of your approach speed."
+        st.markdown(_head)
+        st.info(f"This session's GPS is only ~{dt:.0f}s per point — too coarse to split a "
+                "7–10 s gybe into phases (that's why the numbers look rough and there's no "
+                "detailed curve). Your watch, once the update is live, records **per second**, "
+                "which powers the full phase-by-phase breakdown.")
+        return
+
     c = st.columns(5)
     c[0].metric("Approach", f"{entry:.1f} kn")
     c[1].metric("At apex", f"{apex_kn:.1f} kn")
@@ -8537,8 +8563,8 @@ def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
     edge = "#25c26b" if carried else "#e0862b"
     st.markdown(
         f"<div style='background:{box};border-left:4px solid {edge};border-radius:10px;"
-        f"padding:10px 14px;margin:6px 0'>{head}<ul style='margin:6px 0 0;padding-left:18px'>"
-        + "".join(f"<li style='margin:3px 0'>{x}</li>" for x in bullets)
+        f"padding:10px 14px;margin:6px 0'>{_b(head)}<ul style='margin:6px 0 0;padding-left:18px'>"
+        + "".join(f"<li style='margin:3px 0'>{_b(x)}</li>" for x in bullets)
         + "</ul></div>", unsafe_allow_html=True)
 
     # --- Sekundenkurve um den Apex (nur gültige Punkte) ---
