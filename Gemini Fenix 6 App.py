@@ -7615,8 +7615,7 @@ def _render_fin_advisor(username):
         st.caption("Rule-of-thumb fin size for windsurf, from your sail, weight, board type "
                    "and goal. A guide, not gospel — manufacturer specs always win.")
         _w0 = load_user_weights().get(username)
-        _sizes = [s for s, _ in _own_sail_sizes(username, "windsurf")]
-        _sail0 = _sizes[len(_sizes) // 2] if _sizes else 7.0
+        _sails = _own_sail_sizes(username, "windsurf")   # [(size_m2, label)]
 
         # Board aus dem eigenen Equipment wählen (Default = Lieblingsboard aus dem
         # Segel-Berater); der Boardtyp wird aus dem Namen erraten, ist aber änderbar.
@@ -7660,8 +7659,21 @@ def _render_fin_advisor(username):
                 st.success("Saved — this board now defaults to that type.")
                 st.rerun()
         c3, c4 = st.columns(2)
-        sail = c3.number_input("Sail size (m²)", min_value=2.0, max_value=15.0,
-                               value=float(_sail0), step=0.1, key=f"fin_sail_{username}")
+        with c3:
+            if _sails:
+                _CUSTOM = "✏️ Enter size manually…"
+                _sail_labels = [f"{lbl} · {sz:g} m²" for sz, lbl in _sails] + [_CUSTOM]
+                _pick = st.selectbox("Sail (from your quiver)", _sail_labels,
+                                     index=len(_sails) // 2, key=f"fin_sailsel_{username}")
+                if _pick == _CUSTOM:
+                    sail = st.number_input("Sail size (m²)", min_value=2.0, max_value=15.0,
+                                           value=7.0, step=0.1, key=f"fin_sail_{username}")
+                else:
+                    sail = float(_sails[_sail_labels.index(_pick)][0])
+            else:
+                st.caption("No sails saved yet — add them under Equipment to pick one here.")
+                sail = st.number_input("Sail size (m²)", min_value=2.0, max_value=15.0,
+                                       value=7.0, step=0.1, key=f"fin_sail_{username}")
         weight = c4.number_input("Weight incl. wetsuit (kg)", min_value=30.0, max_value=160.0,
                                  value=float(_w0 or 85.0), step=1.0, key=f"fin_weight_{username}")
         c5, c6 = st.columns(2)
