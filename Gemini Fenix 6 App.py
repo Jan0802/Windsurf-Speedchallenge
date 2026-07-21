@@ -8821,6 +8821,61 @@ def _render_speed_curve(track_pts, duration_s, record):
                     _render_gybe_detail(track_pts, v_kn, t_min, _g, glide_kn, dt)
 
 
+def _track_svg(track_pts, duration_s):
+    """Leichte GPS-Trackkarte als Inline-SVG (kein pydeck → viel weniger RAM auf
+    der 512-MB-Instanz). Segmente nach Speed eingefärbt (dumpf→aqua), Start grün,
+    Ziel rot. Gibt (svg_html, height_px) zurück oder ("", 0)."""
+    if not track_pts or len(track_pts) < 2:
+        return "", 0
+    lat = np.array([p[0] for p in track_pts], dtype=float)
+    lon = np.array([p[1] for p in track_pts], dtype=float)
+    mlat = float(np.mean(lat))
+    x = lon * np.cos(np.radians(mlat))          # äquirektangulär -> korrektes Seitenverhältnis
+    y = lat
+    x0, x1 = float(x.min()), float(x.max())
+    y0, y1 = float(y.min()), float(y.max())
+    xr = (x1 - x0) or 1e-9
+    yr = (y1 - y0) or 1e-9
+    aspect = xr / yr
+    availW, availH, pad = 680.0, 340.0, 16.0
+    if aspect >= availW / availH:
+        pw, ph = availW, availW / aspect
+    else:
+        pw, ph = availH * aspect, availH
+    W, H = pw + 2 * pad, ph + 2 * pad
+    n = len(track_pts)
+
+    def PX(i):
+        return pad + (x[i] - x0) / xr * pw
+
+    def PY(i):
+        return pad + (1.0 - (y[i] - y0) / yr) * ph
+
+    seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])
+    dt = (float(duration_s) / (n - 1)) if duration_s and n > 1 else 5.0
+    v = seg / max(dt, 0.1) * 3.6 / 1.852         # kn je Segment
+    vmax = float(np.percentile(v, 95)) if v.size else 1.0
+    if vmax <= 0:
+        vmax = 1.0
+    step = max(1, (n - 1) // 400)                # ausdünnen fürs kompakte SVG
+    lines = []
+    for i in range(0, n - 1, step):
+        j = min(i + step, n - 1)
+        t = min(1.0, float(v[i]) / vmax)
+        r = int(0x5b + (0x2b - 0x5b) * t)
+        g = int(0x7b + (0xd4 - 0x7b) * t)
+        b = int(0x86 + (0xd9 - 0x86) * t)
+        lines.append(f"<line x1='{PX(i):.1f}' y1='{PY(i):.1f}' x2='{PX(j):.1f}' "
+                     f"y2='{PY(j):.1f}' stroke='rgb({r},{g},{b})' stroke-width='2.6' "
+                     "stroke-linecap='round'/>")
+    dots = (f"<circle cx='{PX(0):.1f}' cy='{PY(0):.1f}' r='5' fill='#25c26b'/>"
+            f"<circle cx='{PX(n - 1):.1f}' cy='{PY(n - 1):.1f}' r='5' fill='#e5484d'/>")
+    svg = (f"<svg viewBox='0 0 {W:.0f} {H:.0f}' width='100%' style='max-width:{W:.0f}px;"
+           "background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);"
+           f"border-radius:14px'>{''.join(lines)}{dots}</svg>")
+    return svg, int(H) + 8
+
+
 def render_history_overview(record):
     """Session-Übersicht aus den gespeicherten Ranking-Werten (ohne Roh-FIT)."""
 
@@ -8951,7 +9006,15 @@ def render_history_overview(record):
 
     if track_pts:
         st.markdown("## 🗺️ Track")
-        show_map(pd.DataFrame(track_pts, columns=["lat", "lon"]))
+        _tsvg, _th = _track_svg(track_pts, num("duration_s"))
+        if _tsvg:
+            components.html(f"<div style='font-family:system-ui,sans-serif'>{_tsvg}</div>",
+                            height=_th)
+            st.caption("🟢 start · 🔴 finish · line colour = speed (dim → aqua)")
+        # Pydeck-Karte auf 512 MB ein Speicherfresser -> vorerst deaktiviert.
+        # Zum Reaktivieren die naechste Zeile einkommentieren (und ggf. das SVG oben
+        # entfernen). Fuer echte Kartenkacheln braucht es mehr RAM (Upgrade 2 GB).
+        # show_map(pd.DataFrame(track_pts, columns=["lat", "lon"]))
 
     st.caption(
         "ℹ️ Individual runs and max/avg speed are only available right after the "
