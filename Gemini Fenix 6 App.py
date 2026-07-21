@@ -8282,63 +8282,59 @@ def _parse_watch_gybes(raw):
 
 def _watch_gybes_to_markers(wg, t_min, v_kn):
     """Uhr-Halsen in dieselbe Marker-Form wie die Track-Erkennung bringen
-    (auf der Kurve platziert über die nächstgelegene Zeit)."""
+    (auf der Kurve platziert über die nächstgelegene Zeit). Unterstützt das v2-
+    Sekunden-Fenster ({t, speeds}) und das alte 4-Phasen-Format ({approach,...})."""
     out = []
     for k, g in enumerate(wg, 1):
         tmin = float(g.get("t") or 0) / 60.0
         i = int(np.argmin(np.abs(t_min - tmin))) if len(t_min) else 0
-        appr = g.get("approach") or 0
-        rec = g.get("recovery") or 0
+        entry = {"n": k, "i": i, "t": tmin, "src": "watch"}
+        if isinstance(g.get("speeds"), list):
+            arr = np.asarray(g["speeds"], dtype=float)
+            half = len(arr) // 2
+            pre, post = arr[:half + 1], arr[half:]
+            appr = float(np.max(pre[pre >= 0])) if (pre >= 0).any() else 0.0
+            rec = float(np.max(post[post >= 0])) if (post >= 0).any() else 0.0
+            entry["speeds"] = g["speeds"]
+        else:
+            appr = g.get("approach") or 0
+            rec = g.get("recovery") or 0
+            entry["phases"] = g
         ret = (rec / appr * 100.0) if (appr > 0 and rec > 0) else 0.0
-        color = "#25c26b" if ret >= 70 else ("#e0b000" if ret >= 50 else "#e5484d")
-        out.append({"n": k, "i": i, "t": tmin,
-                    "entry": appr if appr > 0 else 0, "exit": rec if rec > 0 else 0,
-                    "ret": ret, "color": color, "src": "watch", "phases": g})
+        entry["entry"] = appr if appr > 0 else 0
+        entry["exit"] = rec if rec > 0 else 0
+        entry["ret"] = ret
+        entry["color"] = "#25c26b" if ret >= 70 else ("#e0b000" if ret >= 50 else "#e5484d")
+        out.append(entry)
     return out
 
 
-def _render_gybe_detail(track_pts, v_kn, t_min, gybe, glide_kn, dt):
-    """Ereignisbasierte Einzel-Halsen-Diagnose (Modell aus halsen-diagnose.md):
-    geometrischer Apex (schärfster Carve) UND Speed-Minimum werden GETRENNT
-    bestimmt; daraus Kernaussagen (durchgeglitten?, Sekunden unter Gleitgrenze,
-    Lage des Minimums zum Apex, Recovery) + Klartext-Diagnose + Sekundenkurve.
-    Läuft auf dem (groben) Track; das Uhr-Fenster liefert später exakte Werte."""
-    n_seg = len(v_kn)
-    gi = int(gybe["i"])
-    wseg = max(3, int(round(18.0 / dt)))          # ~±18 s Fenster
-    a = max(0, gi - wseg)
-    b = min(n_seg, gi + wseg + 1)
-    st.markdown(f"#### 🔍 Gybe {gybe['n']} — diagnosis")
-    if b - a < 3:
-        st.info("The GPS track is too coarse around this gybe for a detailed "
-                "diagnosis. The watch update will record it per second.")
+def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
+    """Gemeinsame ereignisbasierte Halsen-Diagnose (Modell aus halsen-diagnose.md).
+    speeds/times_sec = np-Arrays (Speed kn / Sekunden relativ zum Apex), apex_i =
+    Index des geometrischen Apex, ungültige Werte = speed < 0. Zeigt Kennzahlen,
+    Klartext-Diagnose und die Sekundenkurve (Apex, Min, Unter-Gleitgrenze-Zone)."""
+    st.markdown(f"#### 🔍 Gybe {gnum} — diagnosis")
+    speeds = np.asarray(speeds, dtype=float)
+    times_sec = np.asarray(times_sec, dtype=float)
+    valid = speeds >= 0
+    if int(valid.sum()) < 3:
+        st.info("Not enough GPS resolution around this gybe for a detailed diagnosis.")
         return
-
-    def _adiff(x, y):
-        d = (y - x + 180.0) % 360.0 - 180.0
-        return abs(d)
-
-    def _brg(j):
-        return _bearing_deg(track_pts[j][0], track_pts[j][1],
-                            track_pts[j + 1][0], track_pts[j + 1][1])
-
-    # Geometrischer Apex = Segment mit der stärksten Kursänderung (schärfster Carve).
-    iap = gi
-    turn_best = -1.0
-    for j in range(a + 1, b):
-        tr = _adiff(_brg(j - 1), _brg(j))
-        if tr > turn_best:
-            turn_best, iap = tr, j
-    imin = a + int(np.argmin(v_kn[a:b]))          # Speed-Minimum (getrennt vom Apex)
-    min_kn = float(v_kn[imin])
-    apex_kn = float(v_kn[iap])
-    entry = float(np.max(v_kn[a:iap + 1]))        # Höchsttempo bis zum Apex
-    recovery = float(np.max(v_kn[iap:b]))         # Höchsttempo nach dem Apex
+    idx = np.arange(len(speeds))
+    apex_i = int(min(max(apex_i, 0), len(speeds) - 1))
+    apex_kn = float(speeds[apex_i]) if speeds[apex_i] >= 0 else float(np.max(speeds[valid]))
+    vmin_i = int(idx[valid][np.argmin(speeds[valid])])       # Speed-Minimum (getrennt)
+    min_kn = float(speeds[vmin_i])
+    before = valid & (idx <= apex_i)
+    after = valid & (idx >= apex_i)
+    entry = float(np.max(speeds[before])) if before.any() else apex_kn
+    recovery = float(np.max(speeds[after])) if after.any() else apex_kn
     kept = (recovery / entry * 100.0) if entry > 0 else None
-    secs_below = float(np.sum(v_kn[a:b] < glide_kn)) * dt
-    dpos = (imin - iap) * dt                       # Sek.: <0 Min vor Apex, >0 danach
-
+    secs_below = float(np.sum(valid & (speeds < glide_kn))) * dt
+    dpos = float(times_sec[vmin_i] - times_sec[apex_i])       # <0 Min vor Apex
     carried = min_kn >= glide_kn
+
     c = st.columns(5)
     c[0].metric("Approach", f"{entry:.1f} kn")
     c[1].metric("At apex", f"{apex_kn:.1f} kn")
@@ -8347,20 +8343,18 @@ def _render_gybe_detail(track_pts, v_kn, t_min, gybe, glide_kn, dt):
     c[3].metric("Recovery", f"{recovery:.1f} kn")
     c[4].metric("Speed kept", "–" if kept is None else f"{kept:.0f} %")
 
-    # --- Klartext-Diagnose (Regeln aus der md) ---
     head = ("✅ **Planed through** — you stayed on the plane."
             if carried else "⚠️ **Dropped off the plane** in this gybe.")
-    bullets = []
-    bullets.append(f"Lowest speed **{min_kn:.1f} kn** vs glide ~{glide_kn:.0f} kn.")
+    bullets = [f"Lowest speed **{min_kn:.1f} kn** vs glide ~{glide_kn:.0f} kn."]
     if secs_below <= 1:
         bullets.append("Only briefly below planing — that's fine. 👍")
     elif secs_below >= 3:
         bullets.append(f"~{secs_below:.0f}s below planing — **the gybe sank**.")
     else:
         bullets.append(f"~{secs_below:.0f}s below planing.")
-    if dpos <= -dt:
+    if dpos <= -max(dt, 1.0):
         bullets.append("Slowest point **before** the apex → likely **entered too hard / braked**.")
-    elif dpos >= dt:
+    elif dpos >= max(dt, 1.0):
         bullets.append("Slowest point **after** the apex → likely **stuck in the rig change** "
                        "(power back on too late).")
     else:
@@ -8379,17 +8373,17 @@ def _render_gybe_detail(track_pts, v_kn, t_min, gybe, glide_kn, dt):
         + "".join(f"<li style='margin:3px 0'>{x}</li>" for x in bullets)
         + "</ul></div>", unsafe_allow_html=True)
 
-    # --- Sekundenkurve um den Apex (Zeit relativ zum Apex) ---
+    # --- Sekundenkurve um den Apex (nur gültige Punkte) ---
     W, H = 680.0, 210.0
     L, R, T, B = 40.0, 12.0, 14.0, 26.0
     px0, px1, py0, py1 = L, W - R, T, H - B
-    ts = (t_min[a:b] - t_min[iap]) * 60.0          # Sekunden relativ zum Apex
-    wv = v_kn[a:b]
-    t0, t1 = float(ts[0]), float(ts[-1])
+    vi = idx[valid]
+    ts = times_sec[valid]
+    wv = speeds[valid]
+    t0, t1 = float(np.min(ts)), float(np.max(ts))
     if t1 <= t0:
         t1 = t0 + 1.0
-    y_max = max(float(np.max(wv)) * 1.12, glide_kn * 1.25, 8.0)
-    y_max = float(np.ceil(y_max / 2.0) * 2.0)
+    y_max = float(np.ceil(max(float(np.max(wv)) * 1.12, glide_kn * 1.25, 8.0) / 2.0) * 2.0)
 
     def X(s):
         return px0 + ((s - t0) / (t1 - t0)) * (px1 - px0)
@@ -8398,10 +8392,10 @@ def _render_gybe_detail(track_pts, v_kn, t_min, gybe, glide_kn, dt):
         return py1 - (min(kn, y_max) / y_max) * (py1 - py0)
 
     gy = Y(glide_kn)
-    ax = X(0.0)
+    ax = X(float(times_sec[apex_i]))
     parts = [
         f"<rect x='{px0}' y='{gy:.1f}' width='{px1 - px0:.1f}' height='{py1 - gy:.1f}' "
-        "fill='rgba(229,72,77,.10)'/>",                       # Zone unter Gleitgrenze
+        "fill='rgba(229,72,77,.10)'/>",
         f"<line x1='{px0}' y1='{gy:.1f}' x2='{px1}' y2='{gy:.1f}' stroke='#e0b000' "
         "stroke-width='1' stroke-dasharray='5 4'/>",
         f"<text x='{px1 - 2:.1f}' y='{gy - 4:.1f}' fill='#e0b000' font-size='10' "
@@ -8417,12 +8411,11 @@ def _render_gybe_detail(track_pts, v_kn, t_min, gybe, glide_kn, dt):
         col = "#e5484d" if wv[i] < glide_kn else "#2bd4d9"
         parts.append(f"<circle cx='{X(float(ts[i])):.1f}' cy='{Y(float(wv[i])):.1f}' "
                      f"r='2.6' fill='{col}'/>")
-    # Speed-Minimum markieren
-    parts.append(f"<circle cx='{X(dpos):.1f}' cy='{Y(min_kn):.1f}' r='4.5' fill='none' "
-                 "stroke='#e5484d' stroke-width='2'/>")
-    parts.append(f"<text x='{X(dpos):.1f}' y='{Y(min_kn) + 16:.1f}' fill='#e5484d' "
-                 "font-size='9' text-anchor='middle'>min</text>")
-    for s in (t0, 0.0, t1):
+    parts.append(f"<circle cx='{X(dpos + float(times_sec[apex_i])):.1f}' cy='{Y(min_kn):.1f}' "
+                 "r='4.5' fill='none' stroke='#e5484d' stroke-width='2'/>")
+    parts.append(f"<text x='{X(dpos + float(times_sec[apex_i])):.1f}' y='{Y(min_kn) + 16:.1f}' "
+                 "fill='#e5484d' font-size='9' text-anchor='middle'>min</text>")
+    for s in (t0, float(times_sec[apex_i]), t1):
         parts.append(f"<text x='{X(s):.1f}' y='{H - 8:.1f}' fill='#7fa6b2' font-size='9' "
                      f"text-anchor='middle'>{s:+.0f}s</text>")
     svg = (f"<svg viewBox='0 0 {W:.0f} {H:.0f}' width='100%' style='max-width:700px;"
@@ -8430,8 +8423,51 @@ def _render_gybe_detail(track_pts, v_kn, t_min, gybe, glide_kn, dt):
            f"border-radius:12px'>{''.join(parts)}</svg>")
     components.html(f"<div style='font-family:system-ui,sans-serif'>{svg}</div>", height=220)
     st.caption("🔴 = below the glide threshold · ○ = speed minimum · dashed = geometric "
-               f"apex (sharpest carve). Reconstructed from the ~{dt:.0f}s GPS track — the "
-               "watch update sends a per-second window for an exact diagnosis.")
+               "apex (sharpest carve). " + note)
+
+
+def _render_gybe_detail(track_pts, v_kn, t_min, gybe, glide_kn, dt):
+    """Halsen-Diagnose aus dem (groben) GPS-Track: Fenster um die Halse ziehen,
+    geometrischen Apex per Kursänderung bestimmen, dann gemeinsame Diagnose."""
+    n_seg = len(v_kn)
+    gi = int(gybe["i"])
+    wseg = max(3, int(round(18.0 / dt)))
+    a = max(0, gi - wseg)
+    b = min(n_seg, gi + wseg + 1)
+    if b - a < 3:
+        st.markdown(f"#### 🔍 Gybe {gybe['n']} — diagnosis")
+        st.info("The GPS track is too coarse around this gybe for a detailed "
+                "diagnosis. The watch update records it per second.")
+        return
+
+    def _adiff(x, y):
+        return abs((y - x + 180.0) % 360.0 - 180.0)
+
+    def _brg(j):
+        return _bearing_deg(track_pts[j][0], track_pts[j][1],
+                            track_pts[j + 1][0], track_pts[j + 1][1])
+
+    iap = gi
+    turn_best = -1.0
+    for j in range(a + 1, b):
+        tr = _adiff(_brg(j - 1), _brg(j))
+        if tr > turn_best:
+            turn_best, iap = tr, j
+    speeds = np.asarray(v_kn[a:b], dtype=float)
+    times_sec = (np.asarray(t_min[a:b], dtype=float) - float(t_min[iap])) * 60.0
+    _render_gybe_diag(gybe["n"], speeds, times_sec, iap - a, glide_kn, dt,
+                      f"Reconstructed from the ~{dt:.0f}s GPS track — the watch update "
+                      "sends a per-second window for an exact diagnosis.")
+
+
+def _render_gybe_detail_window(gnum, speeds, glide_kn):
+    """Halsen-Diagnose aus dem EXAKTEN Sekunden-Fenster der Uhr (Apex in der Mitte,
+    1 Wert/Sekunde; -1 = ausserhalb)."""
+    sp = np.asarray(speeds, dtype=float)
+    apex_i = len(sp) // 2                         # Uhr zentriert das Fenster auf den Apex
+    times_sec = (np.arange(len(sp)) - apex_i).astype(float)
+    _render_gybe_diag(gnum, sp, times_sec, apex_i, glide_kn, 1.0,
+                      "Computed on the watch, second-by-second.")
 
 
 def _render_speed_curve(track_pts, duration_s, record):
@@ -8610,7 +8646,11 @@ def _render_speed_curve(track_pts, duration_s, record):
         if _sel != "–":
             _gi = int(_sel.split()[1]) - 1
             if 0 <= _gi < len(gybes):
-                _render_gybe_detail(track_pts, v_kn, t_min, gybes[_gi], glide_kn, dt)
+                _g = gybes[_gi]
+                if isinstance(_g.get("speeds"), list):
+                    _render_gybe_detail_window(_g["n"], _g["speeds"], glide_kn)
+                else:
+                    _render_gybe_detail(track_pts, v_kn, t_min, _g, glide_kn, dt)
 
 
 def render_history_overview(record):
