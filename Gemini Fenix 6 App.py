@@ -156,7 +156,7 @@ SPORTS = ("windsurf", "kitesurf", "wingsurf", "sup", "wakeboard")
 BETA_BADGE = (
     "<span style=\"font-size:.34em;font-weight:700;color:#fff;opacity:.85;"
     "vertical-align:super;margin-left:.45em;letter-spacing:0;white-space:nowrap;\">"
-    "Beta 0.9</span>"
+    "Beta 0.9.1</span>"
 )
 
 # Datum des letzten Deploys: automatisch aus der Aenderungszeit dieser Datei
