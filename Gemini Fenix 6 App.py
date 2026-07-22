@@ -1495,6 +1495,35 @@ def update_spot_coords(spot, lat, lon):
     clear_data_caches()
 
 
+def delete_spot(name, with_sessions=False):
+    """Loescht einen Spot vollstaendig: Koordinaten, Info (Beschreibung/Bild/
+    Einstufung), Werbung/Produkte/Webcam-Werbung, Sponsor-Manager und Bewertungen.
+    Die aufgezeichneten Sessions bleiben erhalten (sonst gehen Ranking-Daten
+    verloren) – nur mit with_sessions=True werden auch sie geloescht (unwiderruflich).
+    Gibt die Anzahl geloeschter Sessions zurueck."""
+    if not name:
+        return 0
+    _ensure_ad_tables()
+    sess_deleted = 0
+    with get_engine().begin() as conn:
+        conn.execute(spots_table.delete().where(spots_table.c.name == name))
+        conn.execute(spot_info_table.delete().where(spot_info_table.c.spot == name))
+        conn.execute(spot_ads_table.delete().where(spot_ads_table.c.spot == name))
+        conn.execute(spot_products_table.delete().where(spot_products_table.c.spot == name))
+        conn.execute(spot_webcam_ads_table.delete().where(spot_webcam_ads_table.c.spot == name))
+        conn.execute(spot_managers_table.delete().where(spot_managers_table.c.spot == name))
+        conn.execute(spot_ratings_table.delete().where(spot_ratings_table.c.spot == name))
+        if with_sessions:
+            res = conn.execute(
+                sessions_table.delete().where(sessions_table.c.surfspot == name))
+            sess_deleted = res.rowcount or 0
+    clear_data_caches()
+    _clear_ad_caches()
+    load_spot_info.clear()
+    load_all_spot_info.clear()
+    return sess_deleted
+
+
 def all_known_spots():
     names = set(load_spots().keys())
 
@@ -9872,6 +9901,10 @@ def render_admin_spots():
         "unten manuell setzen oder per KI holen und dann korrigieren."
     )
 
+    _dmsg = st.session_state.pop("_spot_deleted_msg", None)
+    if _dmsg:
+        st.success(_dmsg)
+
     coords = load_spots()                 # {name: {lat, lon}} – nur mit Koordinaten
     all_names = all_known_spots()         # alle bekannten Namen (auch aus Sessions)
 
@@ -9992,6 +10025,39 @@ def render_admin_spots():
             st.success(f"Spot „{name}“ gespeichert ({lat:.5f}, {lon:.5f}){_extra}.")
             st.session_state["_admin_spot_loaded"] = None  # Liste/Karte neu laden
             st.rerun()
+
+    # ---- Spot löschen (mit Sicherheitsabfrage) ----
+    if name:
+        with st.expander("🗑️ Spot löschen", expanded=False):
+            st.caption("Entfernt Koordinaten, Beschreibung(en), Bild, Werbung/Produkte, "
+                       "Webcam-Werbung und Bewertungen dieses Spots. Aufgezeichnete "
+                       "Sessions bleiben erhalten – außer du hakst unten an, sie mitzulöschen.")
+            try:
+                with get_engine().connect() as _c:
+                    _sess_n = int(_c.execute(
+                        select(func.count()).select_from(sessions_table)
+                        .where(sessions_table.c.surfspot == name)).scalar() or 0)
+            except Exception:  # noqa: BLE001
+                _sess_n = 0
+            if _sess_n:
+                st.warning(f"Für „{name}“ sind **{_sess_n} Sessions** gespeichert. Ohne diese "
+                           "mitzulöschen, erscheint der Spot über die Sessions weiterhin in "
+                           "Ranglisten/Auswahlen.")
+                st.checkbox(f"Auch die {_sess_n} Sessions unwiderruflich löschen",
+                            key=f"del_sess_{name}")
+            _ok = st.checkbox(f"Ja, „{name}“ wirklich löschen", key=f"del_ok_{name}")
+
+            def _del_cb(_nm=name):
+                _ws = bool(st.session_state.get(f"del_sess_{_nm}", False))
+                _cnt = delete_spot(_nm, with_sessions=_ws)
+                st.session_state["admin_spot_pick"] = "– neuer Spot –"
+                st.session_state["_admin_spot_loaded"] = None
+                st.session_state["_spot_deleted_msg"] = (
+                    f"Spot „{_nm}“ gelöscht"
+                    + (f" (inkl. {_cnt} Sessions)" if _ws else "") + ".")
+
+            st.button("🗑️ Endgültig löschen", type="secondary", disabled=not _ok,
+                      on_click=_del_cb, use_container_width=True, key=f"del_go_{name}")
 
     # ---- „Für wen geeignet?"-Einstufung manuell setzen/korrigieren (überschreibt KI) ----
     if name:
