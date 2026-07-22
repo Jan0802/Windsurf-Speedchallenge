@@ -5097,7 +5097,11 @@ def render_rankings(results_container):
                     ["strokes", "cadence"] if sport == "sup" else ["airtime", "jump"])
             _tk = f"rank_tables_{sport}"
             if _tk not in st.session_state:   # einmalig aus Preset/Default vorbelegen
-                _tinit = preset.get("tables") or _rank_default_tables(sport)
+                # Sportart mit eigenem Default (Wakeboard) erbt NICHT den globalen
+                # Preset – sonst zeigt sie die windsurf-lastige Auswahl.
+                _tinit = (_rank_default_tables(sport)
+                          if sport in RANKING_TABLES_DEFAULT_BY_SPORT
+                          else (preset.get("tables") or _rank_default_tables(sport)))
                 st.session_state[_tk] = ([t for t in _tinit if t in _tbl_opts]
                                          or [t for t in _rank_default_tables(sport)
                                              if t in _tbl_opts])
@@ -5634,7 +5638,13 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
 
     _keys = [k for k, _ in _avail]
     _default = _rank_default_tables(_sp)
-    _selected = [k for k in (extra.get("tables") or _default) if k in _keys]
+    if _sp in RANKING_TABLES_DEFAULT_BY_SPORT:
+        # Sportart mit eigenem Default (z. B. Wakeboard): Sport-Default zeigen,
+        # NICHT den (windsurf-lastigen) globalen Preset erben – sonst landet z. B.
+        # nur "2s" oben und Airtime/Jump rutschen unter "More rankings".
+        _selected = [k for k in _default if k in _keys]
+    else:
+        _selected = [k for k in (extra.get("tables") or _default) if k in _keys]
     if not _selected:
         _selected = [k for k in _default if k in _keys] or _keys[:2]
 
