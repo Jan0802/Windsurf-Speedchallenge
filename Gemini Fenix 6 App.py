@@ -900,6 +900,8 @@ spot_info_table = Table(
     "spot_info", DB_METADATA,
     Column("spot", String(200), primary_key=True),
     Column("description", String),
+    Column("description_local", String),  # zweite Beschreibung in der Landessprache
+    Column("local_lang", String(60)),     # nativer Name der Landessprache (Umschalter)
     Column("image", LargeBinary),
     Column("image_mime", String(50)),
     Column("webcam_url", String(500)),
@@ -8235,7 +8237,20 @@ def render_spots_page(user=None):
         heading += f"  ·  📍 {chosen['country']}"
     st.markdown(heading)
 
-    desc = (chosen.get("description") or info.get("description") or "").strip()
+    # Beschreibung: Englisch + (falls vorhanden) Landessprache, per Umschalter
+    # direkt darueber waehlbar. Native st.radio, damit es in allen Layout-Zweigen
+    # zieht (st.markdown wuerde ein HTML/JS-Toggle entschaerfen).
+    _desc_en = (chosen.get("description") or info.get("description") or "").strip()
+    _desc_loc = (chosen.get("description_local") or info.get("description_local") or "").strip()
+    _llang = (chosen.get("local_lang") or info.get("local_lang") or "").strip()
+    desc = _desc_en
+    if _desc_en and _desc_loc and _llang:
+        _opts = ["🇬🇧 English", f"🌐 {_llang}"]
+        _pick = st.radio(
+            "Description language", _opts, horizontal=True, label_visibility="collapsed",
+            key=f"spotdesc_lang_{chosen.get('spot') or info.get('spot') or ''}")
+        if _pick == _opts[1]:
+            desc = _desc_loc
     desc_html = (f"<div style='font-size:18px;line-height:1.6;'>{desc}</div>"
                  if desc else "")
 
