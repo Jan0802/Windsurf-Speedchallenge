@@ -2698,7 +2698,8 @@ def load_spot_info(spot):
 
 def save_spot_info(spot, description, webcam_url, country="", best_winds="",
                    image_bytes=None, image_mime=None, clear_image=False,
-                   webcam_link=None, water_ok=None):
+                   webcam_link=None, water_ok=None,
+                   description_local=None, local_lang=None):
     if not spot:
         return
     _ensure_ad_tables()
@@ -2715,6 +2716,11 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
         values["webcam_link"] = (webcam_link or "").strip() or None
     if water_ok is not None:
         values["water_ok"] = bool(water_ok)
+    # Landessprache-Beschreibung + Sprachname: nur wenn explizit uebergeben.
+    if description_local is not None:
+        values["description_local"] = (description_local or "").strip() or None
+    if local_lang is not None:
+        values["local_lang"] = (local_lang or "").strip() or None
     if clear_image:
         values["image"] = None
         values["image_mime"] = None
@@ -2733,6 +2739,8 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
         else:
             conn.execute(insert(spot_info_table).values(spot=spot, **values))
     _clear_ad_caches()
+    load_spot_info.clear()
+    load_all_spot_info.clear()
 
 
 def save_spot_class(spot, class_json):
@@ -9881,12 +9889,16 @@ def render_admin_spots():
             st.session_state["admin_spot_lon"] = float((coords.get(pick) or {}).get("lon") or 0.0)
             st.session_state["admin_spot_desc"] = _i.get("description") or ""
             st.session_state["admin_spot_country"] = _i.get("country") or ""
+            st.session_state["admin_spot_desc_local"] = _i.get("description_local") or ""
+            st.session_state["admin_spot_lang"] = _i.get("local_lang") or ""
         else:
             st.session_state["admin_spot_name"] = ""
             st.session_state["admin_spot_lat"] = 0.0
             st.session_state["admin_spot_lon"] = 0.0
             st.session_state["admin_spot_desc"] = ""
             st.session_state["admin_spot_country"] = ""
+            st.session_state["admin_spot_desc_local"] = ""
+            st.session_state["admin_spot_lang"] = ""
         st.rerun()
 
     name = st.text_input("Spot-Name", key="admin_spot_name").strip()
@@ -9919,6 +9931,14 @@ def render_admin_spots():
     country = st.text_input(
         "Land", key="admin_spot_country",
         help="z.B. Deutschland – steuert die Länder-Auswahl auf der Spots-Seite.")
+    lang = st.text_input(
+        "Landessprache (nativer Name, z. B. Deutsch / Italiano / Português)",
+        key="admin_spot_lang",
+        help="Name der Sprache für die 2. Beschreibung. Leer = kein Sprach-Umschalter.")
+    desc_local = st.text_area(
+        f"Beschreibung ({lang or 'Landessprache'})", key="admin_spot_desc_local", height=120,
+        help="Zweite Beschreibung in der Landessprache. Die KI füllt sie automatisch; hier "
+             "kannst du sie korrigieren/eintragen. Leer = nur Englisch (kein Umschalter).")
 
     if st.button("🤖 KI-Beschreibung holen (Claude)", use_container_width=True):
         _sk = _secret("SEED_KEY", "").strip()
@@ -9946,8 +9966,10 @@ def render_admin_spots():
                 if (_new.get("description") or "").strip():
                     st.session_state["admin_spot_desc"] = _new.get("description")
                     st.session_state["admin_spot_country"] = _new.get("country") or country
+                    st.session_state["admin_spot_desc_local"] = _new.get("description_local") or ""
+                    st.session_state["admin_spot_lang"] = _new.get("local_lang") or ""
                     st.session_state["_admin_spot_loaded"] = pick  # Rerun soll Felder nicht ueberschreiben
-                    st.success("KI-Beschreibung erzeugt & gespeichert – bitte oben prüfen.")
+                    st.success("KI-Beschreibung (EN + Landessprache) erzeugt & gespeichert – bitte oben prüfen.")
                     st.rerun()
                 else:
                     st.warning("Keine Beschreibung erhalten – bitte manuell eintragen.")
@@ -9961,10 +9983,11 @@ def render_admin_spots():
             st.error("Bitte gültige Koordinaten eingeben (0/0 liegt im Meer vor Afrika).")
         else:
             update_spot_coords(name, lat, lon)
-            # Beschreibung/Land nur schreiben, wenn gesetzt (Webcam-URL erhalten).
-            if desc.strip() or country.strip():
+            # Beschreibung/Land/lokale Version schreiben, wenn irgendwas gesetzt ist.
+            if desc.strip() or country.strip() or desc_local.strip() or lang.strip():
                 _ex = load_spot_info(name) or {}
-                save_spot_info(name, desc, _ex.get("webcam_url") or "", country=country)
+                save_spot_info(name, desc, _ex.get("webcam_url") or "", country=country,
+                               description_local=desc_local, local_lang=lang)
             _extra = " – im Revierführer sichtbar" if desc.strip() else ""
             st.success(f"Spot „{name}“ gespeichert ({lat:.5f}, {lon:.5f}){_extra}.")
             st.session_state["_admin_spot_loaded"] = None  # Liste/Karte neu laden
