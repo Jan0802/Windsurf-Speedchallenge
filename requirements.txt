@@ -4,7 +4,13 @@
 # width="stretch", st.columns vertical_alignment). Vor einem Upgrade erst die
 # components.html-Aufrufe auf st.html/st.iframe migrieren.
 streamlit==1.58.0
-pandas
+# WICHTIG (Status-139/SIGSEGV-Fix): ungepinnt zog Render numpy 2.x + pyarrow
+# 25.0.0 -> ABI-/Build-Mismatch, nativer Absturz beim String->Arrow-Konvertieren
+# (auch bei st.dataframe-Anzeige) = Dauer-Crashloop. Bewaehrte, kompatible Kombi
+# fuer Python 3.12 pinnen. Vor einem Upgrade als Set testen (numpy/pandas/pyarrow).
+numpy==1.26.4
+pandas==2.2.3
+pyarrow==17.0.0
 pydeck
 fitparse
 SQLAlchemy
