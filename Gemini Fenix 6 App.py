@@ -44,6 +44,16 @@ try:
     _pa.set_io_thread_count(1)
 except Exception:  # noqa: BLE001
     pass
+
+# ROOT-CAUSE des Status-139/Segfaults: pandas baute String-Spalten als
+# pyarrow-gestuetzte Strings (`string[pyarrow]`); dieser Pfad crasht nativ
+# (faulthandler: pandas/core/arrays/string_arrow.py _from_sequence beim
+# DataFrame-Bau in _tv_load_sessions). Objekt-Strings = alter, stabiler Pfad.
+for _opt, _val in (("future.infer_string", False), ("mode.string_storage", "python")):
+    try:
+        pd.set_option(_opt, _val)
+    except Exception:  # noqa: BLE001
+        pass
 from fitparse import FitFile
 from sqlalchemy import (
     Boolean,
