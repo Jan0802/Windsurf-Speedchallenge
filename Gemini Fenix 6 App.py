@@ -21,11 +21,29 @@ from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 import io
 
+# Native Libs auf 1 Thread zwingen (Standard-Instanz = 1 CPU): mehrere Threads in
+# BLAS/pyarrow bringen hier keine Parallelitaet, koennen aber bei gleichzeitigen
+# Renders zu nativen Abstuerzen (SIGSEGV / Status 139) fuehren. MUSS vor numpy/
+# pyarrow gesetzt sein (fuer OpenBLAS am zuverlaessigsten zusaetzlich als Render-
+# Env-Var setzen, da Streamlit numpy evtl. schon vorher importiert).
+for _t in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+           "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+    os.environ.setdefault(_t, "1")
+
 import numpy as np
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
 import streamlit.components.v1 as components
+
+# pyarrow (Arrow-Serialisierung von st.dataframe/st.map) ebenfalls einthreadig –
+# gilt als haeufige Ursache nativer Segfaults unter Last. Laufzeit-API, wirkt sicher.
+try:
+    import pyarrow as _pa
+    _pa.set_cpu_count(1)
+    _pa.set_io_thread_count(1)
+except Exception:  # noqa: BLE001
+    pass
 from fitparse import FitFile
 from sqlalchemy import (
     Boolean,
