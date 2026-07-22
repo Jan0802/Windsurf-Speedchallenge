@@ -10606,6 +10606,32 @@ def render_spotadmin():
 
 load_css(app_path("assets", "style.css"))
 
+# Auto-Aufwaermen per ?warm=1 (Cron alle ~10 Min): fuellt die prozessweiten
+# Caches nach einem Deploy/Neustart, damit echte Besucher (und der Spot-TV) NICHT
+# in den langsamen Kaltstart/502 laufen. Leichtgewichtig, kein Login noetig; dank
+# Cache-TTL macht der Cron nur echte Arbeit, wenn ein Cache abgelaufen/leer ist.
+if "warm" in st.query_params:
+    ensure_schema()
+    ensure_watch_columns()
+    _warmed = []
+
+    def _warm(label, fn, *a):
+        try:
+            fn(*a)
+            _warmed.append(label)
+        except Exception:  # noqa: BLE001 – Aufwaermen darf nie hart failen
+            _warmed.append(label + "!")
+
+    for _sp in SPORTS:
+        _warm(f"sessions:{_sp}", load_sessions, _sp)
+    _warm("profiles", load_profiles)
+    _warm("weights", load_user_weights)
+    _warm("spots", load_spots)
+    _warm("spot_names", _all_spot_names)
+    _warm("spot_info", load_all_spot_info)
+    st.write("warm ok · " + ", ".join(_warmed))
+    st.stop()
+
 # Spot-TV-Vollbildmodus (Cafe/Shop/Club-Screen): wird per ?tv=... aufgerufen und
 # rendert eine eigene, grossflaechige Ansicht statt der normalen Seite.
 _tv_cfg = _spot_tv_config()
