@@ -3974,6 +3974,16 @@ RANKING_TOP_N = 15
 # Welche Ranking-Tabellen sofort erscheinen (Rest auf Klick). Nutzer kann die
 # Auswahl im Filter setzen und in „My start" speichern. Keys siehe _render_ranking_tables.
 RANKING_TABLES_DEFAULT = ["30s", "2s"]
+# Sportartgerechte Default-Tabellen. Wakeboard: Speed-Distanz-Disziplinen
+# (30s/500m/nm/Longest run) sind uninteressant – es zaehlen Airtime & Sprunghoehe
+# (siehe wakeboard-gps-kennzahlen.md). Andere Sportarten spaeter (Multisport).
+RANKING_TABLES_DEFAULT_BY_SPORT = {"wakeboard": ["airtime", "jump"]}
+
+
+def _rank_default_tables(sport):
+    return RANKING_TABLES_DEFAULT_BY_SPORT.get(sport, RANKING_TABLES_DEFAULT)
+
+
 RANKING_TABLE_LABELS = {
     "30s": "🏆 Best 30 s", "2s": "⚡ Top 2 s", "500m": "📏 Best 500 m",
     "nm": "⚓ Nautical mile", "run": "🚩 Longest run", "total": "👥 Total distance",
@@ -5052,13 +5062,17 @@ def render_rankings(results_container):
         with st.expander("📋 Rankings shown (choose which load first)", expanded=False):
             st.caption("Pick which ranking tables appear immediately; the rest load on "
                        "click (faster & lighter). Save via ‚My start' to keep it.")
-            _tbl_opts = ["30s", "2s", "500m", "nm", "run", "total"] + (
-                ["strokes", "cadence"] if sport == "sup" else ["airtime", "jump"])
+            if sport == "wakeboard":
+                _tbl_opts = ["airtime", "jump", "2s", "total"]
+            else:
+                _tbl_opts = ["30s", "2s", "500m", "nm", "run", "total"] + (
+                    ["strokes", "cadence"] if sport == "sup" else ["airtime", "jump"])
             _tk = f"rank_tables_{sport}"
             if _tk not in st.session_state:   # einmalig aus Preset/Default vorbelegen
-                _tinit = preset.get("tables") or RANKING_TABLES_DEFAULT
+                _tinit = preset.get("tables") or _rank_default_tables(sport)
                 st.session_state[_tk] = ([t for t in _tinit if t in _tbl_opts]
-                                         or [t for t in RANKING_TABLES_DEFAULT if t in _tbl_opts])
+                                         or [t for t in _rank_default_tables(sport)
+                                             if t in _tbl_opts])
             st.multiselect("Rankings shown by default", _tbl_opts, key=_tk,
                            format_func=lambda k: RANKING_TABLE_LABELS.get(k, k))
             st.caption("On the page, use the “➕ Show more rankings” link under the tables "
@@ -5572,21 +5586,29 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                      empty_msg="No jump data yet – record a session with jumps on the watch.")
 
     # Verfuegbare Tabellen (sport-/datenabhaengig) in kanonischer Reihenfolge.
-    _avail = [("30s", _r_30s), ("2s", _r_2s)]
-    if "speed_500m_kmh" in ranking.columns:
-        _avail.append(("500m", _r_500m))
-    if "speed_nm_kmh" in ranking.columns:
-        _avail.append(("nm", _r_nm))
-    _avail += [("run", _r_run), ("total", _r_total)]
-    if active_sport() == "sup":
-        _avail += [("strokes", _r_strokes), ("cadence", _r_cadence)]
+    _sp = active_sport()
+    if _sp == "wakeboard":
+        # Wakeboard: nur die relevanten Wertungen – Airtime/Sprunghoehe zuerst,
+        # dazu Top-Speed + Distanz. KEINE Seemeile/500m/30s/Longest run.
+        _avail = [("airtime", _r_airtime), ("jump", _r_jump),
+                  ("2s", _r_2s), ("total", _r_total)]
     else:
-        _avail += [("airtime", _r_airtime), ("jump", _r_jump)]
+        _avail = [("30s", _r_30s), ("2s", _r_2s)]
+        if "speed_500m_kmh" in ranking.columns:
+            _avail.append(("500m", _r_500m))
+        if "speed_nm_kmh" in ranking.columns:
+            _avail.append(("nm", _r_nm))
+        _avail += [("run", _r_run), ("total", _r_total)]
+        if _sp == "sup":
+            _avail += [("strokes", _r_strokes), ("cadence", _r_cadence)]
+        else:
+            _avail += [("airtime", _r_airtime), ("jump", _r_jump)]
 
     _keys = [k for k, _ in _avail]
-    _selected = [k for k in (extra.get("tables") or RANKING_TABLES_DEFAULT) if k in _keys]
+    _default = _rank_default_tables(_sp)
+    _selected = [k for k in (extra.get("tables") or _default) if k in _keys]
     if not _selected:
-        _selected = [k for k in RANKING_TABLES_DEFAULT if k in _keys] or _keys[:2]
+        _selected = [k for k in _default if k in _keys] or _keys[:2]
 
     def _render_pairs(items):
         for i in range(0, len(items), 2):
