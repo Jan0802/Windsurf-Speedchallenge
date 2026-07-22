@@ -54,6 +54,20 @@ for _opt, _val in (("future.infer_string", False), ("mode.string_storage", "pyth
         pd.set_option(_opt, _val)
     except Exception:  # noqa: BLE001
         pass
+
+# Einmal pro Prozess in die Render-Logs schreiben, OB der crashende Arrow-String-
+# Pfad wirklich aus ist (infer_string=False). Steht hier True -> die Env-Var
+# PANDAS_FUTURE_INFER_STRING=0 fehlt / set_option greift nicht = Crash-Ursache.
+if "_diag_pd_logged" not in globals():
+    globals()["_diag_pd_logged"] = True
+    try:
+        logging.warning(
+            "DIAG pandas: infer_string=%s string_storage=%s pyarrow=%s",
+            pd.get_option("future.infer_string"),
+            pd.get_option("mode.string_storage"),
+            globals().get("_pa").__version__ if globals().get("_pa") else "n/a")
+    except Exception as _e:  # noqa: BLE001
+        logging.warning("DIAG pandas option read failed: %s", _e)
 from fitparse import FitFile
 from sqlalchemy import (
     Boolean,
