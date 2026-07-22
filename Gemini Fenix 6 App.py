@@ -1,9 +1,15 @@
 import base64
+import faulthandler
 import glob
 import hashlib
 import json
 import logging
 import os
+
+# Native Abstuerze (Status 139 / SIGSEGV) hinterlassen sonst KEINEN Traceback.
+# faulthandler schreibt beim Crash den C- + Python-Stack nach stderr (Render-Logs)
+# -> beim naechsten 139 sehen wir, welche native Lib (pyarrow/Pillow/pydeck …) es war.
+faulthandler.enable()
 import re
 import secrets
 import tempfile
