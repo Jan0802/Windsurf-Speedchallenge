@@ -9179,10 +9179,21 @@ def render_history_overview(record):
     longest_run_km = num("longest_run_km")
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Top 2 s", "–" if best_1s is None else f"{best_1s:.2f} km/h")
-    c2.metric("Top 30 s", "–" if best_30s is None else f"{best_30s:.2f} km/h")
-    c3.metric("Total distance", "–" if distance_km is None else f"{distance_km:.2f} km")
-    c4.metric("Longest run", "–" if longest_run_km is None else f"{longest_run_km:.2f} km")
+    if active_sport() == "wakeboard":
+        # Wakeboard: Sprung-Werte statt Speed/Distanz (Boot/Cable zieht konstant).
+        _jumps = record.get("jumps")
+        _air = num("max_airtime_s")
+        _hi = num("max_jump_m")
+        _top2kn = None if best_1s is None else best_1s / 1.852
+        c1.metric("Jumps", "–" if _jumps is None or pd.isna(_jumps) else f"{int(_jumps)}")
+        c2.metric("Best airtime", "–" if _air is None else f"{_air:.1f} s")
+        c3.metric("Highest jump", "–" if _hi is None else f"{_hi:.1f} m")
+        c4.metric("Top speed", "–" if _top2kn is None else f"{_top2kn:.1f} kn")
+    else:
+        c1.metric("Top 2 s", "–" if best_1s is None else f"{best_1s:.2f} km/h")
+        c2.metric("Top 30 s", "–" if best_30s is None else f"{best_30s:.2f} km/h")
+        c3.metric("Total distance", "–" if distance_km is None else f"{distance_km:.2f} km")
+        c4.metric("Longest run", "–" if longest_run_km is None else f"{longest_run_km:.2f} km")
 
     st.markdown("## 🌦️ Weather during session")
 
