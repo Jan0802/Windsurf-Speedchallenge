@@ -6594,7 +6594,7 @@ def _tv_period_scope(df, now, period):
     return df[df["_date"] >= start]
 
 
-def _tv_leaderboard(scope, kmh_col, dist_m=None):
+def _tv_leaderboard(scope, kmh_col, dist_m=None, unit="km/h", decimals=1):
     """Balken-Leaderboard (Top 10, bester Wert je Fahrer in kmh_col), 2-spaltig:
     Plaetze 1..N/2 links, der Rest rechts. kmh_col = speed_1s_kmh /
     speed_30s_kmh / speed_500m_kmh / speed_nm_kmh. dist_m gesetzt (500/1852) ->
@@ -6618,7 +6618,7 @@ def _tv_leaderboard(scope, kmh_col, dist_m=None):
         col = colors.get(i, "#3aa0ff")
         pct = round(r["v"] / maxv * 100)   # Platz 1 = 100 %, Rest anteilig
         w = max(5, pct)
-        val = f"{r['v']:.1f}<small> km/h</small>"
+        val = f"{r['v']:.{decimals}f}" + (f"<small> {unit}</small>" if unit else "")
         if dist_m and r["v"] > 0:
             val += f"<small> · {_fmt_mmss(dist_m * 3.6 / r['v'])}</small>"
         rows.append(
@@ -6865,19 +6865,26 @@ def _spot_tv_live(cfg):
         if not t.empty:
             leader = str(t.loc[t["_s"].idxmax(), "name"])
 
-    # Leaderboard-Wertung wechselt automatisch alle 30 s. Bei Speed-Sportarten
-    # zusaetzlich 500 m + Seemeile; SUP/Wakeboard nur 2 s / 30 s. Record date +
-    # Board richten sich nach der aktuell gezeigten Wertung.
-    _metrics = [
-        ("1s", "speed_1s_kmh", "Top 2 s", "2 s"),
-        ("30s", "speed_30s_kmh", "Top 30 s", "30 s"),
-    ]
-    if cfg["sport"] in ("windsurf", "kitesurf", "wingsurf"):
-        _metrics += [
-            ("500m", "speed_500m_kmh", "Best 500 m", "500 m"),
-            ("nm", "speed_nm_kmh", "Best nautical mile", "naut. mile"),
+    # Leaderboard-Wertung wechselt automatisch alle 30 s. Speed-Sportarten:
+    # 2 s / 30 s (+ 500 m / Seemeile bei Wind); WAKEBOARD: Airtime / Highest jump /
+    # Most airs (Speed/Distanz sind egal, das Boot/Cable zieht konstant); SUP: 2 s / 30 s.
+    if cfg["sport"] == "wakeboard":
+        _metrics = [
+            ("air", "max_airtime_s", "Best airtime", "airtime", "s", 1),
+            ("jump", "max_jump_m", "Highest jump", "jump", "m", 1),
+            ("airs", "jumps", "Most airs", "airs", "", 0),
         ]
-    metric, metric_col, metric_lbl, metric_word = _metrics[
+    else:
+        _metrics = [
+            ("1s", "speed_1s_kmh", "Top 2 s", "2 s", "km/h", 1),
+            ("30s", "speed_30s_kmh", "Top 30 s", "30 s", "km/h", 1),
+        ]
+        if cfg["sport"] in ("windsurf", "kitesurf", "wingsurf"):
+            _metrics += [
+                ("500m", "speed_500m_kmh", "Best 500 m", "500 m", "km/h", 1),
+                ("nm", "speed_nm_kmh", "Best nautical mile", "naut. mile", "km/h", 1),
+            ]
+    metric, metric_col, metric_lbl, metric_word, metric_unit, metric_dec = _metrics[
         (int(now.timestamp()) // 30) % len(_metrics)]
     leader_board = "–"
     leader_date = "–"
@@ -6905,14 +6912,37 @@ def _spot_tv_live(cfg):
     leader_label = "👑 Rider of the Day" if mode == "today" else f"👑 Top rider {period_word}"
     rk = now.strftime("%H%M%S")  # wechselt je Refresh -> erzwingt Re-Mount (Animation)
 
-    cards = "".join([
-        _tv_card(f"🏆 Top 2s {period_word}", f"{top1:.1f}" if top1 else "–",
-                 ("km/h" + (f" · {top1kn:.1f} kn" if top1kn else "")) if top1 else ""),
-        _tv_card(f"🔥 Top 30s {period_word}", f"{top30:.1f}" if top30 else "–", "km/h" if top30 else ""),
-        _tv_card("🏄 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
-        _tv_card(leader_label, leader),
-        _tv_card("📅 Record date", leader_date, f"best {metric_word}"),
-    ])
+    if cfg["sport"] == "wakeboard":
+        # Wakeboard: Sprung-Kacheln statt Speed. "Biggest air" = bester Airtime-Wert
+        # im Zeitraum + Fahrer; Rider of the Day = derselbe Fahrer.
+        best_air = _mx(scope, "max_airtime_s")
+        best_jump = _mx(scope, "max_jump_m")
+        most_airs = _mx(scope, "jumps")
+        air_leader = "–"
+        if not scope.empty and "max_airtime_s" in scope.columns:
+            ta = scope.copy()
+            ta["_a"] = pd.to_numeric(ta["max_airtime_s"], errors="coerce")
+            ta = ta.dropna(subset=["_a"])
+            if not ta.empty:
+                air_leader = str(ta.loc[ta["_a"].idxmax(), "name"])
+        cards = "".join([
+            _tv_card(f"🚀 Biggest air {period_word}", f"{best_air:.1f}" if best_air else "–",
+                     (f"s · {air_leader}") if best_air else ""),
+            _tv_card(f"🪂 Highest jump {period_word}", f"{best_jump:.1f}" if best_jump else "–",
+                     "m" if best_jump else ""),
+            _tv_card("🔁 Most airs (session)", f"{int(most_airs)}" if most_airs else "–", ""),
+            _tv_card("🤙 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
+            _tv_card(leader_label, air_leader),
+        ])
+    else:
+        cards = "".join([
+            _tv_card(f"🏆 Top 2s {period_word}", f"{top1:.1f}" if top1 else "–",
+                     ("km/h" + (f" · {top1kn:.1f} kn" if top1kn else "")) if top1 else ""),
+            _tv_card(f"🔥 Top 30s {period_word}", f"{top30:.1f}" if top30 else "–", "km/h" if top30 else ""),
+            _tv_card("🏄 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
+            _tv_card(leader_label, leader),
+            _tv_card("📅 Record date", leader_date, f"best {metric_word}"),
+        ])
     st.markdown(f"<div class='tv-cards' translate='no' data-r='{rk}{metric}'>{cards}</div>",
                 unsafe_allow_html=True)
 
@@ -6921,8 +6951,9 @@ def _spot_tv_live(cfg):
         f"<div class='tv-rank-title' translate='no'>🏁 {scope_title} leaderboard · {metric_lbl}</div>",
         unsafe_allow_html=True)
     _tv_dist_m = {"500m": 500, "nm": 1852}.get(metric)   # Zeit nur bei 500 m/Seemeile
-    st.markdown(f"<div data-r='{rk}{metric}'>" + _tv_leaderboard(scope, metric_col, _tv_dist_m) + "</div>",
-                unsafe_allow_html=True)
+    st.markdown(f"<div data-r='{rk}{metric}'>"
+                + _tv_leaderboard(scope, metric_col, _tv_dist_m, metric_unit, metric_dec)
+                + "</div>", unsafe_allow_html=True)
 
     st.markdown(f"<div class='tv-update' translate='no'>⏱️ Last update: {now.strftime('%H:%M')} "
                 f"· auto-refresh 30 s · leaderboard switches every 30 s</div>", unsafe_allow_html=True)
