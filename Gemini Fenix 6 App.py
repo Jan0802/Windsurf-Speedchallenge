@@ -8504,9 +8504,38 @@ def _parse_track(raw):
     return pts or None
 
 
-# Gleitschwelle (Knoten) je Sportart – Referenzlinie in der Speedkurve.
-_GLIDE_KN = {"windsurf": 12.0, "kitesurf": 11.0, "wingsurf": 11.0,
+# Schwelle (Knoten) je Sportart – Referenzlinie in der Speedkurve UND „darunter
+# verliert man's": Windsurf=Gleitgrenze, Wing=Fluggeschwindigkeit (Foil oben),
+# Kite=Gleiten, SUP=Pivot-/Renn-Speed.
+_GLIDE_KN = {"windsurf": 12.0, "kitesurf": 11.0, "wingsurf": 10.0,
              "sup": 5.0, "wakeboard": 15.0}
+
+# Manöver-Diagnose je Sport (Multisport-Verallgemeinerung, siehe
+# multisport-diagnose.md): dieselbe Engine, nur Begriffe/Übergang pro Sport.
+# Sportarten OHNE Eintrag (Wakeboard: Boot/Cable zieht konstant → keine selbst
+# erzeugte Speed, keine Schwelle) bekommen KEINE Manöver-Diagnose.
+_MANEUVER = {
+    "windsurf": {"name": "gybe", "verb_ok": "Planed through",
+                 "verb_bad": "Dropped off the plane", "state": "planing",
+                 "threshold": "planing speed", "thr_short": "planing",
+                 "transition": "rig change"},
+    "wingsurf": {"name": "turn", "verb_ok": "Stayed on the foil",
+                 "verb_bad": "Touched down", "state": "flying",
+                 "threshold": "flight speed", "thr_short": "flight",
+                 "transition": "wing/hand change"},
+    "kitesurf": {"name": "transition", "verb_ok": "Kept your speed",
+                 "verb_bad": "Lost speed", "state": "powered up",
+                 "threshold": "planing speed", "thr_short": "planing",
+                 "transition": "kite redirect"},
+    "sup": {"name": "turn", "verb_ok": "Carried your speed",
+            "verb_bad": "Stalled the turn", "state": "up to speed",
+            "threshold": "pivot speed", "thr_short": "pivot",
+            "transition": "step-back"},
+}
+
+
+def _maneuver_cfg(sport):
+    return _MANEUVER.get(sport, _MANEUVER["windsurf"])
 
 
 def _speed_series_from_track(track_pts, duration_s):
@@ -8626,12 +8655,13 @@ def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
     speeds/times_sec = np-Arrays (Speed kn / Sekunden relativ zum Apex), apex_i =
     Index des geometrischen Apex, ungültige Werte = speed < 0. Zeigt Kennzahlen,
     Klartext-Diagnose und die Sekundenkurve (Apex, Min, Unter-Gleitgrenze-Zone)."""
-    st.markdown(f"#### 🔍 Gybe {gnum} — diagnosis")
+    _m = _maneuver_cfg(active_sport())
+    st.markdown(f"#### 🔍 {_m['name'].capitalize()} {gnum} — diagnosis")
     speeds = np.asarray(speeds, dtype=float)
     times_sec = np.asarray(times_sec, dtype=float)
     valid = speeds >= 0
     if int(valid.sum()) < 3:
-        st.info("Not enough GPS resolution around this gybe for a detailed diagnosis.")
+        st.info(f"Not enough GPS resolution around this {_m['name']} for a detailed diagnosis.")
         return
     idx = np.arange(len(speeds))
     apex_i = int(min(max(apex_i, 0), len(speeds) - 1))
@@ -8659,17 +8689,17 @@ def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
         c = st.columns(4)
         c[0].metric("Approach", f"{entry:.1f} kn")
         c[1].metric("Min speed", f"{min_kn:.1f} kn",
-                    f"{min_kn - glide_kn:+.1f} vs glide", delta_color="off")
+                    f"{min_kn - glide_kn:+.1f} vs {_m['thr_short']}", delta_color="off")
         c[2].metric("Recovery", f"{recovery:.1f} kn")
         c[3].metric("Speed kept", "–" if kept is None else f"{kept:.0f} %")
-        _head = ("✅ **Planed through** — you kept planing through the turn."
-                 if carried else "⚠️ **Dropped off the plane** in this gybe.")
+        _head = (f"✅ **{_m['verb_ok']}** — you kept {_m['state']} through the {_m['name']}."
+                 if carried else f"⚠️ **{_m['verb_bad']}** in this {_m['name']}.")
         if kept is not None:
             _head += f" You kept about **{kept:.0f}%** of your approach speed."
         st.markdown(_head)
         st.info(f"This session's GPS is only ~{dt:.0f}s per point — too coarse to split a "
-                "7–10 s gybe into phases (that's why the numbers look rough and there's no "
-                "detailed curve). Your watch, once the update is live, records **per second**, "
+                f"7–10 s {_m['name']} into phases (that's why the numbers look rough and there's "
+                "no detailed curve). Your watch, once the update is live, records **per second**, "
                 "which powers the full phase-by-phase breakdown.")
         return
 
@@ -8681,26 +8711,26 @@ def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
     c[3].metric("Recovery", f"{recovery:.1f} kn")
     c[4].metric("Speed kept", "–" if kept is None else f"{kept:.0f} %")
 
-    head = ("✅ **Planed through** — you stayed on the plane."
-            if carried else "⚠️ **Dropped off the plane** in this gybe.")
-    bullets = [f"Lowest speed **{min_kn:.1f} kn** vs glide ~{glide_kn:.0f} kn."]
+    head = (f"✅ **{_m['verb_ok']}** — you stayed {_m['state']} through it."
+            if carried else f"⚠️ **{_m['verb_bad']}** in this {_m['name']}.")
+    bullets = [f"Lowest speed **{min_kn:.1f} kn** vs {_m['thr_short']} ~{glide_kn:.0f} kn."]
     if secs_below <= 1:
-        bullets.append("Only briefly below planing — that's fine. 👍")
+        bullets.append(f"Only briefly below {_m['thr_short']} — that's fine. 👍")
     elif secs_below >= 3:
-        bullets.append(f"~{secs_below:.0f}s below planing — **the gybe sank**.")
+        bullets.append(f"~{secs_below:.0f}s below {_m['thr_short']} — **you lost it there**.")
     else:
-        bullets.append(f"~{secs_below:.0f}s below planing.")
+        bullets.append(f"~{secs_below:.0f}s below {_m['thr_short']}.")
     if dpos <= -max(dt, 1.0):
         bullets.append("Slowest point **before** the apex → likely **entered too hard / braked**.")
     elif dpos >= max(dt, 1.0):
-        bullets.append("Slowest point **after** the apex → likely **stuck in the rig change** "
-                       "(power back on too late).")
+        bullets.append(f"Slowest point **after** the apex → likely **stuck in the {_m['transition']}** "
+                       "(get back up to speed sooner).")
     else:
         bullets.append("Slowest point **around** the apex.")
     if kept is not None and kept >= 95:
-        bullets.append("Exit is dialled — the loss is **early** in the turn.")
+        bullets.append(f"Exit is dialled — the loss is **early** in the {_m['name']}.")
     elif kept is not None and kept < 80:
-        bullets.append("Still slow on the **exit** — check powering up after the flip.")
+        bullets.append(f"Still slow on the **exit** — get powered up sooner after the {_m['transition']}.")
     if entry < glide_kn + 3:
         bullets.append("Low approach speed — **carry more speed in** as a reserve.")
     box = "#123a2a" if carried else "#3a1f12"
@@ -8737,7 +8767,7 @@ def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
         f"<line x1='{px0}' y1='{gy:.1f}' x2='{px1}' y2='{gy:.1f}' stroke='#e0b000' "
         "stroke-width='1' stroke-dasharray='5 4'/>",
         f"<text x='{px1 - 2:.1f}' y='{gy - 4:.1f}' fill='#e0b000' font-size='10' "
-        f"text-anchor='end'>glide ~{glide_kn:.0f} kn</text>",
+        f"text-anchor='end'>{_m['thr_short']} ~{glide_kn:.0f} kn</text>",
         f"<line x1='{ax:.1f}' y1='{py0}' x2='{ax:.1f}' y2='{py1:.1f}' stroke='#eaf4ff' "
         "stroke-width='1' stroke-dasharray='3 3'/>",
         f"<text x='{ax:.1f}' y='{py0 + 9:.1f}' fill='#eaf4ff' font-size='9' "
@@ -8760,8 +8790,8 @@ def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
            "background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);"
            f"border-radius:12px'>{''.join(parts)}</svg>")
     components.html(f"<div style='font-family:system-ui,sans-serif'>{svg}</div>", height=220)
-    st.caption("🔴 = below the glide threshold · ○ = speed minimum · dashed = geometric "
-               "apex (sharpest carve). " + note)
+    st.caption(f"🔴 = below {_m['thr_short']} speed · ○ = speed minimum · dashed = geometric "
+               "apex (sharpest point of the turn). " + note)
 
 
 def _render_gybe_detail(track_pts, v_kn, t_min, gybe, glide_kn, dt):
@@ -8899,13 +8929,18 @@ def _render_speed_curve(track_pts, duration_s, record):
                f"<text x='{tx + 6:.1f}' y='{ty - 4:.1f}' fill='#eaf4ff' font-size='11' "
                f"font-weight='700'>top {top_kn:.1f} kn</text>")
 
-    # Halsen: bevorzugt die EXAKTEN, von der Uhr berechneten Werte; sonst grobe
-    # Erkennung aus dem Track. Als nummerierte Marker auf die Kurve setzen.
-    _watch_g = _parse_watch_gybes(record.get("gybes"))
-    if _watch_g:
-        gybes = _watch_gybes_to_markers(_watch_g, t_min, v_kn)
-    else:
-        gybes = _detect_gybes(track_pts, v_kn, t_min)
+    # Manöver-Diagnose je Sport (Wakeboard hat KEINE → Boot/Cable zieht konstant).
+    # Bevorzugt die EXAKTEN Uhr-Werte, sonst grobe Track-Erkennung. Nummerierte
+    # Marker auf die Kurve.
+    _man = _maneuver_cfg(active_sport())
+    _do_man = active_sport() in _MANEUVER
+    gybes = []
+    if _do_man:
+        _watch_g = _parse_watch_gybes(record.get("gybes"))
+        if _watch_g:
+            gybes = _watch_gybes_to_markers(_watch_g, t_min, v_kn)
+        else:
+            gybes = _detect_gybes(track_pts, v_kn, t_min)
     gmarks = ""
     for g in gybes:
         gx, gy = X(g["t"]), Y(float(v_kn[g["i"]]))
@@ -8951,9 +8986,9 @@ def _render_speed_curve(track_pts, duration_s, record):
     if gybes:
         planing = sum(1 for g in gybes if g["ret"] >= 70)
         avg_ret = sum(g["ret"] for g in gybes) / len(gybes)
-        st.markdown(f"**🔄 Gybe analysis (beta):** {len(gybes)} detected · "
-                    f"**{planing} carried through** (≥70% speed kept) · "
-                    f"Ø speed kept {avg_ret:.0f}%")
+        st.markdown(f"**🔄 {_man['name'].capitalize()} analysis (beta):** "
+                    f"{len(gybes)} detected · **{planing} carried through** "
+                    f"(≥70% speed kept) · Ø speed kept {avg_ret:.0f}%")
         rows = "".join(
             f"<tr><td style='padding:3px 10px'><b style='color:{g['color']}'>●</b> {g['n']}</td>"
             f"<td style='padding:3px 10px'>{g['t']:.1f} min</td>"
@@ -8964,22 +8999,23 @@ def _render_speed_curve(track_pts, duration_s, record):
         st.markdown(
             "<table style='font-size:13px;border-collapse:collapse'>"
             "<tr style='color:#8fd9e3;text-align:left'>"
-            "<th style='padding:3px 10px'>Gybe</th><th style='padding:3px 10px'>Time</th>"
+            f"<th style='padding:3px 10px'>{_man['name'].capitalize()}</th>"
+            "<th style='padding:3px 10px'>Time</th>"
             "<th style='padding:3px 10px'>Entry</th><th style='padding:3px 10px'>Exit</th>"
             "<th style='padding:3px 10px'>Kept</th></tr>" + rows + "</table>",
             unsafe_allow_html=True)
         if gybes[0].get("src") == "watch":
-            st.caption("🟢 ≥70% kept · 🟡 50–70% · 🔴 <50%. Computed on the watch "
-                       "second-by-second — pick a gybe below for the exact phase speeds.")
+            st.caption(f"🟢 ≥70% kept · 🟡 50–70% · 🔴 <50%. Computed on the watch "
+                       f"second-by-second — pick a {_man['name']} below for the exact phases.")
         else:
             st.caption("🟢 ≥70% kept · 🟡 50–70% · 🔴 <50%. Detected from course reversals "
-                       f"at planing speed. Coarse at the current ~{dt:.0f}s GPS rate — the "
-                       "watch update computes this per second.")
+                       f"at {_man['thr_short']} speed. Coarse at the current ~{dt:.0f}s GPS rate "
+                       "— the watch update computes this per second.")
 
-        # Einzelne Halse zur Detailanalyse auswählen.
+        # Einzelnes Manöver zur Detailanalyse auswählen.
         _sid = record.get("id")
-        _opts = ["–"] + [f"Gybe {g['n']}" for g in gybes]
-        _sel = st.selectbox("🔍 Analyze a single gybe", _opts,
+        _opts = ["–"] + [f"{_man['name'].capitalize()} {g['n']}" for g in gybes]
+        _sel = st.selectbox(f"🔍 Analyze a single {_man['name']}", _opts,
                             key=f"gybe_sel_{_sid}")
         if _sel != "–":
             _gi = int(_sel.split()[1]) - 1
