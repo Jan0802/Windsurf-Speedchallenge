@@ -7713,6 +7713,7 @@ _FIN_GOALS = [("Allround", "allround"), ("Top speed", "speed"),
               ("Early planing / light wind", "early"), ("Control & comfort", "control")]
 # Boardtyp aus dem Board-Namen erraten (Startwerte, vom Nutzer überschreibbar).
 _FIN_TYPE_KEYWORDS = [
+    ("foil", ["foil", "ifoil", "i-foil"]),
     ("wave", ["wave"]),
     ("freestyle", ["freestyle", "flare", "skate"]),
     ("freerace", ["freerace", "free race", "gt-r", "gtr", "vmax", "v-max"]),
@@ -7792,8 +7793,12 @@ def _render_fin_advisor(username):
         _pbkey = f"_fin_prevboard_{username}"
         if st.session_state.get(_pbkey) != board_name:
             st.session_state[_pbkey] = board_name
-            st.session_state[_tkey] = (_saved_types.get(board_name)
-                                       or _infer_board_type(board_name))
+            _t0 = _saved_types.get(board_name) or _infer_board_type(board_name)
+            # Der Finnenberater kennt kein "foil" (Foils fahren keine Finne) -> auf
+            # eine gueltige Option klemmen, damit die Selectbox nicht bricht.
+            if _t0 not in [b for _, b in _FIN_BOARDS]:
+                _t0 = "freeride"
+            st.session_state[_tkey] = _t0
         _is_saved = _saved_types.get(board_name) is not None
         board_key = st.selectbox(
             "Board type", [b for _, b in _FIN_BOARDS],
@@ -8545,6 +8550,45 @@ def _parse_track(raw):
 _GLIDE_KN = {"windsurf": 12.0, "kitesurf": 11.0, "wingsurf": 10.0,
              "sup": 5.0, "wakeboard": 15.0}
 
+# --- Personalisierte Gleitschwelle (Windsurf) -------------------------------
+# Vorlage: gleitschwelle-modell.md des Users. Statt fester 12-kn-Linie eine
+# individuelle Schwelle aus Bretttyp + Gewicht + Volumen. ALLES Startwerte, an
+# echten Sessions kalibrierbar; Segel/Können fliessen NICHT ein (Segel = ob man
+# die Schwelle erreicht, Können = Bewertungs-Massstab, nicht die Physik).
+# Grundwert (kn) je erkanntem Bretttyp (_infer_board_type-Keys + foil).
+_PLANING_VBASE = {"foil": 8.0, "freestyle": 12.0, "freemove": 12.5,
+                  "freeride": 13.0, "freerace": 13.5, "slalom": 14.5,
+                  "wave": 15.5}
+
+
+def _planing_threshold_kn(board_type, weight_kg, volume_l):
+    """Personalisierte Gleitschwelle (kn) nach gleitschwelle-modell.md §4.
+    Gibt None zurueck, wenn zu wenig bekannt (dann Fallback auf _GLIDE_KN)."""
+    base = _PLANING_VBASE.get((board_type or "").lower())
+    if base is None:
+        return None
+    # Grossvolumen (Anfaenger-/Big-Board) gleitet frueh -> Richtung 11 kn.
+    try:
+        vol = float(volume_l) if volume_l else None
+    except (TypeError, ValueError):
+        vol = None
+    if vol and vol >= 150 and base > 11.0 and board_type != "foil":
+        base = 11.0
+    thr = base
+    # Gewichtskorrektur: (kg - 80) * 0,04  (Referenz 80 kg).
+    try:
+        w = float(weight_kg) if weight_kg else None
+    except (TypeError, ValueError):
+        w = None
+    if w:
+        thr += (w - 80.0) * 0.04
+        # Volumenpuffer nur mit Gewicht sinnvoll: -(Vol - kg - 15 - 40) * 0,02.
+        if vol:
+            thr += -((vol - w - 15.0) - 40.0) * 0.02
+    # Sinnvolle Grenzen: nie unter 8 kn (ausser Foil darf tiefer), nie ueber 18.
+    lo = 6.0 if board_type == "foil" else 8.0
+    return max(lo, min(18.0, thr))
+
 # Manöver-Diagnose je Sport (Multisport-Verallgemeinerung, siehe
 # multisport-diagnose.md): dieselbe Engine, nur Begriffe/Übergang pro Sport.
 # Sportarten OHNE Eintrag (Wakeboard: Boot/Cable zieht konstant → keine selbst
@@ -8883,6 +8927,29 @@ def _render_speed_curve(track_pts, duration_s, record):
     n_seg = len(v_kn)
     glide_kn = _GLIDE_KN.get(active_sport(), 10.0)
 
+    # Personalisierte Gleitschwelle (nur Windsurf, gleitschwelle-modell.md): aus
+    # Bretttyp + Gewicht + Volumen. Kite/Wing/SUP behalten die feste Schwelle
+    # (haengen am Foil/Schirm). Fehlt was -> Fallback auf die feste Linie.
+    glide_label = None
+    if active_sport() == "windsurf":
+        _board = str(record.get("board") or "").strip()
+        _user = record.get("name")
+        _prefs = load_user_pref(_user) or {}
+        _btype = ((_prefs.get("board_types") or {}).get(_board)
+                  or _infer_board_type(_board))
+        _wt = load_user_weights().get(_user)
+        _vol = _parse_board_volume(_board) or _prefs.get("fav_board_vol")
+        _pt = _planing_threshold_kn(_btype, _wt, _vol)
+        if _pt is not None:
+            glide_kn = _pt
+            _parts = [_btype]
+            if _vol:
+                _parts.append(f"{float(_vol):g} L")
+            if _wt:
+                _parts.append(f"{float(_wt):g} kg")
+            glide_label = (f"Your planing threshold: **{glide_kn:.1f} kn** "
+                           f"({', '.join(_parts)})")
+
     # Runs erkennen – gleiche Schwellen wie das Ranking (Start 10 km/h, Ende 5,
     # Glitch > 120 km/h), damit der markierte längste Run zum KPI-Wert passt.
     start_kn, end_kn, glitch_kn, min_m = 10.0 / 1.852, 5.0 / 1.852, 120.0 / 1.852, 50.0
@@ -8998,6 +9065,9 @@ def _render_speed_curve(track_pts, duration_s, record):
     )
 
     st.markdown("## 📈 Speed over time")
+    if glide_label:
+        st.caption("🟨 " + glide_label + " · personalised from your board & weight "
+                   "(starting values, calibrated over time).")
     glide_share = float(np.mean(v_kn >= glide_kn) * 100.0) if n_seg else 0.0
     k1, k2, k3, k4 = st.columns(4)
     _d = record.get("total_distance_km")
