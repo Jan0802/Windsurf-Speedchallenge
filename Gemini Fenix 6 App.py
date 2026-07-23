@@ -10431,8 +10431,7 @@ def render_admin_spots():
 
         _LEVELS = ["beginner", "improver", "advanced", "pro"]
         _WATERS = ["flat", "chop", "wave"]
-        _HAZARDS = ["offshore wind", "current", "rocks/reef", "shorebreak",
-                    "cold water", "crowd", "zone closures"]
+        _HAZARDS = [h["slug"] for h in _HAZARDS_APP.get("hazards", [])]
         _LEARN = ["–", "yes", "limited", "no"]
         _SPORT_OPTS = ["na", "yes", "limited", "no"]
         _SPORTS = [("windsurf", "Windsurf"), ("kite", "Kite"), ("wing", "Wing"),
@@ -10440,7 +10439,11 @@ def render_admin_spots():
 
         _cur_level = [x for x in _as_list(_cur.get("level")) if x in _LEVELS]
         _cur_water = [x for x in _as_list(_cur.get("water")) if x in _WATERS]
-        _cur_haz = [x for x in _as_list(_cur.get("hazards")) if x in _HAZARDS]
+        _cur_haz = []
+        for _hx in _as_list(_cur.get("hazards")):
+            _hs = _hazard_slug_app(_hx)  # altes Vokabular -> neuer Slug
+            if _hs and _hs in _HAZARDS and _hs not in _cur_haz:
+                _cur_haz.append(_hs)
         _cur_learn = str(_cur.get("learn") or "").lower()
         _cur_sports = _cur.get("sports") if isinstance(_cur.get("sports"), dict) else {}
 
@@ -10455,8 +10458,11 @@ def render_admin_spots():
                               key=f"sc_water_{name}")
         _wind = st.text_input("Wind (kurzer Text, z. B. unreliable, SW/NE)",
                               value=str(_cur.get("wind") or ""), key=f"sc_wind_{name}")
-        _haz = st.multiselect("Gefahren", _HAZARDS, default=_cur_haz,
-                              key=f"sc_haz_{name}")
+        _haz = st.multiselect(
+            "Gefahren", _HAZARDS, default=_cur_haz,
+            format_func=lambda s: f"{_HZ_BY_SLUG_APP.get(s, {}).get('icon', '')} "
+            f"{_HZ_BY_SLUG_APP.get(s, {}).get('label', {}).get('en', s)}",
+            key=f"sc_haz_{name}")
 
         st.caption("Sportarten (Eignung):")
         _scols = st.columns(len(_SPORTS))
