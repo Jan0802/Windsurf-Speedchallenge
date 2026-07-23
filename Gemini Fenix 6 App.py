@@ -8137,6 +8137,115 @@ _SC_HAZARD = {"offshore wind": "⚠️ Offshore wind", "current": "🌀 Current"
 _SC_SPORT_ICON = {"yes": "✅", "limited": "🟡", "no": "❌", "na": "–"}
 
 
+# --- Zentrale Gefahren-Taxonomie (hazards.json, gleiche Datei wie im Ingest) ---
+_HZ_PATH_APP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hazards.json")
+try:
+    with open(_HZ_PATH_APP, encoding="utf-8") as _hf:
+        _HAZARDS_APP = json.load(_hf)
+except Exception:  # noqa: BLE001
+    _HAZARDS_APP = {"languages": ["en"], "lang_names": {}, "page": {},
+                    "categories": [], "hazards": []}
+_HZ_BY_SLUG_APP = {h["slug"]: h for h in _HAZARDS_APP.get("hazards", [])}
+_HZ_ALIASES_APP = {
+    "offshore wind": "offshore-wind", "current": "tidal-current",
+    "tidal current": "tidal-current", "rip": "rip-current",
+    "rip current": "rip-current", "river current": "river-current",
+    "rocks/reef": "rocks-reef", "rocks": "rocks-reef", "reef": "rocks-reef",
+    "cold water": "cold-water", "crowded": "crowd",
+    "zone closures": "zone-closures", "zone/season closures": "zone-closures",
+}
+
+
+def _hazard_slug_app(x):
+    s = str(x or "").strip().lower()
+    if s in _HZ_BY_SLUG_APP:
+        return s
+    if s in _HZ_ALIASES_APP:
+        return _HZ_ALIASES_APP[s]
+    norm = re.sub(r"[\s/]+", "-", s)
+    return norm if norm in _HZ_BY_SLUG_APP else None
+
+
+def _hazard_tags_app(hz, lang="en"):
+    """Gefahren als klickbare Tags -> In-App-Sicherheitsseite (?view=safety)."""
+    if not isinstance(hz, list) or not hz:
+        return ""
+    seen, tags = set(), []
+    for x in hz:
+        slug = _hazard_slug_app(x)
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+        h = _HZ_BY_SLUG_APP[slug]
+        label = h["label"].get(lang) or h["label"].get("en") or slug
+        tags.append(
+            f"<a href='?view=safety&hl={lang}#{slug}' target='_self' "
+            "style='background:rgba(43,212,217,.14);border:1px solid rgba(43,212,217,.4);"
+            "color:#8fe3ff;border-radius:999px;padding:3px 11px;font-size:13px;"
+            f"text-decoration:none;font-weight:600;display:inline-block;margin:2px'>"
+            f"{h['icon']} {str(label).replace('<', '&lt;')}</a>")
+    if not tags:
+        return ""
+    return "<div style='display:flex;flex-wrap:wrap;gap:4px;margin-top:6px'>" + "".join(tags) + "</div>"
+
+
+def render_safety_page():
+    """In-App-Sicherheitsseite (?view=safety): zentrale Gefahren-Erklärung aus der
+    Taxonomie, Sprachwahl über ?hl=. Dieselben Inhalte wie die Ingest-SEO-Seite."""
+    data = _HAZARDS_APP
+    langs = data.get("languages", ["en"])
+    names = data.get("lang_names", {})
+    cur = st.query_params.get("hl") or "en"
+    if cur not in langs:
+        cur = "en"
+
+    def L(d):
+        d = d or {}
+        return d.get(cur) or d.get("en") or ""
+
+    def esc(s):
+        return str(s).replace("<", "&lt;").replace(">", "&gt;")
+
+    page = data.get("page", {})
+
+    if st.button("← Back to spots", key="safety_back"):
+        st.query_params["view"] = "spots"
+        if "hl" in st.query_params:
+            del st.query_params["hl"]
+        st.rerun()
+
+    _labels = [names.get(l, l) for l in langs]
+    _pick = st.radio("Language", _labels, index=langs.index(cur), horizontal=True,
+                     key="safety_lang", label_visibility="collapsed")
+    _newlang = langs[_labels.index(_pick)]
+    if _newlang != cur:
+        st.query_params["hl"] = _newlang
+        st.rerun()
+
+    st.markdown(f"## 🛟 {esc(L(page.get('title')))}")
+    st.markdown(esc(L(page.get("intro"))))
+    st.info(L(page.get("rule")))
+
+    blocks = []
+    for cat in data.get("categories", []):
+        items = [h for h in data.get("hazards", []) if h.get("category") == cat["slug"]]
+        if not items:
+            continue
+        blocks.append(f"<h3 style='color:#8fe3ff;margin:20px 0 6px'>{esc(L(cat['title']))}</h3>")
+        if cat.get("intro"):
+            blocks.append(f"<p style='color:#cfe6ec;margin:0 0 8px'>{esc(L(cat['intro']))}</p>")
+        for h in items:
+            opt = ("" if h.get("core")
+                   else " <span style='font-size:11px;color:#8fb0bb'>(optional)</span>")
+            blocks.append(
+                f"<div id='{h['slug']}' style='margin:12px 0;scroll-margin-top:16px'>"
+                f"<div style='font-weight:700;color:#fff;font-size:16px'>"
+                f"{h['icon']} {esc(L(h['label']))}{opt}</div>"
+                f"<div style='color:#dceaf0'>{esc(L(h['text']))}</div></div>")
+    st.markdown("<div>" + "".join(blocks) + "</div>", unsafe_allow_html=True)
+    st.caption("⚠️ " + L(page.get("disclaimer")))
+
+
 def _spot_class_html_app(raw):
     """„Für wen geeignet?"-Einstufung (JSON aus spot_class) als HTML-Block für die
     App-Spots-Seite. Leer, wenn nichts Verwertbares da ist."""
@@ -8170,9 +8279,10 @@ def _spot_class_html_app(raw):
     if wind:
         rows.append("<b>Wind:</b> " + esc(wind))
     hz = c.get("hazards")
-    if isinstance(hz, list) and hz:
-        rows.append("<b>Watch out:</b> " + " · ".join(
-            _SC_HAZARD.get(str(x).lower(), "⚠️ " + esc(x)) for x in hz))
+    _hz_tags = _hazard_tags_app(hz, "en")
+    if _hz_tags:
+        rows.append("<b>Watch out</b> <span style='font-size:12px;color:#8fb0bb'>"
+                    "(tap to learn more):</span>" + _hz_tags)
 
     sport_tbl = ""
     sports = c.get("sports")
@@ -8293,6 +8403,12 @@ def render_spots_page(user=None):
         "(**Add session → New surf spot**, or **…or new spot** in the session editor) – "
         "it instantly becomes available to everyone and gets its own spot page."
     )
+    st.markdown(
+        "<a href='?view=safety' target='_self' style='display:inline-block;margin:2px 0 6px;"
+        "background:rgba(43,212,217,.12);border:1px solid rgba(43,212,217,.4);color:#8fe3ff;"
+        "border-radius:999px;padding:5px 14px;text-decoration:none;font-weight:700'>"
+        "🛟 Water sports safety guide</a>",
+        unsafe_allow_html=True)
     all_info = load_all_spot_info()
     if not all_info:
         st.info(
@@ -11118,10 +11234,12 @@ logo_img = image_to_base64(app_path("assets", "windsurfer.png"))
 sport = active_sport()
 _is_spots_view = st.query_params.get("view") == "spots"
 _is_results_view = st.query_params.get("view") == "results"
+_is_safety_view = st.query_params.get("view") == "safety"
 
 # Eigener App-Seitenaufruf-Zaehler (Cloudflare sieht die App nicht). Zaehlt nur
 # bei echter Navigation/Reload, nicht bei jedem Rerun.
-_track_pageview("spots" if _is_spots_view else "results" if _is_results_view else "home")
+_track_pageview("safety" if _is_safety_view else "spots" if _is_spots_view
+                else "results" if _is_results_view else "home")
 
 # Header-Umschalter Sportarten + ganz rechts die reine Spots-Seite. Klick setzt
 # ?sport= bzw. ?view=spots in der URL (bleibt über Reload/Link erhalten).
@@ -12968,6 +13086,13 @@ if st.session_state.get("_pending_token"):
 if _is_spots_view:
     ensure_schema()
     render_spots_page(current_user)
+    st.stop()
+
+
+# Zentrale Sicherheitsseite (Gefahren-Taxonomie) – gleiche Inhalte wie die
+# Ingest-SEO-Seite, mit Sprachwahl. Erreichbar über die Gefahren-Tags + Spots-Seite.
+if _is_safety_view:
+    render_safety_page()
     st.stop()
 
 

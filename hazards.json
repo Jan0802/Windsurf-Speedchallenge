@@ -1,0 +1,274 @@
+{
+  "languages": ["en", "de", "nl", "fr", "es"],
+  "lang_names": {"en": "English", "de": "Deutsch", "nl": "Nederlands", "fr": "Français", "es": "Español"},
+  "page": {
+    "title": {
+      "en": "Water sports hazards",
+      "de": "Gefahren beim Wassersport",
+      "nl": "Gevaren bij watersport",
+      "fr": "Dangers des sports nautiques",
+      "es": "Peligros de los deportes acuáticos"
+    },
+    "intro": {
+      "en": "With the right knowledge, watersports on the sea, on lakes and on rivers are well within your control. Most incidents don't come from bad luck but from underestimated conditions. This page explains the typical hazards so you can recognise, judge and avoid them. On each spot page you'll find the hazards that apply there as icons — they link back here.",
+      "de": "Wassersport an Meer, See und Fluss ist mit dem richtigen Wissen gut beherrschbar. Die meisten Zwischenfälle entstehen nicht durch Pech, sondern durch unterschätzte Bedingungen. Diese Seite erklärt die typischen Gefahren, damit du sie erkennst, einordnest und vermeidest. Auf jeder Spot-Seite findest du die dort zutreffenden Gefahren als Symbole — sie verlinken hierher.",
+      "nl": "Watersport op zee, meer en rivier is met de juiste kennis goed beheersbaar. De meeste incidenten ontstaan niet door pech, maar door onderschatte omstandigheden. Deze pagina legt de typische gevaren uit, zodat je ze herkent, inschat en vermijdt. Op elke spotpagina vind je de daar geldende gevaren als symbolen — ze linken naar deze pagina.",
+      "fr": "Avec les bonnes connaissances, les sports nautiques en mer, sur lac et en rivière restent tout à fait maîtrisables. La plupart des incidents ne viennent pas de la malchance, mais de conditions sous-estimées. Cette page explique les dangers typiques pour que tu saches les reconnaître, les évaluer et les éviter. Sur chaque page de spot, tu trouves les dangers qui s'y appliquent sous forme de symboles — ils renvoient ici.",
+      "es": "Con los conocimientos adecuados, los deportes acuáticos en el mar, en lagos y en ríos son perfectamente manejables. La mayoría de los incidentes no se deben a la mala suerte, sino a condiciones subestimadas. Esta página explica los peligros típicos para que sepas reconocerlos, valorarlos y evitarlos. En cada página de spot encontrarás los peligros que allí aplican como símbolos — enlazan a esta página."
+    },
+    "rule": {
+      "en": "One rule up front: a beautiful beach day is not the same as easy water. Sun and small waves tell you nothing about current, wind or water temperature. Always check the forecast, match your gear and the spot to your ability, and ask the local school if in doubt.",
+      "de": "Ein Merksatz vorweg: Ein schöner Strandtag ist nicht dasselbe wie einfaches Wasser. Sonne und flache Wellen sagen nichts über Strömung, Wind oder Wassertemperatur aus. Prüfe immer die Vorhersage, passe Material und Spot deinem Können an, und frage im Zweifel die lokale Schule.",
+      "nl": "Een regel vooraf: een mooie stranddag is niet hetzelfde als makkelijk water. Zon en kleine golven zeggen niets over stroming, wind of watertemperatuur. Controleer altijd de verwachting, stem je materiaal en de spot af op je niveau, en vraag bij twijfel de lokale surfschool.",
+      "fr": "Une règle d'abord : une belle journée de plage n'est pas synonyme d'eau facile. Le soleil et les petites vagues ne disent rien du courant, du vent ou de la température de l'eau. Vérifie toujours les prévisions, adapte ton matériel et le spot à ton niveau, et demande à l'école locale en cas de doute.",
+      "es": "Una regla por delante: un bonito día de playa no es lo mismo que agua fácil. El sol y las olas pequeñas no dicen nada sobre la corriente, el viento o la temperatura del agua. Consulta siempre la previsión, adapta tu material y el spot a tu nivel y, en caso de duda, pregunta a la escuela local."
+    },
+    "disclaimer": {
+      "en": "This page offers general orientation and replaces neither local knowledge nor the judgement of a watersports school or rescue services. Conditions change; responsibility for your own safety always stays with you.",
+      "de": "Diese Seite bietet allgemeine Orientierung und ersetzt weder lokale Ortskenntnis noch die Einschätzung durch eine Wassersportschule oder Rettungsdienste. Bedingungen ändern sich; die Verantwortung für die eigene Sicherheit bleibt immer bei dir.",
+      "nl": "Deze pagina biedt algemene oriëntatie en vervangt noch plaatselijke kennis noch de inschatting van een watersportschool of reddingsdiensten. Omstandigheden veranderen; de verantwoordelijkheid voor je eigen veiligheid blijft altijd bij jou.",
+      "fr": "Cette page offre une orientation générale et ne remplace ni la connaissance des lieux ni l'appréciation d'une école de sports nautiques ou des services de secours. Les conditions changent ; la responsabilité de ta propre sécurité t'incombe toujours.",
+      "es": "Esta página ofrece una orientación general y no sustituye ni el conocimiento local ni el criterio de una escuela de deportes acuáticos o de los servicios de rescate. Las condiciones cambian; la responsabilidad de tu propia seguridad recae siempre en ti."
+    }
+  },
+  "categories": [
+    {
+      "slug": "currents",
+      "title": {"en": "Understanding currents", "de": "Strömung verstehen", "nl": "Stroming begrijpen", "fr": "Comprendre les courants", "es": "Entender las corrientes"},
+      "intro": {
+        "en": "On open coasts, two very different currents are at work, and it pays to tell them apart, because they behave differently and are avoided differently.",
+        "de": "An offenen Küsten wirken zwei ganz verschiedene Strömungsarten, und es lohnt sich, sie auseinanderzuhalten, weil sie sich unterschiedlich verhalten und unterschiedlich vermieden werden.",
+        "nl": "Aan open kusten werken twee heel verschillende soorten stroming, en het loont de moeite ze uit elkaar te houden, omdat ze zich anders gedragen en anders vermeden worden.",
+        "fr": "Sur les côtes ouvertes, deux types de courants très différents sont à l'œuvre, et il vaut la peine de les distinguer, car ils se comportent différemment et s'évitent différemment.",
+        "es": "En costas abiertas actúan dos tipos de corriente muy distintos, y conviene diferenciarlos, porque se comportan de forma distinta y se evitan de forma distinta."
+      }
+    },
+    {"slug": "wind", "title": {"en": "Wind", "de": "Wind", "nl": "Wind", "fr": "Vent", "es": "Viento"}},
+    {"slug": "water-bottom", "title": {"en": "Water & bottom", "de": "Wasser & Untergrund", "nl": "Water & bodem", "fr": "Eau & fond", "es": "Agua y fondo"}},
+    {"slug": "environment", "title": {"en": "Environment", "de": "Umwelt", "nl": "Omgeving", "fr": "Environnement", "es": "Entorno"}},
+    {"slug": "people-rules", "title": {"en": "People & rules", "de": "Menschen & Regeln", "nl": "Mensen & regels", "fr": "Personnes & règles", "es": "Personas y reglas"}},
+    {"slug": "you", "title": {"en": "You", "de": "Du selbst", "nl": "Jijzelf", "fr": "Toi-même", "es": "Tú mismo"}}
+  ],
+  "hazards": [
+    {
+      "slug": "rip-current", "category": "currents", "core": true, "icon": "🌊",
+      "label": {"en": "Rip current", "de": "Rip-Strom", "nl": "Muistroom", "fr": "Courant d'arrachement", "es": "Corriente de retorno"},
+      "text": {
+        "en": "A rip current forms in swell and onshore wind: water pushed onto the beach by the waves drains back out to sea, concentrated through gaps in the sandbanks. You can spot it as a calmer, often darker \"lane\" between breaking waves, sometimes with churned-up sand or foam, pointing away from the beach. Where the waves don't break, the water is often running back out. The key is your reaction: don't fight the current. Swim or ride parallel to the shore to get out of the lane, then come back in with the waves. On a board you have a clear advantage — you have buoyancy and an overview, and a rip is more of a nuisance than a danger to you. Rip currents are mainly dangerous to swimmers who panic and try to swim straight back against the flow.",
+        "de": "Ein Rip-Strom entsteht bei Wellengang und auflandigem Wind: Das von den Wellen an den Strand getragene Wasser fließt gebündelt durch Lücken in den Sandbänken zurück ins Meer. Erkennbar ist er als ruhigere, oft dunklere „Gasse\" zwischen brechenden Wellen, manchmal mit aufgewühltem Sand oder Schaum, die vom Strand wegzeigt. Dort, wo die Wellen nicht brechen, läuft das Wasser oft zurück. Das Wichtigste ist die Reaktion: nicht gegen die Strömung ankämpfen. Schwimme oder fahre parallel zur Küste aus der Gasse heraus und kehre dann mit den Wellen zurück. Auf dem Board bist du klar im Vorteil — du hast Auftrieb und Überblick, und ein Rip ist für dich eher ein Ärgernis als eine Lebensgefahr. Rip-Ströme sind vor allem für Badegäste gefährlich, die in Panik geraten und direkt gegen die Strömung zurückschwimmen wollen.",
+        "nl": "Een muistroom ontstaat bij golfslag en aanlandige wind: het water dat door de golven op het strand wordt geduwd, stroomt gebundeld door openingen in de zandbanken terug naar zee. Je herkent hem als een rustiger, vaak donkerder 'straatje' tussen brekende golven, soms met opgewoeld zand of schuim, dat van het strand af wijst. Waar de golven níét breken, loopt het water vaak terug. Het belangrijkste is je reactie: vecht niet tegen de stroming. Zwem of vaar parallel aan de kust uit het straatje en kom dan met de golven terug. Op een board ben je duidelijk in het voordeel — je hebt drijfvermogen en overzicht, en een rip is voor jou eerder een ergernis dan levensgevaar. Muistromen zijn vooral gevaarlijk voor zwemmers die in paniek raken en recht tegen de stroming in terug willen zwemmen.",
+        "fr": "Un courant d'arrachement (baïne) se forme par houle et vent onshore : l'eau poussée sur la plage par les vagues repart vers le large, canalisée par les ouvertures entre les bancs de sable. On le repère comme un « couloir » plus calme, souvent plus sombre, entre les vagues déferlantes, parfois avec du sable remué ou de l'écume, orienté vers le large. Là où les vagues ne déferlent pas, l'eau repart souvent vers le large. L'essentiel est la réaction : ne lutte pas contre le courant. Nage ou navigue parallèlement à la côte pour sortir du couloir, puis reviens avec les vagues. Sur une planche, tu as un net avantage — tu as de la flottabilité et de la vue d'ensemble, et une baïne est pour toi plus une gêne qu'un danger mortel. Les courants d'arrachement sont surtout dangereux pour les baigneurs qui paniquent et veulent revenir droit à contre-courant.",
+        "es": "Una corriente de retorno se forma con oleaje y viento de mar a tierra: el agua que las olas empujan hacia la playa regresa al mar concentrada a través de canales entre los bancos de arena. Se reconoce como un 'pasillo' más tranquilo, a menudo más oscuro, entre las olas que rompen, a veces con arena removida o espuma, que apunta hacia fuera. Donde las olas no rompen, el agua suele volver hacia el mar. Lo más importante es la reacción: no luches contra la corriente. Nada o navega paralelo a la costa para salir del pasillo y vuelve luego con las olas. Sobre una tabla tienes una clara ventaja — tienes flotabilidad y visión de conjunto, y para ti una corriente de retorno es más una molestia que un peligro mortal. Son sobre todo peligrosas para los bañistas que entran en pánico e intentan volver nadando directamente contra la corriente."
+      }
+    },
+    {
+      "slug": "tidal-current", "category": "currents", "core": true, "icon": "↔️",
+      "label": {"en": "Tidal current", "de": "Gezeitenströmung", "nl": "Getijdenstroming", "fr": "Courant de marée", "es": "Corriente de marea"},
+      "text": {
+        "en": "The tidal current is driven by the ebb and flood and acts independently of wind and waves. It's strongest where large volumes of water are forced through narrows — above all at the inlets between islands, where water flows into and out of the Wadden Sea. There it can set across the shore and pull you toward the channel. Along the long beach in the middle of an island it's usually moderate and shore-parallel; it becomes dangerous at the island ends. Plan your session by the tide table and avoid the island ends if you're unsure.",
+        "de": "Die Gezeitenströmung wird von Ebbe und Flut angetrieben und wirkt unabhängig von Wind und Wellen. Am stärksten ist sie dort, wo große Wassermengen durch Engstellen gedrückt werden — vor allem an den Seegaten zwischen Inseln, wo das Wasser ins Wattenmeer hinein und wieder heraus strömt. Dort kann sie quer zur Küste setzen und dich Richtung Priel ziehen. Am langen Strand in der Inselmitte ist sie meist moderat und küstenparallel; gefährlich wird sie an den Inselenden. Plane deine Session nach dem Gezeitenkalender und meide die Inselenden, wenn du unsicher bist.",
+        "nl": "De getijdenstroming wordt aangedreven door eb en vloed en werkt onafhankelijk van wind en golven. Het sterkst is ze waar grote hoeveelheden water door vernauwingen worden geperst — vooral bij de zeegaten tussen eilanden, waar het water de Waddenzee in en uit stroomt. Daar kan ze dwars op de kust zetten en je richting geul trekken. Langs het lange strand in het midden van een eiland is ze meestal gematigd en kustparallel; gevaarlijk wordt ze bij de eilandpunten. Plan je sessie op de getijdenkalender en mijd de eilandpunten als je twijfelt.",
+        "fr": "Le courant de marée est entraîné par le flux et le reflux et agit indépendamment du vent et des vagues. Il est le plus fort là où de grandes masses d'eau sont forcées à travers des passages étroits — surtout aux goulets entre les îles, où l'eau entre et sort de la mer des Wadden. Là, il peut porter perpendiculairement à la côte et t'entraîner vers le chenal. Le long de la grande plage au milieu d'une île, il est généralement modéré et parallèle à la côte ; il devient dangereux aux extrémités des îles. Planifie ta session selon le calendrier des marées et évite les extrémités des îles en cas de doute.",
+        "es": "La corriente de marea está impulsada por el flujo y reflujo y actúa independientemente del viento y las olas. Es más fuerte donde grandes masas de agua se ven forzadas a pasar por estrechamientos — sobre todo en los pasos entre islas, donde el agua entra y sale del mar de Frisia. Allí puede empujar en dirección perpendicular a la costa y arrastrarte hacia el canal. A lo largo de la playa larga en el centro de una isla suele ser moderada y paralela a la costa; se vuelve peligrosa en los extremos de las islas. Planifica tu sesión según la tabla de mareas y evita los extremos de las islas si no estás seguro."
+      }
+    },
+    {
+      "slug": "river-current", "category": "currents", "core": true, "icon": "🏞️",
+      "label": {"en": "River current", "de": "Flussströmung", "nl": "Rivierstroming", "fr": "Courant de rivière", "es": "Corriente de río"},
+      "text": {
+        "en": "In river venues the current runs downstream continuously, independent of wind and waves. If you fall or lose your gear, you're carried downstream — and it becomes critical at narrows, at groynes, and when the wind opposes the current and builds choppy water. Factor in the drift from the start, stay within reach of the bank, and don't underestimate how quickly a calm-looking current carries you away from your launch.",
+        "de": "In Flussrevieren läuft die Strömung ständig flussabwärts, unabhängig von Wind und Wellen. Wer stürzt oder das Material verliert, wird stromab versetzt — kritisch wird das an Engstellen, an Buhnen und dann, wenn der Wind gegen die Strömung läuft und die See kabbelig aufbaut. Kalkuliere den Versatz von vornherein ein, bleibe in Ufernähe erreichbar und unterschätze nicht, wie schnell dich eine ruhig wirkende Strömung von deinem Einstieg entfernt.",
+        "nl": "In riviergebieden loopt de stroming voortdurend stroomafwaarts, onafhankelijk van wind en golven. Wie valt of zijn materiaal verliest, wordt stroomafwaarts meegevoerd — kritiek wordt het bij vernauwingen, bij kribben en wanneer de wind tegen de stroming in staat en het water kort en kabbelig opbouwt. Reken de verplaatsing van tevoren in, blijf bereikbaar in de buurt van de oever en onderschat niet hoe snel een rustig ogende stroming je van je startpunt wegvoert.",
+        "fr": "Sur les plans d'eau en rivière, le courant descend en permanence vers l'aval, indépendamment du vent et des vagues. Celui qui tombe ou perd son matériel est déporté vers l'aval — cela devient critique aux passages étroits, aux épis, et lorsque le vent s'oppose au courant et lève un clapot désordonné. Anticipe la dérive dès le départ, reste accessible près de la rive et ne sous-estime pas la vitesse à laquelle un courant d'apparence calme t'éloigne de ton point de départ.",
+        "es": "En zonas de río la corriente fluye constantemente aguas abajo, independientemente del viento y las olas. Quien se cae o pierde el material es desplazado aguas abajo — se vuelve crítico en estrechamientos, en espigones y cuando el viento sopla contra la corriente y levanta un oleaje corto y picado. Calcula el desplazamiento desde el principio, mantente accesible cerca de la orilla y no subestimes lo rápido que una corriente de apariencia tranquila te aleja de tu punto de entrada."
+      }
+    },
+    {
+      "slug": "offshore-wind", "category": "wind", "core": true, "icon": "💨",
+      "label": {"en": "Offshore wind", "de": "Ablandiger Wind", "nl": "Aflandige wind", "fr": "Vent offshore", "es": "Viento offshore"},
+      "text": {
+        "en": "Offshore wind blows from the land out to the open sea. It often feels harmless on the beach but pushes you steadily away from shore. If you can't hold your ground upwind you drift out — and if the wind drops or your gear fails, getting back becomes hard or dangerous. At offshore-wind spots a rescue service (e.g. a rescue boat) is often the decisive safety net; use it, and never go out further than you can reliably return against the wind.",
+        "de": "Ablandiger Wind weht vom Land aufs offene Meer hinaus. Er fühlt sich am Strand oft harmlos an, drückt dich aber stetig von der Küste weg. Wer die Höhe nicht halten kann, treibt hinaus — und fällt der Wind aus oder bricht Material, wird die Rückkehr schwierig bis gefährlich. An Spots mit ablandigem Wind ist ein Rettungsdienst (z. B. Rettungsboot) oft das entscheidende Sicherheitsnetz; nutze ihn und fahre nie weiter hinaus, als du zuverlässig gegen den Wind zurückkommst.",
+        "nl": "Aflandige wind waait van het land naar de open zee. Op het strand voelt hij vaak onschuldig, maar hij drukt je gestaag van de kust weg. Wie geen hoogte kan houden, drijft af — en valt de wind weg of breekt er materiaal, dan wordt de terugkeer moeilijk tot gevaarlijk. Op spots met aflandige wind is een reddingsdienst (bijv. een reddingsboot) vaak het beslissende vangnet; maak er gebruik van en ga nooit verder de zee op dan je betrouwbaar tegen de wind in terug kunt komen.",
+        "fr": "Le vent offshore souffle de la terre vers le large. Sur la plage, il paraît souvent anodin, mais il te pousse constamment loin de la côte. Celui qui ne peut pas tenir son cap dérive vers le large — et si le vent tombe ou que le matériel casse, le retour devient difficile, voire dangereux. Sur les spots à vent offshore, un service de secours (p. ex. un bateau de sauvetage) est souvent le filet de sécurité décisif ; utilise-le et ne t'éloigne jamais plus que ce que tu peux revenir de façon fiable contre le vent.",
+        "es": "El viento offshore sopla desde tierra hacia el mar abierto. En la playa suele parecer inofensivo, pero te empuja constantemente lejos de la costa. Quien no puede mantener su rumbo deriva mar adentro — y si el viento cesa o el material se rompe, el regreso se vuelve difícil o peligroso. En spots con viento offshore, un servicio de rescate (p. ej. una lancha) suele ser la red de seguridad decisiva; úsalo y nunca te alejes más de lo que puedas regresar con fiabilidad contra el viento."
+      }
+    },
+    {
+      "slug": "wind-vs-current", "category": "wind", "core": false, "icon": "〰️",
+      "label": {"en": "Wind against current", "de": "Wind gegen Strömung", "nl": "Wind tegen stroming", "fr": "Vent contre courant", "es": "Viento contra corriente"},
+      "text": {
+        "en": "When the wind runs against the tide or a river current, steep, short and messy water builds up. It's demanding to ride and tiring, especially in tidal and river venues. Expect to work harder, and plan your session so you're not caught out and exhausted in the worst phase.",
+        "de": "Läuft der Wind gegen die Tide oder gegen eine Flussströmung, baut sich steile, kurze und unruhige See auf. Das ist anspruchsvoll zu fahren und ermüdend, besonders in Gezeiten- und Flussrevieren. Rechne mit mehr Krafteinsatz und plane die Session so, dass du nicht erschöpft in der ungünstigsten Phase draußen bist.",
+        "nl": "Als de wind tegen het getij of tegen een rivierstroming in staat, bouwt zich een steile, korte en onrustige zee op. Dat is veeleisend om te varen en vermoeiend, vooral in getijden- en riviergebieden. Reken op meer krachtsinspanning en plan je sessie zo dat je niet uitgeput in de ongunstigste fase buiten zit.",
+        "fr": "Lorsque le vent s'oppose à la marée ou à un courant de rivière, une mer courte, creuse et désordonnée se forme. C'est exigeant à naviguer et fatigant, surtout en zone de marée et de rivière. Prévois plus d'effort et planifie ta session pour ne pas te retrouver épuisé au large dans la phase la plus défavorable.",
+        "es": "Cuando el viento sopla contra la marea o contra una corriente de río, se forma un mar corto, empinado y revuelto. Es exigente de navegar y agotador, sobre todo en zonas de marea y de río. Cuenta con más esfuerzo y planifica la sesión para no quedarte agotado en el agua en la peor fase."
+      }
+    },
+    {
+      "slug": "tide-dependent", "category": "water-bottom", "core": true, "icon": "⏳",
+      "label": {"en": "Tide-dependent", "de": "Gezeitenabhängig", "nl": "Getijdenafhankelijk", "fr": "Dépend de la marée", "es": "Depende de la marea"},
+      "text": {
+        "en": "At some spots, whether it's rideable depends entirely on the water level. At low tide the area dries out or becomes so shallow that riding is dangerous or impossible — often only the window a few hours around high tide works. At such spots, checking the tide table before you travel is essential.",
+        "de": "An manchen Spots hängt der befahrbare Zustand vollständig vom Wasserstand ab. Bei Niedrigwasser fällt die Fläche trocken oder wird so flach, dass Fahren gefährlich oder unmöglich ist — oft ist nur das Fenster einige Stunden um das Hochwasser sinnvoll. Ein Blick in den Gezeitenkalender vor der Anreise ist an solchen Spots Pflicht.",
+        "nl": "Op sommige spots hangt de bevaarbaarheid volledig af van het waterpeil. Bij laagwater valt het gebied droog of wordt het zo ondiep dat varen gevaarlijk of onmogelijk is — vaak is alleen het venster van enkele uren rond hoogwater zinvol. Een blik op de getijdenkalender vóór vertrek is op zulke spots verplicht.",
+        "fr": "Sur certains spots, la praticabilité dépend entièrement du niveau d'eau. À marée basse, la zone s'assèche ou devient si peu profonde que naviguer est dangereux ou impossible — souvent, seule la fenêtre de quelques heures autour de la marée haute est exploitable. Consulter le calendrier des marées avant de partir est indispensable sur ces spots.",
+        "es": "En algunos spots la navegabilidad depende por completo del nivel del agua. Con marea baja la zona queda en seco o tan somera que navegar es peligroso o imposible — a menudo solo sirve la ventana de unas horas en torno a la marea alta. En estos spots es obligatorio consultar la tabla de mareas antes de desplazarse."
+      }
+    },
+    {
+      "slug": "shallows", "category": "water-bottom", "core": true, "icon": "🏖️",
+      "label": {"en": "Shallows", "de": "Untiefen", "nl": "Ondiepten", "fr": "Hauts-fonds", "es": "Bajíos"},
+      "text": {
+        "en": "Shallow water over sandbanks brings the risk of hitting the bottom with your fin or board — a risk of injury and gear damage, especially at low tide. Know the shallow spots at your location and avoid them when the water is low.",
+        "de": "Flaches Wasser über Sandbänken birgt die Gefahr, mit Finne oder Board den Grund zu rammen — ein Risiko für Verletzungen und Materialschäden, besonders bei Niedrigwasser. Kenne die flachen Stellen deines Spots und meide sie bei niedrigem Wasserstand.",
+        "nl": "Ondiep water boven zandbanken brengt het risico met zich mee dat je met vin of board de bodem raakt — een risico op letsel en materiaalschade, vooral bij laagwater. Ken de ondiepe plekken van je spot en mijd ze bij een lage waterstand.",
+        "fr": "L'eau peu profonde au-dessus des bancs de sable comporte le risque de heurter le fond avec l'aileron ou la planche — un risque de blessure et de dégâts matériels, surtout à marée basse. Connais les hauts-fonds de ton spot et évite-les quand le niveau d'eau est bas.",
+        "es": "El agua poco profunda sobre bancos de arena conlleva el riesgo de golpear el fondo con la quilla o la tabla — un riesgo de lesiones y daños en el material, sobre todo con marea baja. Conoce las zonas someras de tu spot y evítalas cuando el nivel del agua es bajo."
+      }
+    },
+    {
+      "slug": "rocks-reef", "category": "water-bottom", "core": true, "icon": "🪨",
+      "label": {"en": "Rocks / reef", "de": "Felsen / Riff", "nl": "Rotsen / rif", "fr": "Roches / récif", "es": "Rocas / arrecife"},
+      "text": {
+        "en": "A rocky or reef-strewn bottom greatly increases the risk of injury in a fall, especially in the break and at low tide. Find out where the rocks are and keep extra safety distance at such spots.",
+        "de": "Ein felsiger oder mit Riff durchsetzter Untergrund erhöht das Verletzungsrisiko bei einem Sturz erheblich, vor allem in der Brandung und bei Niedrigwasser. Informiere dich über die Lage der Steine und halte an solchen Spots besonders viel Sicherheitsabstand.",
+        "nl": "Een rotsachtige of met rif doorspekte bodem verhoogt het letselrisico bij een val aanzienlijk, vooral in de branding en bij laagwater. Informeer je over de ligging van de stenen en houd op zulke spots extra veel veiligheidsafstand.",
+        "fr": "Un fond rocheux ou parsemé de récifs augmente fortement le risque de blessure en cas de chute, surtout dans les vagues et à marée basse. Renseigne-toi sur l'emplacement des roches et garde une marge de sécurité particulièrement grande sur ces spots.",
+        "es": "Un fondo rocoso o con arrecife aumenta considerablemente el riesgo de lesión en una caída, sobre todo en la rompiente y con marea baja. Infórmate sobre la ubicación de las piedras y mantén una distancia de seguridad especialmente amplia en estos spots."
+      }
+    },
+    {
+      "slug": "rocky-entry", "category": "water-bottom", "core": true, "icon": "🥾",
+      "label": {"en": "Rocky entry", "de": "Steiniger Einstieg", "nl": "Rotsachtige instap", "fr": "Entrée rocheuse", "es": "Entrada rocosa"},
+      "text": {
+        "en": "Where entry and exit run over stones or shingle rather than sand, cuts and falls are common — particularly with a board in hand and waves at your back. Neoprene shoes (booties) are strongly recommended here.",
+        "de": "Wo der Ein- und Ausstieg über Steine oder Geröll statt über Sand führt, sind Schnitte und Stürze häufig — gerade mit Board in der Hand und Wellen im Rücken. Neoprenschuhe (Booties) sind hier dringend zu empfehlen.",
+        "nl": "Waar de in- en uitstap over stenen of grind gaat in plaats van over zand, komen snijwonden en valpartijen vaak voor — zeker met je board in de hand en golven in je rug. Neopreen schoenen (booties) zijn hier dringend aan te raden.",
+        "fr": "Là où l'entrée et la sortie se font sur des pierres ou des galets plutôt que sur du sable, les coupures et les chutes sont fréquentes — surtout avec la planche à la main et les vagues dans le dos. Les chaussons néoprène (booties) sont vivement recommandés ici.",
+        "es": "Donde la entrada y la salida se hacen sobre piedras o cantos en lugar de arena, los cortes y las caídas son frecuentes — sobre todo con la tabla en la mano y las olas a la espalda. Aquí se recomiendan encarecidamente los escarpines de neopreno (booties)."
+      }
+    },
+    {
+      "slug": "shorebreak", "category": "water-bottom", "core": true, "icon": "💥",
+      "label": {"en": "Shorebreak", "de": "Uferbrandung", "nl": "Shorebreak", "fr": "Shorebreak", "es": "Shorebreak"},
+      "text": {
+        "en": "Shorebreak refers to waves that break right at the shore. They can hit body and gear hard and make entry and exit especially difficult — above all at high tide or in an onshore storm. Timing and technique getting in and out are crucial here; when in doubt, wait for a calmer set.",
+        "de": "Als Shorebreak bezeichnet man Wellen, die direkt am Ufer brechen. Sie können Körper und Material hart treffen und machen vor allem den Ein- und Ausstieg schwierig — besonders bei Hochwasser oder auflandigem Sturm. Timing und Technik beim Rein- und Rausgehen sind hier entscheidend; im Zweifel auf eine ruhigere Phase warten.",
+        "nl": "Met shorebreak worden golven bedoeld die vlak aan de kant breken. Ze kunnen lichaam en materiaal hard raken en maken vooral de in- en uitstap lastig — zeker bij hoogwater of aanlandige storm. Timing en techniek bij het in- en uitgaan zijn hier doorslaggevend; wacht bij twijfel op een rustiger moment.",
+        "fr": "Le shorebreak désigne les vagues qui déferlent juste au bord. Elles peuvent frapper durement le corps et le matériel et rendent surtout l'entrée et la sortie difficiles — en particulier à marée haute ou par tempête onshore. Le timing et la technique à l'entrée et à la sortie sont ici décisifs ; en cas de doute, attends une série plus calme.",
+        "es": "Se llama shorebreak a las olas que rompen justo en la orilla. Pueden golpear con fuerza el cuerpo y el material y dificultan sobre todo la entrada y la salida — especialmente con marea alta o temporal de mar a tierra. El momento y la técnica al entrar y salir son aquí decisivos; en caso de duda, espera a una serie más tranquila."
+      }
+    },
+    {
+      "slug": "obstacles", "category": "water-bottom", "core": false, "icon": "⚓",
+      "label": {"en": "Underwater obstacles", "de": "Unterwasserhindernisse", "nl": "Onderwaterobstakels", "fr": "Obstacles immergés", "es": "Obstáculos sumergidos"},
+      "text": {
+        "en": "Buoy chains, nets, mussel beds, submerged groynes or posts often can't be seen from the surface. Local knowledge or a quick word from the local school helps you avoid them.",
+        "de": "Bojenketten, Netze, Muschelbänke, versunkene Buhnen oder Pfähle sind von der Oberfläche oft nicht zu sehen. Ortskenntnis oder ein kurzer Hinweis der lokalen Schule hilft, sie zu meiden.",
+        "nl": "Boeikettingen, netten, mosselbanken, verzonken kribben of palen zijn vanaf het oppervlak vaak niet te zien. Plaatselijke kennis of een korte tip van de lokale surfschool helpt om ze te vermijden.",
+        "fr": "Chaînes de bouées, filets, bancs de moules, épis submergés ou pieux sont souvent invisibles depuis la surface. La connaissance des lieux ou un mot de l'école locale aide à les éviter.",
+        "es": "Cadenas de boyas, redes, bancos de mejillones, espigones sumergidos o pilotes a menudo no se ven desde la superficie. El conocimiento del lugar o un aviso de la escuela local ayuda a evitarlos."
+      }
+    },
+    {
+      "slug": "cold-water", "category": "environment", "core": true, "icon": "🥶",
+      "label": {"en": "Cold water", "de": "Kaltes Wasser", "nl": "Koud water", "fr": "Eau froide", "es": "Agua fría"},
+      "text": {
+        "en": "Cold water saps your strength, raises the risk of cold shock and shortens the time you can safely stay in the water. On many coasts the water is cool year-round. Wear a wetsuit suited to the water temperature — with a hood, boots and gloves if needed — and don't underestimate the cooling even on sunny days.",
+        "de": "Kaltes Wasser kostet Kraft, erhöht das Risiko eines Kälteschocks und verkürzt die Zeit, die du sicher im Wasser bleiben kannst. An vielen Küsten ist das Wasser das ganze Jahr kühl. Trage einen der Wassertemperatur angemessenen Neoprenanzug — bei Bedarf mit Haube, Schuhen und Handschuhen — und unterschätze die Auskühlung auch an sonnigen Tagen nicht.",
+        "nl": "Koud water kost kracht, verhoogt het risico op een koudeshock en verkort de tijd die je veilig in het water kunt blijven. Aan veel kusten is het water het hele jaar koel. Draag een wetsuit die past bij de watertemperatuur — indien nodig met muts, schoenen en handschoenen — en onderschat de afkoeling ook op zonnige dagen niet.",
+        "fr": "L'eau froide épuise, augmente le risque de choc thermique et raccourcit le temps que tu peux passer en sécurité dans l'eau. Sur de nombreuses côtes, l'eau reste fraîche toute l'année. Porte une combinaison néoprène adaptée à la température de l'eau — avec cagoule, chaussons et gants si besoin — et ne sous-estime pas le refroidissement, même par temps ensoleillé.",
+        "es": "El agua fría agota, aumenta el riesgo de choque térmico y acorta el tiempo que puedes permanecer con seguridad en el agua. En muchas costas el agua está fría todo el año. Lleva un traje de neopreno adecuado a la temperatura del agua — con capucha, escarpines y guantes si hace falta — y no subestimes el enfriamiento incluso en días soleados."
+      }
+    },
+    {
+      "slug": "sun-heat", "category": "environment", "core": false, "icon": "☀️",
+      "label": {"en": "Sun / heat / UV", "de": "Sonne / Hitze / UV", "nl": "Zon / hitte / UV", "fr": "Soleil / chaleur / UV", "es": "Sol / calor / UV"},
+      "text": {
+        "en": "At sunny spots in particular, UV exposure, heat and dehydration are badly underestimated, and reflection off the water intensifies the UV. Plan for sun protection, headwear and enough water, and in strong heat avoid the midday peak.",
+        "de": "Gerade an sonnenreichen Spots werden UV-Belastung, Hitze und Dehydrierung massiv unterschätzt. Reflektion vom Wasser verstärkt die UV-Strahlung zusätzlich. Plane Sonnenschutz, Kopfbedeckung und ausreichend Wasser ein, und meide bei großer Hitze die Mittagsspitze.",
+        "nl": "Juist op zonnige spots worden UV-belasting, hitte en uitdroging enorm onderschat. Weerkaatsing van het water versterkt de UV-straling nog eens extra. Plan zonbescherming, een hoofddeksel en voldoende water in, en mijd bij grote hitte de piek rond het middaguur.",
+        "fr": "Sur les spots ensoleillés en particulier, l'exposition aux UV, la chaleur et la déshydratation sont largement sous-estimées. La réverbération de l'eau renforce encore le rayonnement UV. Prévois une protection solaire, un couvre-chef et assez d'eau, et évite le pic de midi par forte chaleur.",
+        "es": "Precisamente en los spots soleados se subestiman enormemente la exposición a los UV, el calor y la deshidratación. El reflejo del agua intensifica aún más la radiación UV. Prevé protección solar, gorra y suficiente agua, y con mucho calor evita las horas centrales del mediodía."
+      }
+    },
+    {
+      "slug": "thunderstorm", "category": "environment", "core": false, "icon": "⛈️",
+      "label": {"en": "Thunderstorm", "de": "Gewitter", "nl": "Onweer", "fr": "Orage", "es": "Tormenta"},
+      "text": {
+        "en": "Sudden, often thermally driven summer storms are a serious matter especially on inland and mountain lakes (e.g. Lake Garda). On the water, your mast and rig act as a lightning rod. If a storm approaches, get out of the water immediately and find safe shelter — don't wait to see whether it passes.",
+        "de": "Plötzliche, oft thermisch getriebene Sommergewitter sind besonders auf Binnenseen und in Gebirgsseen (z. B. Gardasee) ein ernstes Thema. Mast und Rigg wirken auf dem Wasser als Blitzfänger. Zieht ein Gewitter auf, gehe sofort aus dem Wasser und suche sicheren Unterstand — warte nicht ab, ob es vorbeizieht.",
+        "nl": "Plotselinge, vaak thermisch gedreven zomeronweders zijn vooral op binnenmeren en bergmeren (bijv. het Gardameer) een serieuze zaak. Mast en tuig werken op het water als bliksemafleider. Trekt er onweer op, ga dan onmiddellijk uit het water en zoek een veilige schuilplaats — wacht niet af of het overtrekt.",
+        "fr": "Les orages d'été soudains, souvent d'origine thermique, sont un sujet sérieux surtout sur les lacs intérieurs et de montagne (p. ex. le lac de Garde). Sur l'eau, le mât et le gréement font office de paratonnerre. Si un orage approche, sors immédiatement de l'eau et cherche un abri sûr — n'attends pas de voir s'il passe.",
+        "es": "Las tormentas de verano repentinas, a menudo de origen térmico, son un asunto serio sobre todo en lagos interiores y de montaña (p. ej. el lago de Garda). En el agua, el mástil y el aparejo actúan como pararrayos. Si se acerca una tormenta, sal del agua de inmediato y busca un refugio seguro — no esperes a ver si pasa."
+      }
+    },
+    {
+      "slug": "marine-life", "category": "environment", "core": false, "icon": "🪼",
+      "label": {"en": "Marine life", "de": "Meerestiere", "nl": "Zeedieren", "fr": "Faune marine", "es": "Fauna marina"},
+      "text": {
+        "en": "Depending on the region and season, you may encounter jellyfish, weever fish in the sand or other marine life. This is highly local and seasonal; heed local advice and any flagging where present.",
+        "de": "Je nach Region und Jahreszeit können Feuerquallen, Petermännchen im Sand oder andere Meerestiere vorkommen. Das ist stark orts- und saisonabhängig; beachte lokale Hinweise und, wo vorhanden, die Beflaggung.",
+        "nl": "Afhankelijk van regio en seizoen kunnen vuurkwallen, pietermannen in het zand of andere zeedieren voorkomen. Dat is sterk plaats- en seizoensgebonden; let op lokale waarschuwingen en, waar aanwezig, de bevlagging.",
+        "fr": "Selon la région et la saison, on peut rencontrer des méduses urticantes, des vives dans le sable ou d'autres animaux marins. Cela dépend fortement du lieu et de la saison ; tiens compte des avis locaux et, le cas échéant, du pavillonnage.",
+        "es": "Según la región y la estación puede haber medusas urticantes, arañas de mar en la arena u otros animales marinos. Depende mucho del lugar y la temporada; ten en cuenta los avisos locales y, donde exista, el sistema de banderas."
+      }
+    },
+    {
+      "slug": "crowd", "category": "people-rules", "core": true, "icon": "👥",
+      "label": {"en": "Crowds", "de": "Andrang", "nl": "Drukte", "fr": "Affluence", "es": "Aglomeración"},
+      "text": {
+        "en": "Busy water and a busy beach mean a risk of collision — with other riders, swimmers, lines and boards. In high season, especially on holiday weekends, constant awareness is required. Watch out for others when launching and landing, and know the right-of-way rules.",
+        "de": "Volles Wasser und voller Strand bedeuten Kollisionsgefahr — mit anderen Sportlern, Badegästen, Leinen und Boards. In der Hochsaison, besonders an Feiertagswochenenden, ist ständige Aufmerksamkeit gefragt. Achte beim Starten und Landen auf andere und kenne die Vorfahrtsregeln.",
+        "nl": "Vol water en een vol strand betekenen botsingsgevaar — met andere sporters, zwemmers, lijnen en boards. In het hoogseizoen, vooral op feestdagweekenden, is voortdurende oplettendheid vereist. Let bij het starten en landen op anderen en ken de voorrangsregels.",
+        "fr": "Une eau et une plage bondées signifient un risque de collision — avec d'autres pratiquants, des baigneurs, des lignes et des planches. En haute saison, surtout les week-ends fériés, une vigilance constante s'impose. Fais attention aux autres au départ et à l'arrivée, et connais les règles de priorité.",
+        "es": "Agua y playa llenas significan riesgo de colisión — con otros deportistas, bañistas, líneas y tablas. En temporada alta, sobre todo en fines de semana festivos, se requiere atención constante. Fíjate en los demás al salir y al entrar y conoce las reglas de preferencia."
+      }
+    },
+    {
+      "slug": "zone-closures", "category": "people-rules", "core": true, "icon": "🚫",
+      "label": {"en": "Zone closures", "de": "Zonensperrungen", "nl": "Zoneafsluitingen", "fr": "Zones réglementées", "es": "Zonas restringidas"},
+      "text": {
+        "en": "Many spots separate the sports into designated zones (kite, windsurf, bathing), have summer buoy areas or seasonal closures. These rules exist for safety and can change. Check the currently valid zones before rigging and stick to them.",
+        "de": "Viele Spots trennen Sportarten in ausgewiesene Zonen (Kite, Windsurf, Baden), haben Sommer-Bojenfelder oder saisonale Sperrungen. Diese Regeln dienen der Sicherheit und können sich ändern. Prüfe vor dem Aufbauen die aktuell geltenden Zonen und halte dich daran.",
+        "nl": "Veel spots scheiden de sporten in aangewezen zones (kite, windsurf, zwemmen), hebben zomerse boeienvelden of seizoensgebonden afsluitingen. Deze regels dienen de veiligheid en kunnen veranderen. Controleer vóór het opbouwen de actueel geldende zones en houd je eraan.",
+        "fr": "Beaucoup de spots séparent les sports en zones désignées (kite, windsurf, baignade), ont des champs de bouées estivaux ou des fermetures saisonnières. Ces règles servent la sécurité et peuvent changer. Vérifie les zones en vigueur avant de gréer et respecte-les.",
+        "es": "Muchos spots separan los deportes en zonas designadas (kite, windsurf, baño), tienen campos de boyas en verano o cierres estacionales. Estas reglas sirven a la seguridad y pueden cambiar. Comprueba las zonas vigentes antes de montar y respétalas."
+      }
+    },
+    {
+      "slug": "beach-traffic", "category": "people-rules", "core": false, "icon": "🚗",
+      "label": {"en": "Beach traffic", "de": "Autoverkehr am Strand", "nl": "Strandverkeer", "fr": "Circulation sur la plage", "es": "Tráfico en la playa"},
+      "text": {
+        "en": "On some beaches you're allowed to drive a car right onto the sand — convenient for hauling gear, but an extra source of danger. Watch for moving cars when rigging, launching and landing, and in turn keep an eye out for bathers, children and dogs when driving. Don't leave your gear where vehicles are moving.",
+        "de": "An manchen Stränden darf man mit dem Auto direkt auf den Sand fahren — bequem zum Transport der Ausrüstung, aber eine zusätzliche Gefahrenquelle. Achte beim Aufbauen, Starten und Landen auf fahrende Autos, und lass umgekehrt beim Fahren Badegäste, Kinder und Hunde im Blick. Stell dein Material nicht dort ab, wo Fahrzeuge unterwegs sind.",
+        "nl": "Op sommige stranden mag je met de auto direct het zand op — handig voor het vervoer van je uitrusting, maar een extra gevaarbron. Let bij het opbouwen, starten en landen op rijdende auto's, en houd omgekeerd tijdens het rijden zwemmers, kinderen en honden in de gaten. Zet je materiaal niet neer waar voertuigen rijden.",
+        "fr": "Sur certaines plages, on peut rouler en voiture directement sur le sable — pratique pour transporter le matériel, mais une source de danger supplémentaire. Fais attention aux voitures en mouvement en gréant, au départ et à l'arrivée, et inversement garde un œil sur les baigneurs, les enfants et les chiens quand tu roules. Ne pose pas ton matériel là où circulent les véhicules.",
+        "es": "En algunas playas se puede conducir el coche directamente sobre la arena — cómodo para transportar el equipo, pero una fuente de peligro adicional. Presta atención a los coches en movimiento al montar, salir y entrar, y a la inversa vigila a los bañistas, niños y perros mientras conduces. No dejes tu material donde circulen vehículos."
+      }
+    },
+    {
+      "slug": "shipping", "category": "people-rules", "core": true, "icon": "🚢",
+      "label": {"en": "Shipping / channel", "de": "Schifffahrt / Fahrwasser", "nl": "Scheepvaart / vaargeul", "fr": "Navigation / chenal", "es": "Navegación / canal"},
+      "text": {
+        "en": "Commercial and leisure shipping and marked channels are part of many coastal and river venues. Large vessels can't dodge and have long stopping distances; as a small sail on the water you are hard to see. Keep well clear of marked shipping lanes, and note that certain wind directions can push you toward the channel.",
+        "de": "Berufs- und Sportschifffahrt sowie markierte Fahrrinnen gehören zu vielen Küsten- und Flussrevieren. Große Schiffe können nicht ausweichen und haben lange Bremswege; als kleines Segel auf dem Wasser bist du schwer zu sehen. Halte dich von markierten Fahrwassern fern und beachte, dass bestimmte Windrichtungen dich Richtung Fahrrinne drücken können.",
+        "nl": "Beroeps- en pleziervaart en gemarkeerde vaargeulen horen bij veel kust- en riviergebieden. Grote schepen kunnen niet uitwijken en hebben lange remwegen; als klein zeil op het water ben je moeilijk te zien. Blijf ver uit de buurt van gemarkeerde vaargeulen en houd er rekening mee dat bepaalde windrichtingen je richting de geul kunnen drukken.",
+        "fr": "La navigation commerciale et de plaisance ainsi que les chenaux balisés font partie de nombreux plans d'eau côtiers et fluviaux. Les grands navires ne peuvent pas manœuvrer pour éviter et ont de longues distances d'arrêt ; comme petite voile sur l'eau, tu es difficile à voir. Reste bien à l'écart des chenaux de navigation balisés et note que certaines directions de vent peuvent te pousser vers le chenal.",
+        "es": "La navegación comercial y de recreo y los canales balizados forman parte de muchas zonas costeras y fluviales. Los grandes buques no pueden esquivar y tienen largas distancias de frenado; como una pequeña vela en el agua eres difícil de ver. Mantente bien alejado de los canales de navegación balizados y ten en cuenta que ciertas direcciones de viento pueden empujarte hacia el canal."
+      }
+    },
+    {
+      "slug": "self-and-gear", "category": "you", "core": true, "icon": "⚠️",
+      "label": {"en": "Ability & gear", "de": "Können & Material", "nl": "Niveau & materiaal", "fr": "Niveau & matériel", "es": "Nivel y material"},
+      "text": {
+        "en": "The most common hazard is at the board: too much sail or kite for the day, a missing leash, faulty gear, or a spot above your level. All of it is avoidable — rig conservatively, check your gear before every session, be honest about your ability, and build up carefully at new spots. Reading the conditions takes judgement, not courage.",
+        "de": "Die häufigste Gefahr sitzt am Board: ein zu großes Segel oder ein zu großer Kite für den Tag, eine fehlende Leash, defektes Material oder ein Spot über dem eigenen Niveau. Das lässt sich vermeiden — rige konservativ, prüfe dein Material vor jeder Session, sei ehrlich zu deinem Können und bau dich an neuen Spots vorsichtig auf. Wer die Bedingungen lesen kann, braucht keinen Mut, sondern Urteilsvermögen.",
+        "nl": "Het grootste gevaar zit op het board zelf: een te groot zeil of een te grote kite voor die dag, een ontbrekende leash, defect materiaal of een spot boven je niveau. Dat is te vermijden — tuig conservatief op, controleer je materiaal vóór elke sessie, wees eerlijk over je niveau en bouw het op nieuwe spots voorzichtig op. Wie de omstandigheden kan lezen, heeft geen moed nodig maar oordeelsvermogen.",
+        "fr": "Le danger le plus fréquent est sur la planche : une voile ou un kite trop grand pour la journée, un leash manquant, du matériel défectueux ou un spot au-dessus de son niveau. Tout cela s'évite — gréé conservateur, vérifie ton matériel avant chaque session, sois honnête sur ton niveau et progresse prudemment sur les nouveaux spots. Lire les conditions demande du jugement, pas du courage.",
+        "es": "El peligro más frecuente está en la propia tabla: una vela o una cometa demasiado grandes para el día, la falta de leash, material defectuoso o un spot por encima de tu nivel. Todo eso se puede evitar — apareja conservador, revisa tu material antes de cada sesión, sé honesto con tu nivel y progresa con prudencia en spots nuevos. Leer las condiciones exige criterio, no valentía."
+      }
+    }
+  ]
+}
