@@ -4068,7 +4068,7 @@ def _rank_default_tables(sport):
 RANKING_TABLE_LABELS = {
     "30s": "🏆 Best 30 s", "2s": "⚡ Top 2 s", "500m": "📏 Best 500 m",
     "nm": "⚓ Nautical mile", "run": "🚩 Longest run", "total": "👥 Total distance",
-    "airtime": "🪂 Best airtime", "jump": "🚀 Highest jump",
+    "airtime": "🪂 Best airtime", "jump": "🚀 Highest jump", "airs": "🔁 Most airs",
     "strokes": "🛶 Most strokes", "cadence": "⏱️ Max cadence",
 }
 
@@ -5144,10 +5144,10 @@ def render_rankings(results_container):
             st.caption("Pick which ranking tables appear immediately; the rest load on "
                        "click (faster & lighter). Save via ‚My start' to keep it.")
             if sport == "wakeboard":
-                _tbl_opts = ["airtime", "jump", "2s", "total"]
+                _tbl_opts = ["airtime", "jump", "airs", "2s", "total"]
             else:
                 _tbl_opts = ["30s", "2s", "500m", "nm", "run", "total"] + (
-                    ["strokes", "cadence"] if sport == "sup" else ["airtime", "jump"])
+                    ["strokes", "cadence"] if sport == "sup" else ["airtime", "jump", "airs"])
             _tk = f"rank_tables_{sport}"
             if _tk not in st.session_state:   # einmalig aus Preset/Default vorbelegen
                 # Sportart mit eigenem Default (Wakeboard) erbt NICHT den globalen
@@ -5670,12 +5670,16 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         _metric_body(c, "max_jump_m", "### 🚀 Highest jump", "Jump m",
                      empty_msg="No jump data yet – record a session with jumps on the watch.")
 
+    def _r_airs(c):
+        _metric_body(c, "jumps", "### 🔁 Most airs", "Jumps", decimals=0,
+                     empty_msg="No jump data yet – record a session with jumps on the watch.")
+
     # Verfuegbare Tabellen (sport-/datenabhaengig) in kanonischer Reihenfolge.
     _sp = active_sport()
     if _sp == "wakeboard":
         # Wakeboard: nur die relevanten Wertungen – Airtime/Sprunghoehe zuerst,
         # dazu Top-Speed + Distanz. KEINE Seemeile/500m/30s/Longest run.
-        _avail = [("airtime", _r_airtime), ("jump", _r_jump),
+        _avail = [("airtime", _r_airtime), ("jump", _r_jump), ("airs", _r_airs),
                   ("2s", _r_2s), ("total", _r_total)]
     else:
         _avail = [("30s", _r_30s), ("2s", _r_2s)]
@@ -5687,7 +5691,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         if _sp == "sup":
             _avail += [("strokes", _r_strokes), ("cadence", _r_cadence)]
         else:
-            _avail += [("airtime", _r_airtime), ("jump", _r_jump)]
+            _avail += [("airtime", _r_airtime), ("jump", _r_jump), ("airs", _r_airs)]
 
     _keys = [k for k, _ in _avail]
     _default = _rank_default_tables(_sp)
