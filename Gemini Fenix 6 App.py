@@ -2366,6 +2366,47 @@ def load_all_spot_info():
     return [dict(r) for r in rows if (r["description"] or "").strip()]
 
 
+# Spalten der Backoffice-Vollstaendigkeits-Uebersicht (Reihenfolge = Anzeige).
+_SPOT_FIELDS = ["Land", "Koord.", "Text EN", "Lokal", "Wind", "Gefahren", "Einstufung"]
+
+
+def _spot_completeness_rows():
+    """Fuer jeden bekannten Spot: welche Pflichtfelder gefuellt sind. Ein Blick
+    statt in jeden Spot springen. -> [(spot, {feld: bool, ...}), ...]."""
+    coords = load_spots()
+    names = all_known_spots()
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(spot_info_table.c.spot, spot_info_table.c.country,
+                   spot_info_table.c.description, spot_info_table.c.description_local,
+                   spot_info_table.c.spot_class)
+        ).mappings().all()
+    info = {r["spot"]: dict(r) for r in rows}
+    out = []
+    for nm in names:
+        i = info.get(nm, {})
+        cls = {}
+        raw = i.get("spot_class")
+        if raw:
+            try:
+                cls = json.loads(raw) or {}
+            except Exception:  # noqa: BLE001
+                cls = {}
+        co = coords.get(nm) or {}
+        wind = cls.get("wind")
+        fields = {
+            "Land": bool((i.get("country") or "").strip()),
+            "Koord.": bool((co.get("lat") or 0.0) or (co.get("lon") or 0.0)),
+            "Text EN": bool((i.get("description") or "").strip()),
+            "Lokal": bool((i.get("description_local") or "").strip()),
+            "Wind": bool(str(wind).strip()) if wind else False,
+            "Gefahren": bool(cls.get("hazards")),
+            "Einstufung": bool(cls.get("level")),
+        }
+        out.append((nm, fields))
+    return out
+
+
 def _sport_all_clause(col, sport):
     """WHERE-Klausel fuer eine Sportart. "" bedeutet 'Alle Sportarten' und matcht
     auch NULL (Altbestand vor der Migration). NICHT cachen (col ist unhashbar)."""
@@ -10056,6 +10097,47 @@ def render_admin_spots():
     _dmsg = st.session_state.pop("_spot_deleted_msg", None)
     if _dmsg:
         st.success(_dmsg)
+
+    # --- Vollstaendigkeits-Uebersicht: auf einen Blick, wo noch was fehlt ------
+    _ov = _spot_completeness_rows()
+    if _ov:
+        _n_done = sum(1 for _, f in _ov if all(f.values()))
+        with st.expander(f"📋 Übersicht: wo fehlt noch was? ({_n_done}/{len(_ov)} vollständig)",
+                         expanded=True):
+            _only_gaps = st.checkbox("Nur unvollständige Spots zeigen", value=True,
+                                     key="admin_spot_only_gaps")
+            _rows = [(nm, f) for nm, f in _ov if not (all(f.values()) and _only_gaps)]
+            _rows.sort(key=lambda r: (sum(r[1].values()), r[0].lower()))  # Lücken oben
+            st.caption("✓ = vorhanden · – = fehlt. Öffne einen Spot unten zum Ergänzen. "
+                       "Wind / Gefahren / Einstufung stammen aus „Für wen geeignet?“.")
+            _hdr = "".join(f"<th style='padding:4px 8px;font-weight:600'>{c}</th>"
+                           for c in _SPOT_FIELDS)
+            _trs = []
+            for nm, f in _rows:
+                _score = sum(f.values())
+                _cells = ""
+                for c in _SPOT_FIELDS:
+                    if f[c]:
+                        _cells += "<td style='text-align:center;color:#1a9d5a'>✓</td>"
+                    else:
+                        _cells += "<td style='text-align:center;color:#e5484d;font-weight:700'>–</td>"
+                _sc_col = "#1a9d5a" if _score == len(_SPOT_FIELDS) else (
+                    "#e0a000" if _score >= 4 else "#e5484d")
+                _trs.append(
+                    f"<tr style='border-top:1px solid rgba(128,128,128,.25)'>"
+                    f"<td style='padding:4px 8px;white-space:nowrap'>{nm}</td>{_cells}"
+                    f"<td style='text-align:center;font-weight:700;color:{_sc_col}'>"
+                    f"{_score}/{len(_SPOT_FIELDS)}</td></tr>")
+            if _rows:
+                st.markdown(
+                    "<div style='overflow-x:auto'><table style='border-collapse:collapse;"
+                    "font-size:.9rem;width:100%'>"
+                    f"<tr><th style='padding:4px 8px;text-align:left'>Spot</th>{_hdr}"
+                    "<th style='padding:4px 8px'>∑</th></tr>"
+                    + "".join(_trs) + "</table></div>",
+                    unsafe_allow_html=True)
+            else:
+                st.success("🎉 Alle Spots sind vollständig ausgefüllt.")
 
     coords = load_spots()                 # {name: {lat, lon}} – nur mit Koordinaten
     all_names = all_known_spots()         # alle bekannten Namen (auch aus Sessions)
