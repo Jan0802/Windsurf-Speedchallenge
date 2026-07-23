@@ -4111,6 +4111,7 @@ RANKING_TABLE_LABELS = {
     "nm": "⚓ Nautical mile", "run": "🚩 Longest run", "total": "👥 Total distance",
     "airtime": "🪂 Best airtime", "jump": "🚀 Highest jump", "airs": "🔁 Most airs",
     "strokes": "🛶 Most strokes", "cadence": "⏱️ Max cadence",
+    "kw_ppf": "💪 Pound-for-pound", "kw_force": "🏋️ Sail force", "kw_power": "⚡ Power",
 }
 
 
@@ -5189,6 +5190,8 @@ def render_rankings(results_container):
             else:
                 _tbl_opts = ["30s", "2s", "500m", "nm", "run", "total"] + (
                     ["strokes", "cadence"] if sport == "sup" else ["airtime", "jump", "airs"])
+                if sport == "windsurf":
+                    _tbl_opts += ["kw_ppf", "kw_force", "kw_power"]
             _tk = f"rank_tables_{sport}"
             if _tk not in st.session_state:   # einmalig aus Preset/Default vorbelegen
                 # Sportart mit eigenem Default (Wakeboard) erbt NICHT den globalen
@@ -5547,6 +5550,32 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             {True: "Carbon", 1: "Carbon", False: "–", 0: "–"})
         fin_cols.append("Carbon")
 
+    # --- Kraftweltmeister (Fun-Physik, nur Windsurf): geschätzte Segelkraft &
+    # Leistung je Session aus Wind (wind_kmh) + Segelfläche + Speed + Gewicht.
+    # Spaßphysik in der richtigen Größenordnung, KEINE Messung (Vorlage
+    # kraftweltmeister.md). Plausibilitäts-Guard wie im Trust-Gate.
+    if active_sport() == "windsurf":
+        _KW_RHO, _KW_G, _KW_C = 1.225, 9.81, 1.0
+        _kw_w = load_user_weights()
+        _wind_ms = pd.to_numeric(ranking.get("wind_kmh"), errors="coerce") / 3.6
+        _board_ms = (pd.to_numeric(ranking.get("speed_1s_kmh"), errors="coerce") / 3.6
+                     ).fillna(0.0)
+        _sail_m2 = (ranking["sail"].apply(_sail_size_m2)
+                    if "sail" in ranking.columns else pd.Series(index=ranking.index, dtype=float))
+        _sail_m2 = pd.to_numeric(_sail_m2, errors="coerce")
+        _wt = pd.to_numeric(ranking["name"].map(_kw_w), errors="coerce")
+        _v_app = np.sqrt(_wind_ms ** 2 + _board_ms ** 2)          # scheinbarer Wind
+        _f_app = 0.5 * _KW_RHO * _v_app ** 2 * _sail_m2 * _KW_C    # dynamische Kraft (N)
+        _f_hold = 0.5 * _KW_RHO * _wind_ms ** 2 * _sail_m2 * _KW_C  # Haltekraft (N)
+        ranking["kw_force_kg"] = _f_app / _KW_G                    # „kg-Zug" (anschaulich)
+        ranking["kw_power_w"] = _f_app * _board_ms                 # Leistung (W)
+        ranking["kw_ppf"] = _f_hold / (_wt * _KW_G)               # Kraft ÷ Gewicht
+        # Fantasiewerte raus: Kraft/Gewicht > 1,5 oder Speed > 2,2×Wind (GPS-Ausreißer).
+        _kw_bad = ((ranking["kw_ppf"] > 1.5)
+                   | ((_board_ms > 2.2 * _wind_ms) & (_wind_ms > 0)))
+        for _kc in ("kw_force_kg", "kw_power_w", "kw_ppf"):
+            ranking.loc[_kw_bad, _kc] = np.nan
+
     # #1-Glaskarte oben (kombinierter Score) – direkt unter der Überschrift.
     _render_champion(ranking, active_sport() in ("windsurf", "kitesurf", "wingsurf", "wakeboard"))
 
@@ -5715,6 +5744,21 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         _metric_body(c, "jumps", "### 🔁 Most airs", "Jumps", decimals=0,
                      empty_msg="No jump data yet – record a session with jumps on the watch.")
 
+    def _r_kw_ppf(c):
+        _metric_body(c, "kw_ppf", "### 💪 Pound-for-pound", "Force ÷ kg", decimals=2,
+                     empty_msg="Needs your weight (profile), a sail size and session wind.")
+        with c:
+            st.caption("Fun physics: sail force relative to body weight — "
+                       "the lightweight-friendly class. Estimate, not a measurement.")
+
+    def _r_kw_force(c):
+        _metric_body(c, "kw_force_kg", "### 🏋️ Raw sail force", "Pull (kg)", decimals=1,
+                     empty_msg="Needs a sail size and session wind.")
+
+    def _r_kw_power(c):
+        _metric_body(c, "kw_power_w", "### ⚡ Power (force × speed)", "Power (W)", decimals=0,
+                     empty_msg="Needs a sail size, session wind and GPS speed.")
+
     # Verfuegbare Tabellen (sport-/datenabhaengig) in kanonischer Reihenfolge.
     _sp = active_sport()
     if _sp == "wakeboard":
@@ -5733,6 +5777,9 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             _avail += [("strokes", _r_strokes), ("cadence", _r_cadence)]
         else:
             _avail += [("airtime", _r_airtime), ("jump", _r_jump), ("airs", _r_airs)]
+        if _sp == "windsurf":
+            _avail += [("kw_ppf", _r_kw_ppf), ("kw_force", _r_kw_force),
+                       ("kw_power", _r_kw_power)]
 
     _keys = [k for k, _ in _avail]
     _default = _rank_default_tables(_sp)
