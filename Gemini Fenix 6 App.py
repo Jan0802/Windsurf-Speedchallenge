@@ -1098,6 +1098,27 @@ def get_engine():
     engine_kwargs = {"pool_pre_ping": True}
     if not is_sqlite:
         engine_kwargs["pool_recycle"] = 1800
+        # Neon (Free) fährt die Compute nach ~5 Min Leerlauf auf null (scale-to-
+        # zero). Der ERSTE Connect danach scheitert oft, während sie aufwacht ->
+        # roher psycopg2-Traceback beim Nutzer. Ein Creator mit kurzem Retry weckt
+        # sie und verbindet dann -> self-healing statt Absturz. Greift für JEDE
+        # Verbindung (TV, Login, Fragmente), weil der Pool ihn nutzt.
+        import psycopg2  # nur Cloud/Linux vorhanden (requirements: nur non-Windows)
+
+        _dsn = url.split("+psycopg2", 1)[0] + url.split("+psycopg2", 1)[1] \
+            if "+psycopg2" in url else url
+
+        def _creator():
+            last = None
+            for _i in range(4):
+                try:
+                    return psycopg2.connect(_dsn, connect_timeout=10)
+                except psycopg2.OperationalError as _e:   # DB schläft/wacht auf
+                    last = _e
+                    time.sleep(1.0 * (_i + 1))
+            raise last
+
+        engine_kwargs["creator"] = _creator
     engine = create_engine(url, connect_args=connect_args, **engine_kwargs)
     DB_METADATA.create_all(engine)
     _migrate_legacy(engine)
