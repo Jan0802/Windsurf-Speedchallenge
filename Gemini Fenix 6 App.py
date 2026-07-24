@@ -7265,9 +7265,10 @@ def render_spot_tv(cfg):
     # QR-Code + beworbene Produkte zusammen in EINER umbrechenden Reihe (statisch).
     _render_join_qr(cfg)
 
-    # Ganz unten: wechselt synchron zum Ranking (2s/30s) zwischen Spot-Info
-    # und 3-Tage-Wettervorhersage.
-    _tv_bottom_info(cfg)
+    # Ganz unten: selbst-rotierender Footer (Wetterkachel rotiert Tag im 60-s-
+    # Wall-Clock-Takt + Webcam + optionale Notiz). Löst das alte run_every-
+    # _tv_bottom_info ab (kein React-Re-Mount-Flackern mehr).
+    _tv_footer(cfg)
 
 
 def _webcam_embed_url(url):
@@ -8171,6 +8172,154 @@ def _tv_bottom_info(cfg):
         _tv_spot_info(cfg)
     elif has_fc:
         _tv_forecast(cfg, coords)
+
+
+# --- Spot-TV-Footer (spot-tv-footer.md) -------------------------------------
+# Selbst-rotierender iframe: links Wetterkachel (rotiert Tag heute→+1→+2 im
+# 60-s-Wall-Clock-Takt, in Phase mit dem Leaderboard), rechts Webcam, unten eine
+# optionale Notiz. Holt die Vorhersage CLIENT-SEITIG (frisch, kein Render-IP-
+# Limit, kein React-Re-Mount-Bug wie beim run_every-Fragment). Höhen-gelockt →
+# die Webcam kann nie verdrängt werden. Ersetzt _tv_bottom_info; die Sponsor-
+# Produktkacheln (_render_join_qr) bleiben davon unberührt.
+_TV_FOOTER_TMPL = """
+<style>
+*{box-sizing:border-box}body{margin:0}
+.ft{display:flex;gap:16px;height:216px;color:#eaf4ff;
+    font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+.ft-wx{flex:1 1 auto;min-width:0;background:rgba(255,255,255,.06);
+       border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:14px 20px;
+       display:flex;flex-direction:column}
+.ft-head{font-size:20px;font-weight:800;opacity:.92}
+.ft-main{display:flex;align-items:center;gap:18px;margin-top:8px}
+.ft-emoji{font-size:54px;line-height:1}
+.ft-temp{font-size:32px;font-weight:800}
+.ft-temp span{font-size:19px;opacity:.6;font-weight:600}
+.ft-wind{font-size:25px;font-weight:800;color:#7fd4ff;margin-top:2px}
+.ft-wind small{font-size:14px;opacity:.7;font-weight:600}
+.ft-gust{font-size:15px;opacity:.75}
+.ft-status{margin-top:6px;font-size:18px;font-weight:800}
+.ft-dots{margin-top:auto;display:flex;gap:7px;align-items:center;font-size:13px;
+         opacity:.6;padding-top:8px}
+.ft-dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.3)}
+.ft-dot.on{background:#2bd4d9}
+.ft-note{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12);
+         font-size:15px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ft-cam{width:__CAMW__;flex:0 0 auto;border-radius:18px;overflow:hidden;
+        position:relative;background:#04161d}
+.ft-cam img,.ft-cam iframe{width:100%;height:100%;object-fit:cover;border:0;display:block}
+.ft-live{position:absolute;top:8px;right:8px;background:#e5484d;color:#fff;font-size:12px;
+         font-weight:800;padding:2px 9px;border-radius:999px;letter-spacing:.5px}
+</style>
+<div class="ft" translate="no">
+  <div class="ft-wx">
+    <div class="ft-head" id="ftHead"></div>
+    <div class="ft-main">
+      <div class="ft-emoji" id="ftEmoji"></div>
+      <div>
+        <div class="ft-temp" id="ftTemp"></div>
+        <div class="ft-wind" id="ftWind"></div>
+        <div class="ft-gust" id="ftGust"></div>
+        <div class="ft-status" id="ftStatus"></div>
+      </div>
+    </div>
+    <div class="ft-dots" id="ftDots"></div>
+    <div class="ft-note" id="ftNote" style="__NOTEDISP__"></div>
+  </div>
+  __CAM__
+</div>
+<script>
+const SPOT=__SPOT__,NOTE=__NOTE__,BEST=__BEST__,RATE=__RATE__,LAT=__LAT__,LON=__LON__;
+const EMO=__EMO__;
+const COMP=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const WD=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+let DAYS=[],cur=-1;
+document.getElementById('ftNote').textContent=NOTE;
+function angd(a,b){var d=Math.abs((a-b)%360);return Math.min(d,360-d);}
+function rate(w,dir){
+  if(!RATE||w==null)return['',''];
+  if(w<12)return['#e5484d','too little wind'];
+  if(w>60)return['#e5484d','too strong'];
+  var ok=null;if(BEST.length&&dir!=null){ok=BEST.some(function(b){return angd(dir,b)<=34;});}
+  if(ok===false)return['#f5c518','wrong direction'];
+  if(w>=16&&w<=45)return['#2ecc71','worth it'];
+  if(w>45)return['#f5c518','lots of wind (pros)'];
+  return['#f5c518','light wind'];
+}
+function build(d){
+  DAYS=[];var t=d.time||[];
+  for(var i=0;i<Math.min(3,t.length);i++){
+    var wind=Math.round(d.wind_speed_10m_max[i]),dir=d.wind_direction_10m_dominant[i],r=rate(wind,dir);
+    DAYS.push({label:i===0?'Today':WD[new Date(t[i]).getDay()],
+      icon:EMO[d.weather_code[i]]||'',high:Math.round(d.temperature_2m_max[i])+'\\u00b0',
+      low:Math.round(d.temperature_2m_min[i])+'\\u00b0',wind:wind,
+      gusts:Math.round(d.wind_gusts_10m_max[i]),
+      dir:dir!=null?COMP[Math.round(dir/22.5)%16]:'',color:r[0],statusLabel:r[1]});
+  }
+  cur=-1;tick();
+}
+function render(i){
+  var d=DAYS[i];if(!d)return;
+  document.getElementById('ftHead').textContent=d.label+' \\u00b7 '+SPOT;
+  document.getElementById('ftEmoji').textContent=d.icon;
+  document.getElementById('ftTemp').innerHTML=d.high+'<span> / '+d.low+'</span>';
+  document.getElementById('ftWind').innerHTML='\\ud83c\\udf2c\\ufe0f '+d.wind+'<small> km/h</small>';
+  document.getElementById('ftGust').textContent='Gusts '+d.gusts+(d.dir?' \\u00b7 '+d.dir:'');
+  document.getElementById('ftStatus').innerHTML=d.color?('<span style="color:'+d.color+'">\\u25cf </span>'+d.statusLabel):'';
+  var dots=DAYS.map(function(x,k){return'<span class="ft-dot'+(k===i?' on':'')+'"></span>';}).join('');
+  document.getElementById('ftDots').innerHTML=dots+'&nbsp;&nbsp;'+DAYS.map(function(x){return x.label;}).join(' \\u00b7 ');
+}
+function tick(){var p=Math.floor(Date.now()/60000)%(DAYS.length||1);if(p!==cur){cur=p;render(p);}}
+setInterval(tick,1000);
+function load(){
+  if(LAT==null)return;
+  var u='https://api.open-meteo.com/v1/forecast?latitude='+LAT+'&longitude='+LON+
+    '&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,'+
+    'wind_gusts_10m_max,wind_direction_10m_dominant&wind_speed_unit=kmh&timezone=auto&forecast_days=3';
+  fetch(u).then(function(r){return r.json();}).then(function(j){if(j&&j.daily)build(j.daily);}).catch(function(){});
+}
+load();setInterval(load,1800000);
+var cam=document.getElementById('ftcam');
+if(cam){setInterval(function(){var b=cam.src.split('?')[0];cam.src=b+'?t='+Date.now();},15000);}
+</script>
+"""
+
+
+def _tv_footer(cfg):
+    """Unterer Spot-TV-Bereich: selbst-rotierende Wetterkachel + Webcam + Notiz
+    (siehe _TV_FOOTER_TMPL). Ersetzt _tv_bottom_info."""
+    spot = cfg.get("spot")
+    if not spot:
+        return
+    coords = _spot_coords(spot)
+    info = load_spot_info(spot) or {}
+    webcam = (info.get("webcam_url") or "").strip()
+    if not coords and not webcam:
+        return
+    best_degs = _parse_best_dirs(info.get("best_winds"))
+    note = (cfg.get("event") or "").strip()
+
+    if webcam and _is_image_url(webcam):
+        cam_inner = (f'<img id="ftcam" src="{webcam}" referrerpolicy="no-referrer">'
+                     "<div class='ft-live'>LIVE</div>")
+    elif webcam:
+        cam_inner = (f'<iframe src="{_webcam_embed_url(webcam)}" allow="autoplay; fullscreen">'
+                     "</iframe><div class='ft-live'>LIVE</div>")
+    else:
+        cam_inner = ""
+    cam_html = f"<div class='ft-cam'>{cam_inner}</div>" if cam_inner else ""
+
+    html = (_TV_FOOTER_TMPL
+            .replace("__CAM__", cam_html)
+            .replace("__CAMW__", "360px")
+            .replace("__NOTEDISP__", "" if note else "display:none")
+            .replace("__SPOT__", json.dumps(spot))
+            .replace("__NOTE__", json.dumps(note))
+            .replace("__BEST__", json.dumps(best_degs))
+            .replace("__RATE__", "true" if cfg.get("sport") != "wakeboard" else "false")
+            .replace("__LAT__", json.dumps(coords[0] if coords else None))
+            .replace("__LON__", json.dumps(coords[1] if coords else None))
+            .replace("__EMO__", json.dumps(_WCODE_EMOJI)))
+    components.html(html, height=232, scrolling=False)
 
 
 _SC_LEVEL_ICON = {"beginner": "🟢", "improver": "🟢", "advanced": "🟡", "pro": "🔴"}
