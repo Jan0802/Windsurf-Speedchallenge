@@ -902,6 +902,7 @@ spot_info_table = Table(
     Column("description", String),
     Column("description_local", String),  # zweite Beschreibung in der Landessprache
     Column("local_lang", String(60)),     # nativer Name der Landessprache (Umschalter)
+    Column("tv_note", String(280)),        # kurze Zeile fuer den Spot-TV-Footer (getrennt von der langen Beschreibung)
     Column("image", LargeBinary),
     Column("image_mime", String(50)),
     Column("webcam_url", String(500)),
@@ -2790,7 +2791,7 @@ def load_spot_info(spot):
 def save_spot_info(spot, description, webcam_url, country="", best_winds="",
                    image_bytes=None, image_mime=None, clear_image=False,
                    webcam_link=None, water_ok=None,
-                   description_local=None, local_lang=None):
+                   description_local=None, local_lang=None, tv_note=None):
     if not spot:
         return
     _ensure_ad_tables()
@@ -2812,6 +2813,8 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
         values["description_local"] = (description_local or "").strip() or None
     if local_lang is not None:
         values["local_lang"] = (local_lang or "").strip() or None
+    if tv_note is not None:
+        values["tv_note"] = (tv_note or "").strip() or None
     if clear_image:
         values["image"] = None
         values["image_mime"] = None
@@ -8317,7 +8320,8 @@ def _tv_footer(cfg):
     if not coords and not webcam:
         return
     best_degs = _parse_best_dirs(info.get("best_winds"))
-    note = (cfg.get("event") or "").strip()
+    # Notiz: gespeicherte TV-Notiz zuerst (Backoffice), sonst der ?event=-Parameter.
+    note = (info.get("tv_note") or cfg.get("event") or "").strip()
 
     if webcam and _is_image_url(webcam):
         cam_inner = (f'<img id="ftcam" src="{webcam}" referrerpolicy="no-referrer">'
@@ -10491,6 +10495,7 @@ def render_admin_spots():
             st.session_state["admin_spot_country"] = _i.get("country") or ""
             st.session_state["admin_spot_desc_local"] = _i.get("description_local") or ""
             st.session_state["admin_spot_lang"] = _i.get("local_lang") or ""
+            st.session_state["admin_spot_tvnote"] = _i.get("tv_note") or ""
         else:
             st.session_state["admin_spot_name"] = ""
             st.session_state["admin_spot_lat"] = 0.0
@@ -10499,6 +10504,7 @@ def render_admin_spots():
             st.session_state["admin_spot_country"] = ""
             st.session_state["admin_spot_desc_local"] = ""
             st.session_state["admin_spot_lang"] = ""
+            st.session_state["admin_spot_tvnote"] = ""
         st.rerun()
 
     name = st.text_input("Spot-Name", key="admin_spot_name").strip()
@@ -10539,6 +10545,11 @@ def render_admin_spots():
         f"Beschreibung ({lang or 'Landessprache'})", key="admin_spot_desc_local", height=120,
         help="Zweite Beschreibung in der Landessprache. Die KI füllt sie automatisch; hier "
              "kannst du sie korrigieren/eintragen. Leer = nur Englisch (kein Umschalter).")
+    tvnote = st.text_input(
+        "📺 TV-Notiz (kurze Zeile fürs Spot-TV)", key="admin_spot_tvnote", max_chars=140,
+        help="Eine kurze Zeile, die unten im Spot-TV-Footer erscheint (z. B. „Heute Grillabend "
+             "am Steg · Verleih bis 20 Uhr"). Getrennt von der langen Beschreibung oben; wird bei "
+             "Überlänge abgeschnitten. Leer = es gilt der ?event=-Parameter aus der TV-URL.")
 
     if st.button("🤖 KI-Beschreibung holen (Claude)", use_container_width=True):
         _sk = _secret("SEED_KEY", "").strip()
@@ -10583,11 +10594,12 @@ def render_admin_spots():
             st.error("Bitte gültige Koordinaten eingeben (0/0 liegt im Meer vor Afrika).")
         else:
             update_spot_coords(name, lat, lon)
-            # Beschreibung/Land/lokale Version schreiben, wenn irgendwas gesetzt ist.
-            if desc.strip() or country.strip() or desc_local.strip() or lang.strip():
+            # Beschreibung/Land/lokale Version/TV-Notiz schreiben, wenn irgendwas gesetzt ist.
+            if (desc.strip() or country.strip() or desc_local.strip() or lang.strip()
+                    or tvnote.strip()):
                 _ex = load_spot_info(name) or {}
                 save_spot_info(name, desc, _ex.get("webcam_url") or "", country=country,
-                               description_local=desc_local, local_lang=lang)
+                               description_local=desc_local, local_lang=lang, tv_note=tvnote)
             _extra = " – im Revierführer sichtbar" if desc.strip() else ""
             st.success(f"Spot „{name}“ gespeichert ({lat:.5f}, {lon:.5f}){_extra}.")
             st.session_state["_admin_spot_loaded"] = None  # Liste/Karte neu laden
