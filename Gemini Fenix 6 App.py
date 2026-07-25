@@ -10547,9 +10547,10 @@ def render_admin_spots():
              "kannst du sie korrigieren/eintragen. Leer = nur Englisch (kein Umschalter).")
     tvnote = st.text_input(
         "📺 TV-Notiz (kurze Zeile fürs Spot-TV)", key="admin_spot_tvnote", max_chars=140,
-        help="Eine kurze Zeile, die unten im Spot-TV-Footer erscheint (z. B. „Heute Grillabend "
-             "am Steg · Verleih bis 20 Uhr"). Getrennt von der langen Beschreibung oben; wird bei "
-             "Überlänge abgeschnitten. Leer = es gilt der ?event=-Parameter aus der TV-URL.")
+        help="Eine kurze Zeile, die unten im Spot-TV-Footer erscheint "
+             "(z. B. Heute Grillabend am Steg, Verleih bis 20 Uhr). Getrennt von der langen "
+             "Beschreibung oben; wird bei Überlänge abgeschnitten. Leer = es gilt der "
+             "?event=-Parameter aus der TV-URL.")
 
     if st.button("🤖 KI-Beschreibung holen (Claude)", use_container_width=True):
         _sk = _secret("SEED_KEY", "").strip()
