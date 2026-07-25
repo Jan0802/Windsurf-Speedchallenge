@@ -11363,6 +11363,15 @@ def render_spotadmin():
 
 load_css(app_path("assets", "style.css"))
 
+# DB-loser Warm-Ping (?ping=1): haelt NUR den Render-Webdienst wach (verhindert
+# den 502-Kaltstart nach Leerlauf), OHNE Neon aufzuwecken – hier wird bewusst
+# KEINE DB angefasst (der erste DB-Zugriff kaeme erst beim Login-Restore weiter
+# unten). "So billig wie moeglich": diese Route statt ?warm=1 pingen -> Neon
+# schlaeft und kostet fast nichts; DB-Cold-Starts faengt der Connect-Retry ab.
+if "ping" in st.query_params:
+    st.write("ping ok")
+    st.stop()
+
 # Auto-Aufwaermen per ?warm=1 (Cron alle ~10 Min): fuellt die prozessweiten
 # Caches nach einem Deploy/Neustart, damit echte Besucher (und der Spot-TV) NICHT
 # in den langsamen Kaltstart/502 laufen. Leichtgewichtig, kein Login noetig; dank
