@@ -8731,20 +8731,15 @@ def render_spots_page(user=None):
 
     weblink = (info.get("webcam_link") or "").strip()
     if webcam:
-        # Webcam OBEN RECHTS (oben ausgerichtet), erster Absatz daneben, der Rest
-        # der Beschreibung DARUNTER ueber die volle Breite -> die Cam sitzt nicht
-        # mehr in der Mitte und links bleibt keine grosse Leerflaeche.
-        _split = re.split(r"(?:\n\s*\n|<br\s*/?>\s*<br\s*/?>)", desc, maxsplit=1)
-        _lead = _split[0] if desc else ""
-        _rest = _split[1] if len(_split) > 1 else ""
-        _lead_html = (f"<div style='font-size:18px;line-height:1.6;'>{_lead}</div>"
-                      if _lead.strip() else "")
-        _rest_html = (f"<div style='font-size:18px;line-height:1.6;'>{_rest}</div>"
-                      if _rest.strip() else "")
-        c_text, c_cam = st.columns([1.3, 1], vertical_alignment="top")
+        # Text links (oben beginnend) + Webcam oben rechts, beide OBEN ausgerichtet.
+        # Ein echtes Umfliessen des Videos ist in Streamlit nicht moeglich (die
+        # Live-Cam laeuft in einer eigenen, festen Box) -> saubere Zwei-Spalten-
+        # Anordnung, damit der Text auf Webcam-Hoehe beginnt und links keine Luecke
+        # bleibt.
+        c_text, c_cam = st.columns([1.6, 1], vertical_alignment="top")
         with c_text:
-            if _lead_html:
-                st.markdown(_lead_html, unsafe_allow_html=True)
+            if desc_html:
+                st.markdown(desc_html, unsafe_allow_html=True)
         with c_cam:
             if _is_image_url(webcam):
                 components.html(
@@ -8763,9 +8758,6 @@ def render_spots_page(user=None):
                     "style='height:100%;aspect-ratio:16/9;max-width:100%;border:0;"
                     "border-radius:16px;display:block;'></iframe></div>",
                     height=332)
-        # Restliche Beschreibung ueber die volle Breite unter der Webcam.
-        if _rest_html:
-            st.markdown(_rest_html, unsafe_allow_html=True)
     elif weblink:
         # Vorschaubild (Spot-Bild bzw. neuestes Galerie-Foto), das beim Klick die
         # ECHTE Live-Webcam in einem neuen Tab oeffnet -> rechtlich sauberes
