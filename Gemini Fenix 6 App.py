@@ -8214,7 +8214,8 @@ _TV_FOOTER_TMPL = """
        border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:20px 28px;
        display:flex;flex-direction:column}
 .ft-head{font-size:24px;font-weight:800;opacity:.92}
-.ft-main{display:flex;align-items:center;gap:22px;margin-top:12px}
+.ft-body{display:flex;align-items:center;gap:36px;flex:1 1 auto;margin-top:14px}
+.ft-main{display:flex;align-items:center;gap:22px;flex:0 0 auto}
 .ft-emoji{font-size:68px;line-height:1}
 .ft-temp{font-size:40px;font-weight:800}
 .ft-temp span{font-size:23px;opacity:.6;font-weight:600}
@@ -8226,8 +8227,8 @@ _TV_FOOTER_TMPL = """
          opacity:.6;padding-top:8px}
 .ft-dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.3)}
 .ft-dot.on{background:#2bd4d9}
-.ft-note{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12);
-         font-size:15px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ft-note{flex:1 1 auto;min-width:0;font-size:24px;line-height:1.45;font-weight:600;
+         opacity:.92;border-left:2px solid rgba(43,212,217,.45);padding-left:28px}
 .ft-cam{height:100%;aspect-ratio:16/9;flex:0 0 auto;border-radius:18px;overflow:hidden;
         position:relative;background:#04161d}
 .ft-cam img,.ft-cam iframe{width:100%;height:100%;object-fit:cover;border:0;display:block}
@@ -8237,17 +8238,19 @@ _TV_FOOTER_TMPL = """
 <div class="ft" translate="no">
   <div class="ft-wx">
     <div class="ft-head" id="ftHead"></div>
-    <div class="ft-main">
-      <div class="ft-emoji" id="ftEmoji"></div>
-      <div>
-        <div class="ft-temp" id="ftTemp"></div>
-        <div class="ft-wind" id="ftWind"></div>
-        <div class="ft-gust" id="ftGust"></div>
-        <div class="ft-status" id="ftStatus"></div>
+    <div class="ft-body">
+      <div class="ft-main">
+        <div class="ft-emoji" id="ftEmoji"></div>
+        <div>
+          <div class="ft-temp" id="ftTemp"></div>
+          <div class="ft-wind" id="ftWind"></div>
+          <div class="ft-gust" id="ftGust"></div>
+          <div class="ft-status" id="ftStatus"></div>
+        </div>
       </div>
+      <div class="ft-note" id="ftNote" style="__NOTEDISP__"></div>
     </div>
     <div class="ft-dots" id="ftDots"></div>
-    <div class="ft-note" id="ftNote" style="__NOTEDISP__"></div>
   </div>
   __CAM__
 </div>
