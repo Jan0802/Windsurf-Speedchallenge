@@ -8208,7 +8208,7 @@ def _tv_bottom_info(cfg):
 _TV_FOOTER_TMPL = """
 <style>
 *{box-sizing:border-box}body{margin:0}
-.ft{display:flex;gap:16px;height:300px;color:#eaf4ff;
+.ft{display:flex;gap:16px;height:320px;color:#eaf4ff;
     font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
 .ft-wx{flex:1 1 auto;min-width:0;background:rgba(255,255,255,.06);
        border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:20px 28px;
@@ -8228,7 +8228,7 @@ _TV_FOOTER_TMPL = """
 .ft-dot.on{background:#2bd4d9}
 .ft-note{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12);
          font-size:15px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ft-cam{width:__CAMW__;flex:0 0 auto;border-radius:18px;overflow:hidden;
+.ft-cam{height:100%;aspect-ratio:16/9;flex:0 0 auto;border-radius:18px;overflow:hidden;
         position:relative;background:#04161d}
 .ft-cam img,.ft-cam iframe{width:100%;height:100%;object-fit:cover;border:0;display:block}
 .ft-live{position:absolute;top:8px;right:8px;background:#e5484d;color:#fff;font-size:12px;
@@ -8335,7 +8335,6 @@ def _tv_footer(cfg):
 
     html = (_TV_FOOTER_TMPL
             .replace("__CAM__", cam_html)
-            .replace("__CAMW__", "34%")
             .replace("__NOTEDISP__", "" if note else "display:none")
             .replace("__SPOT__", json.dumps(spot))
             .replace("__NOTE__", json.dumps(note))
@@ -8344,7 +8343,7 @@ def _tv_footer(cfg):
             .replace("__LAT__", json.dumps(coords[0] if coords else None))
             .replace("__LON__", json.dumps(coords[1] if coords else None))
             .replace("__EMO__", json.dumps(_WCODE_EMOJI)))
-    components.html(html, height=316, scrolling=False)
+    components.html(html, height=340, scrolling=False)
 
 
 _SC_LEVEL_ICON = {"beginner": "🟢", "improver": "🟢", "advanced": "🟡", "pro": "🔴"}
