@@ -8208,17 +8208,17 @@ def _tv_bottom_info(cfg):
 _TV_FOOTER_TMPL = """
 <style>
 *{box-sizing:border-box}body{margin:0}
-.ft{display:flex;gap:16px;height:216px;color:#eaf4ff;
+.ft{display:flex;gap:16px;height:300px;color:#eaf4ff;
     font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
 .ft-wx{flex:1 1 auto;min-width:0;background:rgba(255,255,255,.06);
-       border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:14px 20px;
+       border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:20px 28px;
        display:flex;flex-direction:column}
-.ft-head{font-size:20px;font-weight:800;opacity:.92}
-.ft-main{display:flex;align-items:center;gap:18px;margin-top:8px}
-.ft-emoji{font-size:54px;line-height:1}
-.ft-temp{font-size:32px;font-weight:800}
-.ft-temp span{font-size:19px;opacity:.6;font-weight:600}
-.ft-wind{font-size:25px;font-weight:800;color:#7fd4ff;margin-top:2px}
+.ft-head{font-size:24px;font-weight:800;opacity:.92}
+.ft-main{display:flex;align-items:center;gap:22px;margin-top:12px}
+.ft-emoji{font-size:68px;line-height:1}
+.ft-temp{font-size:40px;font-weight:800}
+.ft-temp span{font-size:23px;opacity:.6;font-weight:600}
+.ft-wind{font-size:30px;font-weight:800;color:#7fd4ff;margin-top:2px}
 .ft-wind small{font-size:14px;opacity:.7;font-weight:600}
 .ft-gust{font-size:15px;opacity:.75}
 .ft-status{margin-top:6px;font-size:18px;font-weight:800}
@@ -8335,7 +8335,7 @@ def _tv_footer(cfg):
 
     html = (_TV_FOOTER_TMPL
             .replace("__CAM__", cam_html)
-            .replace("__CAMW__", "360px")
+            .replace("__CAMW__", "34%")
             .replace("__NOTEDISP__", "" if note else "display:none")
             .replace("__SPOT__", json.dumps(spot))
             .replace("__NOTE__", json.dumps(note))
@@ -8344,7 +8344,7 @@ def _tv_footer(cfg):
             .replace("__LAT__", json.dumps(coords[0] if coords else None))
             .replace("__LON__", json.dumps(coords[1] if coords else None))
             .replace("__EMO__", json.dumps(_WCODE_EMOJI)))
-    components.html(html, height=232, scrolling=False)
+    components.html(html, height=316, scrolling=False)
 
 
 _SC_LEVEL_ICON = {"beginner": "🟢", "improver": "🟢", "advanced": "🟡", "pro": "🔴"}
