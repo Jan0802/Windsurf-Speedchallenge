@@ -8614,6 +8614,23 @@ def _render_spot_rating(spot, user):
                 st.rerun()
 
 
+def _lead_split(text, target=820):
+    """Teilt die Beschreibung in einen ~target Zeichen langen ANFANG (steht neben
+    der Webcam) und den REST (laeuft darunter ueber die volle Breite) — so wirkt
+    es fast wie ein Umfliessen. Schneidet an einer Wortgrenze und NICHT mitten in
+    einem HTML-Tag. Ist der Text kuerzer als target, bleibt der Rest leer."""
+    t = text or ""
+    if len(t) <= target:
+        return t, ""
+    cut = t.rfind(" ", int(target * 0.6), target)
+    if cut <= 0:
+        cut = target
+    lt, gt = t.rfind("<", 0, cut), t.rfind(">", 0, cut)
+    if lt > gt:                     # Schnittstelle liegt in einem <tag> -> davor
+        cut = lt
+    return t[:cut], t[cut:]
+
+
 def render_spots_page(user=None):
     """Reine Spot-Seite (Revierführer): Filter Land/Spot -> Beschreibung, Webcam/
     Bild, Foto-Galerie (+ User-Upload) und Wetter des gewählten Spots."""
@@ -8731,15 +8748,18 @@ def render_spots_page(user=None):
 
     weblink = (info.get("webcam_link") or "").strip()
     if webcam:
-        # Text links (oben beginnend) + Webcam oben rechts, beide OBEN ausgerichtet.
-        # Ein echtes Umfliessen des Videos ist in Streamlit nicht moeglich (die
-        # Live-Cam laeuft in einer eigenen, festen Box) -> saubere Zwei-Spalten-
-        # Anordnung, damit der Text auf Webcam-Hoehe beginnt und links keine Luecke
-        # bleibt.
+        # Anfang der Beschreibung NEBEN die Cam (oben), Rest DARUNTER ueber die
+        # volle Breite -> wirkt fast wie ein Umfliessen. Ein echtes Float um den
+        # Live-Cam-iframe geht in Streamlit nicht (eigene, feste Box).
+        _lead, _rest = _lead_split(desc)
+        _lead_html = (f"<div style='font-size:18px;line-height:1.6;'>{_lead}</div>"
+                      if _lead.strip() else "")
+        _rest_html = (f"<div style='font-size:18px;line-height:1.6;'>{_rest}</div>"
+                      if _rest.strip() else "")
         c_text, c_cam = st.columns([1.6, 1], vertical_alignment="top")
         with c_text:
-            if desc_html:
-                st.markdown(desc_html, unsafe_allow_html=True)
+            if _lead_html:
+                st.markdown(_lead_html, unsafe_allow_html=True)
         with c_cam:
             if _is_image_url(webcam):
                 components.html(
@@ -8758,6 +8778,9 @@ def render_spots_page(user=None):
                     "style='height:100%;aspect-ratio:16/9;max-width:100%;border:0;"
                     "border-radius:16px;display:block;'></iframe></div>",
                     height=332)
+        # Rest der Beschreibung unter der Webcam ueber die volle Breite.
+        if _rest_html:
+            st.markdown(_rest_html, unsafe_allow_html=True)
     elif weblink:
         # Vorschaubild (Spot-Bild bzw. neuestes Galerie-Foto), das beim Klick die
         # ECHTE Live-Webcam in einem neuen Tab oeffnet -> rechtlich sauberes
