@@ -8140,7 +8140,11 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         "border-radius:18px;padding:16px 18px;margin-top:6px;}"
         ".hb-title{font-size:22px;font-weight:800;margin-bottom:4px;}"
         ".hb-legend{font-size:14px;opacity:.7;margin-bottom:12px;}"
-        ".hb-row{display:flex;gap:6px;align-items:flex-end;}"
+        # OBEN ausrichten: Kopf (Icon/Zahl) + der 180px-Track sind ueberall gleich
+        # hoch -> alle Windbalken haben dieselbe Grundlinie. Die (nur teils
+        # vorhandene) Segel-/Thermik-Zeile haengt unten dran, ohne die Balken zu
+        # verschieben. (flex-end hatte kuerzere Spalten nach unten gezogen.)
+        ".hb-row{display:flex;gap:6px;align-items:flex-start;}"
         ".hb-col{flex:1 1 0;text-align:center;}"
         ".hb-wx{font-size:17px;line-height:1;margin-bottom:3px;min-height:18px;}"
         ".hb-temp{font-size:13px;font-weight:700;opacity:.9;margin-top:1px;}"
