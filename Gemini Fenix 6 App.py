@@ -903,6 +903,8 @@ spot_info_table = Table(
     Column("description_local", String),  # zweite Beschreibung in der Landessprache
     Column("local_lang", String(60)),     # nativer Name der Landessprache (Umschalter)
     Column("tv_note", String(280)),        # kurze Zeile fuer den Spot-TV-Footer (getrennt von der langen Beschreibung)
+    Column("tv_image", LargeBinary),        # Schmuckbild im Spot-TV-Footer (vom Spotbetreiber pflegbar)
+    Column("tv_image_mime", String(50)),
     Column("image", LargeBinary),
     Column("image_mime", String(50)),
     Column("webcam_url", String(500)),
@@ -2791,7 +2793,8 @@ def load_spot_info(spot):
 def save_spot_info(spot, description, webcam_url, country="", best_winds="",
                    image_bytes=None, image_mime=None, clear_image=False,
                    webcam_link=None, water_ok=None,
-                   description_local=None, local_lang=None, tv_note=None):
+                   description_local=None, local_lang=None, tv_note=None,
+                   tv_image_bytes=None, tv_image_mime=None, clear_tv_image=False):
     if not spot:
         return
     _ensure_ad_tables()
@@ -2815,6 +2818,13 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
         values["local_lang"] = (local_lang or "").strip() or None
     if tv_note is not None:
         values["tv_note"] = (tv_note or "").strip() or None
+    if clear_tv_image:
+        values["tv_image"] = None
+        values["tv_image_mime"] = None
+    elif tv_image_bytes is not None:
+        _tvb, _tvm = _optimize_image(tv_image_bytes, tv_image_mime, max_dim=1000)
+        values["tv_image"] = _tvb
+        values["tv_image_mime"] = _tvm or "image/jpeg"
     if clear_image:
         values["image"] = None
         values["image_mime"] = None
@@ -8229,6 +8239,9 @@ _TV_FOOTER_TMPL = """
 .ft-dot.on{background:#2bd4d9}
 .ft-note{flex:1 1 auto;min-width:0;font-size:24px;line-height:1.45;font-weight:600;
          opacity:.92;border-left:2px solid rgba(43,212,217,.45);padding-left:28px}
+.ft-img{height:100%;aspect-ratio:16/9;flex:0 0 auto;border-radius:16px;overflow:hidden;
+        background:#04161d}
+.ft-img img{width:100%;height:100%;object-fit:cover;display:block}
 .ft-cam{height:100%;aspect-ratio:16/9;flex:0 0 auto;border-radius:18px;overflow:hidden;
         position:relative;background:#04161d}
 .ft-cam img,.ft-cam iframe{width:100%;height:100%;object-fit:cover;border:0;display:block}
@@ -8249,6 +8262,7 @@ _TV_FOOTER_TMPL = """
         </div>
       </div>
       <div class="ft-note" id="ftNote" style="__NOTEDISP__"></div>
+      __TVIMG__
     </div>
     <div class="ft-dots" id="ftDots"></div>
   </div>
@@ -8336,8 +8350,13 @@ def _tv_footer(cfg):
         cam_inner = ""
     cam_html = f"<div class='ft-cam'>{cam_inner}</div>" if cam_inner else ""
 
+    # Optionales Schmuckbild (vom Spotbetreiber gepflegt) links neben der Webcam.
+    _tv_uri = _bytes_to_data_uri(info.get("tv_image"), info.get("tv_image_mime"))
+    tvimg_html = f"<div class='ft-img'><img src='{_tv_uri}'></div>" if _tv_uri else ""
+
     html = (_TV_FOOTER_TMPL
             .replace("__CAM__", cam_html)
+            .replace("__TVIMG__", tvimg_html)
             .replace("__NOTEDISP__", "" if note else "display:none")
             .replace("__SPOT__", json.dumps(spot))
             .replace("__NOTE__", json.dumps(note))
@@ -10999,9 +11018,17 @@ def render_admin_ads():
             "Longitude (z.B. 5.62)", value=(_cur_coords[1] if _cur_coords else None),
             format="%.5f", step=0.001, key=f"lon_{spot}",
         )
+        tv_up = st.file_uploader(
+            "📺 TV-Bild (Schmuckbild im Spot-TV-Footer, optional)",
+            type=["png", "jpg", "jpeg", "webp"], key=f"tvimg_{spot}")
+        clear_tv = (st.checkbox("Aktuelles TV-Bild entfernen", key=f"clrtv_{spot}")
+                    if info.get("tv_image") else False)
         if st.form_submit_button("💾 Spot-Info speichern"):
             save_spot_info(spot, desc, webcam, country=country, best_winds=best_winds,
-                           webcam_link=webcam_link, water_ok=water_ok)
+                           webcam_link=webcam_link, water_ok=water_ok,
+                           tv_image_bytes=tv_up.getvalue() if tv_up else None,
+                           tv_image_mime=tv_up.type if tv_up else None,
+                           clear_tv_image=clear_tv)
             if lat_in is not None and lon_in is not None:
                 update_spot_coords(spot, lat_in, lon_in)
             st.session_state.pop(info_prefill_key, None)
@@ -11325,6 +11352,25 @@ def _render_sponsor_fields(spot):
             save_spot_info(spot, desc, webcam,
                            country=info.get("country") or "", best_winds=best_winds)
             st.session_state["_spotadmin_flash"] = "Beschreibung gespeichert."
+            st.rerun()
+
+    st.markdown("### 📺 TV-Bild (Spot-TV-Footer)")
+    st.caption("Ein Schmuckbild, das unten im Spot-TV rechts neben der Webcam erscheint "
+               "(z. B. dein Café, der Steg, ein Stimmungsbild). Wird automatisch verkleinert.")
+    if info.get("tv_image"):
+        st.image(bytes(info["tv_image"]), width=280, caption="aktuelles TV-Bild")
+    with st.form(f"sp_tvimg_{spot}"):
+        tvup = st.file_uploader("TV-Bild (PNG/JPG/WebP)", type=["png", "jpg", "jpeg", "webp"])
+        clear_tv = st.checkbox("Aktuelles TV-Bild entfernen") if info.get("tv_image") else False
+        if st.form_submit_button("💾 TV-Bild speichern"):
+            _ex = load_spot_info(spot) or {}
+            save_spot_info(spot, _ex.get("description") or "", _ex.get("webcam_url") or "",
+                           country=_ex.get("country") or "",
+                           best_winds=_ex.get("best_winds") or "",
+                           tv_image_bytes=tvup.getvalue() if tvup else None,
+                           tv_image_mime=tvup.type if tvup else None,
+                           clear_tv_image=clear_tv)
+            st.session_state["_spotadmin_flash"] = "TV-Bild gespeichert."
             st.rerun()
 
     st.markdown("### 🖼️ Bilder (Galerie)")
