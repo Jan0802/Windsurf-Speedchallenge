@@ -5019,11 +5019,11 @@ def _preset_index(options, value):
 
 
 @st.fragment
-def render_coldest_champion():
-    """Fun-Wertung „🥶 Winterweltmeister": wer war im Schnitt bei den niedrigsten
-    Luft-Temperaturen surfen? GLOBAL über alle Sportarten (Sportart je Fahrer
-    dabei), optional auf eine Gruppe eingeschränkt (Preisvergabe in der Gruppe).
-    Nutzt temp_c (Lufttemperatur zum Session-Zeitpunkt)."""
+def render_temp_champions():
+    """Fun-Wertungen 🥶 Winterweltmeister (niedrigster Ø) + 🥵 Warmduscher der
+    Saison (höchster Ø) der Session-Lufttemperaturen. GLOBAL über alle Sportarten
+    (Sportart je Fahrer), optional auf eine Gruppe eingeschränkt. Nutzt temp_c
+    (Lufttemperatur zum Session-Zeitpunkt)."""
     df = load_sessions()   # alle Sportarten
     if df is None or df.empty or "temp_c" not in df.columns or "name" not in df.columns:
         return
@@ -5039,14 +5039,14 @@ def render_coldest_champion():
         return str(s).replace("<", "&lt;").replace(">", "&gt;")
 
     _MIN = 3
-    with st.expander("🥶 Winterweltmeister · coldest rider (all sports)", expanded=False):
-        st.caption("Wer war im Schnitt bei den niedrigsten Lufttemperaturen unterwegs – "
-                   "über ALLE Sportarten, mit Sportart dabei, damit klar ist, wer die "
-                   "Memmen sind. 😄")
+    with st.expander("🥶 Winterweltmeister & 🥵 Warmduscher · temperature ranking (all sports)",
+                     expanded=False):
+        st.caption("Wer war im Schnitt bei den niedrigsten bzw. höchsten Lufttemperaturen "
+                   "unterwegs – über ALLE Sportarten, mit Sportart dabei. 😄")
         _groups = list_groups()
         _opts = ["🌍 Everyone"] + [g["name"] for g in _groups]
-        _pick = st.selectbox("Award within", _opts, key="cold_group",
-                             help="Auf eine Gruppe einschränken, um den Preis dort zu vergeben.")
+        _pick = st.selectbox("Award within", _opts, key="temp_group",
+                             help="Auf eine Gruppe einschränken (Preisvergabe in der Gruppe).")
         if _pick != _opts[0]:
             _gid = next((g["id"] for g in _groups if g["name"] == _pick), None)
             _members = set(group_member_names(_gid)) if _gid else set()
@@ -5055,9 +5055,9 @@ def render_coldest_champion():
             st.caption("Noch keine Sessions mit Temperatur in dieser Gruppe.")
             return
 
-        _agg = (d.groupby("_name")["_t"].agg(avg="mean", coldest="min", n="count")
+        _agg = (d.groupby("_name")["_t"].agg(avg="mean", lo="min", hi="max", n="count")
                 .reset_index())
-        _agg = _agg[_agg["n"] >= _MIN].sort_values("avg").head(15)
+        _agg = _agg[_agg["n"] >= _MIN]
         if _agg.empty:
             st.caption(f"Noch niemand mit mindestens {_MIN} Sessions (mit Temperaturwert).")
             return
@@ -5068,34 +5068,104 @@ def render_coldest_champion():
             k = str(_sp.get(name, "") or "")
             return SPORT_META.get(k, {}).get("label", k or "–")
 
-        _champ = _agg.iloc[0]
-        st.markdown(f"🥶 **Winterweltmeister: {_e(_champ['_name'])}** "
-                    f"({_e(_splabel(_champ['_name']))}) – Ø {_champ['avg']:.1f} °C "
-                    f"über {int(_champ['n'])} Sessions. Der Rest: Memmen. 😄")
-
         _medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-        _trs = []
-        for _i, (_, r) in enumerate(_agg.iterrows(), start=1):
-            _trs.append(
-                f"<tr style='border-top:1px solid rgba(128,128,128,.2)'>"
-                f"<td style='padding:5px 10px'>{_medals.get(_i, str(_i))}</td>"
-                f"<td style='padding:5px 10px;white-space:nowrap'>{_e(r['_name'])}</td>"
-                f"<td style='padding:5px 10px'>{_e(_splabel(r['_name']))}</td>"
-                f"<td style='padding:5px 10px;text-align:right;font-weight:700;color:#7fd4ff'>"
-                f"{r['avg']:.1f} °C</td>"
-                f"<td style='padding:5px 10px;text-align:right'>{r['coldest']:.1f} °C</td>"
-                f"<td style='padding:5px 10px;text-align:right'>{int(r['n'])}</td></tr>")
-        st.markdown(
-            "<div style='overflow-x:auto'><table style='border-collapse:collapse;font-size:.92rem;"
-            "width:100%'><tr><th style='padding:5px 10px'>#</th>"
-            "<th style='padding:5px 10px;text-align:left'>Rider</th>"
-            "<th style='padding:5px 10px;text-align:left'>Sport</th>"
-            "<th style='padding:5px 10px;text-align:right'>Ø temp</th>"
-            "<th style='padding:5px 10px;text-align:right'>Coldest</th>"
-            "<th style='padding:5px 10px;text-align:right'>Sessions</th></tr>"
-            + "".join(_trs) + "</table></div>", unsafe_allow_html=True)
+
+        def _table(rows_df, extreme_col, extreme_hdr):
+            _trs = []
+            for _i, (_, r) in enumerate(rows_df.iterrows(), start=1):
+                _trs.append(
+                    f"<tr style='border-top:1px solid rgba(128,128,128,.2)'>"
+                    f"<td style='padding:5px 10px'>{_medals.get(_i, str(_i))}</td>"
+                    f"<td style='padding:5px 10px;white-space:nowrap'>{_e(r['_name'])}</td>"
+                    f"<td style='padding:5px 10px'>{_e(_splabel(r['_name']))}</td>"
+                    f"<td style='padding:5px 10px;text-align:right;font-weight:700;color:#7fd4ff'>"
+                    f"{r['avg']:.1f} °C</td>"
+                    f"<td style='padding:5px 10px;text-align:right'>{r[extreme_col]:.1f} °C</td>"
+                    f"<td style='padding:5px 10px;text-align:right'>{int(r['n'])}</td></tr>")
+            return ("<div style='overflow-x:auto'><table style='border-collapse:collapse;"
+                    "font-size:.92rem;width:100%'><tr><th style='padding:5px 10px'>#</th>"
+                    "<th style='padding:5px 10px;text-align:left'>Rider</th>"
+                    "<th style='padding:5px 10px;text-align:left'>Sport</th>"
+                    "<th style='padding:5px 10px;text-align:right'>Ø temp</th>"
+                    f"<th style='padding:5px 10px;text-align:right'>{extreme_hdr}</th>"
+                    "<th style='padding:5px 10px;text-align:right'>Sessions</th></tr>"
+                    + "".join(_trs) + "</table></div>")
+
+        _cold = _agg.sort_values("avg").head(10)
+        _warm = _agg.sort_values("avg", ascending=False).head(10)
+        _c0, _w0 = _cold.iloc[0], _warm.iloc[0]
+
+        st.markdown("#### 🥶 Winterweltmeister")
+        st.markdown(f"**{_e(_c0['_name'])}** ({_e(_splabel(_c0['_name']))}) – Ø "
+                    f"{_c0['avg']:.1f} °C über {int(_c0['n'])} Sessions. Der Rest: Memmen. 😄")
+        st.markdown(_table(_cold, "lo", "Coldest"), unsafe_allow_html=True)
+
+        st.markdown("#### 🥵 Warmduscher der Saison")
+        st.markdown(f"**{_e(_w0['_name'])}** ({_e(_splabel(_w0['_name']))}) – Ø "
+                    f"{_w0['avg']:.1f} °C. Sonnenanbeter. ☀️")
+        st.markdown(_table(_warm, "hi", "Warmest"), unsafe_allow_html=True)
+
         st.caption(f"Luft-Temperatur zum Session-Zeitpunkt (nicht Wasser) · Ø aller Sessions "
                    f"des Fahrers · mind. {_MIN} Sessions mit Temperaturwert.")
+
+
+def render_rankings_help():
+    """Eigene Seite (?view=rankings-help): erklärt ALLE Ranglisten in Klartext –
+    für Nutzer UND uns selbst. Rein statisch (st.markdown)."""
+    if st.button("← Back", key="rkhelp_back"):
+        if "view" in st.query_params:
+            del st.query_params["view"]
+        st.rerun()
+    st.markdown("## 🏁 How the rankings work")
+    st.caption("Each ranking shows the best value per rider (unless noted). Use the filters "
+               "(spot · year/month/day · board & gear · wind · weight · fin/foil · group) to "
+               "compare like with like.")
+
+    st.markdown("### ⚡ Speed & distance")
+    st.markdown(
+        "- **⚡ Top 2 s** — your highest 2-second peak speed. The classic speed-surfing record.\n"
+        "- **🏆 Best 30 s** — fastest 30-second average. Rewards holding speed, not just a gust.\n"
+        "- **📏 Best 500 m** — fastest 500-metre stretch.\n"
+        "- **⚓ Nautical mile** — fastest nautical mile (1852 m).\n"
+        "- **🚩 Longest run** — longest single planing/riding stretch in one go (km).\n"
+        "- **👥 Total distance** — total distance across all your sessions.")
+
+    st.markdown("### 🪂 Jumps (windsurf · kite · wing · wakeboard)")
+    st.markdown(
+        "- **🪂 Best airtime** — longest time in the air (seconds).\n"
+        "- **🚀 Highest jump** — estimated jump height (m), derived from airtime.\n"
+        "- **🔁 Most airs** — most jumps recorded in a single session.")
+
+    st.markdown("### 🛶 SUP")
+    st.markdown(
+        "- **🛶 Most strokes** — most paddle strokes in a session.\n"
+        "- **⏱️ Max cadence** — highest stroke rate (strokes per minute).")
+
+    st.markdown("### 💪 Kraftweltmeister (windsurf · fun physics)")
+    st.markdown(
+        "Estimated from wind, sail size, speed and your weight — **fun physics, not a "
+        "measurement**.\n"
+        "- **💪 Pound-for-pound** — sail force ÷ body weight. The lightweight-friendly class.\n"
+        "- **🏋️ Sail force** — raw pull, shown in kg.\n"
+        "- **⚡ Power** — force × speed (watts).")
+
+    st.markdown("### 🌡️ Temperature (fun)")
+    st.markdown(
+        "- **🥶 Winterweltmeister** — lowest average air temperature you rode in (all sports).\n"
+        "- **🥵 Warmduscher** — highest average — the fair-weather crowd. ☀️\n\n"
+        "_Needs at least 3 sessions with a temperature; uses the air temp at session time._")
+
+    st.markdown("### 🏅 Champion & fairness")
+    st.markdown(
+        "- **🏅 Champion / Performance Index** — a combined score that rewards going fast with "
+        "**little wind and a small sail**, so beginners and intermediates can top it too — not "
+        "just whoever had the biggest gear on the windiest day.\n"
+        "- **🛡️ Trust score** — a GPS plausibility check. Clearly impossible sessions "
+        "(unrealistic speeds/cadence, contradictions, or not-on-water) are kept OUT of the "
+        "rankings; the rider sees the reason in *My Results*.")
+
+    st.info("Tip: almost every ranking can be filtered by **group** — so you can run your own "
+            "club or crew leaderboard.")
 
 
 @st.fragment
@@ -11688,10 +11758,12 @@ sport = active_sport()
 _is_spots_view = st.query_params.get("view") == "spots"
 _is_results_view = st.query_params.get("view") == "results"
 _is_safety_view = st.query_params.get("view") == "safety"
+_is_rankings_help = st.query_params.get("view") == "rankings-help"
 
 # Eigener App-Seitenaufruf-Zaehler (Cloudflare sieht die App nicht). Zaehlt nur
 # bei echter Navigation/Reload, nicht bei jedem Rerun.
-_track_pageview("safety" if _is_safety_view else "spots" if _is_spots_view
+_track_pageview("safety" if _is_safety_view else "rankings-help" if _is_rankings_help
+                else "spots" if _is_spots_view
                 else "results" if _is_results_view else "home")
 
 # Header-Umschalter Sportarten + ganz rechts die reine Spots-Seite. Klick setzt
@@ -13548,6 +13620,11 @@ if _is_safety_view:
     render_safety_page()
     st.stop()
 
+# Ranglisten-Erklärseite (?view=rankings-help) – erklärt alle Wertungen.
+if _is_rankings_help:
+    render_rankings_help()
+    st.stop()
+
 
 def _sail_size_m2(sail_str):
     """Segelgröße in m² aus dem Anzeige-String, z.B. 'Severne NCX 6.5 m²' -> 6.5.
@@ -14048,7 +14125,12 @@ with sidebar_tab_filter:
 with news_slot.container():
     _perf("news", render_group_news_banner, current_user)
 
-render_coldest_champion()
+render_temp_champions()
+st.markdown(
+    "<div style='text-align:center;margin:8px 0 2px'>"
+    "<a href='?view=rankings-help' target='_self' style='color:#2bd4d9;font-weight:700;"
+    "text-decoration:none'>❓ How do all these rankings work?</a></div>",
+    unsafe_allow_html=True)
 
 st.markdown("---")
 
