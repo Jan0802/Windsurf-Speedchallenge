@@ -5019,6 +5019,86 @@ def _preset_index(options, value):
 
 
 @st.fragment
+def render_coldest_champion():
+    """Fun-Wertung „🥶 Winterweltmeister": wer war im Schnitt bei den niedrigsten
+    Luft-Temperaturen surfen? GLOBAL über alle Sportarten (Sportart je Fahrer
+    dabei), optional auf eine Gruppe eingeschränkt (Preisvergabe in der Gruppe).
+    Nutzt temp_c (Lufttemperatur zum Session-Zeitpunkt)."""
+    df = load_sessions()   # alle Sportarten
+    if df is None or df.empty or "temp_c" not in df.columns or "name" not in df.columns:
+        return
+    d = df.copy()
+    d["_t"] = pd.to_numeric(d["temp_c"], errors="coerce")
+    d["_name"] = d["name"].astype(str).str.strip()
+    d = d.dropna(subset=["_t"])
+    d = d[d["_name"] != ""]
+    if d.empty:
+        return
+
+    def _e(s):
+        return str(s).replace("<", "&lt;").replace(">", "&gt;")
+
+    _MIN = 3
+    with st.expander("🥶 Winterweltmeister · coldest rider (all sports)", expanded=False):
+        st.caption("Wer war im Schnitt bei den niedrigsten Lufttemperaturen unterwegs – "
+                   "über ALLE Sportarten, mit Sportart dabei, damit klar ist, wer die "
+                   "Memmen sind. 😄")
+        _groups = list_groups()
+        _opts = ["🌍 Everyone"] + [g["name"] for g in _groups]
+        _pick = st.selectbox("Award within", _opts, key="cold_group",
+                             help="Auf eine Gruppe einschränken, um den Preis dort zu vergeben.")
+        if _pick != _opts[0]:
+            _gid = next((g["id"] for g in _groups if g["name"] == _pick), None)
+            _members = set(group_member_names(_gid)) if _gid else set()
+            d = d[d["_name"].isin(_members)]
+        if d.empty:
+            st.caption("Noch keine Sessions mit Temperatur in dieser Gruppe.")
+            return
+
+        _agg = (d.groupby("_name")["_t"].agg(avg="mean", coldest="min", n="count")
+                .reset_index())
+        _agg = _agg[_agg["n"] >= _MIN].sort_values("avg").head(15)
+        if _agg.empty:
+            st.caption(f"Noch niemand mit mindestens {_MIN} Sessions (mit Temperaturwert).")
+            return
+        _sp = d.groupby("_name")["sport"].agg(
+            lambda s: s.dropna().value_counts().idxmax() if not s.dropna().empty else "")
+
+        def _splabel(name):
+            k = str(_sp.get(name, "") or "")
+            return SPORT_META.get(k, {}).get("label", k or "–")
+
+        _champ = _agg.iloc[0]
+        st.markdown(f"🥶 **Winterweltmeister: {_e(_champ['_name'])}** "
+                    f"({_e(_splabel(_champ['_name']))}) – Ø {_champ['avg']:.1f} °C "
+                    f"über {int(_champ['n'])} Sessions. Der Rest: Memmen. 😄")
+
+        _medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+        _trs = []
+        for _i, (_, r) in enumerate(_agg.iterrows(), start=1):
+            _trs.append(
+                f"<tr style='border-top:1px solid rgba(128,128,128,.2)'>"
+                f"<td style='padding:5px 10px'>{_medals.get(_i, str(_i))}</td>"
+                f"<td style='padding:5px 10px;white-space:nowrap'>{_e(r['_name'])}</td>"
+                f"<td style='padding:5px 10px'>{_e(_splabel(r['_name']))}</td>"
+                f"<td style='padding:5px 10px;text-align:right;font-weight:700;color:#7fd4ff'>"
+                f"{r['avg']:.1f} °C</td>"
+                f"<td style='padding:5px 10px;text-align:right'>{r['coldest']:.1f} °C</td>"
+                f"<td style='padding:5px 10px;text-align:right'>{int(r['n'])}</td></tr>")
+        st.markdown(
+            "<div style='overflow-x:auto'><table style='border-collapse:collapse;font-size:.92rem;"
+            "width:100%'><tr><th style='padding:5px 10px'>#</th>"
+            "<th style='padding:5px 10px;text-align:left'>Rider</th>"
+            "<th style='padding:5px 10px;text-align:left'>Sport</th>"
+            "<th style='padding:5px 10px;text-align:right'>Ø temp</th>"
+            "<th style='padding:5px 10px;text-align:right'>Coldest</th>"
+            "<th style='padding:5px 10px;text-align:right'>Sessions</th></tr>"
+            + "".join(_trs) + "</table></div>", unsafe_allow_html=True)
+        st.caption(f"Luft-Temperatur zum Session-Zeitpunkt (nicht Wasser) · Ø aller Sessions "
+                   f"des Fahrers · mind. {_MIN} Sessions mit Temperaturwert.")
+
+
+@st.fragment
 def render_rankings(results_container):
     # Als Fragment gekapselt: Ändert der Nutzer einen Filter (Gruppe/Lokation/
     # Jahr/Monat/Tag), läuft NUR diese Funktion neu – nicht das gesamte Skript.
@@ -13967,6 +14047,8 @@ with sidebar_tab_filter:
 
 with news_slot.container():
     _perf("news", render_group_news_banner, current_user)
+
+render_coldest_champion()
 
 st.markdown("---")
 
