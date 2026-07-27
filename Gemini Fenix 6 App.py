@@ -8252,7 +8252,8 @@ _TV_FOOTER_TMPL = """
 .ft-img img{width:100%;height:100%;object-fit:cover;display:block}
 .ft-events{flex:1 1 auto;min-width:120px;align-self:stretch;overflow:hidden;position:relative;
            border-left:1px solid rgba(255,255,255,.16);padding-left:22px;
-           -webkit-mask-image:linear-gradient(transparent,#000 14%,#000 86%,transparent);
+           display:flex;flex-direction:column;justify-content:center}
+.ft-events.ft-scroll{-webkit-mask-image:linear-gradient(transparent,#000 14%,#000 86%,transparent);
            mask-image:linear-gradient(transparent,#000 14%,#000 86%,transparent)}
 .ft-ev-track{position:absolute;top:0;left:22px;right:0;animation:ftscroll linear infinite}
 .ft-ev{font-size:19px;line-height:1.35;font-weight:600;padding:7px 0;opacity:.92}
@@ -8379,9 +8380,13 @@ def _tv_footer(cfg):
     _ev_lines = [ln.strip() for ln in (info.get("tv_events") or "").splitlines() if ln.strip()]
     if _ev_lines:
         _items = "".join(f"<div class='ft-ev'>📅 {_ev_esc(ln)}</div>" for ln in _ev_lines)
-        _dur = max(14, len(_ev_lines) * 4)
-        events_html = (f"<div class='ft-events'><div class='ft-ev-track' "
-                       f"style='animation-duration:{_dur}s'>{_items}{_items}</div></div>")
+        if len(_ev_lines) <= 5:
+            # Passt komplett rein -> statisch, mittig, kein Rotieren (erst ab 6).
+            events_html = f"<div class='ft-events'>{_items}</div>"
+        else:
+            _dur = max(14, len(_ev_lines) * 4)
+            events_html = (f"<div class='ft-events ft-scroll'><div class='ft-ev-track' "
+                           f"style='animation-duration:{_dur}s'>{_items}{_items}</div></div>")
         note_style = "flex:0 1 auto" if note else "display:none"
     else:
         events_html = ""
