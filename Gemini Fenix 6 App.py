@@ -905,6 +905,7 @@ spot_info_table = Table(
     Column("tv_note", String(280)),        # kurze Zeile fuer den Spot-TV-Footer (getrennt von der langen Beschreibung)
     Column("tv_image", LargeBinary),        # Schmuckbild im Spot-TV-Footer (vom Spotbetreiber pflegbar)
     Column("tv_image_mime", String(50)),
+    Column("tv_events", String),            # Termine fuer den laufenden "Abspann" im Spot-TV (eine Zeile = ein Termin)
     Column("image", LargeBinary),
     Column("image_mime", String(50)),
     Column("webcam_url", String(500)),
@@ -2794,7 +2795,8 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
                    image_bytes=None, image_mime=None, clear_image=False,
                    webcam_link=None, water_ok=None,
                    description_local=None, local_lang=None, tv_note=None,
-                   tv_image_bytes=None, tv_image_mime=None, clear_tv_image=False):
+                   tv_image_bytes=None, tv_image_mime=None, clear_tv_image=False,
+                   tv_events=None):
     if not spot:
         return
     _ensure_ad_tables()
@@ -2818,6 +2820,8 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
         values["local_lang"] = (local_lang or "").strip() or None
     if tv_note is not None:
         values["tv_note"] = (tv_note or "").strip() or None
+    if tv_events is not None:
+        values["tv_events"] = (tv_events or "").strip() or None
     if clear_tv_image:
         values["tv_image"] = None
         values["tv_image_mime"] = None
@@ -8246,6 +8250,14 @@ _TV_FOOTER_TMPL = """
 .ft-img{height:100%;aspect-ratio:16/9;flex:0 0 auto;border-radius:16px;overflow:hidden;
         background:#04161d}
 .ft-img img{width:100%;height:100%;object-fit:cover;display:block}
+.ft-events{flex:1 1 auto;min-width:120px;align-self:stretch;overflow:hidden;position:relative;
+           border-left:1px solid rgba(255,255,255,.16);padding-left:22px;
+           -webkit-mask-image:linear-gradient(transparent,#000 14%,#000 86%,transparent);
+           mask-image:linear-gradient(transparent,#000 14%,#000 86%,transparent)}
+.ft-ev-track{position:absolute;top:0;left:22px;right:0;animation:ftscroll linear infinite}
+.ft-ev{font-size:19px;line-height:1.35;font-weight:600;padding:7px 0;opacity:.92}
+.ft-ev b{color:#8fe3ff}
+@keyframes ftscroll{0%{transform:translateY(6%)}100%{transform:translateY(-50%)}}
 .ft-cam{height:100%;aspect-ratio:16/9;flex:0 0 auto;border-radius:18px;overflow:hidden;
         position:relative;background:#04161d}
 .ft-cam img,.ft-cam iframe{width:100%;height:100%;object-fit:cover;border:0;display:block}
@@ -8265,8 +8277,9 @@ _TV_FOOTER_TMPL = """
           <div class="ft-status" id="ftStatus"></div>
         </div>
       </div>
-      <div class="ft-note" id="ftNote" style="__NOTEDISP__"></div>
+      <div class="ft-note" id="ftNote" style="__NOTESTYLE__"></div>
       __TVIMG__
+      __EVENTS__
     </div>
     <div class="ft-dots" id="ftDots"></div>
   </div>
@@ -8358,10 +8371,27 @@ def _tv_footer(cfg):
     _tv_uri = _bytes_to_data_uri(info.get("tv_image"), info.get("tv_image_mime"))
     tvimg_html = f"<div class='ft-img'><img src='{_tv_uri}'></div>" if _tv_uri else ""
 
+    # Termin-"Abspann": laeuft senkrecht durch. Eine Zeile = ein Termin. Liste
+    # doppelt -> nahtlose Schleife; Dauer nach Anzahl. Fuellt die Luecke bis zur Cam.
+    def _ev_esc(s):
+        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    _ev_lines = [ln.strip() for ln in (info.get("tv_events") or "").splitlines() if ln.strip()]
+    if _ev_lines:
+        _items = "".join(f"<div class='ft-ev'>📅 {_ev_esc(ln)}</div>" for ln in _ev_lines)
+        _dur = max(14, len(_ev_lines) * 4)
+        events_html = (f"<div class='ft-events'><div class='ft-ev-track' "
+                       f"style='animation-duration:{_dur}s'>{_items}{_items}</div></div>")
+        note_style = "flex:0 1 auto" if note else "display:none"
+    else:
+        events_html = ""
+        note_style = "" if note else "display:none"
+
     html = (_TV_FOOTER_TMPL
             .replace("__CAM__", cam_html)
             .replace("__TVIMG__", tvimg_html)
-            .replace("__NOTEDISP__", "" if note else "display:none")
+            .replace("__EVENTS__", events_html)
+            .replace("__NOTESTYLE__", note_style)
             .replace("__SPOT__", json.dumps(spot))
             .replace("__NOTE__", json.dumps(note))
             .replace("__BEST__", json.dumps(best_degs))
@@ -11027,12 +11057,17 @@ def render_admin_ads():
             type=["png", "jpg", "jpeg", "webp"], key=f"tvimg_{spot}")
         clear_tv = (st.checkbox("Aktuelles TV-Bild entfernen", key=f"clrtv_{spot}")
                     if info.get("tv_image") else False)
+        tv_events = st.text_area(
+            "📅 Termine fürs Spot-TV (eine Zeile = ein Termin, laufen als Abspann durch)",
+            value=info.get("tv_events") or "", height=110, key=f"tvev_{spot}",
+            help="z. B. 'Fr 19 Uhr Grillabend' – erscheint rechts im Spot-TV-Footer und "
+                 "läuft senkrecht durch. Leer = kein Abspann.")
         if st.form_submit_button("💾 Spot-Info speichern"):
             save_spot_info(spot, desc, webcam, country=country, best_winds=best_winds,
                            webcam_link=webcam_link, water_ok=water_ok,
                            tv_image_bytes=tv_up.getvalue() if tv_up else None,
                            tv_image_mime=tv_up.type if tv_up else None,
-                           clear_tv_image=clear_tv)
+                           clear_tv_image=clear_tv, tv_events=tv_events)
             if lat_in is not None and lon_in is not None:
                 update_spot_coords(spot, lat_in, lon_in)
             st.session_state.pop(info_prefill_key, None)
@@ -11358,23 +11393,27 @@ def _render_sponsor_fields(spot):
             st.session_state["_spotadmin_flash"] = "Beschreibung gespeichert."
             st.rerun()
 
-    st.markdown("### 📺 TV-Bild (Spot-TV-Footer)")
-    st.caption("Ein Schmuckbild, das unten im Spot-TV rechts neben der Webcam erscheint "
-               "(z. B. dein Café, der Steg, ein Stimmungsbild). Wird automatisch verkleinert.")
+    st.markdown("### 📺 TV-Bild & Termine (Spot-TV-Footer)")
+    st.caption("Ein Schmuckbild rechts neben der Webcam + laufende Termine als Abspann "
+               "(eine Zeile = ein Termin). Erscheint unten im Spot-TV. Bild wird verkleinert.")
     if info.get("tv_image"):
         st.image(bytes(info["tv_image"]), width=280, caption="aktuelles TV-Bild")
     with st.form(f"sp_tvimg_{spot}"):
         tvup = st.file_uploader("TV-Bild (PNG/JPG/WebP)", type=["png", "jpg", "jpeg", "webp"])
         clear_tv = st.checkbox("Aktuelles TV-Bild entfernen") if info.get("tv_image") else False
-        if st.form_submit_button("💾 TV-Bild speichern"):
+        tv_events = st.text_area(
+            "📅 Termine (eine Zeile = ein Termin)", value=info.get("tv_events") or "",
+            height=120, help="z. B. 'Fr 19 Uhr Grillabend am Steg'. Laufen rechts im "
+                             "Spot-TV senkrecht durch. Leer = kein Abspann.")
+        if st.form_submit_button("💾 TV-Bild & Termine speichern"):
             _ex = load_spot_info(spot) or {}
             save_spot_info(spot, _ex.get("description") or "", _ex.get("webcam_url") or "",
                            country=_ex.get("country") or "",
                            best_winds=_ex.get("best_winds") or "",
                            tv_image_bytes=tvup.getvalue() if tvup else None,
                            tv_image_mime=tvup.type if tvup else None,
-                           clear_tv_image=clear_tv)
-            st.session_state["_spotadmin_flash"] = "TV-Bild gespeichert."
+                           clear_tv_image=clear_tv, tv_events=tv_events)
+            st.session_state["_spotadmin_flash"] = "TV-Bild & Termine gespeichert."
             st.rerun()
 
     st.markdown("### 🖼️ Bilder (Galerie)")
