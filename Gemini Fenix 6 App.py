@@ -8247,9 +8247,8 @@ _TV_FOOTER_TMPL = """
 .ft-dot.on{background:#2bd4d9}
 .ft-note{flex:1 1 auto;min-width:0;font-size:24px;line-height:1.45;font-weight:600;
          opacity:.92;border-left:2px solid rgba(43,212,217,.45);padding-left:28px}
-.ft-img{height:100%;aspect-ratio:16/9;flex:0 0 auto;border-radius:16px;overflow:hidden;
-        background:#04161d}
-.ft-img img{width:100%;height:100%;object-fit:cover;display:block}
+.ft-img{height:100%;flex:0 0 auto;border-radius:16px;overflow:hidden;background:#04161d}
+.ft-img img{height:100%;width:auto;display:block}
 .ft-events{flex:1 1 auto;min-width:120px;align-self:stretch;overflow:hidden;position:relative;
            border-left:1px solid rgba(255,255,255,.16);padding-left:22px;
            display:flex;flex-direction:column;justify-content:center}
