@@ -8770,14 +8770,19 @@ def render_spots_page(user=None):
     _desc_en = (chosen.get("description") or info.get("description") or "").strip()
     _desc_loc = (chosen.get("description_local") or info.get("description_local") or "").strip()
     _llang = (chosen.get("local_lang") or info.get("local_lang") or "").strip()
-    desc = _desc_en
-    if _desc_en and _desc_loc and _llang:
-        _opts = ["🇬🇧 English", f"🌐 {_llang}"]
-        _pick = st.radio(
-            "Description language", _opts, horizontal=True, label_visibility="collapsed",
-            key=f"spotdesc_lang_{chosen.get('spot') or info.get('spot') or ''}")
-        if _pick == _opts[1]:
-            desc = _desc_loc
+    # Standard = LANDESSPRACHE zuerst, Englisch auswaehlbar. Fehlt eine Seite,
+    # zeigen wir nur die vorhandene (ohne Umschalter).
+    if _desc_loc and _llang:
+        desc = _desc_loc
+        if _desc_en:
+            _opts = [f"🌐 {_llang}", "🇬🇧 English"]
+            _pick = st.radio(
+                "Description language", _opts, horizontal=True, label_visibility="collapsed",
+                key=f"spotdesc_lang_{chosen.get('spot') or info.get('spot') or ''}")
+            if _pick == _opts[1]:
+                desc = _desc_en
+    else:
+        desc = _desc_en
     desc_html = (f"<div style='font-size:18px;line-height:1.6;'>{desc}</div>"
                  if desc else "")
 
