@@ -5121,63 +5121,227 @@ def render_temp_champions():
                    f"des Fahrers · mind. {_MIN} Sessions mit Temperaturwert.")
 
 
+_RANKINGS_HELP_LANGS = [("en", "English"), ("de", "Deutsch"), ("nl", "Nederlands"),
+                        ("fr", "Français"), ("es", "Español")]
+
+_RANKINGS_HELP = {
+    "en": """## 🏁 How the rankings work
+Every ranking shows each rider's best value (unless noted). Use the filters (spot, date, board & gear, wind, weight, fin/foil, group) to compare like with like.
+
+### ⚡ Speed & distance
+- **⚡ Top 2 s** — your fastest 2-second burst. The classic speed record.
+- **🏆 Best 30 s** — your fastest 30-second average. Rewards holding speed, not just one gust.
+- **📏 Best 500 m** — fastest time over a 500 m stretch.
+- **⚓ Nautical mile** — fastest time over one nautical mile (1852 m).
+- **🚩 Longest run** — the longest distance you rode in one go without stopping.
+- **👥 Total distance** — how far you travelled across all your sessions, added up.
+
+### 🪂 Jumps (windsurf · kite · wing · wakeboard)
+- **🪂 Best airtime** — your longest single jump, measured in seconds in the air.
+- **🚀 Highest jump** — how high you jumped (estimated from your airtime).
+- **🔁 Most airs** — how many jumps you landed in one session.
+
+### 🛶 SUP
+- **🛶 Most strokes** — most paddle strokes in a session.
+- **⏱️ Max cadence** — your highest paddling rate (strokes per minute).
+
+### 💪 Kraftweltmeister – "strength champion" (windsurf, just for fun)
+A playful "who's the strongest?" contest. From the wind, your sail size, your speed and your body weight we estimate how hard the sail was pulling on you. It's a fun estimate, not a real measurement.
+- **💪 Pound-for-pound** — the pull compared to your own body weight. The fair class: a light rider holding a big sail in strong wind can beat a heavyweight — like "strength for your size".
+- **🏋️ Sail force** — the raw pull, shown in kilograms (as if you were holding that weight on a rope).
+- **⚡ Power** — the pull together with how fast you went (in watts). Rewards strength *and* speed.
+
+### 🌡️ Temperature (just for fun)
+- **🥶 Winterweltmeister** — who rode in the coldest air on average (across all sports). The tough ones.
+- **🥵 Warmduscher** — who only goes out when it's warm (highest average). The fair-weather crowd. ☀️
+
+_Counts riders with at least 3 sessions; uses the air temperature at the time you rode._
+
+### 🏅 Champion & fair play
+- **🏅 Champion (Performance Index)** — an overall score that rewards going fast with **little wind and a small sail**. This way beginners and intermediates can win too — not just whoever had the biggest gear on the windiest day.
+- **🛡️ Trust score** — a check that your GPS data is realistic. Clearly impossible sessions (crazy speeds, not on the water, contradictions) are left out of the rankings; you can see the reason under *My Results*.
+
+### 🔍 Filters
+Filter any ranking by **spot, date, board & gear, wind strength, your weight, fin/foil size, or a group** — so you compare yourself with truly similar riders. You can even run a leaderboard just for your own club or crew.
+""",
+    "de": """## 🏁 Wie die Ranglisten funktionieren
+Jede Rangliste zeigt den besten Wert je Fahrer (wenn nicht anders vermerkt). Über die Filter (Spot, Datum, Board & Material, Wind, Gewicht, Finne/Foil, Gruppe) vergleichst du Gleiches mit Gleichem.
+
+### ⚡ Speed & Distanz
+- **⚡ Top 2 s** — dein schnellster 2-Sekunden-Spitzenwert. Der klassische Speed-Rekord.
+- **🏆 Beste 30 s** — dein schnellster 30-Sekunden-Schnitt. Belohnt gehaltenes Tempo, nicht nur eine Böe.
+- **📏 Beste 500 m** — schnellste Zeit über 500 m.
+- **⚓ Seemeile** — schnellste Zeit über eine Seemeile (1852 m).
+- **🚩 Longest run** — die längste Strecke, die du am Stück ohne Stopp gefahren bist.
+- **👥 Gesamtdistanz** — alle deine Sessions zusammengezählt.
+
+### 🪂 Sprünge (Windsurf · Kite · Wing · Wakeboard)
+- **🪂 Beste Airtime** — dein längster Sprung, gemessen in Sekunden in der Luft.
+- **🚀 Höchster Sprung** — wie hoch du gesprungen bist (aus der Airtime geschätzt).
+- **🔁 Meiste Sprünge** — wie viele Sprünge du in einer Session gestanden hast.
+
+### 🛶 SUP
+- **🛶 Meiste Paddelschläge** — die meisten Schläge in einer Session.
+- **⏱️ Max. Kadenz** — deine höchste Schlagfrequenz (Schläge pro Minute).
+
+### 💪 Kraftweltmeister (Windsurf, nur zum Spaß)
+Ein spielerischer „Wer ist am stärksten?"-Wettbewerb. Aus Wind, Segelgröße, Geschwindigkeit und deinem Körpergewicht schätzen wir, wie stark das Segel an dir gezogen hat. Ein Spaß-Schätzwert, keine echte Messung.
+- **💪 Pound-for-pound** — der Zug im Verhältnis zu deinem eigenen Körpergewicht. Die faire Klasse: Ein leichter Fahrer, der bei viel Wind ein großes Segel hält, schlägt einen Schweren — wie „Kraft im Verhältnis zur Statur".
+- **🏋️ Segelkraft** — der reine Zug, angezeigt in Kilogramm (als würdest du dieses Gewicht am Seil halten).
+- **⚡ Power** — der Zug zusammen mit deinem Tempo (in Watt). Belohnt Kraft *und* Geschwindigkeit.
+
+### 🌡️ Temperatur (nur zum Spaß)
+- **🥶 Winterweltmeister** — wer im Schnitt bei der kältesten Luft gefahren ist (über alle Sportarten). Die Harten.
+- **🥵 Warmduscher** — wer nur bei Wärme rausgeht (höchster Schnitt). Die Schönwetter-Fraktion. ☀️
+
+_Zählt Fahrer mit mindestens 3 Sessions; nutzt die Lufttemperatur zum Zeitpunkt deiner Fahrt._
+
+### 🏅 Champion & Fairness
+- **🏅 Champion (Performance-Index)** — ein Gesamt-Score, der belohnt, schnell zu sein mit **wenig Wind und kleinem Segel**. So können auch Anfänger und Fortgeschrittene gewinnen — nicht nur der mit dem größten Material am windigsten Tag.
+- **🛡️ Trust-Score** — prüft, ob deine GPS-Daten realistisch sind. Klar unmögliche Sessions (irre Speeds, nicht auf dem Wasser, Widersprüche) bleiben draußen; den Grund siehst du unter *My Results*.
+
+### 🔍 Filter
+Filtere jede Rangliste nach **Spot, Datum, Board & Material, Windstärke, deinem Gewicht, Finnen-/Foil-Größe oder einer Gruppe** — so vergleichst du dich mit wirklich ähnlichen Fahrern. Du kannst sogar eine eigene Rangliste nur für deinen Club oder deine Crew laufen lassen.
+""",
+    "nl": """## 🏁 Hoe de ranglijsten werken
+Elke ranglijst toont de beste waarde per rijder (tenzij anders vermeld). Met de filters (spot, datum, board & materiaal, wind, gewicht, vin/foil, groep) vergelijk je gelijk met gelijk.
+
+### ⚡ Snelheid & afstand
+- **⚡ Top 2 s** — je snelste piek over 2 seconden. Het klassieke snelheidsrecord.
+- **🏆 Beste 30 s** — je snelste gemiddelde over 30 seconden. Beloont volgehouden snelheid, niet één vlaag.
+- **📏 Beste 500 m** — snelste tijd over 500 m.
+- **⚓ Zeemijl** — snelste tijd over één zeemijl (1852 m).
+- **🚩 Langste run** — de langste afstand die je in één keer zonder stoppen voer.
+- **👥 Totale afstand** — al je sessies bij elkaar opgeteld.
+
+### 🪂 Sprongen (windsurf · kite · wing · wakeboard)
+- **🪂 Beste airtime** — je langste sprong, in seconden in de lucht.
+- **🚀 Hoogste sprong** — hoe hoog je sprong (geschat uit je airtime).
+- **🔁 Meeste airs** — hoeveel sprongen je in één sessie stond.
+
+### 🛶 SUP
+- **🛶 Meeste slagen** — de meeste peddelslagen in een sessie.
+- **⏱️ Max. cadans** — je hoogste slagtempo (slagen per minuut).
+
+### 💪 Kraftweltmeister (windsurf, puur voor de lol)
+Een speelse „wie is de sterkste?"-wedstrijd. Uit wind, zeilgrootte, snelheid en je lichaamsgewicht schatten we hoe hard het zeil aan je trok. Een leuke schatting, geen echte meting.
+- **💪 Pound-for-pound** — de trekkracht ten opzichte van je eigen lichaamsgewicht. De eerlijke klasse: een lichte rijder die bij veel wind een groot zeil houdt, verslaat een zware — zoals „kracht naar verhouding".
+- **🏋️ Zeilkracht** — de pure trekkracht, getoond in kilo's (alsof je dat gewicht aan een touw houdt).
+- **⚡ Power** — de trekkracht samen met je snelheid (in watt). Beloont kracht *én* snelheid.
+
+### 🌡️ Temperatuur (voor de lol)
+- **🥶 Winterweltmeister** — wie gemiddeld in de koudste lucht voer (over alle sporten). De taaien.
+- **🥵 Warmduscher** — wie alleen bij warmte het water op gaat (hoogste gemiddelde). Het mooi-weer-volk. ☀️
+
+_Telt rijders met minstens 3 sessies; gebruikt de luchttemperatuur op het moment dat je voer._
+
+### 🏅 Kampioen & eerlijk spel
+- **🏅 Kampioen (Performance Index)** — een totaalscore die beloont om snel te zijn met **weinig wind en een klein zeil**. Zo kunnen ook beginners en gevorderden winnen — niet alleen wie het grootste materiaal had op de winderigste dag.
+- **🛡️ Trust-score** — controleert of je gps-data realistisch is. Duidelijk onmogelijke sessies (rare snelheden, niet op het water, tegenstrijdigheden) blijven buiten de ranglijst; de reden zie je onder *My Results*.
+
+### 🔍 Filters
+Filter elke ranglijst op **spot, datum, board & materiaal, windkracht, je gewicht, vin-/foilmaat of een groep** — zo vergelijk je jezelf met echt vergelijkbare rijders. Je kunt zelfs een ranglijst draaien voor alleen je eigen club of crew.
+""",
+    "fr": """## 🏁 Comment fonctionnent les classements
+Chaque classement montre la meilleure valeur par rider (sauf mention contraire). Les filtres (spot, date, board & matériel, vent, poids, aileron/foil, groupe) te permettent de comparer ce qui est comparable.
+
+### ⚡ Vitesse & distance
+- **⚡ Top 2 s** — ta pointe la plus rapide sur 2 secondes. Le record de vitesse classique.
+- **🏆 Meilleur 30 s** — ta meilleure moyenne sur 30 secondes. Récompense la vitesse tenue, pas une seule rafale.
+- **📏 Meilleur 500 m** — meilleur temps sur 500 m.
+- **⚓ Mille nautique** — meilleur temps sur un mille nautique (1852 m).
+- **🚩 Plus longue run** — la plus longue distance parcourue d'un seul trait sans t'arrêter.
+- **👥 Distance totale** — toutes tes sessions additionnées.
+
+### 🪂 Sauts (windsurf · kite · wing · wakeboard)
+- **🪂 Meilleur airtime** — ton plus long saut, en secondes en l'air.
+- **🚀 Saut le plus haut** — la hauteur de ton saut (estimée à partir de l'airtime).
+- **🔁 Plus de sauts** — combien de sauts tu as posés en une session.
+
+### 🛶 SUP
+- **🛶 Plus de coups de pagaie** — le plus de coups en une session.
+- **⏱️ Cadence max** — ta fréquence de pagaie la plus élevée (coups par minute).
+
+### 💪 Kraftweltmeister (windsurf, juste pour le fun)
+Un concours ludique du « plus fort ». À partir du vent, de la taille de voile, de la vitesse et de ton poids, on estime la force de traction de la voile sur toi. Une estimation pour s'amuser, pas une vraie mesure.
+- **💪 Pound-for-pound** — la traction rapportée à ton propre poids. La catégorie équitable : un rider léger tenant une grande voile par vent fort peut battre un lourd — comme « la force selon ton gabarit ».
+- **🏋️ Force de voile** — la traction brute, affichée en kilos (comme si tu tenais ce poids au bout d'une corde).
+- **⚡ Puissance** — la traction combinée à ta vitesse (en watts). Récompense la force *et* la vitesse.
+
+### 🌡️ Température (pour le fun)
+- **🥶 Winterweltmeister** — qui a navigué dans l'air le plus froid en moyenne (tous sports). Les durs.
+- **🥵 Warmduscher** — qui ne sort que quand il fait chaud (moyenne la plus haute). Les amateurs de beau temps. ☀️
+
+_Compte les riders avec au moins 3 sessions ; utilise la température de l'air au moment où tu naviguais._
+
+### 🏅 Champion & fair-play
+- **🏅 Champion (indice de performance)** — un score global qui récompense d'aller vite avec **peu de vent et une petite voile**. Ainsi les débutants et intermédiaires peuvent gagner aussi — pas seulement celui qui avait le plus gros matériel le jour le plus venté.
+- **🛡️ Score de confiance** — vérifie que tes données GPS sont réalistes. Les sessions clairement impossibles (vitesses délirantes, hors de l'eau, contradictions) sont exclues ; tu vois la raison sous *My Results*.
+
+### 🔍 Filtres
+Filtre chaque classement par **spot, date, board & matériel, force du vent, ton poids, taille d'aileron/foil ou un groupe** — pour te comparer à des riders vraiment similaires. Tu peux même faire un classement rien que pour ton club ou ton équipe.
+""",
+    "es": """## 🏁 Cómo funcionan las clasificaciones
+Cada clasificación muestra el mejor valor por rider (salvo que se indique). Con los filtros (spot, fecha, tabla y material, viento, peso, quilla/foil, grupo) comparas lo comparable.
+
+### ⚡ Velocidad y distancia
+- **⚡ Top 2 s** — tu punta más rápida en 2 segundos. El récord de velocidad clásico.
+- **🏆 Mejor 30 s** — tu mejor media en 30 segundos. Premia mantener la velocidad, no una sola racha.
+- **📏 Mejor 500 m** — mejor tiempo en 500 m.
+- **⚓ Milla náutica** — mejor tiempo en una milla náutica (1852 m).
+- **🚩 Run más larga** — la distancia más larga que recorriste de un tirón sin parar.
+- **👥 Distancia total** — todas tus sesiones sumadas.
+
+### 🪂 Saltos (windsurf · kite · wing · wakeboard)
+- **🪂 Mejor airtime** — tu salto más largo, en segundos en el aire.
+- **🚀 Salto más alto** — cuánto saltaste (estimado a partir del airtime).
+- **🔁 Más saltos** — cuántos saltos completaste en una sesión.
+
+### 🛶 SUP
+- **🛶 Más paladas** — la mayor cantidad de paladas en una sesión.
+- **⏱️ Cadencia máx.** — tu ritmo de palada más alto (paladas por minuto).
+
+### 💪 Kraftweltmeister (windsurf, solo por diversión)
+Un concurso divertido de „¿quién es el más fuerte?". A partir del viento, el tamaño de vela, la velocidad y tu peso corporal estimamos con cuánta fuerza tiraba la vela de ti. Una estimación para divertirse, no una medición real.
+- **💪 Pound-for-pound** — la tracción en relación con tu propio peso corporal. La categoría justa: un rider ligero que sujeta una vela grande con viento fuerte puede ganar a uno pesado — como „la fuerza según tu talla".
+- **🏋️ Fuerza de vela** — la tracción pura, mostrada en kilos (como si sujetaras ese peso de una cuerda).
+- **⚡ Potencia** — la tracción junto con tu velocidad (en vatios). Premia fuerza *y* velocidad.
+
+### 🌡️ Temperatura (por diversión)
+- **🥶 Winterweltmeister** — quién navegó de media con el aire más frío (todos los deportes). Los duros.
+- **🥵 Warmduscher** — quién solo sale cuando hace calor (media más alta). Los de buen tiempo. ☀️
+
+_Cuenta a riders con al menos 3 sesiones; usa la temperatura del aire en el momento en que navegaste._
+
+### 🏅 Campeón y juego limpio
+- **🏅 Campeón (Índice de rendimiento)** — una puntuación global que premia ir rápido con **poco viento y una vela pequeña**. Así también pueden ganar principiantes e intermedios — no solo quien tenía el material más grande el día más ventoso.
+- **🛡️ Puntuación de confianza** — comprueba que tus datos de GPS sean realistas. Las sesiones claramente imposibles (velocidades absurdas, fuera del agua, contradicciones) quedan fuera; ves el motivo en *My Results*.
+
+### 🔍 Filtros
+Filtra cualquier clasificación por **spot, fecha, tabla y material, fuerza del viento, tu peso, tamaño de quilla/foil o un grupo** — para compararte con riders realmente parecidos. Incluso puedes hacer una clasificación solo para tu club o tu grupo.
+""",
+}
+
+
 def render_rankings_help():
-    """Eigene Seite (?view=rankings-help): erklärt ALLE Ranglisten in Klartext –
-    für Nutzer UND uns selbst. Rein statisch (st.markdown)."""
+    """Eigene Seite (?view=rankings-help): erklärt ALLE Ranglisten in Klartext,
+    mehrsprachig (Umschalter via ?hl=). Rein statisch (st.markdown)."""
     if st.button("← Back", key="rkhelp_back"):
         if "view" in st.query_params:
             del st.query_params["view"]
         st.rerun()
-    st.markdown("## 🏁 How the rankings work")
-    st.caption("Each ranking shows the best value per rider (unless noted). Use the filters "
-               "(spot · year/month/day · board & gear · wind · weight · fin/foil · group) to "
-               "compare like with like.")
-
-    st.markdown("### ⚡ Speed & distance")
-    st.markdown(
-        "- **⚡ Top 2 s** — your highest 2-second peak speed. The classic speed-surfing record.\n"
-        "- **🏆 Best 30 s** — fastest 30-second average. Rewards holding speed, not just a gust.\n"
-        "- **📏 Best 500 m** — fastest 500-metre stretch.\n"
-        "- **⚓ Nautical mile** — fastest nautical mile (1852 m).\n"
-        "- **🚩 Longest run** — longest single planing/riding stretch in one go (km).\n"
-        "- **👥 Total distance** — total distance across all your sessions.")
-
-    st.markdown("### 🪂 Jumps (windsurf · kite · wing · wakeboard)")
-    st.markdown(
-        "- **🪂 Best airtime** — longest time in the air (seconds).\n"
-        "- **🚀 Highest jump** — estimated jump height (m), derived from airtime.\n"
-        "- **🔁 Most airs** — most jumps recorded in a single session.")
-
-    st.markdown("### 🛶 SUP")
-    st.markdown(
-        "- **🛶 Most strokes** — most paddle strokes in a session.\n"
-        "- **⏱️ Max cadence** — highest stroke rate (strokes per minute).")
-
-    st.markdown("### 💪 Kraftweltmeister (windsurf · fun physics)")
-    st.markdown(
-        "Estimated from wind, sail size, speed and your weight — **fun physics, not a "
-        "measurement**.\n"
-        "- **💪 Pound-for-pound** — sail force ÷ body weight. The lightweight-friendly class.\n"
-        "- **🏋️ Sail force** — raw pull, shown in kg.\n"
-        "- **⚡ Power** — force × speed (watts).")
-
-    st.markdown("### 🌡️ Temperature (fun)")
-    st.markdown(
-        "- **🥶 Winterweltmeister** — lowest average air temperature you rode in (all sports).\n"
-        "- **🥵 Warmduscher** — highest average — the fair-weather crowd. ☀️\n\n"
-        "_Needs at least 3 sessions with a temperature; uses the air temp at session time._")
-
-    st.markdown("### 🏅 Champion & fairness")
-    st.markdown(
-        "- **🏅 Champion / Performance Index** — a combined score that rewards going fast with "
-        "**little wind and a small sail**, so beginners and intermediates can top it too — not "
-        "just whoever had the biggest gear on the windiest day.\n"
-        "- **🛡️ Trust score** — a GPS plausibility check. Clearly impossible sessions "
-        "(unrealistic speeds/cadence, contradictions, or not-on-water) are kept OUT of the "
-        "rankings; the rider sees the reason in *My Results*.")
-
-    st.info("Tip: almost every ranking can be filtered by **group** — so you can run your own "
-            "club or crew leaderboard.")
+    _codes = [c for c, _ in _RANKINGS_HELP_LANGS]
+    _cur = st.query_params.get("hl") or "en"
+    if _cur not in _codes:
+        _cur = "en"
+    _labels = [n for _, n in _RANKINGS_HELP_LANGS]
+    _pick = st.radio("Language", _labels, index=_codes.index(_cur), horizontal=True,
+                     label_visibility="collapsed", key="rkhelp_lang")
+    _new = _codes[_labels.index(_pick)]
+    if _new != _cur:
+        st.query_params["hl"] = _new
+        st.rerun()
+    st.markdown(_RANKINGS_HELP.get(_cur, _RANKINGS_HELP["en"]))
 
 
 @st.fragment
