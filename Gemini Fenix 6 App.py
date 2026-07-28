@@ -6938,10 +6938,21 @@ def _render_join_qr(cfg):
         # Freie Überschrift aus dem Backoffice hat Vorrang; sonst der Default.
         head = (ad.get("products_heading") or "").strip() or (
             f"{sponsor} · Top Deals" if sponsor else "Top Deals")
+        # Bis 6 Kacheln: statische Reihe. Ab 7 (würde 2. Reihe brauchen): Karussell
+        # (eine laufende Reihe) statt Umbruch.
+        if len(cards) > 6:
+            _joined = "".join(cards)
+            _dur = max(18, len(cards) * 3)
+            cards_block = (
+                "<div class='tv-deals-cards marquee'>"
+                f"<div class='tv-deals-track' style='animation-duration:{_dur}s'>"
+                f"{_joined}{_joined}</div></div>")
+        else:
+            cards_block = f"<div class='tv-deals-cards'>{''.join(cards)}</div>"
         deals_html = (
             "<div class='tv-deals'>"
             f"<div class='tv-deals-head'>{head}</div>"
-            f"<div class='tv-deals-cards'>{''.join(cards)}</div>"
+            f"{cards_block}"
             "</div>"
         )
 
@@ -6962,6 +6973,14 @@ def _render_join_qr(cfg):
         ".tv-deals-head{text-align:center;font-size:22px;font-weight:800;color:#eaf4ff;"
         "margin:0 0 10px;}"
         ".tv-deals-cards{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;}"
+        # Karussell ab >6 Kacheln (statt 2. Reihe): eine Reihe, horizontal laufend.
+        # Karten doppelt -> nahtlose Schleife (translateX -50 %); Ränder faden weich.
+        ".tv-deals-cards.marquee{flex-wrap:nowrap;overflow:hidden;justify-content:flex-start;"
+        "-webkit-mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);"
+        "mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);}"
+        ".tv-deals-track{display:flex;gap:16px;flex:0 0 auto;animation:tvmarq linear infinite;}"
+        ".tv-deals-track .tv-prod-card{flex:0 0 auto;}"
+        "@keyframes tvmarq{from{transform:translateX(0)}to{transform:translateX(-50%)}}"
         ".tv-prod-card{width:184px;background:#ffffff;border-radius:16px;overflow:hidden;"
         "box-shadow:0 6px 18px rgba(0,0,0,.18);text-decoration:none;color:#111;display:block;}"
         ".tv-prod-img{height:172px;background-size:cover;background-position:center;}"
