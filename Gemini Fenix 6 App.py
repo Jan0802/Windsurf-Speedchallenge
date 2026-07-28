@@ -5263,6 +5263,17 @@ def render_rankings(results_container):
     # Selectboxen lesen ihren Wert aus session_state (oben bereits ausgelesen);
     # index= dient nur der Erstbelegung beim allerersten Laden.
     with st.container():
+        # Schnell-Einstieg Spot-TV mit gespeicherter Einstellung – immer sichtbar,
+        # ein Klick. Auf dem TV lässt sich dann alles per On-Screen-Steuerung ändern.
+        _tvp = (load_user_pref(username) or {}).get("tv_preset") if username else None
+        if _tvp and _tvp.get("spot"):
+            _tvq = {"tv": "1", "sport": _tvp.get("sport") or sport, "spot": _tvp["spot"],
+                    "mode": _tvp.get("mode") or "today", "zoom": _tvp.get("zoom") or 75}
+            if _tvp.get("group") and _tvp["group"] != ALL_GROUP:
+                _tvq["group"] = _tvp["group"]
+            st.link_button(f"📺 Open my Spot-TV · {_tvp['spot']}", "?" + urlencode(_tvq),
+                           use_container_width=True, type="primary")
+
         with st.expander("⭐ My start (filter preset)", expanded=False):
             st.caption(
                 "Save the current filter selection as your start – it will be "
@@ -5303,24 +5314,39 @@ def render_rankings(results_container):
 
             # Einstieg ins Spot-TV (Vollbild-Live-Screen) fuer den aktuellen Spot.
             st.markdown("---")
+            st.markdown("**📺 Spot-TV (café/shop live screen)**")
             if spot_filter and spot_filter != "Overall":
-                # Zoom pro TV-Geraet (Cafe-Fernseher/Beamer) – wird an die URL gehaengt,
-                # damit man ihn nicht von Hand eintippen muss. 75 = Standard.
+                _tv_modes = ["today", "week", "month", "year"]
+                _tv_mode = st.selectbox(
+                    "Timeframe", _tv_modes, key=f"tvmode_{sport}",
+                    format_func=lambda m: {"today": "Today", "week": "This week",
+                                           "month": "This month", "year": "This year"}[m])
+                # Zoom pro TV-Geraet (Cafe-Fernseher/Beamer) – wird an die URL gehaengt.
                 _tv_zoom = st.slider(
-                    "📺 Spot-TV zoom (%)", min_value=40, max_value=100, value=75, step=5,
+                    "Zoom (%)", min_value=40, max_value=100, value=75, step=5,
                     key=f"tv_zoom_{sport}",
                     help="Smaller = more fits on the screen, larger = bigger. "
                          "The value is saved in the link, so it applies on that TV.")
-                _tv_url = "?" + urlencode(
-                    {"tv": "1", "sport": sport, "spot": spot_filter,
-                     "mode": "today", "zoom": _tv_zoom}
-                )
-                st.link_button(
-                    f"📺 Open Spot TV · {spot_filter}", _tv_url, use_container_width=True
-                )
-                st.caption("Full-screen live screen for café/shop. Open in a new tab, then F11.")
+                _tv_grp = st.session_state.get(f"rank_group_{sport}", ALL_GROUP)
+                _tvq = {"tv": "1", "sport": sport, "spot": spot_filter,
+                        "mode": _tv_mode, "zoom": _tv_zoom}
+                if _tv_grp and _tv_grp != ALL_GROUP:
+                    _tvq["group"] = _tv_grp
+                st.link_button(f"📺 Open Spot TV · {spot_filter}", "?" + urlencode(_tvq),
+                               use_container_width=True)
+                if st.button("💾 Save as my Spot-TV", use_container_width=True,
+                             key=f"tvsave_{sport}"):
+                    _p = load_user_pref(username) or {}
+                    _p["tv_preset"] = {"spot": spot_filter, "sport": sport,
+                                       "mode": _tv_mode, "zoom": _tv_zoom, "group": _tv_grp}
+                    save_user_pref(username, _p)
+                    st.success("Saved – use the „📺 Open my Spot-TV“ button above for "
+                               "one-click access from now on.")
+                st.caption("Full-screen live screen for café/shop. Open in a new tab, then F11. "
+                           "On the screen you can still switch sport/spot/timeframe live.")
             else:
-                st.caption("📺 Spot TV: pick a Location first – the live-screen link appears here.")
+                st.caption("Pick a Location above first – then the live-screen link + save "
+                           "button appear here.")
 
         group_options = [ALL_GROUP] + [g["name"] for g in member_groups]
         st.selectbox(
