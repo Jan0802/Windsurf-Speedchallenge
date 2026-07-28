@@ -7472,6 +7472,9 @@ def render_spot_tv(cfg):
     # QR-Code + beworbene Produkte zusammen in EINER umbrechenden Reihe (statisch).
     _render_join_qr(cfg)
 
+    # Kleine Lücke zwischen Werbekacheln und Footer.
+    st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+
     # Ganz unten: selbst-rotierender Footer (Wetterkachel rotiert Tag im 60-s-
     # Wall-Clock-Takt + Webcam + optionale Notiz). Löst das alte run_every-
     # _tv_bottom_info ab (kein React-Re-Mount-Flackern mehr).
