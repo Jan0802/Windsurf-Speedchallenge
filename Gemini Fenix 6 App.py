@@ -2251,15 +2251,16 @@ def _clear_ad_caches():
             pass
 
 
-@st.cache_data(ttl=60, show_spinner=False, max_entries=6)
 def _img_kind_clause(kind):
     """WHERE-Teil für die Bild-Art: 'gallery' matcht auch Altbestand (kind NULL),
-    'desc' = Bilder im Beschreibungstext."""
+    'desc' = Bilder im Beschreibungstext. NICHT cachen – SQLAlchemy-Clause darf
+    nicht gepickelt werden (sonst doppeltes FROM)."""
     if kind == "desc":
         return spot_images_table.c.kind == "desc"
     return (spot_images_table.c.kind.is_(None)) | (spot_images_table.c.kind == "gallery")
 
 
+@st.cache_data(ttl=60, show_spinner=False, max_entries=6)
 def load_spot_images(spot, kind="gallery"):
     """Bilder eines Spots inkl. Bytes (sortiert) – fuers Backoffice. kind='gallery'
     (Foto-Galerie) oder 'desc' (Bilder im Beschreibungstext)."""
