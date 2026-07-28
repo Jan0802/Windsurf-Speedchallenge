@@ -6949,11 +6949,11 @@ def _render_join_qr(cfg):
         # Freie Überschrift aus dem Backoffice hat Vorrang; sonst der Default.
         head = (ad.get("products_heading") or "").strip() or (
             f"{sponsor} · Top Deals" if sponsor else "Top Deals")
-        # Bis 6 Kacheln: statische Reihe. Ab 7 (würde 2. Reihe brauchen): Karussell
-        # (eine laufende Reihe) statt Umbruch.
-        if len(cards) > 6:
+        # Bis 10 Kacheln: statische, einreihige Leiste (Überzählige werden
+        # abgeschnitten, nie 2. Reihe). Ab 11: langsam laufendes Karussell.
+        if len(cards) > 10:
             _joined = "".join(cards)
-            _dur = max(18, len(cards) * 3)
+            _dur = max(30, len(cards) * 6)   # langsamer (~6 s pro Kachel)
             cards_block = (
                 "<div class='tv-deals-cards marquee'>"
                 f"<div class='tv-deals-track' style='animation-duration:{_dur}s'>"
@@ -6983,7 +6983,9 @@ def _render_join_qr(cfg):
         "justify-content:space-between;}"
         ".tv-deals-head{text-align:center;font-size:22px;font-weight:800;color:#eaf4ff;"
         "margin:0 0 10px;}"
-        ".tv-deals-cards{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;}"
+        # Immer EINE Reihe (nie umbrechen): statisch werden überzählige Kacheln
+        # abgeschnitten statt in eine 2. Reihe zu wandern.
+        ".tv-deals-cards{display:flex;flex-wrap:nowrap;overflow:hidden;gap:16px;justify-content:center;}"
         # Karussell ab >6 Kacheln (statt 2. Reihe): eine Reihe, horizontal laufend.
         # Karten doppelt -> nahtlose Schleife (translateX -50 %); Ränder faden weich.
         ".tv-deals-cards.marquee{flex-wrap:nowrap;overflow:hidden;justify-content:flex-start;"
