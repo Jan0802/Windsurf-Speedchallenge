@@ -956,6 +956,7 @@ spot_images_table = Table(
     Column("image_mime", String(50)),
     Column("sort_order", Integer, default=0),
     Column("uploaded_by", Integer),     # User-ID des Uploaders (NULL = Admin/Backoffice)
+    Column("kind", String(20)),         # NULL/"gallery" = Foto-Galerie, "desc" = Bild im Beschreibungstext
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -2251,31 +2252,40 @@ def _clear_ad_caches():
 
 
 @st.cache_data(ttl=60, show_spinner=False, max_entries=6)
-def load_spot_images(spot):
-    """Alle Galerie-Bilder eines Spots inkl. Bytes (sortiert) – fuers Backoffice."""
+def _img_kind_clause(kind):
+    """WHERE-Teil für die Bild-Art: 'gallery' matcht auch Altbestand (kind NULL),
+    'desc' = Bilder im Beschreibungstext."""
+    if kind == "desc":
+        return spot_images_table.c.kind == "desc"
+    return (spot_images_table.c.kind.is_(None)) | (spot_images_table.c.kind == "gallery")
+
+
+def load_spot_images(spot, kind="gallery"):
+    """Bilder eines Spots inkl. Bytes (sortiert) – fuers Backoffice. kind='gallery'
+    (Foto-Galerie) oder 'desc' (Bilder im Beschreibungstext)."""
     if not spot:
         return []
     _ensure_ad_tables()
     with get_engine().connect() as conn:
         rows = conn.execute(
             select(spot_images_table)
-            .where(spot_images_table.c.spot == spot)
+            .where((spot_images_table.c.spot == spot) & _img_kind_clause(kind))
             .order_by(spot_images_table.c.sort_order, spot_images_table.c.id)
         ).mappings().all()
     return [dict(r) for r in rows]
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def load_spot_image_ids(spot):
+def load_spot_image_ids(spot, kind="gallery"):
     """Nur die Bild-IDs eines Spots (leichtgewichtig, ohne Bytes) – fuer die
-    Galerie-Anzeige, die ueber _spot_thumb_uri gecachte Thumbnails laedt."""
+    Anzeige, die ueber _spot_thumb_uri gecachte Thumbnails laedt."""
     if not spot:
         return []
     _ensure_ad_tables()
     with get_engine().connect() as conn:
         rows = conn.execute(
             select(spot_images_table.c.id)
-            .where(spot_images_table.c.spot == spot)
+            .where((spot_images_table.c.spot == spot) & _img_kind_clause(kind))
             .order_by(spot_images_table.c.sort_order, spot_images_table.c.id)
         ).all()
     return [r[0] for r in rows]
@@ -2297,8 +2307,9 @@ def _spot_thumb_uri(image_id, max_dim=560):
     return _bytes_to_data_uri(data, mime)
 
 
-def add_spot_image(spot, image_bytes, image_mime, uploaded_by=None):
-    """Galerie-Bild speichern. uploaded_by = User-ID (None = Admin/Backoffice)."""
+def add_spot_image(spot, image_bytes, image_mime, uploaded_by=None, kind="gallery"):
+    """Bild speichern. uploaded_by = User-ID (None = Admin/Backoffice). kind =
+    'gallery' (Foto-Galerie) oder 'desc' (Bild im Beschreibungstext)."""
     if not spot or not image_bytes:
         return
     image_bytes, image_mime = _optimize_image(image_bytes, image_mime)
@@ -2309,11 +2320,11 @@ def add_spot_image(spot, image_bytes, image_mime, uploaded_by=None):
     with get_engine().begin() as conn:
         mx = conn.execute(
             select(func.coalesce(func.max(spot_images_table.c.sort_order), 0))
-            .where(spot_images_table.c.spot == spot)
+            .where((spot_images_table.c.spot == spot) & _img_kind_clause(kind))
         ).scalar() or 0
         conn.execute(insert(spot_images_table).values(
             spot=spot, image=image_bytes, image_mime=image_mime,
-            sort_order=int(mx) + 1, uploaded_by=uploaded_by,
+            sort_order=int(mx) + 1, uploaded_by=uploaded_by, kind=kind,
         ))
     _clear_ad_caches()
 
@@ -2330,7 +2341,7 @@ def load_recent_spot_images(spot, limit=5):
             select(spot_images_table.c.id, users_table.c.username)
             .select_from(spot_images_table.outerjoin(
                 users_table, spot_images_table.c.uploaded_by == users_table.c.id))
-            .where(spot_images_table.c.spot == spot)
+            .where((spot_images_table.c.spot == spot) & _img_kind_clause("gallery"))
             .order_by(spot_images_table.c.id.desc())
             .limit(int(limit))
         ).all()
@@ -8847,6 +8858,64 @@ def _render_spot_rating(spot, user):
                 st.rerun()
 
 
+def _desc_img_uris(spot, max_n=6):
+    """Data-URIs der „Beschreibungsbilder" (kind='desc') eines Spots, in Reihenfolge."""
+    if not spot:
+        return []
+    ids = load_spot_image_ids(spot, kind="desc")
+    return [u for u in (_spot_thumb_uri(i, max_dim=680) for i in ids[:max_n]) if u]
+
+
+def _split_into(text, n):
+    """Text in ~n etwa gleich lange Stücke schneiden – an Wortgrenzen und NICHT
+    mitten in einem HTML-Tag. Für das Einflechten von Bildern in die Beschreibung."""
+    t = text or ""
+    if n <= 1 or len(t) < 80:
+        return [t] if t.strip() else []
+    size = len(t) // n
+    chunks, start = [], 0
+    for _k in range(n - 1):
+        target = start + size
+        cut = t.rfind(" ", start + int(size * 0.5), target)
+        if cut <= start:
+            cut = target
+        lt, gt = t.rfind("<", start, cut), t.rfind(">", start, cut)
+        if lt > gt:            # Schnitt läge in einem <tag> -> davor
+            cut = lt if lt > start else target
+        chunks.append(t[start:cut])
+        start = cut
+    chunks.append(t[start:])
+    return [c for c in chunks if c.strip()]
+
+
+def _desc_with_images(text, uris):
+    """Beschreibungstext mit eingeflochtenen Bildern (abwechselnd links/rechts
+    floatend, Text läuft drumherum – Magazin-Layout). Ohne Bilder: einfacher Text."""
+    base = "font-size:18px;line-height:1.6;"
+    text = text or ""
+    if not uris or not text.strip():
+        return f"<div style='{base}'>{text}</div>"
+
+    def _img(j):
+        side = "left" if j % 2 == 0 else "right"
+        m = "margin:4px 22px 14px 0" if side == "left" else "margin:4px 0 14px 22px"
+        return (f"<img src='{uris[j]}' style='float:{side};width:38%;max-width:430px;"
+                f"border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.18);{m}'>")
+
+    chunks = _split_into(text, len(uris) + 1)
+    out = [f"<div style='{base}overflow:hidden'>"]
+    for i, ch in enumerate(chunks):
+        j = i - 1
+        if i >= 1 and j < len(uris):
+            out.append(_img(j))
+        out.append(f"<div style='margin:0 0 14px'>{ch}</div>")
+    # Mehr Bilder als Text-Stücke -> Rest unten anhängen.
+    for j in range(max(0, len(chunks) - 1), len(uris)):
+        out.append(_img(j))
+    out.append("<div style='clear:both'></div></div>")
+    return "".join(out)
+
+
 def _lead_split(text, target=820):
     """Teilt die Beschreibung in einen ~target Zeichen langen ANFANG (steht neben
     der Webcam) und den REST (laeuft darunter ueber die volle Breite) — so wirkt
@@ -8862,6 +8931,50 @@ def _lead_split(text, target=820):
     if lt > gt:                     # Schnittstelle liegt in einem <tag> -> davor
         cut = lt
     return t[:cut], t[cut:]
+
+
+def _render_desc_images_editor(spot, uploaded_by=None, flash=None):
+    """Upload/Verwaltung der Beschreibungsbilder (kind='desc') – für Backoffice UND
+    Self-Service. Erscheinen auf der Spots-Seite eingeflochten im Beschreibungstext."""
+    def _msg(m):
+        if flash:
+            flash(m)
+    st.markdown("**🖼️ Beschreibungsbilder** – laufen im Beschreibungstext mit "
+                "(abwechselnd links/rechts, Text drumherum).")
+    _imgs = load_spot_images(spot, kind="desc")
+    if _imgs:
+        _cols = st.columns(4)
+        for _idx, _gi in enumerate(_imgs):
+            with _cols[_idx % 4]:
+                if _gi.get("image"):
+                    st.image(bytes(_gi["image"]), use_container_width=True)
+                _b1, _b2, _b3 = st.columns(3)
+                if _b1.button("↺", key=f"drotl_{spot}_{_gi['id']}", help="Links drehen"):
+                    rotate_spot_image(_gi["id"], clockwise=False)
+                    load_spot_image_ids.clear()
+                    _msg("Bild gedreht.")
+                    st.rerun()
+                if _b2.button("↻", key=f"drotr_{spot}_{_gi['id']}", help="Rechts drehen"):
+                    rotate_spot_image(_gi["id"], clockwise=True)
+                    load_spot_image_ids.clear()
+                    _msg("Bild gedreht.")
+                    st.rerun()
+                if _b3.button("🗑️", key=f"ddel_{spot}_{_gi['id']}", help="Löschen"):
+                    delete_spot_image(_gi["id"])
+                    load_spot_image_ids.clear()
+                    _msg("Bild gelöscht.")
+                    st.rerun()
+    _ups = st.file_uploader("Beschreibungsbilder hinzufügen (mehrere möglich)",
+                            type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True,
+                            key=f"descup_{spot}")
+    if st.button("➕ Beschreibungsbilder hochladen", key=f"descadd_{spot}", disabled=not _ups):
+        for _up in _ups:
+            add_spot_image(spot, _up.getvalue(), _up.type, uploaded_by=uploaded_by, kind="desc")
+        load_spot_image_ids.clear()
+        _msg(f"{len(_ups)} Bild(er) hinzugefügt.")
+        st.rerun()
+    st.caption("Reihenfolge = Upload-Reihenfolge. Sie werden zwischen die Textabschnitte "
+               "gesetzt (Bild links, Text daneben, dann Bild rechts …).")
 
 
 def render_spots_page(user=None):
@@ -8984,16 +9097,17 @@ def render_spots_page(user=None):
             spons_inner = ("<div style='text-align:center;margin:0 0 6px;font-size:15px;"
                            f"font-weight:700;color:#bcd4dd;'>{_txt}</div>")
 
+    _desc_uris = _desc_img_uris(spot)   # „Beschreibungsbilder" (kind='desc')
     weblink = (info.get("webcam_link") or "").strip()
     if webcam:
         # Anfang der Beschreibung NEBEN die Cam (oben), Rest DARUNTER ueber die
         # volle Breite -> wirkt fast wie ein Umfliessen. Ein echtes Float um den
-        # Live-Cam-iframe geht in Streamlit nicht (eigene, feste Box).
+        # Live-Cam-iframe geht in Streamlit nicht (eigene, feste Box). In den Rest
+        # werden die Beschreibungsbilder eingeflochten (links/rechts, Text drumherum).
         _lead, _rest = _lead_split(desc)
         _lead_html = (f"<div style='font-size:18px;line-height:1.6;'>{_lead}</div>"
                       if _lead.strip() else "")
-        _rest_html = (f"<div style='font-size:18px;line-height:1.6;'>{_rest}</div>"
-                      if _rest.strip() else "")
+        _rest_html = _desc_with_images(_rest, _desc_uris) if _rest.strip() else ""
         c_text, c_cam = st.columns([1.6, 1], vertical_alignment="top")
         with c_text:
             if _lead_html:
@@ -9053,9 +9167,10 @@ def render_spots_page(user=None):
                     st.markdown(spons_inner, unsafe_allow_html=True)
                 st.link_button("🎥 Live-Webcam ansehen ↗", weblink, use_container_width=True)
     else:
-        # Keine Webcam -> Beschreibung ueber die ganze Breite.
-        if desc_html:
-            st.markdown(desc_html, unsafe_allow_html=True)
+        # Keine Webcam -> Beschreibung über die ganze Breite, mit eingeflochtenen
+        # Beschreibungsbildern (links/rechts, Text drumherum).
+        if desc.strip():
+            st.markdown(_desc_with_images(desc, _desc_uris), unsafe_allow_html=True)
 
     # „Für wen geeignet?"-Einstufung (Level/Wasser/Wind/Gefahren/Sport), falls vorhanden.
     _sc_html = _spot_class_html_app(info.get("spot_class"))
@@ -11323,6 +11438,9 @@ def render_admin_ads():
             add_spot_image(spot, up.getvalue(), up.type)
         _admin_flash(f"{len(new_imgs)} Bild(er) hinzugefügt.")
 
+    st.markdown("---")
+    _render_desc_images_editor(spot, uploaded_by=None, flash=_admin_flash)
+
 
 def _product_editor(spot, prod, sport=""):
     pid = prod["id"] if prod else None
@@ -11627,6 +11745,11 @@ def _render_sponsor_fields(spot):
             add_spot_image(spot, up.getvalue(), up.type)
         st.session_state["_spotadmin_flash"] = f"{len(new_imgs)} Bild(er) hinzugefügt."
         st.rerun()
+
+    st.markdown("---")
+    _render_desc_images_editor(
+        spot, uploaded_by=None,
+        flash=lambda m: st.session_state.__setitem__("_spotadmin_flash", m))
 
 
 def render_spotadmin():
