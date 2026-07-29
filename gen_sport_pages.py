@@ -25,9 +25,10 @@ T = {
   "html": "en",
   "s_track": "What gets tracked", "s_how": "How it works — with any watch",
   "s_why": "Why riders use it", "cta": "🌊 Launch the app",
-  "how": ("Record on a <b>Garmin</b> with our free Connect IQ app and the session uploads "
-          "automatically. No Garmin? Just upload a <b>FIT / GPX / TCX</b> file from any other "
-          "watch or phone app — Apple Watch, Suunto, COROS, or a Garmin Connect / Strava export. "
+  "how": ("Record on a <b>Garmin</b> with our free Connect IQ app, or connect your <b>Polar</b> "
+          "account, and the session uploads automatically. Neither one? Just upload a "
+          "<b>FIT / GPX / TCX</b> file from any other watch or phone app — Apple Watch, Suunto, "
+          "COROS, or a Garmin Connect / Strava export. "
           "Speed, GPS track and every metric above are computed for you."),
   "why": ["<b>100% free</b> — no premium, no paywall on the ranking.",
           "<b>Per-spot rankings</b> and a personal <b>performance index</b>.",
@@ -41,10 +42,11 @@ T = {
   "html": "de",
   "s_track": "Was getrackt wird", "s_how": "So funktioniert's — mit jeder Uhr",
   "s_why": "Warum Rider es nutzen", "cta": "🌊 App öffnen",
-  "how": ("Mit einer <b>Garmin</b> und unserer kostenlosen Connect-IQ-App aufzeichnen – die "
-          "Session lädt automatisch hoch. Keine Garmin? Einfach eine <b>FIT / GPX / TCX</b>-Datei "
-          "von jeder anderen Uhr oder App hochladen – Apple Watch, Suunto, COROS oder ein Export "
-          "aus Garmin Connect / Strava. Speed, GPS-Track und alle Werte oben werden automatisch berechnet."),
+  "how": ("Mit einer <b>Garmin</b> und unserer kostenlosen Connect-IQ-App aufzeichnen oder dein "
+          "<b>Polar</b>-Konto verbinden – die Session lädt automatisch hoch. Keins von beiden? "
+          "Einfach eine <b>FIT / GPX / TCX</b>-Datei von jeder anderen Uhr oder App hochladen – "
+          "Apple Watch, Suunto, COROS oder ein Export aus Garmin Connect / Strava. Speed, GPS-Track "
+          "und alle Werte oben werden automatisch berechnet."),
   "why": ["<b>100% kostenlos</b> – kein Premium, keine Paywall auf der Rangliste.",
           "<b>Ranglisten pro Spot</b> und ein persönlicher <b>Performance-Index</b>.",
           "<b>Spot-Guide + 3-Tage-Windvorhersage</b> mit „Lohnt-sich\"-Bewertung — <a href='%SPOTS%'>Spots ansehen</a>.",
@@ -57,10 +59,11 @@ T = {
   "html": "nl",
   "s_track": "Wat wordt gemeten", "s_how": "Zo werkt het — met elk horloge",
   "s_why": "Waarom riders het gebruiken", "cta": "🌊 App openen",
-  "how": ("Neem op met een <b>Garmin</b> en onze gratis Connect IQ-app – de sessie wordt "
-          "automatisch geüpload. Geen Garmin? Upload gewoon een <b>FIT / GPX / TCX</b>-bestand "
-          "van elk ander horloge of elke app – Apple Watch, Suunto, COROS of een export uit "
-          "Garmin Connect / Strava. Snelheid, GPS-track en alle waarden hierboven worden automatisch berekend."),
+  "how": ("Neem op met een <b>Garmin</b> en onze gratis Connect IQ-app of koppel je <b>Polar</b>-account "
+          "– de sessie wordt automatisch geüpload. Geen van beide? Upload gewoon een "
+          "<b>FIT / GPX / TCX</b>-bestand van elk ander horloge of elke app – Apple Watch, Suunto, "
+          "COROS of een export uit Garmin Connect / Strava. Snelheid, GPS-track en alle waarden "
+          "hierboven worden automatisch berekend."),
   "why": ["<b>100% gratis</b> – geen premium, geen paywall op de ranglijst.",
           "<b>Ranglijsten per spot</b> en een persoonlijke <b>performance-index</b>.",
           "<b>Spotgids + 3-daagse windverwachting</b> met een „de moeite waard\"-score — <a href='%SPOTS%'>bekijk spots</a>.",
@@ -73,10 +76,11 @@ T = {
   "html": "fr",
   "s_track": "Ce qui est mesuré", "s_how": "Comment ça marche — avec n'importe quelle montre",
   "s_why": "Pourquoi les riders l'utilisent", "cta": "🌊 Ouvrir l'app",
-  "how": ("Enregistrez sur une <b>Garmin</b> avec notre appli Connect IQ gratuite – la session "
-          "se téléverse automatiquement. Pas de Garmin ? Téléversez un fichier <b>FIT / GPX / TCX</b> "
-          "depuis n'importe quelle montre ou appli – Apple Watch, Suunto, COROS ou un export "
-          "Garmin Connect / Strava. Vitesse, trace GPS et toutes les mesures ci-dessus sont calculées pour vous."),
+  "how": ("Enregistrez sur une <b>Garmin</b> avec notre appli Connect IQ gratuite ou connectez votre "
+          "compte <b>Polar</b> – la session se téléverse automatiquement. Ni l'un ni l'autre ? "
+          "Téléversez un fichier <b>FIT / GPX / TCX</b> depuis n'importe quelle montre ou appli – "
+          "Apple Watch, Suunto, COROS ou un export Garmin Connect / Strava. Vitesse, trace GPS et "
+          "toutes les mesures ci-dessus sont calculées pour vous."),
   "why": ["<b>100% gratuit</b> – pas de premium, pas de paywall sur le classement.",
           "<b>Classements par spot</b> et un <b>indice de performance</b> personnel.",
           "<b>Guide des spots + prévisions de vent 3 jours</b> avec une note « ça vaut le coup » — <a href='%SPOTS%'>voir les spots</a>.",
@@ -89,10 +93,11 @@ T = {
   "html": "es",
   "s_track": "Qué se mide", "s_how": "Cómo funciona — con cualquier reloj",
   "s_why": "Por qué lo usan los riders", "cta": "🌊 Abrir la app",
-  "how": ("Graba con un <b>Garmin</b> y nuestra app Connect IQ gratuita: la sesión se sube "
-          "automáticamente. ¿Sin Garmin? Sube un archivo <b>FIT / GPX / TCX</b> desde cualquier "
-          "otro reloj o app: Apple Watch, Suunto, COROS o una exportación de Garmin Connect / Strava. "
-          "La velocidad, el track GPS y todas las métricas de arriba se calculan por ti."),
+  "how": ("Graba con un <b>Garmin</b> y nuestra app Connect IQ gratuita o conecta tu cuenta "
+          "<b>Polar</b>: la sesión se sube automáticamente. ¿Ninguno de los dos? Sube un archivo "
+          "<b>FIT / GPX / TCX</b> desde cualquier otro reloj o app: Apple Watch, Suunto, COROS o una "
+          "exportación de Garmin Connect / Strava. La velocidad, el track GPS y todas las métricas "
+          "de arriba se calculan por ti."),
   "why": ["<b>100% gratis</b> — sin premium, sin muro de pago en el ranking.",
           "<b>Rankings por spot</b> y un <b>índice de rendimiento</b> personal.",
           "<b>Guía de spots + previsión de viento 3 días</b> con una valoración « vale la pena » — <a href='%SPOTS%'>ver spots</a>.",
