@@ -960,6 +960,17 @@ spot_images_table = Table(
     Column("created_at", DateTime, server_default=func.now()),
 )
 
+# Polar AccessLink OAuth-Token je Nutzer (Auto-Import aus Polar Flow, read-only).
+polar_tokens_table = Table(
+    "polar_tokens", DB_METADATA,
+    Column("username", String(150), primary_key=True),
+    Column("access_token", String(400)),
+    Column("refresh_token", String(400)),
+    Column("x_user_id", String(60)),      # Polar-User-ID (fuer die AccessLink-Endpunkte)
+    Column("member_id", String(80)),      # unsere interne Kennung bei /v3/users
+    Column("updated_at", DateTime, server_default=func.now()),
+)
+
 # Gruppen-Ereignisse (Rekorde / Top-3) – andere Mitglieder sehen sie beim
 # nächsten Öffnen als Banner. Wird von create_all automatisch angelegt.
 group_events_table = Table(
@@ -10464,6 +10475,111 @@ def strava_exchange_code(code):
     })
 
 
+# ---------------------------------------------------------------------------
+#  Polar-Anbindung (AccessLink API) – app-freier Import aus Polar Flow, read-only.
+#  Braucht POLAR_CLIENT_ID / POLAR_CLIENT_SECRET (Secret/Env). Redirect fest =
+#  App-Wurzel (Callback landet per ?code auf der App). Nur urllib.
+#  Endpunkte ggf. gegen die aktuelle v4-Doku pruefen (polar.com/polar-api-v4).
+# ---------------------------------------------------------------------------
+POLAR_AUTH_URL = "https://flow.polar.com/oauth2/authorization"
+POLAR_TOKEN_URL = "https://polarremote.com/v2/oauth2/token"
+POLAR_API = "https://www.polaraccesslink.com/v3"
+POLAR_REDIRECT = "https://app.mywatersessions.com/"
+
+
+def _polar_cfg():
+    return (_secret("POLAR_CLIENT_ID").strip(), _secret("POLAR_CLIENT_SECRET").strip())
+
+
+def _polar_enabled():
+    cid, sec = _polar_cfg()
+    return bool(cid and sec)
+
+
+def polar_authorize_url(state="polar"):
+    cid, _ = _polar_cfg()
+    q = urlencode({"response_type": "code", "client_id": cid,
+                   "redirect_uri": POLAR_REDIRECT, "state": state})
+    return f"{POLAR_AUTH_URL}?{q}"
+
+
+def polar_exchange_code(code):
+    cid, sec = _polar_cfg()
+    basic = base64.b64encode(f"{cid}:{sec}".encode()).decode()
+    return _http_json(
+        POLAR_TOKEN_URL,
+        data={"grant_type": "authorization_code", "code": code,
+              "redirect_uri": POLAR_REDIRECT},
+        headers={"Authorization": f"Basic {basic}", "Accept": "application/json"})
+
+
+def polar_register_user(access_token, member_id):
+    """Nutzer einmalig am Client registrieren (POST /v3/users). 409 = schon da = ok."""
+    body = json.dumps({"member-id": str(member_id)}).encode()
+    req = Request(f"{POLAR_API}/users", data=body, method="POST", headers={
+        "Authorization": f"Bearer {access_token}", "Content-Type": "application/json",
+        "Accept": "application/json", "User-Agent": "MyWaterSessions/1.0"})
+    try:
+        with urlopen(req, timeout=25) as resp:
+            return resp.status in (200, 201)
+    except HTTPError as e:
+        if e.code == 409:      # bereits registriert
+            return True
+        raise
+
+
+def save_polar_token(username, tok, member_id):
+    if not username:
+        return
+    vals = {"access_token": tok.get("access_token"),
+            "refresh_token": tok.get("refresh_token"),
+            "x_user_id": str(tok.get("x_user_id") or ""),
+            "member_id": str(member_id), "updated_at": datetime.now()}
+    with get_engine().begin() as conn:
+        exists = conn.execute(select(polar_tokens_table.c.username)
+                              .where(polar_tokens_table.c.username == username)).first()
+        if exists:
+            conn.execute(update(polar_tokens_table)
+                         .where(polar_tokens_table.c.username == username).values(**vals))
+        else:
+            conn.execute(insert(polar_tokens_table).values(username=username, **vals))
+
+
+def load_polar_token(username):
+    if not username:
+        return None
+    with get_engine().connect() as conn:
+        row = conn.execute(select(polar_tokens_table)
+                           .where(polar_tokens_table.c.username == username)).mappings().first()
+    return dict(row) if row else None
+
+
+def delete_polar_token(username):
+    with get_engine().begin() as conn:
+        conn.execute(delete(polar_tokens_table).where(polar_tokens_table.c.username == username))
+
+
+def _render_polar_connect(user):
+    """Polar verbinden/trennen + Status. Sync (Sessions abholen) kommt als
+    naechster Schritt – hier erst der OAuth-/Verbindungsteil."""
+    username = (user or {}).get("username")
+    if not username:
+        return
+    tok = load_polar_token(username)
+    if not tok or not tok.get("access_token"):
+        st.link_button("🔗 Connect Polar (auto-import)", polar_authorize_url(),
+                       use_container_width=True)
+        st.caption("Link your Polar Flow account once – then your Polar sessions "
+                   "can be imported automatically (no file needed).")
+        return
+    c1, c2 = st.columns([3, 1])
+    c1.caption("✅ Polar connected. Automatic session import is being set up "
+               "(a Sync Polar button will appear here shortly).")
+    if c2.button("Disconnect", key="polar_disconnect"):
+        delete_polar_token(username)
+        st.rerun()
+
+
 def strava_list_activities(token, per_page=30):
     return _http_json(f"{STRAVA_API}/athlete/activities?per_page={int(per_page)}",
                       headers={"Authorization": f"Bearer {token}"})
@@ -13953,6 +14069,23 @@ if not current_user:
     render_login()
     st.stop()
 
+# Polar-OAuth-Rückkanal: nach „Connect Polar" kehrt der Nutzer mit
+# ?code=…&state=polar zurück. Code → Token tauschen, Nutzer bei Polar
+# registrieren, Token in der DB (an den eingeloggten Nutzer) speichern.
+if st.query_params.get("state", "").startswith("polar") and "code" in st.query_params:
+    try:
+        _ptok = polar_exchange_code(st.query_params.get("code"))
+        _mid = str(current_user.get("id") or current_user["username"])
+        polar_register_user(_ptok.get("access_token"), _mid)
+        save_polar_token(current_user["username"], _ptok, _mid)
+        st.session_state["_polar_flash"] = "✅ Polar connected."
+    except Exception:  # noqa: BLE001
+        st.session_state["_polar_flash"] = "Polar connection failed – please try again."
+    for _k in ("code", "state"):
+        if _k in st.query_params:
+            del st.query_params[_k]
+    st.rerun()
+
 render_account_sidebar(current_user)
 
 # „Angemeldet bleiben"-Cookie setzen – nur direkt nach dem Login (wenn ein
@@ -14671,6 +14804,13 @@ with left:
         if _strava_enabled():
             st.markdown("**— or import from Strava —**")
             _render_strava_import()
+
+        if _polar_enabled():
+            _pf = st.session_state.pop("_polar_flash", None)
+            if _pf:
+                (st.success if _pf.startswith("✅") else st.error)(_pf)
+            st.markdown("**— or connect Polar (auto-import) —**")
+            _render_polar_connect(current_user)
     else:
         st.caption(
             "Connect the watch via USB. Whether it shows up as a drive (e.g. "
