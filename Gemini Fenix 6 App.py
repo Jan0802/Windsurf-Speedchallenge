@@ -10559,6 +10559,138 @@ def delete_polar_token(username):
         conn.execute(delete(polar_tokens_table).where(polar_tokens_table.c.username == username))
 
 
+def _polar_api_get(url, token, accept="application/json"):
+    req = Request(url, headers={"Authorization": f"Bearer {token}", "Accept": accept,
+                                "User-Agent": "MyWaterSessions/1.0"})
+    with urlopen(req, timeout=30) as resp:
+        data = resp.read()
+    return data if accept == "application/octet-stream" else json.loads(data.decode("utf-8"))
+
+
+def _polar_entry_from_df(df, username, sport, fname):
+    """Berechnet aus dem geparsten Track dieselben Kennzahlen wie der Datei-Upload
+    und baut einen Session-Eintrag. UNVOLLSTÄNDIG (ohne Spot/Board/Segel) – wird
+    wie eine Uhr-Session später nachgepflegt. source='polar'."""
+    if df is None or df.empty or "speed_kmh" not in df.columns:
+        return None
+    best_1s = best_average_speed(df, 1)
+    best_30s = best_average_speed(df, 30)
+    best_500m = best_distance_speed(df, 500)
+    best_nm = best_distance_speed(df, 1852)
+    distance_km = df["distance"].max() / 1000 if "distance" in df.columns else None
+    session_date = None
+    if "timestamp" in df.columns:
+        _ts = df["timestamp"].dropna()
+        if not _ts.empty:
+            session_date = _ts.min().strftime("%Y-%m-%d")
+    lat = lon = None
+    if {"lat", "lon"}.issubset(df.columns):
+        _g = df.dropna(subset=["lat", "lon"])
+        if not _g.empty:
+            lat, lon = float(_g["lat"].iloc[0]), float(_g["lon"].iloc[0])
+    weather = None
+    _st = surf_weather_time(df)
+    if _st is not None and lat is not None and lon is not None:
+        try:
+            weather = get_weather(lat, lon, _st.strftime("%Y-%m-%dT%H:%M"))
+        except Exception:  # noqa: BLE001
+            weather = None
+    runs_df = detect_runs(df)
+    lr_m = float(runs_df["Distance m"].max()) if not runs_df.empty else None
+    lr_km = lr_m / 1000 if lr_m is not None else None
+    trust = compute_trust_score(df, None)
+
+    def _w(k):
+        return None if not weather or weather.get(k) is None else weather[k]
+
+    return {
+        "sport": sport, "date": session_date, "name": username,
+        "surfspot": None, "board": None, "sail": None,
+        "filename": fname, "source": "polar",
+        "total_distance_km": None if distance_km is None else round(distance_km, 2),
+        "longest_run_km": None if lr_km is None else round(lr_km, 3),
+        "longest_run_m": None if lr_m is None else round(lr_m, 2),
+        "speed_1s_kmh": None if best_1s is None else round(best_1s, 2),
+        "speed_1s_kn": None if best_1s is None else round(best_1s / 1.852, 2),
+        "speed_30s_kmh": None if best_30s is None else round(best_30s, 2),
+        "speed_30s_kn": None if best_30s is None else round(best_30s / 1.852, 2),
+        "speed_500m_kmh": None if best_500m is None else round(best_500m, 2),
+        "speed_nm_kmh": None if best_nm is None else round(best_nm, 2),
+        "wind_kmh": None if _w("wind") is None else round(_w("wind"), 1),
+        "gust_kmh": None if _w("gust") is None else round(_w("gust"), 1),
+        "wind_dir_deg": None if _w("dir") is None else round(_w("dir")),
+        "temp_c": None if _w("temp") is None else round(_w("temp"), 1),
+        "precip_mm": None if _w("precip") is None else round(_w("precip"), 1),
+        "weather_code": None if _w("code") is None else int(_w("code")),
+        "trust_score": trust.get("score"),
+    }
+
+
+def polar_sync(username, sport):
+    """Neue Polar-Exercises abholen (Transaktions-Muster) und als Sessions
+    speichern. Gibt (imported, skipped, msg) zurück; msg gesetzt = Hinweis/Fehler."""
+    tok = load_polar_token(username)
+    if not tok or not tok.get("access_token") or not tok.get("x_user_id"):
+        return 0, 0, "Not connected to Polar."
+    at, uid = tok["access_token"], tok["x_user_id"]
+    base = f"{POLAR_API}/users/{uid}/exercise-transactions"
+    # 1) Transaktion anlegen (204 = keine neuen Einheiten).
+    try:
+        req = Request(base, method="POST", headers={
+            "Authorization": f"Bearer {at}", "Accept": "application/json",
+            "User-Agent": "MyWaterSessions/1.0"})
+        with urlopen(req, timeout=30) as resp:
+            if resp.status == 204:
+                return 0, 0, "No new Polar sessions."
+            tx = json.loads(resp.read().decode("utf-8"))
+    except HTTPError as e:
+        if e.code == 204:
+            return 0, 0, "No new Polar sessions."
+        if e.code in (401, 403):
+            return 0, 0, "Polar authorization expired – please reconnect."
+        logging.exception("Polar transaction failed")
+        return 0, 0, f"Polar error ({e.code}) – please try again later."
+    except Exception:  # noqa: BLE001
+        logging.exception("Polar transaction failed")
+        return 0, 0, "Could not reach Polar – please try again later."
+
+    tx_id = tx.get("transaction-id") or tx.get("transactionId")
+    if not tx_id:
+        return 0, 0, "No new Polar sessions."
+    tx_url = f"{base}/{tx_id}"
+    imported = skipped = 0
+    try:
+        ex_urls = (_polar_api_get(tx_url, at) or {}).get("exercises", []) or []
+        for ex_url in ex_urls:
+            ex_id = ex_url.rstrip("/").split("/")[-1]
+            fname = f"polar-{ex_id}"
+            if session_exists(fname, sport=sport):
+                skipped += 1
+                continue
+            try:
+                fit = _polar_api_get(f"{ex_url.rstrip('/')}/fit", at,
+                                     accept="application/octet-stream")
+                df = read_activity_file(io.BytesIO(fit), f"{fname}.fit")
+            except Exception:  # noqa: BLE001
+                logging.exception("Polar exercise download/parse failed: %s", ex_id)
+                continue
+            entry = _polar_entry_from_df(df, username, sport, fname)
+            if entry:
+                save_session(entry)
+                imported += 1
+            else:
+                skipped += 1
+    finally:
+        # 4) Transaktion committen -> beim naechsten Mal nicht erneut liefern.
+        try:
+            req = Request(tx_url, method="PUT", headers={
+                "Authorization": f"Bearer {at}", "User-Agent": "MyWaterSessions/1.0"})
+            urlopen(req, timeout=30).close()
+        except Exception:  # noqa: BLE001
+            logging.exception("Polar transaction commit failed")
+    return imported, skipped, None
+
+
 def _render_polar_connect(user):
     """Polar verbinden/trennen + Status. Sync (Sessions abholen) kommt als
     naechster Schritt – hier erst der OAuth-/Verbindungsteil."""
@@ -10573,10 +10705,24 @@ def _render_polar_connect(user):
                    "can be imported automatically (no file needed).")
         return
     c1, c2 = st.columns([3, 1])
-    c1.caption("✅ Polar connected. Automatic session import is being set up "
-               "(a Sync Polar button will appear here shortly).")
+    c1.caption("✅ Polar connected. New Polar sessions import as sessions – add "
+               "spot, board and sail under My Results so they count in the ranking.")
     if c2.button("Disconnect", key="polar_disconnect"):
         delete_polar_token(username)
+        st.rerun()
+    _flash = st.session_state.pop("_polar_sync_flash", None)
+    if _flash:
+        (st.success if _flash[0] else st.info)(_flash[1])
+    if st.button("🔄 Sync Polar now", key="polar_sync", use_container_width=True):
+        with st.spinner("Fetching your latest Polar sessions…"):
+            imp, skip, msg = polar_sync(username, active_sport())
+        if msg:
+            st.session_state["_polar_sync_flash"] = (False, msg)
+        else:
+            _txt = f"Imported {imp} new Polar session(s)."
+            if skip:
+                _txt = f"Imported {imp}, skipped {skip} already-known session(s)."
+            st.session_state["_polar_sync_flash"] = (True, _txt)
         st.rerun()
 
 
