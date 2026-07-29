@@ -5480,11 +5480,12 @@ def render_rankings(results_container):
             st.markdown("---")
             st.markdown("**📺 Spot-TV (café/shop live screen)**")
             if spot_filter and spot_filter != "Overall":
-                _tv_modes = ["today", "week", "month", "year"]
+                _tv_modes = ["auto", "today", "week", "month", "year"]
                 _tv_mode = st.selectbox(
                     "Timeframe", _tv_modes, key=f"tvmode_{sport}",
-                    format_func=lambda m: {"today": "Today", "week": "This week",
-                                           "month": "This month", "year": "This year"}[m])
+                    format_func=lambda m: {"auto": "📈 Auto (latest data)", "today": "Today",
+                                           "week": "This week", "month": "This month",
+                                           "year": "This year"}[m])
                 # Zoom pro TV-Geraet (Cafe-Fernseher/Beamer) – wird an die URL gehaengt.
                 _tv_zoom = st.slider(
                     "Zoom (%)", min_value=40, max_value=100, value=75, step=5,
@@ -7005,7 +7006,7 @@ def _spot_tv_config():
     zoom = max(40, min(zoom, 100))
     return {
         "spot": qp.get("spot", ""),
-        "mode": qp.get("mode", "today"),       # today | week | month | year
+        "mode": qp.get("mode", "auto"),        # auto | today | week | month | year
         "group": qp.get("group", ""),
         "sport": active_sport(),
         "sponsor": qp.get("sponsor", ""),
@@ -7329,21 +7330,38 @@ def _spot_tv_live(cfg):
 
     # Zeitraum (mode) bestimmt Header-Kacheln UND Leaderboard.
     mode = cfg["mode"]
-    period_word = {"today": "today", "week": "this week",
-                   "month": "this month", "year": "this year"}.get(mode, "today")
-    if mode == "today":
-        scope = ranked[ranked["_date"].dt.normalize() == today] if not ranked.empty else ranked
-        scope_title = "Today"
-    else:
-        scope = _tv_period_scope(ranked, now, mode)
-        scope_title = {"week": "This week", "month": "This month",
-                       "year": "This year"}.get(mode, mode.capitalize())
 
+    # Gruppen-Filter ZUERST auf die vollständigen Sessions, damit die Auto-Suche
+    # „gibt es Daten?" die Gruppe berücksichtigt.
+    _grp_suffix = ""
     if cfg["group"]:
         gid = next((g["id"] for g in list_groups() if g["name"] == cfg["group"]), None)
         members = set(group_member_names(gid)) if gid else set()
-        scope = scope[scope["name"].astype(str).isin(members)]
-        scope_title += f" · {cfg['group']}"
+        ranked = ranked[ranked["name"].astype(str).isin(members)]
+        _grp_suffix = f" · {cfg['group']}"
+
+    def _scope_for(m):
+        if m == "today":
+            return ranked[ranked["_date"].dt.normalize() == today] if not ranked.empty else ranked
+        return _tv_period_scope(ranked, now, m)
+
+    _titles = {"today": "Today", "week": "This week", "month": "This month", "year": "This year"}
+    _words = {"today": "today", "week": "this week", "month": "this month", "year": "this year"}
+    if mode == "auto":
+        # Aktuellster Zeitraum MIT Daten: heute -> diese Woche -> Monat -> Jahr.
+        eff_mode = "year"
+        for _m in ("today", "week", "month", "year"):
+            if not _scope_for(_m).empty:
+                eff_mode = _m
+                break
+        scope = _scope_for(eff_mode)
+        scope_title = _titles[eff_mode]
+    else:
+        eff_mode = mode if mode in _titles else "today"
+        scope = _scope_for(eff_mode)
+        scope_title = _titles.get(mode, mode.capitalize())
+    period_word = _words[eff_mode]
+    scope_title += _grp_suffix
 
     def _mx(d, col):
         if col not in d.columns:
@@ -7408,7 +7426,7 @@ def _spot_tv_live(cfg):
         mins = int(max(0, (now - today_df["_created"].max()).total_seconds() // 60))
         last_txt = "just now" if mins == 0 else f"{mins} min ago"
 
-    leader_label = "👑 Rider of the Day" if mode == "today" else f"👑 Top rider {period_word}"
+    leader_label = "👑 Rider of the Day" if eff_mode == "today" else f"👑 Top rider {period_word}"
     rk = now.strftime("%H%M%S")  # wechselt je Refresh -> erzwingt Re-Mount (Animation)
 
     if cfg["sport"] == "wakeboard":
@@ -7513,7 +7531,8 @@ def _spot_sponsor_img(cfg):
 def _spot_tv_controls(cfg):
     """Auf dem Screen verdrahtete Bedienung: Zeitraum, Spot, Gruppe, Exit.
     Aenderungen schreiben in die URL (?mode/?spot/?group) -> bookmarkbar."""
-    modes = [("today", "Today"), ("week", "Week"), ("month", "Month"), ("year", "Year")]
+    modes = [("auto", "📈 Auto"), ("today", "Today"), ("week", "Week"),
+             ("month", "Month"), ("year", "Year")]
     spots = _all_spot_names()
     spot_opts = list(spots)
     if not cfg["spot"]:
@@ -7522,14 +7541,14 @@ def _spot_tv_controls(cfg):
         spot_opts = [cfg["spot"]] + spot_opts
     groups = ["All"] + [g["name"] for g in list_groups()]
 
-    cols = st.columns([1, 1, 1, 1, 1.8, 1.8, 1.8, 1.1])
+    cols = st.columns([1, 1, 1, 1, 1, 1.8, 1.8, 1.8, 1.1])
     for i, (mkey, mlabel) in enumerate(modes):
         if cols[i].button(mlabel, key=f"tvmode_{mkey}", use_container_width=True,
                           type="primary" if cfg["mode"] == mkey else "secondary"):
             st.query_params["mode"] = mkey
             st.rerun()
 
-    with cols[4]:
+    with cols[5]:
         _sport_opts = list(SPORTS)
         _spidx = _sport_opts.index(cfg["sport"]) if cfg["sport"] in _sport_opts else 0
         spsel = st.selectbox(
@@ -7540,7 +7559,7 @@ def _spot_tv_controls(cfg):
             st.query_params["sport"] = spsel
             st.rerun()
 
-    with cols[5]:
+    with cols[6]:
         idx = spot_opts.index(cfg["spot"]) if cfg["spot"] in spot_opts else 0
         sel = st.selectbox("Spot", spot_opts, index=idx,
                            label_visibility="collapsed", key="tv_spot_sel")
@@ -7548,7 +7567,7 @@ def _spot_tv_controls(cfg):
             st.query_params["spot"] = sel
             st.rerun()
 
-    with cols[6]:
+    with cols[7]:
         gidx = groups.index(cfg["group"]) if cfg["group"] in groups else 0
         gsel = st.selectbox("Group", groups, index=gidx,
                             label_visibility="collapsed", key="tv_group_sel")
@@ -7560,7 +7579,7 @@ def _spot_tv_controls(cfg):
                 del st.query_params["group"]
             st.rerun()
 
-    with cols[7]:
+    with cols[8]:
         if st.button("← Exit", use_container_width=True, key="tv_exit"):
             for k in ("tv", "mode", "group"):
                 if k in st.query_params:
