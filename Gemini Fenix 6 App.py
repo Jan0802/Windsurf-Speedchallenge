@@ -10692,8 +10692,7 @@ def polar_sync(username, sport):
 
 
 def _render_polar_connect(user):
-    """Polar verbinden/trennen + Status. Sync (Sessions abholen) kommt als
-    naechster Schritt – hier erst der OAuth-/Verbindungsteil."""
+    """Polar verbinden/trennen + Status + Sync (Sessions abholen)."""
     username = (user or {}).get("username")
     if not username:
         return
@@ -10702,11 +10701,13 @@ def _render_polar_connect(user):
         st.link_button("🔗 Connect Polar (auto-import)", polar_authorize_url(),
                        use_container_width=True)
         st.caption("Link your Polar Flow account once – then your Polar sessions "
-                   "can be imported automatically (no file needed).")
+                   "can be imported automatically (no file needed). "
+                   "[How to connect your watch ↗](https://mywatersessions.com/watches.html)")
         return
     c1, c2 = st.columns([3, 1])
     c1.caption("✅ Polar connected. New Polar sessions import as sessions – add "
-               "spot, board and sail under My Results so they count in the ranking.")
+               "spot, board and sail under My Results so they count in the ranking. "
+               "[Watch setup help ↗](https://mywatersessions.com/watches.html)")
     if c2.button("Disconnect", key="polar_disconnect"):
         delete_polar_token(username)
         st.rerun()
@@ -14940,11 +14941,14 @@ with left:
                 "**Export → FIT** (or GPX) → upload here.\n\n"
                 "**📱 Waterspeed / Speedsurfing apps:** open the session → **Share / Export** "
                 "→ choose **GPX** (or FIT) → upload here.\n\n"
-                "**⌚ Suunto / COROS / Polar:** in the phone app open the activity → "
+                "**⌚ Suunto / COROS:** in the phone app open the activity → "
                 "**Export as GPX** → upload here.\n\n"
+                "**⌚ Polar:** no file needed — connect your Polar account below and it "
+                "imports automatically.\n\n"
                 "**🔶 Strava:** open the activity → **⋯ → Export GPX** → upload here.\n\n"
                 "Speed, distance, GPS track and your 2 s / 30 s (and 500 m / nautical "
-                "mile) top speeds are all computed automatically."
+                "mile) top speeds are all computed automatically.\n\n"
+                "👉 [Full guide: how every watch connects ↗](https://mywatersessions.com/watches.html)"
             )
 
         if _strava_enabled():
