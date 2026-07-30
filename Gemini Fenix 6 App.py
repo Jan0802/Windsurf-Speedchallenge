@@ -14718,6 +14718,9 @@ with st.sidebar:
     sidebar_tab_filter = st.expander("🔎 Filter", expanded=False)
     st.link_button("📖 Guide · Anleitung · Handleiding", "?seite=guide",
                    use_container_width=True)
+    st.link_button("⌚ Watches · Uhren · Horloges",
+                   "https://mywatersessions.com/watches.html",
+                   use_container_width=True)
 
 
 def autocollapse_sidebar():
