@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
+<link rel="manifest" href="/site.webmanifest">
+<title>Connect your watch – Garmin, Polar, COROS, Suunto, Apple Watch | MyWaterSessions</title>
+<meta name="description" content="How to get your sessions into MyWaterSessions from any watch: Garmin (automatic), Polar (connect your account), COROS, Suunto, Apple Watch or any other watch or phone via a FIT / GPX / TCX file.">
+<link rel="canonical" href="https://mywatersessions.com/watches.html">
+<link rel="alternate" hreflang="en" href="https://mywatersessions.com/watches.html">
+<link rel="alternate" hreflang="de" href="https://mywatersessions.com/watches-de.html">
+<link rel="alternate" hreflang="nl" href="https://mywatersessions.com/watches-nl.html">
+<link rel="alternate" hreflang="fr" href="https://mywatersessions.com/watches-fr.html">
+<link rel="alternate" hreflang="es" href="https://mywatersessions.com/watches-es.html">
+<link rel="alternate" hreflang="x-default" href="https://mywatersessions.com/watches.html">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#06303a">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MyWaterSessions">
+<meta property="og:title" content="Connect your watch – MyWaterSessions">
+<meta property="og:description" content="Garmin uploads automatically, connect your Polar account, or upload a FIT / GPX / TCX file from COROS, Suunto, Apple Watch or any other watch or phone.">
+<meta property="og:url" content="https://mywatersessions.com/watches.html">
+<meta property="og:image" content="https://mywatersessions.com/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://mywatersessions.com/og.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Which watches work with MyWaterSessions?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Any GPS watch. Garmin uploads automatically with our free Connect IQ app, Polar imports automatically once you connect your Polar Flow account, and every other watch (COROS, Suunto, Apple Watch and more) works by uploading a FIT, GPX or TCX file." } },
+    { "@type": "Question", "name": "Do I need a special app on my watch?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Only for Garmin, where the free WaterSession Connect IQ app sends the session automatically. Polar needs no watch app at all: you connect your Polar Flow account once and we read your sessions from there. Every other watch just exports a file that you upload." } },
+    { "@type": "Question", "name": "My session did not show up. Why?",
+      "acceptedAnswer": { "@type": "Answer", "text": "First make sure the session has synced from your watch to the brand's app or cloud (for example Polar Flow). We can only import a session once it is in your account or exported as a file." } }
+  ]
+}
+</script>
+
+<style>
+  :root{ --aqua:#2bd4d9; --ink:#06303a; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+        color:#eaf4ff; background:#06222e; line-height:1.6; }
+  a{ color:var(--aqua); }
+  .wrap{ max-width:820px; margin:0 auto; padding:0 20px; }
+  .top{ background:linear-gradient(180deg, rgba(6,34,46,.5), rgba(6,34,46,.95)),
+        radial-gradient(900px 360px at 75% -20%, #0b6b8c, #06222e 60%);
+        padding:46px 0 36px; }
+  .brand{ font-size:30px; font-weight:800; text-decoration:none; color:#fff; }
+  .brand .dot{ color:var(--aqua); }
+  .nav{ font-size:14px; margin:10px 0 0; }
+  .nav a{ margin-right:14px; text-decoration:none; color:#bfe7ee; }
+  .langbar{ font-size:14px; margin:8px 0 0; }
+  .langbar a{ margin-right:12px; text-decoration:none; }
+  .langbar .active{ color:#fff; font-weight:700; }
+  h1{ font-size:clamp(26px,4.4vw,38px); margin:18px 0 6px; }
+  .lead{ color:#dceaf0; font-size:19px; margin:0 0 8px; }
+  .btn{ display:inline-block; background:var(--aqua); color:var(--ink); font-weight:800;
+        text-decoration:none; padding:12px 24px; border-radius:12px; margin-top:18px; }
+  .btn:hover{ filter:brightness(1.07); }
+  article{ padding:10px 0 40px; }
+  .method{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+           border-radius:16px; padding:18px 22px; margin:16px 0; }
+  .method h2{ color:#8fe3ff; font-size:22px; margin:0 0 4px; display:flex;
+              align-items:center; flex-wrap:wrap; gap:10px; }
+  .tag{ font-size:12px; font-weight:800; letter-spacing:.5px; text-transform:uppercase;
+        padding:3px 10px; border-radius:999px; }
+  .tag.auto{ background:var(--aqua); color:var(--ink); }
+  .tag.file{ background:rgba(255,255,255,.14); color:#dceaf0; }
+  .tag.soon{ background:#ffca7a; color:#3a2a06; }
+  article ol, article ul{ padding-left:22px; margin:8px 0 2px; }
+  article li{ margin:5px 0; color:#dceaf0; }
+  .note{ color:#a8c6d0; font-size:15px; margin:8px 0 0; }
+  h2.sec{ color:#8fe3ff; font-size:22px; margin:34px 0 6px; }
+  .cta{ text-align:center; background:rgba(255,255,255,.04);
+        border-top:1px solid rgba(255,255,255,.1); padding:34px 0; margin-top:20px; }
+  footer{ padding:30px 0 48px; color:#7fa6b2; font-size:13px; text-align:center; }
+  footer a{ color:#9fd9e3; margin:0 8px; }
+</style>
+<!-- Cloudflare Web Analytics (cookieless) -->
+<script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "c16ea8dadd7749e1826d6ea48f80ca6d"}'></script>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/">MyWaterSessions<span class="dot">.</span></a>
+    <div class="nav">
+      <a href="/">Home</a>
+      <a href="/guide.html">Guide</a>
+      <a href="https://spots.mywatersessions.com/spots">Spots</a>
+      <a href="https://app.mywatersessions.com/">Open the app</a>
+    </div>
+    <div class="langbar"><a class="active">EN</a><a href="/watches-de.html">DE</a><a href="/watches-nl.html">NL</a><a href="/watches-fr.html">FR</a><a href="/watches-es.html">ES</a></div>
+    <h1>Connect your watch</h1>
+    <p class="lead">MyWaterSessions works with <b>any GPS watch</b>. There are two ways in: some watches
+      upload <b>automatically</b>, and every other watch or phone works by uploading a small
+      <b>FIT / GPX / TCX</b> file. Here is the best way for each brand.</p>
+    <a class="btn" href="https://app.mywatersessions.com/">🌊 Open the app</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <article>
+
+    <p>Two mechanisms, depending on the brand:</p>
+    <ul>
+      <li><b>Automatic</b> – the session appears on its own, no file needed. This is <b>Garmin</b>
+        (an app on the watch sends it) and <b>Polar</b> (we read it from your Polar account).</li>
+      <li><b>File upload</b> – you export a <b>FIT / GPX / TCX</b> file from the watch's own app and
+        upload it once. This covers <b>COROS, Suunto, Apple Watch</b> and everything else.</li>
+    </ul>
+
+    <div class="method">
+      <h2>⌚ Garmin <span class="tag auto">Automatic</span></h2>
+      <ol>
+        <li>Install the free <b>WaterSession</b> app from the Garmin <b>Connect IQ</b> store on your watch.</li>
+        <li>Open your MyWaterSessions account and enter the <b>connect code</b> the watch shows, to link the watch to your account (one time).</li>
+        <li>Record your session with the app. When the watch syncs to Garmin Connect, the session
+          <b>uploads to MyWaterSessions automatically</b> and enters the ranking.</li>
+      </ol>
+      <p class="note">No Garmin app? You can also upload a Garmin <b>FIT</b> or Garmin Connect export – see “Any other watch” below.</p>
+    </div>
+
+    <div class="method">
+      <h2>⌚ Polar <span class="tag auto">Automatic</span></h2>
+      <p>Polar has no app to install on the watch. Instead you connect your <b>Polar Flow account</b> once,
+        and we import your sessions from there.</p>
+      <ol>
+        <li>Record and let your watch sync to <b>Polar Flow</b> as usual (via the Polar phone app or cable).</li>
+        <li>In MyWaterSessions open <b>Add session</b> and click <b>🔗 Connect Polar</b>.</li>
+        <li>Sign in at Polar Flow and confirm. You are sent back to the app.</li>
+        <li>Click <b>🔄 Sync Polar</b>. Your Polar sessions import automatically. Add spot, board and
+          sail under <b>My Results</b> so they count in the ranking.</li>
+      </ol>
+      <p class="note"><b>How does Polar know which watch?</b> It doesn’t need to – the link is your
+        <b>account</b>, not the watch. Any Polar watch tied to your Polar Flow account works; we simply
+        read whatever sessions land in that account.</p>
+    </div>
+
+    <div class="method">
+      <h2>⌚ COROS <span class="tag file">File upload</span> <span class="tag soon">Direct sync coming</span></h2>
+      <ol>
+        <li>In the <b>COROS</b> phone app open the activity.</li>
+        <li>Export it as a <b>FIT</b> (or GPX / TCX) file.</li>
+        <li>In MyWaterSessions open <b>Add session</b> and upload the file.</li>
+      </ol>
+      <p class="note">Automatic COROS sync is on our roadmap – for now the file upload takes a few seconds.</p>
+    </div>
+
+    <div class="method">
+      <h2>⌚ Suunto <span class="tag file">File upload</span></h2>
+      <ol>
+        <li>In the <b>Suunto</b> app open the activity.</li>
+        <li>Export it as <b>GPX</b> (or FIT).</li>
+        <li>Upload it in MyWaterSessions under <b>Add session</b>.</li>
+      </ol>
+    </div>
+
+    <div class="method">
+      <h2>⌚ Apple Watch <span class="tag file">File upload</span></h2>
+      <ol>
+        <li>Record with any workout app that can <b>export GPX</b> (many free ones can).</li>
+        <li>Share / export the workout as a <b>GPX</b> file.</li>
+        <li>Upload it in MyWaterSessions under <b>Add session</b>.</li>
+      </ol>
+    </div>
+
+    <div class="method">
+      <h2>⌚ Any other watch or phone <span class="tag file">File upload</span></h2>
+      <p>If your device can produce a <b>FIT, GPX or TCX</b> file, it works. Export the activity and
+        upload it under <b>Add session</b> – speed, GPS track, runs and every metric are computed for you.</p>
+    </div>
+
+    <div class="method">
+      <h2>Already on Strava or Garmin Connect? <span class="tag file">File upload</span></h2>
+      <ol>
+        <li>Open the activity on <b>Strava</b> (Export GPX) or <b>Garmin Connect</b> (Export to FIT / GPX / TCX).</li>
+        <li>Upload that file in MyWaterSessions under <b>Add session</b>.</li>
+      </ol>
+    </div>
+
+    <h2 class="sec">Good to know</h2>
+    <ul>
+      <li><b>Sync to the cloud first.</b> We can only see a session once it has reached the brand's app
+        or cloud (e.g. Polar Flow, Garmin Connect) or been exported as a file.</li>
+      <li><b>File types:</b> we read <b>FIT, GPX and TCX</b> – the common exports from every brand.</li>
+      <li><b>One session, once.</b> The same session won't be added to the ranking twice.</li>
+    </ul>
+
+  </article>
+</div>
+
+<section class="cta">
+  <div class="wrap">
+    <h2 style="color:#fff;margin-top:0;">Ready to ride?</h2>
+    <a class="btn" href="https://app.mywatersessions.com/">🌊 Open the app</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a href="/">Home</a> ·
+    <a href="/guide.html">Guide</a> ·
+    <a href="/watches.html">Watches</a> ·
+    <a href="https://spots.mywatersessions.com/spots">Spots</a> ·
+    <a href="https://app.mywatersessions.com/">Open the app</a> ·
+    <a href="https://app.mywatersessions.com/?seite=impressum">Impressum</a> ·
+    <a href="https://app.mywatersessions.com/?seite=datenschutz">Datenschutz</a>
+    <div style="margin-top:8px;">© MyWaterSessions · free speed ranking &amp; spot guide for windsurf · kite · wing · SUP · wakeboard</div>
+  </div>
+</footer>
+
+</body>
+</html>
