@@ -10567,6 +10567,23 @@ def _polar_api_get(url, token, accept="application/json"):
     return data if accept == "application/octet-stream" else json.loads(data.decode("utf-8"))
 
 
+def _track_json_from_df(df, max_points=4000):
+    """GPS-Spur aus dem DataFrame als JSON [[lat, lon], ...] in Grad – dasselbe
+    Format wie die Uhr-Sessions (Ingest), damit die Detail-Karte + Speedkurve
+    funktionieren. Lange Tracks werden gleichmaessig auf max_points ausgeduennt."""
+    if df is None or df.empty or not {"lat", "lon"}.issubset(df.columns):
+        return None
+    _t = df.dropna(subset=["lat", "lon"])
+    if _t.empty:
+        return None
+    pts = [[round(float(a), 6), round(float(b), 6)]
+           for a, b in zip(_t["lat"], _t["lon"])]
+    if len(pts) > max_points:
+        step = len(pts) // max_points + 1
+        pts = pts[::step]
+    return json.dumps(pts)
+
+
 def _polar_entry_from_df(df, username, sport, fname):
     """Berechnet aus dem geparsten Track dieselben Kennzahlen wie der Datei-Upload
     und baut einen Session-Eintrag. UNVOLLSTÄNDIG (ohne Spot/Board/Segel) – wird
@@ -10607,6 +10624,7 @@ def _polar_entry_from_df(df, username, sport, fname):
         "sport": sport, "date": session_date, "name": username,
         "surfspot": None, "board": None, "sail": None,
         "filename": fname, "source": "polar",
+        "track": _track_json_from_df(df),
         "total_distance_km": None if distance_km is None else round(distance_km, 2),
         "longest_run_km": None if lr_km is None else round(lr_km, 3),
         "longest_run_m": None if lr_m is None else round(lr_m, 2),
@@ -15285,6 +15303,7 @@ if fit_source is not None:
                     "fin_carbon": fin_carbon,
                     "foil_front_cm2": foil_front_cm2,
                     "filename": fit_name,
+                    "track": _track_json_from_df(df),
                     "total_distance_km": None if distance_km is None else round(distance_km, 2),
                     "longest_run_km": None if longest_run_km is None else round(longest_run_km, 3),
                     "longest_run_m": None if longest_run_m is None else round(longest_run_m, 2),
