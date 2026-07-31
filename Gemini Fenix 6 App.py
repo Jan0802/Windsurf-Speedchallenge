@@ -9312,9 +9312,12 @@ def render_spots_page(user=None):
         "(**Add session → New surf spot**, or **…or new spot** in the session editor) – "
         "it instantly becomes available to everyone and gets its own spot page."
     )
-    # TV-Link zum gewaehlten Spot (sobald einer per ?spot= aktiv ist) – direkt neben
-    # dem Safety-Guide. Oeffnet den Spot-TV im Auto-Zeitraum.
+    all_info = load_all_spot_info()
+    # TV-Link neben dem Safety-Guide, PERMANENT sichtbar: gewaehlter Spot aus ?spot=,
+    # sonst der erste Spot der Liste (= Dropdown-Default). Oeffnet den Spot-TV (Auto).
     _sel_spot = (st.query_params.get("spot") or "").strip()
+    if not _sel_spot and all_info:
+        _sel_spot = (all_info[0].get("spot") or "").strip()
     _tv_btn = ""
     if _sel_spot:
         _tv_qs = urlencode({"tv": 1, "spot": _sel_spot, "sport": active_sport(), "mode": "auto"})
@@ -9330,7 +9333,6 @@ def render_spots_page(user=None):
         "border-radius:999px;padding:5px 14px;text-decoration:none;font-weight:700'>"
         "🛟 Water sports safety guide</a>" + _tv_btn,
         unsafe_allow_html=True)
-    all_info = load_all_spot_info()
     if not all_info:
         st.info(
             "No spots with a description yet. They appear here automatically once "
