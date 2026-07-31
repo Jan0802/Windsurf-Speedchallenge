@@ -106,6 +106,83 @@
       }
     },
     {
+      "slug": "wind-luvstau", "category": "wind", "core": false, "icon": "🧱",
+      "label": {"en": "Onshore wind pile-up", "de": "Luvstau am Ufer", "nl": "Windopstuwing aan de kust", "fr": "Accumulation de vent au rivage", "es": "Acumulación de viento en la orilla"},
+      "text": {
+        "en": "With onshore wind, air piles up against the slope, dune or buildings behind the beach. The inshore strip gets weaker and gustier than the water further out — pick your sail size for the outside and expect to drop off the plane on the way in.",
+        "de": "Bei auflandigem Wind staut sich die Luft am Hang, an der Düne oder an der Bebauung hinter dem Strand. Im Uferstreifen ist der Wind dadurch schwächer und böiger als draußen — wähl die Segelgröße nach dem Außenbereich und rechne damit, dass es beim Reinkommen abfällt.",
+        "nl": "Bij aanlandige wind stuwt de lucht op tegen de helling, duin of bebouwing achter het strand. In de kuststrook is de wind daardoor zwakker en boiiger dan verder op zee — kies je zeilgrootte op het buitengebied en reken erop dat het bij het binnenkomen wegvalt.",
+        "fr": "Par vent onshore, l'air s'accumule contre la pente, la dune ou les bâtiments derrière la plage. Sur la bande côtière, le vent est donc plus faible et plus rafaleux qu'au large — choisis ta taille de voile pour l'extérieur et attends-toi à décrocher du plané en rentrant.",
+        "es": "Con viento de mar a tierra, el aire se acumula contra la ladera, la duna o los edificios detrás de la playa. En la franja costera el viento es por eso más débil y racheado que mar adentro — elige el tamaño de vela para la zona exterior y cuenta con que caiga al entrar."
+      }
+    },
+    {
+      "slug": "lee-turbulence", "category": "wind", "core": true, "icon": "🌀",
+      "label": {"en": "Lee turbulence", "de": "Lee-Turbulenz", "nl": "Lij-turbulentie", "fr": "Turbulence sous le vent", "es": "Turbulencia a sotavento"},
+      "text": {
+        "en": "With offshore wind, the inshore area sits in the lee of dunes, trees or buildings. Wind there is weak and heavily turbulent with shifting direction, reaching well out onto the water. Not the right spot in this wind direction.",
+        "de": "Bei ablandigem Wind liegt der Uferbereich im Windschatten von Düne, Bewuchs oder Bebauung. Der Wind ist dort schwach und stark verwirbelt, die Richtung wechselt, und das reicht weit aufs Wasser hinaus. Nicht der richtige Spot bei dieser Windrichtung.",
+        "nl": "Bij aflandige wind ligt de kuststrook in de luwte van duin, begroeiing of bebouwing. De wind is daar zwak en sterk verwerveld, de richting wisselt, en dat reikt ver het water op. Niet de juiste spot bij deze windrichting.",
+        "fr": "Par vent offshore, la zone côtière se trouve sous le vent des dunes, de la végétation ou des bâtiments. Le vent y est faible et très turbulent, la direction change, et cela s'étend loin sur l'eau. Pas le bon spot avec cette direction de vent.",
+        "es": "Con viento de tierra, la zona costera queda a sotavento de dunas, vegetación o edificios. Allí el viento es débil y muy turbulento, la dirección cambia, y eso llega lejos hacia el agua. No es el spot adecuado con esta dirección de viento."
+      }
+    },
+    {
+      "slug": "lee-shadow", "category": "wind", "core": false, "icon": "🕳️",
+      "label": {"en": "Wind shadow (headland/island)", "de": "Windabdeckung (Landzunge/Insel)", "nl": "Windschaduw (landtong/eiland)", "fr": "Zone d'ombre de vent (cap/île)", "es": "Sombra de viento (cabo/isla)"},
+      "text": {
+        "en": "A headland, mole or island upwind can block part of the wind, leaving a patch that is noticeably lighter — but often clean rather than turbulent. Expect a wind hole in that sector and plan your track so you don't get stranded in it.",
+        "de": "Ein Kap, eine Mole oder eine Insel in Luv kann einen Teil des Windes abdecken — die Zone dahinter ist deutlich schwächer, aber oft sauber statt böig. Rechne dort mit einem Windloch und leg deinen Kurs so, dass du nicht darin liegen bleibst.",
+        "nl": "Een kaap, dam of eiland bovenwinds kan een deel van de wind wegnemen — de zone erachter is duidelijk zwakker, maar vaak schoon in plaats van boiig. Reken daar op een windgat en kies je koers zo dat je er niet in blijft liggen.",
+        "fr": "Un cap, une jetée ou une île au vent peut masquer une partie du vent — la zone derrière est nettement plus faible, mais souvent propre plutôt que turbulente. Attends-toi à un trou de vent dans ce secteur et choisis ta trajectoire pour ne pas y rester bloqué.",
+        "es": "Un cabo, un espigón o una isla a barlovento pueden tapar parte del viento — la zona detrás es claramente más débil, pero a menudo limpia en lugar de turbulenta. Cuenta con un agujero de viento en ese sector y traza tu rumbo para no quedarte parado en él."
+      }
+    },
+    {
+      "slug": "gust-funnel", "category": "wind", "core": true, "icon": "🌪️",
+      "label": {"en": "Gap / funnel gusts", "de": "Düseneffekt", "nl": "Trechtereffect", "fr": "Effet de couloir (rafales)", "es": "Efecto embudo (rachas)"},
+      "text": {
+        "en": "Where wind squeezes through a gap in buildings, dunes or a valley mouth, it accelerates. Expect gusts well above the forecast average and rig with that headroom in mind, not the average.",
+        "de": "Wo der Wind durch eine Lücke in Bebauung, Dünen oder einen Talausgang gedrückt wird, beschleunigt er. Rechne mit Böenspitzen deutlich über dem Mittelwert der Vorhersage und rige mit diesem Puffer, nicht nach dem Mittel.",
+        "nl": "Waar de wind door een opening in bebouwing, duinen of een daluitgang wordt geperst, versnelt hij. Reken op uitschieters ruim boven het gemiddelde van de verwachting en tuig met die marge op, niet op het gemiddelde.",
+        "fr": "Là où le vent est comprimé à travers une trouée dans le bâti, les dunes ou une sortie de vallée, il accélère. Attends-toi à des rafales bien au-dessus de la moyenne prévue et gréé avec cette marge, pas selon la moyenne.",
+        "es": "Donde el viento se comprime a través de un hueco entre edificios, dunas o una salida de valle, se acelera. Cuenta con rachas muy por encima de la media prevista y apareja con ese margen, no según la media."
+      }
+    },
+    {
+      "slug": "thermal-only", "category": "wind", "core": false, "icon": "🌡️",
+      "label": {"en": "Thermal wind only", "de": "Nur thermischer Wind", "nl": "Alleen thermische wind", "fr": "Vent thermique seulement", "es": "Solo viento térmico"},
+      "text": {
+        "en": "In this weather pattern the spot only works on thermal wind — it needs sun and a temperature difference to build, usually in the afternoon, and dies without them. Don't rely on the gradient forecast alone; plan around the thermal window.",
+        "de": "Bei dieser Wetterlage funktioniert der Spot nur über Thermik — sie braucht Sonne und einen Temperaturunterschied, baut sich meist am Nachmittag auf und schläft ohne diese Zutaten ein. Verlass dich nicht allein auf die Gradientvorhersage, sondern plane um das Thermikfenster.",
+        "nl": "Bij deze weersituatie werkt de spot alleen op thermische wind — die heeft zon en een temperatuurverschil nodig, bouwt meestal in de middag op en valt zonder die ingrediënten weg. Vertrouw niet alleen op de gradiëntverwachting, maar plan rond het thermische venster.",
+        "fr": "Dans cette situation météo, le spot ne marche qu'au vent thermique — il lui faut du soleil et un écart de température, se lève généralement l'après-midi et retombe sans ces ingrédients. Ne te fie pas à la seule prévision de gradient ; planifie autour de la fenêtre thermique.",
+        "es": "Con esta situación meteorológica el spot solo funciona con viento térmico — necesita sol y una diferencia de temperatura, suele formarse por la tarde y se cae sin esos ingredientes. No te fíes solo de la previsión de gradiente; planifica en torno a la ventana térmica."
+      }
+    },
+    {
+      "slug": "shore-bend", "category": "wind", "core": false, "icon": "↪️",
+      "label": {"en": "Coastline wind bend", "de": "Uferparalleles Drehen", "nl": "Kustparallelle winddraaiing", "fr": "Vent dévié par la côte", "es": "Viento desviado por la costa"},
+      "text": {
+        "en": "The shape of the coast bends the wind, so the direction on the water can differ noticeably from the forecast. Read the direction on site from the water and flags rather than trusting the model, especially when choosing your launch and course.",
+        "de": "Der Küstenverlauf lenkt den Wind, sodass die Richtung auf dem Wasser spürbar von der Vorhersage abweichen kann. Lies die Richtung vor Ort am Wasser und an Fahnen ab, statt dem Modell zu vertrauen — vor allem für Einstieg und Kurswahl.",
+        "nl": "De vorm van de kust buigt de wind af, waardoor de richting op het water merkbaar van de verwachting kan afwijken. Lees de richting ter plaatse af aan het water en aan vlaggen in plaats van op het model te vertrouwen — vooral voor je startpunt en koers.",
+        "fr": "Le tracé de la côte dévie le vent, si bien que la direction sur l'eau peut sensiblement différer de la prévision. Lis la direction sur place à l'eau et aux drapeaux plutôt que de te fier au modèle — surtout pour le départ et le choix du cap.",
+        "es": "El trazado de la costa desvía el viento, de modo que la dirección en el agua puede diferir notablemente de la previsión. Lee la dirección in situ en el agua y en las banderas en vez de fiarte del modelo — sobre todo para la entrada y el rumbo."
+      }
+    },
+    {
+      "slug": "squall-exposed", "category": "wind", "core": false, "icon": "🌦️",
+      "label": {"en": "Exposed to squalls", "de": "Ungeschützt bei Schauerböen", "nl": "Onbeschut bij buien", "fr": "Exposé aux grains", "es": "Expuesto a turbonadas"},
+      "text": {
+        "en": "The venue has no shelter, so when showers or convection roll through you're fully exposed to squall lines and sudden wind jumps. Watch the sky and get off the water in good time when a front or dark cloud line approaches.",
+        "de": "Das Revier bietet keinen Schutz, sodass du bei Schauern oder Konvektion voll den Böenlinien und plötzlichen Windsprüngen ausgesetzt bist. Behalte den Himmel im Auge und geh rechtzeitig raus, wenn eine Front oder dunkle Wolkenlinie aufzieht.",
+        "nl": "Het gebied biedt geen beschutting, dus bij buien of convectie ben je volledig blootgesteld aan buienlijnen en plotselinge windsprongen. Houd de lucht in de gaten en ga op tijd van het water als een front of donkere wolkenlijn opkomt.",
+        "fr": "Le plan d'eau n'offre aucun abri : lors d'averses ou de convection, tu es pleinement exposé aux lignes de grains et aux sautes de vent soudaines. Surveille le ciel et sors de l'eau à temps quand un front ou une ligne de nuages sombres approche.",
+        "es": "La zona no ofrece resguardo, así que con chubascos o convección quedas plenamente expuesto a las líneas de turbonada y a saltos de viento repentinos. Vigila el cielo y sal del agua a tiempo cuando se acerque un frente o una línea de nubes oscuras."
+      }
+    },
+    {
       "slug": "tide-dependent", "category": "water-bottom", "core": true, "icon": "⏳",
       "label": {"en": "Tide-dependent", "de": "Gezeitenabhängig", "nl": "Getijdenafhankelijk", "fr": "Dépend de la marée", "es": "Depende de la marea"},
       "text": {
