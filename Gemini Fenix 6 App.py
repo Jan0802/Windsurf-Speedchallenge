@@ -10760,6 +10760,17 @@ def polar_sync(username, sport):
                 logging.exception("Polar exercise download/parse failed: %s", ex_id)
                 continue
             entry = _polar_entry_from_df(df, username, sport, fname)
+            if entry and not entry.get("track"):
+                # Polar liefert die GPS-Route oft nur in der GPX, nicht in der FIT
+                # (die FIT hat dann nur Speed/HR). Track separat aus der GPX holen,
+                # damit die Detail-Karte + Speedkurve funktionieren.
+                try:
+                    gpx = _polar_api_get(f"{ex_url.rstrip('/')}/gpx", at,
+                                         accept="application/octet-stream")
+                    gdf = read_activity_file(io.BytesIO(gpx), f"{fname}.gpx")
+                    entry["track"] = _track_json_from_df(gdf)
+                except Exception:  # noqa: BLE001
+                    logging.exception("Polar GPX track fallback failed: %s", ex_id)
             if entry:
                 save_session(entry)
                 imported += 1
