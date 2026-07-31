@@ -9156,6 +9156,42 @@ def _desc_img_uris(spot, max_n=6):
     return [u for u in (_spot_thumb_uri(i, max_dim=680) for i in ids[:max_n]) if u]
 
 
+def _md_lite(text):
+    """Sichere Mini-Formatierung fuer Spot-Beschreibungen: **fett**,
+    [Text](https-Link), Zeilenumbrueche (einfacher Umbruch) und Absaetze
+    (Leerzeile). Alles andere wird als Text escaped -> kein HTML-Injection.
+    Rueckgabe = fertiges HTML (dieselben Tags, die _lead_split/_desc_with_images
+    ohnehin schon vertragen)."""
+    t = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    if not t.strip():
+        return ""
+
+    def _esc(s):
+        return (str(s).replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;").replace('"', "&quot;"))
+
+    # 1) Links (nur echte http(s)) VOR dem Escapen herausziehen -> Platzhalter.
+    links = []
+
+    def _grab(m):
+        links.append((m.group(1), m.group(2)))
+        return f"\x00L{len(links) - 1}\x00"
+
+    t = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", _grab, t)
+    # 2) Restlichen Text escapen.
+    t = _esc(t)
+    # 3) **fett**.
+    t = re.sub(r"\*\*([^*\n]+)\*\*", r"<b>\1</b>", t)
+    # 4) Absaetze (Leerzeile) + Zeilenumbrueche.
+    t = re.sub(r"\n{2,}", "<br><br>", t).replace("\n", "<br>")
+    # 5) Links wieder einsetzen (Label + URL sicher escapt).
+    for i, (label, url) in enumerate(links):
+        t = t.replace(
+            f"\x00L{i}\x00",
+            f'<a href="{_esc(url)}" target="_blank" rel="noopener">{_esc(label)}</a>')
+    return t
+
+
 def _split_into(text, n):
     """Text in ~n etwa gleich lange Stücke schneiden – an Wortgrenzen und NICHT
     mitten in einem HTML-Tag. Für das Einflechten von Bildern in die Beschreibung."""
@@ -9363,6 +9399,7 @@ def render_spots_page(user=None):
                 desc = _desc_en
     else:
         desc = _desc_en
+    desc = _md_lite(desc)   # **fett**, [Links], Zeilenumbrueche/Absaetze -> HTML
     desc_html = (f"<div style='font-size:18px;line-height:1.6;'>{desc}</div>"
                  if desc else "")
 
@@ -11541,7 +11578,9 @@ def render_admin_spots():
     st.markdown("**Für den Revierführer (sonst erscheint der Spot NICHT auf der Spots-Seite):**")
     desc = st.text_area(
         "Beschreibung", key="admin_spot_desc", height=120,
-        help="Ohne Beschreibung wird der Spot auf der Spots-Seite nicht angezeigt.")
+        help="Ohne Beschreibung wird der Spot auf der Spots-Seite nicht angezeigt. "
+             "Formatierung: Leerzeile = neuer Absatz · einfacher Umbruch = neue Zeile · "
+             "**fett** · [Text](https://link).")
     country = st.text_input(
         "Land", key="admin_spot_country",
         help="z.B. Deutschland – steuert die Länder-Auswahl auf der Spots-Seite.")
@@ -11949,6 +11988,8 @@ def render_admin_ads():
             "Beschreibung",
             value=(info_prefill if info_prefill is not None else (info.get("description") or "")),
             height=140,
+            help="Formatierung: Leerzeile = neuer Absatz · einfacher Umbruch = neue Zeile · "
+                 "**fett** · [Text](https://link).",
         )
         country = st.text_input(
             "Land (für den Filter der Spots-Seite)", value=info.get("country") or "",
@@ -12326,7 +12367,9 @@ def _render_sponsor_fields(spot):
     st.markdown("### Beschreibung")
     info = load_spot_info(spot) or {}
     with st.form(f"sp_info_{spot}"):
-        desc = st.text_area("Beschreibung", value=info.get("description") or "", height=140)
+        desc = st.text_area("Beschreibung", value=info.get("description") or "", height=140,
+                            help="Formatierung: Leerzeile = neuer Absatz · einfacher Umbruch = "
+                                 "neue Zeile · **fett** · [Text](https://link).")
         best_winds = st.text_input(
             "Beste Windrichtungen (optional)", value=info.get("best_winds") or "",
             help="Kompass-Kürzel, z.B. 'SW, W, NW' – steuert die Lohnt-sich-Ampel.")
