@@ -14017,9 +14017,6 @@ def render_account_sidebar(user):
             render_feedback_form(source="sidebar", key_prefix="sidebar")
 
         st.markdown("---")
-        st.markdown("### 👥 Groups")
-        st.caption("You are always part of the group **All** (all results visible).")
-
         groups = list_groups()
         group_by_id = {g["id"]: g for g in groups}
         memberships = my_memberships(user["id"])
@@ -14033,22 +14030,25 @@ def render_account_sidebar(user):
             if status == "pending" and gid in group_by_id
         ]
 
-        if member_groups:
-            st.markdown("**Your groups**")
-            for g in member_groups:
-                tag = "🔒" if g["is_private"] else "🌍"
-                is_owner = g["owner_id"] == user["id"]
-                cols = st.columns([4, 2])
-                cols[0].write(f"{tag} {g['name']}" + (" · Owner" if is_owner else ""))
-                if not is_owner:
-                    if cols[1].button("Leave", key=f"leave_{g['id']}"):
-                        leave_group(user["id"], g["id"])
-                        st.rerun()
-
-        if pending_groups:
-            st.markdown("**Requested (waiting for approval)**")
-            for g in pending_groups:
-                st.write(f"⏳ {g['name']}")
+        with st.expander("👥 My Groups"):
+            st.caption("You are always part of the group **All** (all results visible).")
+            if member_groups:
+                st.markdown("**Your groups**")
+                for g in member_groups:
+                    tag = "🔒" if g["is_private"] else "🌍"
+                    is_owner = g["owner_id"] == user["id"]
+                    cols = st.columns([4, 2])
+                    cols[0].write(f"{tag} {g['name']}" + (" · Owner" if is_owner else ""))
+                    if not is_owner:
+                        if cols[1].button("Leave", key=f"leave_{g['id']}"):
+                            leave_group(user["id"], g["id"])
+                            st.rerun()
+            if pending_groups:
+                st.markdown("**Requested (waiting for approval)**")
+                for g in pending_groups:
+                    st.write(f"⏳ {g['name']}")
+            if not member_groups and not pending_groups:
+                st.caption("You're only in **All** so far — join or create a group below.")
 
         joinable = [g for g in groups if g["id"] not in memberships]
 
