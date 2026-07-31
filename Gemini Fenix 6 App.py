@@ -5443,7 +5443,7 @@ def render_rankings(results_container):
         _tvp = (load_user_pref(username) or {}).get("tv_preset") if username else None
         if _tvp and _tvp.get("spot"):
             _tvq = {"tv": "1", "sport": _tvp.get("sport") or sport, "spot": _tvp["spot"],
-                    "mode": _tvp.get("mode") or "today", "zoom": _tvp.get("zoom") or 75}
+                    "mode": _tvp.get("mode") or "auto", "zoom": _tvp.get("zoom") or 75}
             if _tvp.get("group") and _tvp["group"] != ALL_GROUP:
                 _tvq["group"] = _tvp["group"]
             st.link_button(f"📺 Open my Spot-TV · {_tvp['spot']}", "?" + urlencode(_tvq),
