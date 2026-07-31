@@ -10769,6 +10769,8 @@ def polar_sync(username, sport):
                                          accept="application/octet-stream")
                     gdf = read_activity_file(io.BytesIO(gpx), f"{fname}.gpx")
                     entry["track"] = _track_json_from_df(gdf)
+                    logging.info("Polar %s: FIT had no track, GPX fallback -> %s",
+                                 ex_id, "track set" if entry.get("track") else "still empty")
                 except Exception:  # noqa: BLE001
                     logging.exception("Polar GPX track fallback failed: %s", ex_id)
             if entry:
@@ -10785,6 +10787,45 @@ def polar_sync(username, sport):
         except Exception:  # noqa: BLE001
             logging.exception("Polar transaction commit failed")
     return imported, skipped, None
+
+
+def polar_repair_tracks(username):
+    """Für bereits importierte Polar-Sessions OHNE Track die GPS-Route nachladen –
+    direkt über den Einzel-Exercise-Endpunkt (/v3/exercises/{id}/gpx), der die
+    Transaktions-Sperre umgeht. Gibt (fixed, checked, msg) zurück."""
+    tok = load_polar_token(username)
+    if not tok or not tok.get("access_token"):
+        return 0, 0, "Not connected to Polar."
+    at = tok["access_token"]
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(sessions_table.c.id, sessions_table.c.filename)
+            .where(sessions_table.c.name == username)
+            .where(sessions_table.c.source == "polar")
+            .where((sessions_table.c.track.is_(None)) | (sessions_table.c.track == ""))
+        ).mappings().all()
+    checked = len(rows)
+    fixed = 0
+    for r in rows:
+        fn = r["filename"] or ""
+        if not fn.startswith("polar-"):
+            continue
+        ex_id = fn[len("polar-"):]
+        try:
+            gpx = _polar_api_get(f"{POLAR_API}/exercises/{ex_id}/gpx", at,
+                                 accept="application/octet-stream")
+            gdf = read_activity_file(io.BytesIO(gpx), f"{fn}.gpx")
+            tj = _track_json_from_df(gdf)
+        except Exception:  # noqa: BLE001
+            logging.exception("Polar repair: GPX fetch/parse failed for %s", ex_id)
+            continue
+        if tj:
+            update_session(r["id"], {"track": tj})
+            fixed += 1
+            logging.info("Polar repair: track set for %s", ex_id)
+        else:
+            logging.info("Polar repair: GPX had no points for %s", ex_id)
+    return fixed, checked, None
 
 
 def _render_polar_connect(user):
@@ -10820,6 +10861,23 @@ def _render_polar_connect(user):
             if skip:
                 _txt = f"Imported {imp}, skipped {skip} already-known session(s)."
             st.session_state["_polar_sync_flash"] = (True, _txt)
+        st.rerun()
+    if st.button("🔧 Repair missing maps", key="polar_repair",
+                 help="Re-fetches the GPS track for already-imported Polar sessions "
+                      "that have no map (pulls the route from the exercise GPX).",
+                 use_container_width=True):
+        with st.spinner("Fetching GPS tracks from Polar…"):
+            _fx, _ck, _m = polar_repair_tracks(username)
+        if _m:
+            st.session_state["_polar_sync_flash"] = (False, _m)
+        elif _ck == 0:
+            st.session_state["_polar_sync_flash"] = (True, "All Polar sessions already have a map.")
+        elif _fx:
+            st.session_state["_polar_sync_flash"] = (True, f"Added the map to {_fx} of {_ck} session(s).")
+        else:
+            st.session_state["_polar_sync_flash"] = (
+                False, f"Checked {_ck} session(s) but Polar returned no GPS route "
+                       "(the recording may have had no GPS, or Polar no longer serves it).")
         st.rerun()
 
 
