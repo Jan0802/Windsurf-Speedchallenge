@@ -9312,11 +9312,23 @@ def render_spots_page(user=None):
         "(**Add session → New surf spot**, or **…or new spot** in the session editor) – "
         "it instantly becomes available to everyone and gets its own spot page."
     )
+    # TV-Link zum gewaehlten Spot (sobald einer per ?spot= aktiv ist) – direkt neben
+    # dem Safety-Guide. Oeffnet den Spot-TV im Auto-Zeitraum.
+    _sel_spot = (st.query_params.get("spot") or "").strip()
+    _tv_btn = ""
+    if _sel_spot:
+        _tv_qs = urlencode({"tv": 1, "spot": _sel_spot, "sport": active_sport(), "mode": "auto"})
+        _sp_disp = _sel_spot.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        _tv_btn = (
+            f"<a href='?{_tv_qs}' target='_self' style='display:inline-block;margin:2px 0 6px 8px;"
+            "background:rgba(43,212,217,.12);border:1px solid rgba(43,212,217,.4);color:#8fe3ff;"
+            "border-radius:999px;padding:5px 14px;text-decoration:none;font-weight:700'>"
+            f"📺 Spot-TV · {_sp_disp}</a>")
     st.markdown(
         "<a href='?view=safety' target='_self' style='display:inline-block;margin:2px 0 6px;"
         "background:rgba(43,212,217,.12);border:1px solid rgba(43,212,217,.4);color:#8fe3ff;"
         "border-radius:999px;padding:5px 14px;text-decoration:none;font-weight:700'>"
-        "🛟 Water sports safety guide</a>",
+        "🛟 Water sports safety guide</a>" + _tv_btn,
         unsafe_allow_html=True)
     all_info = load_all_spot_info()
     if not all_info:
