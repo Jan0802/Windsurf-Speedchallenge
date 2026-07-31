@@ -5043,8 +5043,8 @@ def _preset_index(options, value):
 
 @st.fragment
 def render_temp_champions():
-    """Fun-Wertungen 🥶 Winterweltmeister (niedrigster Ø) + 🥵 Warmduscher der
-    Saison (höchster Ø) der Session-Lufttemperaturen. GLOBAL über alle Sportarten
+    """Fun-Wertungen 🐻‍❄️ Icebear of the Year (niedrigster Ø) + ☀️ Fair-Weather Rider
+    (höchster Ø) der Session-Lufttemperaturen. GLOBAL über alle Sportarten
     (Sportart je Fahrer), optional auf eine Gruppe eingeschränkt. Nutzt temp_c
     (Lufttemperatur zum Session-Zeitpunkt)."""
     df = load_sessions()   # alle Sportarten
@@ -5062,27 +5062,27 @@ def render_temp_champions():
         return str(s).replace("<", "&lt;").replace(">", "&gt;")
 
     _MIN = 3
-    with st.expander("🥶 Winterweltmeister & 🥵 Warmduscher · temperature ranking (all sports)",
+    with st.expander("🐻‍❄️ Icebear of the Year & ☀️ Fair-Weather Rider · temperature ranking (all sports)",
                      expanded=False):
-        st.caption("Wer war im Schnitt bei den niedrigsten bzw. höchsten Lufttemperaturen "
-                   "unterwegs – über ALLE Sportarten, mit Sportart dabei. 😄")
+        st.caption("Who rode in the lowest and highest average air temperatures – "
+                   "across ALL sports, with each rider's sport shown. 😄")
         _groups = list_groups()
         _opts = ["🌍 Everyone"] + [g["name"] for g in _groups]
         _pick = st.selectbox("Award within", _opts, key="temp_group",
-                             help="Auf eine Gruppe einschränken (Preisvergabe in der Gruppe).")
+                             help="Limit the award to one group.")
         if _pick != _opts[0]:
             _gid = next((g["id"] for g in _groups if g["name"] == _pick), None)
             _members = set(group_member_names(_gid)) if _gid else set()
             d = d[d["_name"].isin(_members)]
         if d.empty:
-            st.caption("Noch keine Sessions mit Temperatur in dieser Gruppe.")
+            st.caption("No sessions with a temperature value in this group yet.")
             return
 
         _agg = (d.groupby("_name")["_t"].agg(avg="mean", lo="min", hi="max", n="count")
                 .reset_index())
         _agg = _agg[_agg["n"] >= _MIN]
         if _agg.empty:
-            st.caption(f"Noch niemand mit mindestens {_MIN} Sessions (mit Temperaturwert).")
+            st.caption(f"Nobody with at least {_MIN} sessions (with a temperature value) yet.")
             return
         _sp = d.groupby("_name")["sport"].agg(
             lambda s: s.dropna().value_counts().idxmax() if not s.dropna().empty else "")
@@ -5118,18 +5118,18 @@ def render_temp_champions():
         _warm = _agg.sort_values("avg", ascending=False).head(10)
         _c0, _w0 = _cold.iloc[0], _warm.iloc[0]
 
-        st.markdown("#### 🥶 Winterweltmeister")
-        st.markdown(f"**{_e(_c0['_name'])}** ({_e(_splabel(_c0['_name']))}) – Ø "
-                    f"{_c0['avg']:.1f} °C über {int(_c0['n'])} Sessions. Der Rest: Memmen. 😄")
+        st.markdown("#### 🐻‍❄️ Icebear of the Year")
+        st.markdown(f"**{_e(_c0['_name'])}** ({_e(_splabel(_c0['_name']))}) – avg "
+                    f"{_c0['avg']:.1f} °C over {int(_c0['n'])} sessions. Everyone else: softies. 😄")
         st.markdown(_table(_cold, "lo", "Coldest"), unsafe_allow_html=True)
 
-        st.markdown("#### 🥵 Warmduscher der Saison")
-        st.markdown(f"**{_e(_w0['_name'])}** ({_e(_splabel(_w0['_name']))}) – Ø "
-                    f"{_w0['avg']:.1f} °C. Sonnenanbeter. ☀️")
+        st.markdown("#### ☀️ Fair-Weather Rider")
+        st.markdown(f"**{_e(_w0['_name'])}** ({_e(_splabel(_w0['_name']))}) – avg "
+                    f"{_w0['avg']:.1f} °C. Sun worshipper. ☀️")
         st.markdown(_table(_warm, "hi", "Warmest"), unsafe_allow_html=True)
 
-        st.caption(f"Luft-Temperatur zum Session-Zeitpunkt (nicht Wasser) · Ø aller Sessions "
-                   f"des Fahrers · mind. {_MIN} Sessions mit Temperaturwert.")
+        st.caption(f"Air temperature at session time (not water) · average of the rider's "
+                   f"sessions · min. {_MIN} sessions with a temperature value.")
 
 
 _RANKINGS_HELP_LANGS = [("en", "English"), ("de", "Deutsch"), ("nl", "Nederlands"),
@@ -5163,8 +5163,8 @@ A playful "who's the strongest?" contest. From the wind, your sail size, your sp
 - **⚡ Power** — the pull together with how fast you went (in watts). Rewards strength *and* speed.
 
 ### 🌡️ Temperature (just for fun)
-- **🥶 Winterweltmeister** — who rode in the coldest air on average (across all sports). The tough ones.
-- **🥵 Warmduscher** — who only goes out when it's warm (highest average). The fair-weather crowd. ☀️
+- **🐻‍❄️ Icebear of the Year** — who rode in the coldest air on average (across all sports). The tough ones.
+- **☀️ Fair-Weather Rider** — who only goes out when it's warm (highest average). The fair-weather crowd.
 
 _Counts riders with at least 3 sessions; uses the air temperature at the time you rode._
 
@@ -5202,8 +5202,8 @@ Ein spielerischer „Wer ist am stärksten?"-Wettbewerb. Aus Wind, Segelgröße,
 - **⚡ Power** — der Zug zusammen mit deinem Tempo (in Watt). Belohnt Kraft *und* Geschwindigkeit.
 
 ### 🌡️ Temperatur (nur zum Spaß)
-- **🥶 Winterweltmeister** — wer im Schnitt bei der kältesten Luft gefahren ist (über alle Sportarten). Die Harten.
-- **🥵 Warmduscher** — wer nur bei Wärme rausgeht (höchster Schnitt). Die Schönwetter-Fraktion. ☀️
+- **🐻‍❄️ Icebear of the Year** — wer im Schnitt bei der kältesten Luft gefahren ist (über alle Sportarten). Die Harten.
+- **☀️ Fair-Weather Rider** — wer nur bei Wärme rausgeht (höchster Schnitt). Die Schönwetter-Fraktion.
 
 _Zählt Fahrer mit mindestens 3 Sessions; nutzt die Lufttemperatur zum Zeitpunkt deiner Fahrt._
 
@@ -5241,8 +5241,8 @@ Een speelse „wie is de sterkste?"-wedstrijd. Uit wind, zeilgrootte, snelheid e
 - **⚡ Power** — de trekkracht samen met je snelheid (in watt). Beloont kracht *én* snelheid.
 
 ### 🌡️ Temperatuur (voor de lol)
-- **🥶 Winterweltmeister** — wie gemiddeld in de koudste lucht voer (over alle sporten). De taaien.
-- **🥵 Warmduscher** — wie alleen bij warmte het water op gaat (hoogste gemiddelde). Het mooi-weer-volk. ☀️
+- **🐻‍❄️ Icebear of the Year** — wie gemiddeld in de koudste lucht voer (over alle sporten). De taaien.
+- **☀️ Fair-Weather Rider** — wie alleen bij warmte het water op gaat (hoogste gemiddelde). Het mooi-weer-volk.
 
 _Telt rijders met minstens 3 sessies; gebruikt de luchttemperatuur op het moment dat je voer._
 
@@ -5280,8 +5280,8 @@ Un concours ludique du « plus fort ». À partir du vent, de la taille de voile
 - **⚡ Puissance** — la traction combinée à ta vitesse (en watts). Récompense la force *et* la vitesse.
 
 ### 🌡️ Température (pour le fun)
-- **🥶 Winterweltmeister** — qui a navigué dans l'air le plus froid en moyenne (tous sports). Les durs.
-- **🥵 Warmduscher** — qui ne sort que quand il fait chaud (moyenne la plus haute). Les amateurs de beau temps. ☀️
+- **🐻‍❄️ Icebear of the Year** — qui a navigué dans l'air le plus froid en moyenne (tous sports). Les durs.
+- **☀️ Fair-Weather Rider** — qui ne sort que quand il fait chaud (moyenne la plus haute). Les amateurs de beau temps.
 
 _Compte les riders avec au moins 3 sessions ; utilise la température de l'air au moment où tu naviguais._
 
@@ -5319,8 +5319,8 @@ Un concurso divertido de „¿quién es el más fuerte?". A partir del viento, e
 - **⚡ Potencia** — la tracción junto con tu velocidad (en vatios). Premia fuerza *y* velocidad.
 
 ### 🌡️ Temperatura (por diversión)
-- **🥶 Winterweltmeister** — quién navegó de media con el aire más frío (todos los deportes). Los duros.
-- **🥵 Warmduscher** — quién solo sale cuando hace calor (media más alta). Los de buen tiempo. ☀️
+- **🐻‍❄️ Icebear of the Year** — quién navegó de media con el aire más frío (todos los deportes). Los duros.
+- **☀️ Fair-Weather Rider** — quién solo sale cuando hace calor (media más alta). Los de buen tiempo.
 
 _Cuenta a riders con al menos 3 sesiones; usa la temperatura del aire en el momento en que navegaste._
 
