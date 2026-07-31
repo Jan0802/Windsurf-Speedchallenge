@@ -8435,6 +8435,47 @@ def _sail_pick(wind_kmh, ctx):
     return f"{best[0]:g}"
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def _spot_shore_deg(spot):
+    """Ufernormale des Spots in Grad (Richtung offenes Wasser) aus dem spot_class-JSON.
+    None, wenn nicht gepflegt. Basis fuer die onshore/offshore-Einordnung je Stunde."""
+    if not spot:
+        return None
+    try:
+        with get_engine().connect() as conn:
+            raw = conn.execute(
+                select(spot_info_table.c.spot_class)
+                .where(spot_info_table.c.spot == spot)
+            ).scalar()
+        d = json.loads(raw) if raw else {}
+        v = (d or {}).get("shore")
+        if v is None or str(v).strip() == "":
+            return None
+        return int(float(v)) % 360
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _angle_diff(a, b):
+    """Kleinste Winkeldifferenz (0-180 Grad) zwischen zwei Kompassrichtungen."""
+    d = abs((float(a) - float(b)) % 360)
+    return 360 - d if d > 180 else d
+
+
+def _wind_vs_shore(wind_from_deg, shore_deg):
+    """onshore / side / offshore aus Windrichtung (woher der Wind kommt) und
+    Ufernormale. onshore = Wind kommt vom Wasser (aus shore_deg-Richtung),
+    offshore = vom Land aufs Wasser. None, wenn eine Angabe fehlt."""
+    if wind_from_deg is None or shore_deg is None:
+        return None
+    diff = _angle_diff(wind_from_deg, shore_deg)
+    if diff <= 45:
+        return "onshore"
+    if diff >= 135:
+        return "offshore"
+    return "side"
+
+
 def _render_hourly(spot, coords, day_index, show_thermal=False):
     """Stundenansicht (9–21 Uhr) eines Tages als Balken: Hoehe=Windstaerke,
     Farbe fliessend (gelb zu wenig -> gruen gut -> rot zu stark), Zahl in km/h.
@@ -8487,12 +8528,21 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
     _uname = (st.session_state.get("user") or {}).get("username")
     _sail_ctx = _sail_ctx_for(_uname, active_sport())
     _any_sail = False
+    shore_deg = _spot_shore_deg(spot)   # Ufernormale (Grad) oder None
+    offshore_any = False
     for hh, w, g, d, rad, cloud, temp, code in rows:
         wv = w or 0
         gv = g if g is not None else wv
         w_pct = max(4, min(100, wv / ref * 100))
         g_pct = max(w_pct, min(100, gv / ref * 100))   # Boe >= Wind -> hoeher
         comp = _COMPASS[round(d / 22.5) % 16] if d is not None else ""
+        wvs = _wind_vs_shore(d, shore_deg)
+        shore_html = ""
+        if wvs:
+            if wvs == "offshore":
+                offshore_any = True
+            _slbl = {"onshore": "onshore", "side": "cross", "offshore": "offshore"}[wvs]
+            shore_html = f"<div class='hb-shore hb-{wvs}'>{_slbl}</div>"
         # Wetter-Icon: bevorzugt aus weather_code, sonst aus Bewoelkung.
         wx = ""
         if code is not None:
@@ -8528,6 +8578,7 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
             f"<div class='hb-hr'>{hh}h</div>"
             f"<div class='hb-temp'>{temp_txt}</div>"
             f"<div class='hb-dir'>{comp}</div>"
+            f"{shore_html}"
             f"<div class='hb-gust-val'>⤴ {round(gv)}</div>"
             f"{sail_html}"
             f"{therm}"
@@ -8543,6 +8594,16 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         _gl = SPORT_META[active_sport()]["gear_label"].lower()
         legend += (f"&nbsp;·&nbsp; <span style='color:#2bd4d9;'>{_sail_ctx['emoji']} "
                    f"your {_gl} size (m²)</span>")
+    if shore_deg is not None:
+        legend += "&nbsp;·&nbsp; onshore/cross/offshore = wind vs. shore"
+
+    shore_warn = ""
+    if offshore_any:
+        shore_warn = (
+            "<div class='hb-offwarn'>⚠️ <b>Offshore wind</b> during some hours — it steadily "
+            "pushes you away from shore. Stay within reach of land, and if in doubt don't go "
+            "out. <a href='?view=safety&hl=en#offshore-wind' target='_self'>Safety guide</a></div>"
+        )
 
     st.markdown(
         "<style>"
@@ -8568,6 +8629,11 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         "min-height:4px;z-index:2;}"
         ".hb-hr{font-size:13px;opacity:.75;margin-top:5px;}"
         ".hb-dir{font-size:12px;opacity:.55;}"
+        ".hb-shore{font-size:11px;opacity:.5;line-height:1.15;}"
+        ".hb-shore.hb-offshore{color:#ff6b6b;opacity:1;font-weight:800;}"
+        ".hb-offwarn{background:rgba(255,107,107,.14);border:1px solid rgba(255,107,107,.4);"
+        "color:#ffb3b3;border-radius:10px;padding:7px 12px;font-size:14px;margin-bottom:10px;}"
+        ".hb-offwarn a{color:#fff;}"
         ".hb-gust-val{font-size:11px;opacity:.5;}"
         ".hb-sail{font-size:12px;font-weight:800;color:#2bd4d9;margin-top:2px;}"
         ".hb-therm{color:#f5a623;font-size:13px;margin-top:3px;letter-spacing:1px;min-height:16px;}"
@@ -8576,6 +8642,7 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         f"<div class='hb-title'>⏱️ {spot} · {day_label} · 9–21h <small style='font-weight:600;"
         "opacity:.6;'>(wind km/h)</small></div>"
         f"<div class='hb-legend'>{legend}</div>"
+        f"{shore_warn}"
         f"<div class='hb-row'>{''.join(bars)}</div>"
         "</div>",
         unsafe_allow_html=True,
@@ -11560,6 +11627,14 @@ def render_admin_spots():
                               key=f"sc_water_{name}")
         _wind = st.text_input("Wind (kurzer Text, z. B. unreliable, SW/NE)",
                               value=str(_cur.get("wind") or ""), key=f"sc_wind_{name}")
+        _shore_cur = _cur.get("shore")
+        _shore_txt = st.text_input(
+            "Ufer-Ausrichtung (Grad, Richtung offenes Wasser; leer = unbekannt)",
+            value="" if _shore_cur in (None, "") else str(_shore_cur),
+            key=f"sc_shore_{name}",
+            help="Kompassrichtung, in die das Ufer aufs Wasser zeigt (0=N, 90=O, 180=S, "
+                 "270=W). Onshore-Wind kommt aus dieser Richtung. Damit zeigt die "
+                 "Stundenvorhersage onshore/cross/offshore und warnt bei ablandigem Wind.")
         _haz = st.multiselect(
             "Gefahren", _HAZARDS, default=_cur_haz,
             format_func=lambda s: f"{_HZ_BY_SLUG_APP.get(s, {}).get('icon', '')} "
@@ -11580,11 +11655,19 @@ def render_admin_spots():
         sc1, sc2 = st.columns([3, 1])
         if sc1.button("💾 Einstufung speichern", type="primary",
                       use_container_width=True, key=f"sc_save_{name}"):
+            _shore_val = None
+            _sc_st = (_shore_txt or "").strip()
+            if _sc_st:
+                try:
+                    _shore_val = int(float(_sc_st)) % 360
+                except ValueError:
+                    _shore_val = None
             _obj = {
                 "level": _lvl,
                 "learn": "" if _learn_sel == "–" else _learn_sel,
                 "water": _wtr,
                 "wind": _wind.strip(),
+                "shore": _shore_val,
                 "hazards": _haz,
                 "sports": _sports_val,
             }
