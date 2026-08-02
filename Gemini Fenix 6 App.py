@@ -11785,6 +11785,41 @@ def render_admin_spots():
                 "Beschreibung", help="Text in dieser Sprache (**fett**, [Links], Absätze wie oben).",
                 width="large"),
         })
+    _trc1, _trc2 = st.columns([2, 1])
+    _tr_lang = _trc1.text_input(
+        "KI-Übersetzung – Zielsprache", key="admin_tr_lang", label_visibility="collapsed",
+        placeholder="Zielsprache für KI-Übersetzung, z. B. Nederlands")
+    if _trc2.button("🤖 Übersetzen & hinzufügen", use_container_width=True, key="admin_tr_btn"):
+        _sk = _secret("SEED_KEY", "").strip()
+        _ingest = os.environ.get("INGEST_URL", "https://ingest-kxxw.onrender.com").rstrip("/")
+        if not name:
+            st.warning("Bitte zuerst einen Spot auswählen.")
+        elif not _tr_lang.strip():
+            st.warning("Bitte eine Zielsprache eingeben.")
+        elif not _sk:
+            st.warning("SEED_KEY fehlt in der App-Umgebung.")
+        else:
+            try:
+                _q = urlencode({"key": _sk, "spot": name, "lang": _tr_lang.strip()})
+                with st.spinner(f"Claude übersetzt nach {_tr_lang.strip()} …"):
+                    _req = Request(f"{_ingest}/translate_spot?{_q}",
+                                   headers={"User-Agent": "MyWaterSessions/1.0"})
+                    with urlopen(_req, timeout=90) as _resp:
+                        json.loads(_resp.read().decode("utf-8"))
+                load_spot_info.clear()
+                load_all_spot_info.clear()
+                _n2 = load_spot_info(name) or {}
+                st.session_state["admin_spot_extra"] = [
+                    {"Language": _e2["lang"], "Description": _e2["text"]}
+                    for _e2 in _parse_desc_extra(_n2.get("descriptions_extra"))]
+                st.session_state.pop(f"admin_extra_{name}", None)   # Editor neu seeden
+                st.session_state["_admin_spot_loaded"] = pick
+                st.success(f"KI-Übersetzung nach {_tr_lang.strip()} hinzugefügt.")
+                st.rerun()
+            except Exception as _exc:  # noqa: BLE001
+                st.error(f"Übersetzung fehlgeschlagen: {_exc}")
+    st.caption("Übersetzt die zuletzt GESPEICHERTE englische Beschreibung – also erst "
+               "speichern, dann übersetzen. Vorhandene gleiche Sprache wird ersetzt.")
     tvnote = st.text_input(
         "📺 TV-Notiz (kurze Zeile fürs Spot-TV)", key="admin_spot_tvnote", max_chars=140,
         help="Eine kurze Zeile, die unten im Spot-TV-Footer erscheint "
