@@ -762,6 +762,7 @@ sessions_table = Table(
     Column("start_lon", Float),
     Column("track", String),             # GPS-Route als JSON [[lat,lon],...]
     Column("gybes", String),             # Halsen der Uhr als JSON [{t,approach,apex,flip,recovery}]
+    Column("maneuver_feedback", String), # Nutzer-Feedback zur Erkennung: {"false_pos":[..],"missed":N,..}
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -10389,6 +10390,41 @@ def _render_speed_curve(track_pts, duration_s, record):
                     _render_gybe_detail_window(_g["n"], _g["speeds"], glide_kn)
                 else:
                     _render_gybe_detail(track_pts, v_kn, t_min, _g, glide_kn, dt)
+
+        # --- Feedback-Loop (Beta): erkannte Manöver bestätigen/verwerfen ---
+        # Sammelt Trainingsdaten + korrigiert die ANGEZEIGTE Zahl. Aendert NICHT
+        # die Rangliste (Selbstauskunft -> kein Trust-Risiko, vgl. Trust-Gate).
+        if _sid is not None:
+            try:
+                _fb_prev = json.loads(record.get("maneuver_feedback") or "{}") or {}
+            except Exception:  # noqa: BLE001
+                _fb_prev = {}
+            _mname = _man["name"]
+            with st.expander(f"🙌 Help train the {_mname} detection", expanded=False):
+                st.caption(f"Go through the detected {_mname}s: mark wrong ones and add any "
+                           "the algorithm missed. This helps us improve it — it does **not** "
+                           "change the rankings.")
+                _names = [g["n"] for g in gybes]
+                _def_fp = [n for n in (_fb_prev.get("false_pos") or []) if n in _names]
+                _fp = st.multiselect(
+                    f"Which of these are NOT a real {_mname}? (false detections)",
+                    _names, default=_def_fp, key=f"man_fp_{_sid}")
+                _missed = st.number_input(
+                    f"How many {_mname}s were missed?", min_value=0, step=1,
+                    value=int(_fb_prev.get("missed") or 0), key=f"man_missed_{_sid}")
+                _corrected = max(0, len(gybes) - len(_fp) + int(_missed))
+                st.caption(f"Detected **{len(gybes)}** → your corrected count: **{_corrected}**.")
+                if st.button("💾 Save feedback", key=f"man_fbsave_{_sid}"):
+                    _fb = {"false_pos": _fp, "missed": int(_missed),
+                           "detected": len(gybes), "corrected": _corrected,
+                           "sport": active_sport(), "src": gybes[0].get("src") or "track"}
+                    update_session(_sid, {
+                        "maneuver_feedback": json.dumps(_fb, ensure_ascii=False)})
+                    st.success("Thanks — feedback saved. 🙏")
+                    st.rerun()
+            if _fb_prev.get("detected") is not None:
+                st.caption(f"✅ Your feedback: {_fb_prev.get('corrected', '?')} real "
+                           f"{_mname}s (of {_fb_prev.get('detected')} detected).")
 
 
 def _track_svg(track_pts, duration_s):
