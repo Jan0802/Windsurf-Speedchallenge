@@ -8506,6 +8506,43 @@ def _sail_pick(wind_kmh, ctx):
     return f"{best[0]:g}"
 
 
+def _marine_strip_html(lat, lon, day_index=0):
+    """Client-seitige Wasserbedingungen (Wassertemp/Welle/Stroemung) fuer den
+    gewaehlten Tag – heute die aktuelle Stunde, sonst 14 Uhr. Kein Render-429.
+    Leer, wenn keine Marine-Daten (Binnensee)."""
+    html = """<!DOCTYPE html><html><head><meta charset='utf-8'><style>
+ html,body{background:transparent!important;margin:0;color:#eaf4ff;
+   font-family:system-ui,-apple-system,sans-serif}
+ .m{display:flex;gap:10px;flex-wrap:wrap}
+ .mc{flex:1 1 120px;min-width:0;background:rgba(43,150,190,.14);
+     border:1px solid rgba(43,200,230,.30);border-radius:14px;padding:8px 13px}
+ .mc .l{font-size:13px;opacity:.85}.mc .v{font-size:23px;font-weight:800;white-space:nowrap}
+ .mc .s{font-size:12px;opacity:.7}
+</style></head><body><div class='m' id='m'></div><script>
+const LAT=__LAT__,LON=__LON__,DAY=__DAY__;
+const C=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+function comp(d){return d==null?"":C[Math.round(d/22.5)%16];}
+function r1(x){return Math.round(x*10)/10;}
+fetch("https://marine-api.open-meteo.com/v1/marine?latitude="+LAT+"&longitude="+LON+"&hourly=wave_height,wave_period,sea_surface_temperature,ocean_current_velocity,ocean_current_direction&timezone=auto&forecast_days=3")
+.then(r=>r.json()).then(d=>{var q=d.hourly||{},t=q.time||[];if(!t.length)return;
+ var idx=0;
+ if(DAY===0){var now=new Date();for(var i=0;i<t.length;i++){if(new Date(t[i])<=now){idx=i;}else break;}}
+ else{var b=new Date(t[0].slice(0,10)+'T00:00');b.setDate(b.getDate()+DAY);
+   var ds=b.getFullYear()+'-'+('0'+(b.getMonth()+1)).slice(-2)+'-'+('0'+b.getDate()).slice(-2);
+   for(var i=0;i<t.length;i++){if(t[i].slice(0,10)===ds&&t[i].slice(11,13)==='14'){idx=i;break;}}}
+ function v(a){return (a&&a[idx]!=null)?a[idx]:null;}
+ var sst=v(q.sea_surface_temperature),wv=v(q.wave_height),wp=v(q.wave_period),
+     cv=v(q.ocean_current_velocity),cd=v(q.ocean_current_direction),h="";
+ if(sst!=null)h+="<div class='mc'><div class='l'>🌡️ Water</div><div class='v'>"+r1(sst)+" °C</div><div class='s'>sea surface</div></div>";
+ if(wv!=null)h+="<div class='mc'><div class='l'>🌊 Waves</div><div class='v'>"+r1(wv)+" m</div><div class='s'>"+(wp!=null?("period "+Math.round(wp)+" s"):"significant")+"</div></div>";
+ if(cv!=null)h+="<div class='mc'><div class='l'>🧭 Current</div><div class='v'>"+r1(cv)+" km/h</div><div class='s'>"+(cd!=null?("towards "+comp(cd)):"drift")+"</div></div>";
+ document.getElementById('m').innerHTML=h;
+}).catch(e=>{});
+</script></body></html>"""
+    return (html.replace("__LAT__", str(lat)).replace("__LON__", str(lon))
+            .replace("__DAY__", str(int(day_index))))
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def _spot_shore_deg(spot):
     """Ufernormale des Spots in Grad (Richtung offenes Wasser) aus dem spot_class-JSON.
@@ -8687,7 +8724,9 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         # vorhandene) Segel-/Thermik-Zeile haengt unten dran, ohne die Balken zu
         # verschieben. (flex-end hatte kuerzere Spalten nach unten gezogen.)
         ".hb-row{display:flex;gap:6px;align-items:flex-start;}"
-        ".hb-col{flex:1 1 0;text-align:center;}"
+        # Mindestbreite je Stunde -> auf schmalen Handys passt nicht alles nebeneinander;
+        # die Reihe wird dann horizontal scrollbar (Wrapper unten), statt ueberzulaufen.
+        ".hb-col{flex:1 0 44px;min-width:44px;text-align:center;}"
         ".hb-wx{font-size:17px;line-height:1;margin-bottom:3px;min-height:18px;}"
         ".hb-temp{font-size:13px;font-weight:700;opacity:.9;margin-top:1px;}"
         ".hb-val{font-size:15px;font-weight:800;margin-bottom:4px;}"
@@ -8714,10 +8753,16 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         "opacity:.6;'>(wind km/h)</small></div>"
         f"<div class='hb-legend'>{legend}</div>"
         f"{shore_warn}"
-        f"<div class='hb-row'>{''.join(bars)}</div>"
+        f"<div style='overflow-x:auto;-webkit-overflow-scrolling:touch'>"
+        f"<div class='hb-row'>{''.join(bars)}</div></div>"
         "</div>",
         unsafe_allow_html=True,
     )
+
+    # Wasserbedingungen fuer diesen Tag (Marine-API, client-seitig -> kein 429;
+    # leer an Binnenseen). Heute = aktuelle Stunde, Folgetage = 14 Uhr.
+    components.html(_marine_strip_html(coords[0], coords[1], day_index),
+                    height=190 if _is_mobile() else 96)
 
     # Warum steht (k)eine Groessen-Empfehlung da? Kurzer Hinweis fuer eingeloggte
     # Nutzer in einer unterstuetzten Sportart – erklaert das Ausbleiben.
