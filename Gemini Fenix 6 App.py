@@ -12604,19 +12604,75 @@ def _render_sponsor_fields(spot):
     st.markdown("### Beschreibung")
     info = load_spot_info(spot) or {}
     with st.form(f"sp_info_{spot}"):
-        desc = st.text_area("Beschreibung", value=info.get("description") or "", height=140,
+        desc = st.text_area("Beschreibung (Englisch)", value=info.get("description") or "",
+                            height=140,
                             help="Formatierung: Leerzeile = neuer Absatz · einfacher Umbruch = "
                                  "neue Zeile · **fett** · [Text](https://link).")
         best_winds = st.text_input(
             "Beste Windrichtungen (optional)", value=info.get("best_winds") or "",
             help="Kompass-Kürzel, z.B. 'SW, W, NW' – steuert die Lohnt-sich-Ampel.")
         webcam = st.text_input("Webcam-/Bild-URL (optional)", value=info.get("webcam_url") or "")
+        st.caption("➕ Weitere Sprachen (optional): eine Zeile je Übersetzung, unten „+“ "
+                   "zum Hinzufügen.")
+        _sa_seed = pd.DataFrame(
+            [{"Language": _e["lang"], "Description": _e["text"]}
+             for _e in _parse_desc_extra(info.get("descriptions_extra"))],
+            columns=["Language", "Description"])
+        _sa_extra_df = st.data_editor(
+            _sa_seed, num_rows="dynamic", use_container_width=True, hide_index=True,
+            key=f"sa_extra_{spot}",
+            column_config={
+                "Language": st.column_config.TextColumn("Sprache", width="small"),
+                "Description": st.column_config.TextColumn("Beschreibung", width="large"),
+            })
         if st.form_submit_button("💾 Beschreibung speichern"):
+            _sa_list = []
+            for _, _r in _sa_extra_df.iterrows():
+                _lg = str(_r.get("Language") or "").strip()
+                _tx = str(_r.get("Description") or "").strip()
+                if _lg and _tx:
+                    _sa_list.append({"lang": _lg, "text": _tx})
+            _sa_json = json.dumps(_sa_list, ensure_ascii=False) if _sa_list else ""
             # Land bleibt Admin/KI -> bestehenden Wert mitgeben (nicht leeren).
             save_spot_info(spot, desc, webcam,
-                           country=info.get("country") or "", best_winds=best_winds)
+                           country=info.get("country") or "", best_winds=best_winds,
+                           descriptions_extra=_sa_json)
             st.session_state["_spotadmin_flash"] = "Beschreibung gespeichert."
             st.rerun()
+
+    # KI-Übersetzung (ausserhalb des Formulars – Button waere sonst inaktiv).
+    _sat1, _sat2 = st.columns([2, 1])
+    _sa_tlang = _sat1.text_input(
+        "KI-Übersetzung – Zielsprache", key=f"sa_tr_lang_{spot}", label_visibility="collapsed",
+        placeholder="Zielsprache für KI-Übersetzung, z. B. Nederlands")
+    if _sat2.button("🤖 Übersetzen & hinzufügen", use_container_width=True,
+                    key=f"sa_tr_btn_{spot}"):
+        _sk = _secret("SEED_KEY", "").strip()
+        _ingest = os.environ.get("INGEST_URL", "https://ingest-kxxw.onrender.com").rstrip("/")
+        if not _sa_tlang.strip():
+            st.warning("Bitte eine Zielsprache eingeben.")
+        elif not (info.get("description") or "").strip():
+            st.warning("Bitte zuerst eine englische Beschreibung speichern.")
+        elif not _sk:
+            st.warning("SEED_KEY fehlt in der App-Umgebung.")
+        else:
+            try:
+                _q = urlencode({"key": _sk, "spot": spot, "lang": _sa_tlang.strip()})
+                with st.spinner(f"Claude übersetzt nach {_sa_tlang.strip()} …"):
+                    _req = Request(f"{_ingest}/translate_spot?{_q}",
+                                   headers={"User-Agent": "MyWaterSessions/1.0"})
+                    with urlopen(_req, timeout=90) as _resp:
+                        json.loads(_resp.read().decode("utf-8"))
+                load_spot_info.clear()
+                load_all_spot_info.clear()
+                st.session_state.pop(f"sa_extra_{spot}", None)   # Editor neu seeden
+                st.session_state["_spotadmin_flash"] = (
+                    f"KI-Übersetzung nach {_sa_tlang.strip()} hinzugefügt.")
+                st.rerun()
+            except Exception as _exc:  # noqa: BLE001
+                st.error(f"Übersetzung fehlgeschlagen: {_exc}")
+    st.caption("Übersetzt die zuletzt GESPEICHERTE englische Beschreibung – erst speichern, "
+               "dann übersetzen. Vorhandene gleiche Sprache wird ersetzt.")
 
     st.markdown("### 📺 TV-Bild & Termine (Spot-TV-Footer)")
     st.caption("Ein Schmuckbild rechts neben der Webcam + laufende Termine als Abspann "
