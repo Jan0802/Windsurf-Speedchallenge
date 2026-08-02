@@ -7271,6 +7271,75 @@ def _weather_height():
     return 300 if _is_mobile() else 130
 
 
+def _spot_conditions_html(lat, lon):
+    """Client-seitige 3-Tage-Vorhersage + Wasserbedingungen (Wassertemp/Welle/
+    Stroemung aus der Open-Meteo Marine-API). Wird vom BROWSER geholt -> kein
+    429 auf Renders geteilter IP (anders als der server-seitige Abruf). Marine-
+    Kacheln erscheinen nur, wenn die Werte da sind (Binnenseen -> keine Marine)."""
+    html = """
+<!DOCTYPE html><html><head><meta charset='utf-8'><style>
+ html,body{background:transparent!important;margin:0;color:#eaf4ff;
+   font-family:system-ui,-apple-system,sans-serif;}
+ .days{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+ .day{flex:1 1 120px;min-width:0;background:rgba(255,255,255,.07);
+   border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:12px 14px;text-align:center;}
+ .day .d{font-size:15px;font-weight:800;opacity:.9;}
+ .day .ic{font-size:30px;margin:2px 0;}
+ .day .t{font-size:20px;font-weight:800;}
+ .day .t small{font-size:14px;font-weight:600;opacity:.6;}
+ .day .w{font-size:14px;opacity:.85;margin-top:4px;}
+ .hd{font-size:14px;opacity:.6;margin:0 0 6px;}
+ .marine{display:flex;gap:12px;flex-wrap:wrap;}
+ .mc{flex:1 1 120px;min-width:0;background:rgba(43,150,190,.14);
+   border:1px solid rgba(43,200,230,.30);border-radius:16px;padding:10px 14px;}
+ .mc .l{font-size:14px;opacity:.85;}
+ .mc .v{font-size:clamp(22px,5vw,34px);font-weight:800;white-space:nowrap;}
+ .mc .s{font-size:13px;opacity:.7;}
+</style></head><body>
+<div id='days' class='days'></div>
+<div id='marine'></div>
+<script>
+const LAT=__LAT__,LON=__LON__;
+const C=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const W={0:"☀️",1:"🌤️",2:"⛅",3:"☁️",45:"🌫️",48:"🌫️",51:"🌦️",53:"🌦️",55:"🌦️",
+ 61:"🌦️",63:"🌧️",65:"🌧️",71:"🌨️",73:"🌨️",75:"🌨️",80:"🌦️",81:"🌧️",82:"⛈️",95:"⛈️",96:"⛈️",99:"⛈️"};
+function comp(d){return (d==null)?"":C[Math.round(d/22.5)%16];}
+function wd(iso){return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(iso).getDay()];}
+function r0(x){return (x==null)?"–":Math.round(x);}
+function r1(x){return (x==null)?"–":(Math.round(x*10)/10);}
+function loadFC(){
+ fetch("https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+"&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant&wind_speed_unit=kmh&timezone=auto&forecast_days=3")
+ .then(r=>r.json()).then(d=>{const q=d.daily||{};var t=q.time||[];var h="";
+  for(var i=0;i<Math.min(3,t.length);i++){
+   var lbl=(i==0)?"Today":wd(t[i]);
+   h+="<div class='day'><div class='d'>"+lbl+"</div><div class='ic'>"+(W[q.weather_code[i]]||"")+"</div>"+
+      "<div class='t'>"+r0(q.temperature_2m_max[i])+"°<small> / "+r0(q.temperature_2m_min[i])+"°</small></div>"+
+      "<div class='w'>🌬️ "+r0(q.wind_speed_10m_max[i])+" · 💨 "+r0(q.wind_gusts_10m_max[i])+" km/h "+comp(q.wind_direction_10m_dominant[i])+"</div></div>";
+  }
+  document.getElementById('days').innerHTML=h||"<div class='day'>Forecast unavailable</div>";
+ }).catch(e=>{document.getElementById('days').innerHTML="<div class='day'>Forecast unavailable</div>";});
+}
+function loadMarine(){
+ fetch("https://marine-api.open-meteo.com/v1/marine?latitude="+LAT+"&longitude="+LON+"&hourly=wave_height,wave_period,sea_surface_temperature,ocean_current_velocity,ocean_current_direction&timezone=auto&forecast_days=1")
+ .then(r=>r.json()).then(d=>{const q=d.hourly||{};var t=q.time||[];if(!t.length)return;
+  var now=new Date(),idx=0;
+  for(var i=0;i<t.length;i++){if(new Date(t[i])<=now){idx=i;}else{break;}}
+  function v(a){return (a&&a[idx]!=null)?a[idx]:null;}
+  var sst=v(q.sea_surface_temperature),wv=v(q.wave_height),wp=v(q.wave_period),
+      cv=v(q.ocean_current_velocity),cd=v(q.ocean_current_direction);
+  var h="";
+  if(sst!=null)h+="<div class='mc'><div class='l'>🌡️ Water</div><div class='v'>"+r1(sst)+" °C</div><div class='s'>sea surface</div></div>";
+  if(wv!=null)h+="<div class='mc'><div class='l'>🌊 Waves</div><div class='v'>"+r1(wv)+" m</div><div class='s'>"+(wp!=null?("period "+r0(wp)+" s"):"significant height")+"</div></div>";
+  if(cv!=null)h+="<div class='mc'><div class='l'>🧭 Current</div><div class='v'>"+r1(cv)+" km/h</div><div class='s'>"+(cd!=null?("towards "+comp(cd)):"drift")+"</div></div>";
+  if(h)document.getElementById('marine').innerHTML="<div class='hd'>🌊 Water conditions (now)</div><div class='marine'>"+h+"</div>";
+ }).catch(e=>{});
+}
+loadFC();loadMarine();setInterval(function(){loadFC();loadMarine();},1800000);
+</script></body></html>
+"""
+    return html.replace("__LAT__", str(lat)).replace("__LON__", str(lon))
+
+
 def _mobile_slim(df):
     """Nur auf dem Handy: Ranglisten-Tabelle schmaler machen – Datum ohne Uhrzeit
     (nur YYYY-MM-DD) und die zweite Einheit (kn-Spalten) ausblenden. Auf dem
@@ -8156,29 +8225,27 @@ def _tv_forecast(cfg, coords):
 
 
 def render_spots_forecast(spot, coords):
-    """Spots-Seite: 3-Tage-Vorhersage als Kacheln mit Button je Tag -> Klick
-    oeffnet die Stundenansicht per Streamlit-Rerun (KEIN voller Seiten-Reload)."""
-    daily = _fetch_forecast_3d(coords[0], coords[1])
-    if not daily or not daily.get("time"):
-        st.caption("⛅ Forecast is temporarily unavailable – please try again in a moment.")
-        return
+    """Spots-Seite: 3-Tage-Vorhersage + Wasserbedingungen (Marine) CLIENT-SEITIG
+    (Browser -> kein Render-429), darunter Buttons je Tag -> Stundenansicht
+    (server-seitig, mit Segelberater) per Streamlit-Rerun."""
     info = load_spot_info(spot) or {}
-    best_degs = _parse_best_dirs(info.get("best_winds"))
-    n = min(3, len(daily["time"]))
-
     st.markdown(_FORECAST_CSS + _forecast_title(spot, info), unsafe_allow_html=True)
 
+    # 3-Tage-Kacheln + Wassertemp/Welle/Stroemung: der Browser holt Open-Meteo
+    # direkt -> zuverlaessig (die geteilte Render-IP wird sonst mit 429 gedrosselt).
+    components.html(_spot_conditions_html(coords[0], coords[1]),
+                    height=600 if _is_mobile() else 290)
+
+    # Buttons fuer die interaktive Stundenansicht – Labels aus dem Datum (kein
+    # Open-Meteo noetig), damit sie auch ohne server-seitigen Abruf erscheinen.
+    n = 3
     cols = st.columns(n)
     for i in range(n):
-        with cols[i]:
-            st.markdown(_forecast_card_html(daily, i, best_degs), unsafe_allow_html=True)
-            try:
-                lbl = "Today" if i == 0 else _WEEKDAY_EN[pd.to_datetime(daily["time"][i]).weekday()]
-            except Exception:  # noqa: BLE001
-                lbl = f"Day {i + 1}"
-            if st.button(f"🕘 {lbl} · hourly", key=f"fcbtn_{spot}_{i}", use_container_width=True):
-                st.session_state["spots_fcday"] = i
-                st.rerun()
+        _d = datetime.now() + timedelta(days=i)
+        lbl = "Today" if i == 0 else _WEEKDAY_EN[_d.weekday()]
+        if cols[i].button(f"🕘 {lbl} · hourly", key=f"fcbtn_{spot}_{i}", use_container_width=True):
+            st.session_state["spots_fcday"] = i
+            st.rerun()
 
     di = st.session_state.get("spots_fcday")
     if di is not None and di < n:
