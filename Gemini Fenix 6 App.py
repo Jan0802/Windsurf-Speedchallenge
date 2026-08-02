@@ -8781,6 +8781,7 @@ _TV_FOOTER_TMPL = """
 .ft-wind small{font-size:14px;opacity:.7;font-weight:600}
 .ft-gust{font-size:15px;opacity:.75}
 .ft-status{margin-top:6px;font-size:18px;font-weight:800}
+.ft-marine{margin-top:8px;font-size:17px;font-weight:700;opacity:.9;color:#8fe3ff}
 .ft-dots{margin-top:auto;display:flex;gap:7px;align-items:center;font-size:13px;
          opacity:.6;padding-top:8px}
 .ft-dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.3)}
@@ -8816,6 +8817,7 @@ _TV_FOOTER_TMPL = """
           <div class="ft-wind" id="ftWind"></div>
           <div class="ft-gust" id="ftGust"></div>
           <div class="ft-status" id="ftStatus"></div>
+          <div class="ft-marine" id="ftMarine"></div>
         </div>
       </div>
       <div class="ft-note" id="ftNote" style="__NOTESTYLE__"></div>
@@ -8877,6 +8879,22 @@ function load(){
   fetch(u).then(function(r){return r.json();}).then(function(j){if(j&&j.daily)build(j.daily);}).catch(function(){});
 }
 load();setInterval(load,1800000);
+function loadMarine(){
+  if(LAT==null)return;
+  var u='https://marine-api.open-meteo.com/v1/marine?latitude='+LAT+'&longitude='+LON+
+    '&hourly=wave_height,sea_surface_temperature,ocean_current_velocity&timezone=auto&forecast_days=1';
+  fetch(u).then(function(r){return r.json();}).then(function(j){
+    var q=(j&&j.hourly)||{},t=q.time||[];if(!t.length)return;
+    var now=new Date(),idx=0;for(var i=0;i<t.length;i++){if(new Date(t[i])<=now){idx=i;}else{break;}}
+    function v(a){return (a&&a[idx]!=null)?a[idx]:null;}
+    var sst=v(q.sea_surface_temperature),wv=v(q.wave_height),cv=v(q.ocean_current_velocity),parts=[];
+    if(sst!=null)parts.push('\\ud83c\\udf21\\ufe0f '+(Math.round(sst*10)/10)+'\\u00b0C water');
+    if(wv!=null)parts.push('\\ud83c\\udf0a '+(Math.round(wv*10)/10)+' m');
+    if(cv!=null)parts.push('\\ud83e\\udded '+(Math.round(cv*10)/10)+' km/h');
+    var el=document.getElementById('ftMarine');if(el)el.innerHTML=parts.join(' \\u00b7 ');
+  }).catch(function(){});
+}
+loadMarine();setInterval(loadMarine,1800000);
 var cam=document.getElementById('ftcam');
 if(cam){setInterval(function(){var b=cam.src.split('?')[0];cam.src=b+'?t='+Date.now();},15000);}
 </script>
