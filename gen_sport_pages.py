@@ -477,9 +477,12 @@ def build():
     # Sitemap-Fragment ausgeben (zum Einfügen).
     print("generated", count, "pages")
     print("--- sitemap urls ---")
+    import datetime as _dt
+    _today = _dt.date.today().isoformat()
     for slug in SLUGS:
         for lang in LANGS:
             print(f"  <url><loc>{BASE}/{fname(slug, lang)}</loc>"
+                  f"<lastmod>{_today}</lastmod>"
                   f"<changefreq>monthly</changefreq><priority>0.7</priority></url>")
 
 
