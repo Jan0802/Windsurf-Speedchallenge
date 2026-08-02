@@ -174,8 +174,8 @@ SPORT_KEY = {"windsurf": "windsurf", "kitesurf": "kitesurf", "wingfoil": "wingsu
 # H1/sub/lead sind bewusst sportspezifisch (kein Thin/Duplicate Content).
 P = {
  "windsurf": {
-  "en": ("Windsurf speed ranking & GPS tracking — free | MyWaterSessions",
-         "Free windsurf speed ranking & GPS tracking: 2 s, 30 s, 500 m and nautical-mile speeds, per spot, with a trust score. Works with any watch (Garmin auto-upload or FIT/GPX/TCX).",
+  "en": ("Windsurf Speed Ranking — Track Your Top Speed Free | MyWaterSessions",
+         "Track your windsurf sessions and see your best 2 s, 30 s, 500 m and nautical-mile speeds — then climb a fair, free per-spot ranking. Works with any watch (Garmin, FIT, GPX, TCX).",
          "Windsurf speed ranking &amp; GPS tracking",
          "Track your windsurf sessions, see your top speeds and climb a fair community ranking — 100% free, for every level, with any watch.",
          "The free community <b>speed ranking &amp; spot guide</b> for windsurfing — part of a platform that also covers kite, wing, SUP and wakeboard. Your results land in the ranking automatically, per spot."),
@@ -201,8 +201,8 @@ P = {
          "El <b>ranking de velocidad y guía de spots</b> gratuito y comunitario para el windsurf — parte de una plataforma que también cubre kite, wing, SUP y wakeboard. Tus resultados entran automáticamente en el ranking, por spot."),
  },
  "kitesurf": {
-  "en": ("Kitesurf jump tracker & speed leaderboard — free | MyWaterSessions",
-         "Free kitesurf tracker & leaderboard: jump height, airtime and 2 s / 30 s speed, per spot, with a trust score. Works with any watch (Garmin auto-upload or FIT/GPX/TCX).",
+  "en": ("Kitesurf Jump & Speed Tracker — Free Leaderboard | MyWaterSessions",
+         "Track your kite jump height, airtime and top speed, then climb a fair, free per-spot leaderboard. Works with any watch (Garmin, FIT, GPX, TCX) — no premium, no paywall.",
          "Kitesurf jump tracker &amp; speed leaderboard",
          "Track your kite sessions — jump height, airtime and top speed — and climb a fair community leaderboard. 100% free, any watch.",
          "The free community <b>leaderboard &amp; spot guide</b> for kitesurfing — jumps, airtime and speed. Part of a platform that also covers windsurf, wing, SUP and wakeboard."),
@@ -228,8 +228,8 @@ P = {
          "El <b>ranking y guía de spots</b> gratuito y comunitario para el kitesurf — saltos, airtime y velocidad. Parte de una plataforma que también cubre windsurf, wing, SUP y wakeboard."),
  },
  "wingfoil": {
-  "en": ("Wingfoil ranking & GPS tracker — free | MyWaterSessions",
-         "Free wingfoil (wing surfing) ranking & GPS tracker: 2 s / 30 s speed, 500 m, nautical mile and distance, per spot, with a trust score. Works with any watch.",
+  "en": ("Wingfoil Speed & Distance Tracker — Free Ranking | MyWaterSessions",
+         "Track your wingfoil / wing surfing speed, 500 m, nautical mile and distance, then climb a fair, free per-spot ranking. Works with any GPS watch (Garmin auto-upload or FIT/GPX/TCX).",
          "Wingfoil ranking &amp; GPS tracker",
          "Track your wingfoil / wing surfing sessions, see your top speeds and distance, and climb a fair community ranking — 100% free, any watch.",
          "The free community <b>ranking &amp; spot guide</b> for wing foiling — part of a platform that also covers windsurf, kite, SUP and wakeboard."),
@@ -255,8 +255,8 @@ P = {
          "El <b>ranking y guía de spots</b> gratuito y comunitario para el wingfoil — parte de una plataforma que también cubre windsurf, kite, SUP y wakeboard."),
  },
  "sup": {
-  "en": ("SUP GPS tracker & speed ranking — free | MyWaterSessions",
-         "Free stand-up paddle (SUP) GPS tracker & ranking: speed, distance, cadence and strokes, per spot, with a trust score. Works with any watch (Garmin or FIT/GPX/TCX).",
+  "en": ("SUP Tracker — Speed, Distance & Strokes, Free | MyWaterSessions",
+         "Track your stand-up paddle sessions — speed, distance, cadence and strokes — and compare in a fair, free per-spot ranking. Works with any GPS watch. No premium, no paywall.",
          "SUP GPS tracker &amp; speed ranking",
          "Track your stand-up paddle sessions — speed, distance, cadence and strokes — and compare in a fair community ranking. 100% free, any watch.",
          "The free community <b>ranking &amp; spot guide</b> for stand-up paddling — part of a platform that also covers windsurf, kite, wing and wakeboard."),
@@ -282,8 +282,8 @@ P = {
          "El <b>ranking y guía de spots</b> gratuito y comunitario para el stand-up paddle — parte de una plataforma que también cubre windsurf, kite, wing y wakeboard."),
  },
  "wakeboard": {
-  "en": ("Wakeboard tracking app — jumps & speed, free | MyWaterSessions",
-         "Free wakeboard tracking: jumps, airtime, speed and distance per session, with a trust score. Works with any watch (Garmin auto-upload or FIT/GPX/TCX).",
+  "en": ("Wakeboard Tracker App — Count Jumps, Airtime & Speed | MyWaterSessions",
+         "Free wakeboard tracker: count your jumps, airtime, top speed and distance every session (cable or boat) and climb a fair community ranking. Works with any watch (Garmin, FIT, GPX, TCX).",
          "Wakeboard tracking — jumps &amp; speed",
          "Track your wakeboard sessions — jumps, airtime and speed — and compare in a fair community ranking. 100% free, any watch (cable or boat).",
          "The free community <b>ranking &amp; session tracker</b> for wakeboarding — part of a platform that also covers windsurf, kite, wing and SUP."),
