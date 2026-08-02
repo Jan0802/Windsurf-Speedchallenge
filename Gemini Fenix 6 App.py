@@ -902,6 +902,7 @@ spot_info_table = Table(
     Column("description", String),
     Column("description_local", String),  # zweite Beschreibung in der Landessprache
     Column("local_lang", String(60)),     # nativer Name der Landessprache (Umschalter)
+    Column("descriptions_extra", String), # weitere Sprachen: JSON [{"lang":..,"text":..},..]
     Column("tv_note", String(280)),        # kurze Zeile fuer den Spot-TV-Footer (getrennt von der langen Beschreibung)
     Column("tv_image", LargeBinary),        # Schmuckbild im Spot-TV-Footer (vom Spotbetreiber pflegbar)
     Column("tv_image_mime", String(50)),
@@ -2819,7 +2820,7 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
                    webcam_link=None, water_ok=None,
                    description_local=None, local_lang=None, tv_note=None,
                    tv_image_bytes=None, tv_image_mime=None, clear_tv_image=False,
-                   tv_events=None):
+                   tv_events=None, descriptions_extra=None):
     if not spot:
         return
     _ensure_ad_tables()
@@ -2841,6 +2842,9 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
         values["description_local"] = (description_local or "").strip() or None
     if local_lang is not None:
         values["local_lang"] = (local_lang or "").strip() or None
+    if descriptions_extra is not None:
+        # Fertiger JSON-String (Liste [{"lang","text"}]) oder ""/None zum Leeren.
+        values["descriptions_extra"] = (descriptions_extra or "").strip() or None
     if tv_note is not None:
         values["tv_note"] = (tv_note or "").strip() or None
     if tv_events is not None:
@@ -9388,6 +9392,25 @@ def _render_desc_images_editor(spot, uploaded_by=None, flash=None):
                "gesetzt (Bild links, Text daneben, dann Bild rechts …).")
 
 
+def _parse_desc_extra(raw):
+    """descriptions_extra-JSON -> Liste [{'lang','text'}] (nur gefuellte Eintraege)."""
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    if isinstance(data, list):
+        for x in data:
+            if isinstance(x, dict):
+                lg = str(x.get("lang") or "").strip()
+                tx = str(x.get("text") or "").strip()
+                if lg and tx:
+                    out.append({"lang": lg, "text": tx})
+    return out
+
+
 def render_spots_page(user=None):
     """Reine Spot-Seite (Revierführer): Filter Land/Spot -> Beschreibung, Webcam/
     Bild, Foto-Galerie (+ User-Upload) und Wetter des gewählten Spots."""
@@ -9487,17 +9510,25 @@ def render_spots_page(user=None):
     _llang = (chosen.get("local_lang") or info.get("local_lang") or "").strip()
     # Standard = LANDESSPRACHE zuerst, Englisch auswaehlbar. Fehlt eine Seite,
     # zeigen wir nur die vorhandene (ohne Umschalter).
+    _extras = _parse_desc_extra(info.get("descriptions_extra"))
+    # Reihenfolge: Landessprache zuerst, dann Englisch, dann weitere Sprachen.
+    _lang_opts = []   # (label, text)
     if _desc_loc and _llang:
-        desc = _desc_loc
-        if _desc_en:
-            _opts = [f"🌐 {_llang}", "🇬🇧 English"]
-            _pick = st.radio(
-                "Description language", _opts, horizontal=True, label_visibility="collapsed",
-                key=f"spotdesc_lang_{chosen.get('spot') or info.get('spot') or ''}")
-            if _pick == _opts[1]:
-                desc = _desc_en
+        _lang_opts.append((f"🌐 {_llang}", _desc_loc))
+    if _desc_en:
+        _lang_opts.append(("🇬🇧 English", _desc_en))
+    for _ex in _extras:
+        _lang_opts.append((f"🌐 {_ex['lang']}", _ex["text"]))
+    if not _lang_opts:
+        desc = ""
+    elif len(_lang_opts) == 1:
+        desc = _lang_opts[0][1]
     else:
-        desc = _desc_en
+        _labels = [o[0] for o in _lang_opts]
+        _pick = st.radio(
+            "Description language", _labels, horizontal=True, label_visibility="collapsed",
+            key=f"spotdesc_lang_{chosen.get('spot') or info.get('spot') or ''}")
+        desc = next((t for (l, t) in _lang_opts if l == _pick), _lang_opts[0][1])
     desc = _md_lite(desc)   # **fett**, [Links], Zeilenumbrueche/Absaetze -> HTML
     desc_html = (f"<div style='font-size:18px;line-height:1.6;'>{desc}</div>"
                  if desc else "")
@@ -11640,6 +11671,9 @@ def render_admin_spots():
             st.session_state["admin_spot_desc_local"] = _i.get("description_local") or ""
             st.session_state["admin_spot_lang"] = _i.get("local_lang") or ""
             st.session_state["admin_spot_tvnote"] = _i.get("tv_note") or ""
+            st.session_state["admin_spot_extra"] = [
+                {"Language": _e["lang"], "Description": _e["text"]}
+                for _e in _parse_desc_extra(_i.get("descriptions_extra"))]
         else:
             st.session_state["admin_spot_name"] = ""
             st.session_state["admin_spot_lat"] = 0.0
@@ -11649,6 +11683,7 @@ def render_admin_spots():
             st.session_state["admin_spot_desc_local"] = ""
             st.session_state["admin_spot_lang"] = ""
             st.session_state["admin_spot_tvnote"] = ""
+            st.session_state["admin_spot_extra"] = []
         st.rerun()
 
     name = st.text_input("Spot-Name", key="admin_spot_name").strip()
@@ -11691,6 +11726,20 @@ def render_admin_spots():
         f"Beschreibung ({lang or 'Landessprache'})", key="admin_spot_desc_local", height=120,
         help="Zweite Beschreibung in der Landessprache. Die KI füllt sie automatisch; hier "
              "kannst du sie korrigieren/eintragen. Leer = nur Englisch (kein Umschalter).")
+    st.caption("➕ **Weitere Sprachen** (optional): eine Zeile je Übersetzung – unten mit „+“ "
+               "beliebig erweitern. Zeile leeren/löschen entfernt die Sprache wieder.")
+    _extra_seed = pd.DataFrame(st.session_state.get("admin_spot_extra") or [],
+                               columns=["Language", "Description"])
+    extra_df = st.data_editor(
+        _extra_seed, num_rows="dynamic", use_container_width=True, hide_index=True,
+        key=f"admin_extra_{name}",
+        column_config={
+            "Language": st.column_config.TextColumn(
+                "Sprache", help="Nativer Name, z. B. Italiano, Español, Nederlands", width="small"),
+            "Description": st.column_config.TextColumn(
+                "Beschreibung", help="Text in dieser Sprache (**fett**, [Links], Absätze wie oben).",
+                width="large"),
+        })
     tvnote = st.text_input(
         "📺 TV-Notiz (kurze Zeile fürs Spot-TV)", key="admin_spot_tvnote", max_chars=140,
         help="Eine kurze Zeile, die unten im Spot-TV-Footer erscheint "
@@ -11741,12 +11790,21 @@ def render_admin_spots():
             st.error("Bitte gültige Koordinaten eingeben (0/0 liegt im Meer vor Afrika).")
         else:
             update_spot_coords(name, lat, lon)
+            # Weitere Sprachen aus dem Editor -> JSON [{"lang","text"}].
+            _extra_list = []
+            for _, _r in extra_df.iterrows():
+                _lg = str(_r.get("Language") or "").strip()
+                _tx = str(_r.get("Description") or "").strip()
+                if _lg and _tx:
+                    _extra_list.append({"lang": _lg, "text": _tx})
+            _extra_json = json.dumps(_extra_list, ensure_ascii=False) if _extra_list else ""
             # Beschreibung/Land/lokale Version/TV-Notiz schreiben, wenn irgendwas gesetzt ist.
             if (desc.strip() or country.strip() or desc_local.strip() or lang.strip()
-                    or tvnote.strip()):
+                    or tvnote.strip() or _extra_list):
                 _ex = load_spot_info(name) or {}
                 save_spot_info(name, desc, _ex.get("webcam_url") or "", country=country,
-                               description_local=desc_local, local_lang=lang, tv_note=tvnote)
+                               description_local=desc_local, local_lang=lang, tv_note=tvnote,
+                               descriptions_extra=_extra_json)
             _extra = " – im Revierführer sichtbar" if desc.strip() else ""
             st.success(f"Spot „{name}“ gespeichert ({lat:.5f}, {lon:.5f}){_extra}.")
             st.session_state["_admin_spot_loaded"] = None  # Liste/Karte neu laden
