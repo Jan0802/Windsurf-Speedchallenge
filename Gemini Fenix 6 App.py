@@ -9457,6 +9457,54 @@ def _parse_desc_extra(raw):
     return out
 
 
+def _extra_lang_editor(spot, prefix):
+    """Editor fuer weitere Spot-Sprachen: pro Sprache ein Sprach-Feld + ein
+    MEHRZEILIGES Textfeld, plus „➕"/„🗑️". Anders als st.data_editor sind hier
+    Zeilenumbrueche/Absaetze moeglich (Enter = neue Zeile). Gibt [{lang,text}]
+    zurueck. NICHT in einem st.form verwenden (die Buttons braeuchten Reruns)."""
+    ss = st.session_state
+    ids_k = f"{prefix}_ids_{spot}"
+    seed_k = f"{prefix}_seed_{spot}"
+    if not ss.get(seed_k):
+        ss[seed_k] = True
+        _ex = _parse_desc_extra((load_spot_info(spot) or {}).get("descriptions_extra")) if spot else []
+        _ids = []
+        for j, e in enumerate(_ex):
+            _ids.append(j)
+            ss[f"{prefix}_lg_{spot}_{j}"] = e["lang"]
+            ss[f"{prefix}_tx_{spot}_{j}"] = e["text"]
+        ss[ids_k] = _ids
+        ss[f"{prefix}_nid_{spot}"] = len(_ex)
+    ids = list(ss.get(ids_k, []))
+    _rm = None
+    for _id in ids:
+        c1, c2, c3 = st.columns([2, 7, 1])
+        c1.text_input("Sprache", key=f"{prefix}_lg_{spot}_{_id}",
+                      label_visibility="collapsed", placeholder="Sprache")
+        c2.text_area("Beschreibung", key=f"{prefix}_tx_{spot}_{_id}",
+                     label_visibility="collapsed", height=120,
+                     placeholder="Beschreibung in dieser Sprache … (Enter = neue Zeile)")
+        if c3.button("🗑️", key=f"{prefix}_del_{spot}_{_id}", help="Diese Sprache entfernen"):
+            _rm = _id
+    if _rm is not None:
+        ss[ids_k] = [x for x in ids if x != _rm]
+        st.rerun()
+    if st.button("➕ Sprache hinzufügen", key=f"{prefix}_add_{spot}"):
+        _n = ss.get(f"{prefix}_nid_{spot}", 0)
+        ss[f"{prefix}_nid_{spot}"] = _n + 1
+        ss[f"{prefix}_lg_{spot}_{_n}"] = ""
+        ss[f"{prefix}_tx_{spot}_{_n}"] = ""
+        ss[ids_k] = ids + [_n]
+        st.rerun()
+    out = []
+    for _id in ss.get(ids_k, []):
+        lg = str(ss.get(f"{prefix}_lg_{spot}_{_id}") or "").strip()
+        tx = str(ss.get(f"{prefix}_tx_{spot}_{_id}") or "").strip()
+        if lg and tx:
+            out.append({"lang": lg, "text": tx})
+    return out
+
+
 def render_spots_page(user=None):
     """Reine Spot-Seite (Revierführer): Filter Land/Spot -> Beschreibung, Webcam/
     Bild, Foto-Galerie (+ User-Upload) und Wetter des gewählten Spots."""
@@ -11807,20 +11855,10 @@ def render_admin_spots():
         f"Beschreibung ({lang or 'Landessprache'})", key="admin_spot_desc_local", height=120,
         help="Zweite Beschreibung in der Landessprache. Die KI füllt sie automatisch; hier "
              "kannst du sie korrigieren/eintragen. Leer = nur Englisch (kein Umschalter).")
-    st.caption("➕ **Weitere Sprachen** (optional): eine Zeile je Übersetzung – unten mit „+“ "
-               "beliebig erweitern. Zeile leeren/löschen entfernt die Sprache wieder.")
-    _extra_seed = pd.DataFrame(st.session_state.get("admin_spot_extra") or [],
-                               columns=["Language", "Description"])
-    extra_df = st.data_editor(
-        _extra_seed, num_rows="dynamic", use_container_width=True, hide_index=True,
-        key=f"admin_extra_{name}",
-        column_config={
-            "Language": st.column_config.TextColumn(
-                "Sprache", help="Nativer Name, z. B. Italiano, Español, Nederlands", width="small"),
-            "Description": st.column_config.TextColumn(
-                "Beschreibung", help="Text in dieser Sprache (**fett**, [Links], Absätze wie oben).",
-                width="large"),
-        })
+    st.markdown("**➕ Weitere Sprachen** (optional)")
+    st.caption("Pro Sprache ein eigenes Feld – ➕ fügt eine hinzu, 🗑️ entfernt sie. "
+               "Mehrzeilig editierbar (fett, Links, Absätze wie oben).")
+    _extra_list_main = _extra_lang_editor(name, "adx")
     _trc1, _trc2 = st.columns([2, 1])
     _tr_lang = _trc1.text_input(
         "KI-Übersetzung – Zielsprache", key="admin_tr_lang", label_visibility="collapsed",
@@ -11844,11 +11882,9 @@ def render_admin_spots():
                         json.loads(_resp.read().decode("utf-8"))
                 load_spot_info.clear()
                 load_all_spot_info.clear()
-                _n2 = load_spot_info(name) or {}
-                st.session_state["admin_spot_extra"] = [
-                    {"Language": _e2["lang"], "Description": _e2["text"]}
-                    for _e2 in _parse_desc_extra(_n2.get("descriptions_extra"))]
-                st.session_state.pop(f"admin_extra_{name}", None)   # Editor neu seeden
+                # Sprach-Editor aus der DB neu seeden -> neue Übersetzung erscheint.
+                st.session_state.pop(f"adx_seed_{name}", None)
+                st.session_state.pop(f"adx_ids_{name}", None)
                 st.session_state["_admin_spot_loaded"] = pick
                 st.success(f"KI-Übersetzung nach {_tr_lang.strip()} hinzugefügt.")
                 st.rerun()
@@ -11907,16 +11943,10 @@ def render_admin_spots():
         else:
             update_spot_coords(name, lat, lon)
             # Weitere Sprachen aus dem Editor -> JSON [{"lang","text"}].
-            _extra_list = []
-            for _, _r in extra_df.iterrows():
-                _lg = str(_r.get("Language") or "").strip()
-                _tx = str(_r.get("Description") or "").strip()
-                if _lg and _tx:
-                    _extra_list.append({"lang": _lg, "text": _tx})
-            _extra_json = json.dumps(_extra_list, ensure_ascii=False) if _extra_list else ""
+            _extra_json = json.dumps(_extra_list_main, ensure_ascii=False) if _extra_list_main else ""
             # Beschreibung/Land/lokale Version/TV-Notiz schreiben, wenn irgendwas gesetzt ist.
             if (desc.strip() or country.strip() or desc_local.strip() or lang.strip()
-                    or tvnote.strip() or _extra_list):
+                    or tvnote.strip() or _extra_list_main):
                 _ex = load_spot_info(name) or {}
                 save_spot_info(name, desc, _ex.get("webcam_url") or "", country=country,
                                description_local=desc_local, local_lang=lang, tv_note=tvnote,
@@ -12639,44 +12669,38 @@ def _render_sponsor_fields(spot):
 
     st.markdown("### Beschreibung")
     info = load_spot_info(spot) or {}
-    with st.form(f"sp_info_{spot}"):
-        desc = st.text_area("Beschreibung (Englisch)", value=info.get("description") or "",
-                            height=140,
-                            help="Formatierung: Leerzeile = neuer Absatz · einfacher Umbruch = "
-                                 "neue Zeile · **fett** · [Text](https://link).")
-        best_winds = st.text_input(
-            "Beste Windrichtungen (optional)", value=info.get("best_winds") or "",
-            help="Kompass-Kürzel, z.B. 'SW, W, NW' – steuert die Lohnt-sich-Ampel.")
-        webcam = st.text_input("Webcam-/Bild-URL (optional)", value=info.get("webcam_url") or "")
-        st.caption("➕ Weitere Sprachen (optional): eine Zeile je Übersetzung, unten „+“ "
-                   "zum Hinzufügen.")
-        _sa_seed = pd.DataFrame(
-            [{"Language": _e["lang"], "Description": _e["text"]}
-             for _e in _parse_desc_extra(info.get("descriptions_extra"))],
-            columns=["Language", "Description"])
-        _sa_extra_df = st.data_editor(
-            _sa_seed, num_rows="dynamic", use_container_width=True, hide_index=True,
-            key=f"sa_extra_{spot}",
-            column_config={
-                "Language": st.column_config.TextColumn("Sprache", width="small"),
-                "Description": st.column_config.TextColumn("Beschreibung", width="large"),
-            })
-        if st.form_submit_button("💾 Beschreibung speichern"):
-            _sa_list = []
-            for _, _r in _sa_extra_df.iterrows():
-                _lg = str(_r.get("Language") or "").strip()
-                _tx = str(_r.get("Description") or "").strip()
-                if _lg and _tx:
-                    _sa_list.append({"lang": _lg, "text": _tx})
-            _sa_json = json.dumps(_sa_list, ensure_ascii=False) if _sa_list else ""
-            # Land bleibt Admin/KI -> bestehenden Wert mitgeben (nicht leeren).
-            save_spot_info(spot, desc, webcam,
-                           country=info.get("country") or "", best_winds=best_winds,
-                           descriptions_extra=_sa_json)
-            st.session_state["_spotadmin_flash"] = "Beschreibung gespeichert."
-            st.rerun()
+    # Kein st.form -> die +/🗑️-Buttons des Sprach-Editors funktionieren (Buttons
+    # sind in einem Formular inaktiv). Felder per Key, damit sie ueber die
+    # Add/Remove-Reruns erhalten bleiben.
+    _sd_k, _bw_k, _wc_k = f"sad_{spot}", f"sabw_{spot}", f"sawc_{spot}"
+    if not st.session_state.get(f"sa_seedmain_{spot}"):
+        st.session_state[f"sa_seedmain_{spot}"] = True
+        st.session_state[_sd_k] = info.get("description") or ""
+        st.session_state[_bw_k] = info.get("best_winds") or ""
+        st.session_state[_wc_k] = info.get("webcam_url") or ""
+    desc = st.text_area(
+        "Beschreibung (Englisch)", key=_sd_k, height=140,
+        help="Formatierung: Leerzeile = neuer Absatz · einfacher Umbruch = neue Zeile · "
+             "**fett** · [Text](https://link).")
+    best_winds = st.text_input(
+        "Beste Windrichtungen (optional)", key=_bw_k,
+        help="Kompass-Kürzel, z.B. 'SW, W, NW' – steuert die Lohnt-sich-Ampel.")
+    webcam = st.text_input("Webcam-/Bild-URL (optional)", key=_wc_k)
+    st.markdown("**➕ Weitere Sprachen** (optional)")
+    st.caption("Pro Sprache ein eigenes Feld – ➕ fügt eine hinzu, 🗑️ entfernt sie. "
+               "Mehrzeilig editierbar (Enter = neue Zeile).")
+    _sa_extra = _extra_lang_editor(spot, "sax")
+    if st.button("💾 Beschreibung speichern", key=f"sa_save_{spot}", type="primary",
+                 use_container_width=True):
+        _sa_json = json.dumps(_sa_extra, ensure_ascii=False) if _sa_extra else ""
+        # Land bleibt Admin/KI -> bestehenden Wert mitgeben (nicht leeren).
+        save_spot_info(spot, desc, webcam,
+                       country=info.get("country") or "", best_winds=best_winds,
+                       descriptions_extra=_sa_json)
+        st.session_state["_spotadmin_flash"] = "Beschreibung gespeichert."
+        st.rerun()
 
-    # KI-Übersetzung (ausserhalb des Formulars – Button waere sonst inaktiv).
+    # KI-Übersetzung.
     _sat1, _sat2 = st.columns([2, 1])
     _sa_tlang = _sat1.text_input(
         "KI-Übersetzung – Zielsprache", key=f"sa_tr_lang_{spot}", label_visibility="collapsed",
@@ -12701,7 +12725,8 @@ def _render_sponsor_fields(spot):
                         json.loads(_resp.read().decode("utf-8"))
                 load_spot_info.clear()
                 load_all_spot_info.clear()
-                st.session_state.pop(f"sa_extra_{spot}", None)   # Editor neu seeden
+                st.session_state.pop(f"sax_seed_{spot}", None)   # Sprach-Editor neu seeden
+                st.session_state.pop(f"sax_ids_{spot}", None)
                 st.session_state["_spotadmin_flash"] = (
                     f"KI-Übersetzung nach {_sa_tlang.strip()} hinzugefügt.")
                 st.rerun()
