@@ -925,6 +925,7 @@ spot_info_table = Table(
     # unzuverlaessigen) Wasser-Check fuer diesen Spot. Physik-Checks greifen weiter.
     Column("water_ok", Boolean),
     Column("country", String(80)),       # Land (fuer den Filter der Spots-Seite)
+    Column("region", String(80)),         # Gebiet/Revier (z.B. "Ringkøbing Fjord") – Ebene zwischen Land und Spot
     Column("best_winds", String(120)),   # beste Windrichtungen, z.B. "SW, W, NW"
     Column("spot_class", String),         # JSON: "Für wen geeignet?"-Einstufung (vom Ingest-KI-Job)
     Column("auto_filled", Boolean, nullable=False, default=False),  # KI-Entwurf?
@@ -2691,6 +2692,7 @@ def load_all_spot_info():
     with get_engine().connect() as conn:
         rows = conn.execute(
             select(spot_info_table.c.spot, spot_info_table.c.country,
+                   spot_info_table.c.region, spot_info_table.c.best_winds,
                    spot_info_table.c.description, spot_info_table.c.spot_class)
             .where(spot_info_table.c.description.isnot(None))
             .order_by(spot_info_table.c.spot)
@@ -3103,7 +3105,7 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
                    webcam_link=None, water_ok=None,
                    description_local=None, local_lang=None, tv_note=None,
                    tv_image_bytes=None, tv_image_mime=None, clear_tv_image=False,
-                   tv_events=None, descriptions_extra=None):
+                   tv_events=None, descriptions_extra=None, region=None):
     if not spot:
         return
     _ensure_ad_tables()
@@ -3114,6 +3116,10 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
         "best_winds": (best_winds or "").strip() or None,
         "auto_filled": False,   # manuell gespeichert = geprueft
     }
+    # Region nur anfassen, wenn explizit uebergeben (None = unveraendert lassen,
+    # damit andere Speicher-Aufrufe die Gebietszuordnung nicht loeschen).
+    if region is not None:
+        values["region"] = (region or "").strip() or None
     # Nur anfassen, wenn der Aufrufer den Link explizit uebergibt (None = unveraendert
     # lassen, damit andere Speicher-Aufrufe den Link nicht versehentlich loeschen).
     if webcam_link is not None:
@@ -9828,9 +9834,78 @@ def _extra_lang_editor(spot, prefix):
     return out
 
 
+# Ab so vielen Zeichen gilt ein Spot als "voller Guide" (sonst Kurzprofil-Badge).
+_FULL_GUIDE_MIN_CHARS = 400
+
+
+def _region_overview_html(spots):
+    """Kompakte Gebiets-Tabelle: eine Zeile je Spot mit Level/Wasser/Wind/Sportarten
+    und einem Badge 'Full guide' vs. 'Short profile'. Jede Zeile verlinkt auf den
+    Spot. `spots` = Liste der load_all_spot_info-Dicts (spot/spot_class/best_winds/
+    description). Reine Abfrage – keine zweite Pflegestelle."""
+    def esc(s):
+        return str(s or "").replace("<", "&lt;").replace(">", "&gt;")
+
+    rows = ""
+    for s in spots:
+        try:
+            c = json.loads(s.get("spot_class") or "") or {}
+        except (ValueError, TypeError):
+            c = {}
+        if not isinstance(c, dict):
+            c = {}
+        lvl = c.get("level") if isinstance(c.get("level"), list) else []
+        lvl_txt = " ".join(_SC_LEVEL_ICON.get(str(x).lower(), "") for x in lvl) or "–"
+        wat = c.get("water") if isinstance(c.get("water"), list) else []
+        wat_txt = " ".join(_SC_WATER.get(str(x).lower(), "").split(" ")[0] for x in wat) or "–"
+        wind = (s.get("best_winds") or str(c.get("wind") or "")).strip() or "–"
+        sports = c.get("sports") if isinstance(c.get("sports"), dict) else {}
+        sp_cells = ""
+        for key, label in (("windsurf", "WS"), ("kite", "KI"), ("wing", "WG"),
+                           ("sup", "SUP"), ("wakeboard", "WK")):
+            v = str(sports.get(key) or "").lower()
+            if v in ("yes", "limited"):
+                sp_cells += f"<span title='{label}'>{_SC_SPORT_ICON.get(v, '')}{label} </span>"
+        sp_txt = sp_cells or "–"
+        full = len((s.get("description") or "").strip()) >= _FULL_GUIDE_MIN_CHARS
+        badge = ("<span style='background:rgba(74,217,145,.16);border:1px solid "
+                 "rgba(74,217,145,.5);color:#7ee6ab;border-radius:999px;padding:2px 9px;"
+                 "font-size:11px;font-weight:700;white-space:nowrap'>Full guide</span>"
+                 if full else
+                 "<span style='background:rgba(255,201,77,.14);border:1px solid "
+                 "rgba(255,201,77,.45);color:#ffce5c;border-radius:999px;padding:2px 9px;"
+                 "font-size:11px;font-weight:700;white-space:nowrap'>Short profile</span>")
+        nm = esc(s.get("spot"))
+        link = "?" + urlencode({"view": "spots", "spot": s.get("spot") or ""})
+        rows += (
+            "<tr style='border-top:1px solid rgba(43,212,217,.15)'>"
+            f"<td style='padding:7px 10px;font-weight:700'>"
+            f"<a href='{link}' target='_self' style='color:#8fe3ff;text-decoration:none'>{nm}</a></td>"
+            f"<td style='padding:7px 10px;text-align:center'>{lvl_txt}</td>"
+            f"<td style='padding:7px 10px'>{esc(wat_txt)}</td>"
+            f"<td style='padding:7px 10px;white-space:nowrap'>🧭 {esc(wind)}</td>"
+            f"<td style='padding:7px 10px;font-size:13px'>{sp_txt}</td>"
+            f"<td style='padding:7px 10px'>{badge}</td>"
+            "</tr>")
+    head = ("<tr style='color:#8fe3ff;font-size:12px;text-align:left'>"
+            "<th style='padding:6px 10px'>Spot</th>"
+            "<th style='padding:6px 10px;text-align:center'>Level</th>"
+            "<th style='padding:6px 10px'>Water</th>"
+            "<th style='padding:6px 10px'>Best winds</th>"
+            "<th style='padding:6px 10px'>Sports</th>"
+            "<th style='padding:6px 10px'>Guide</th></tr>")
+    return ("<div style='overflow-x:auto;-webkit-overflow-scrolling:touch'>"
+            "<table style='width:100%;border-collapse:collapse;color:#eaf4ff;"
+            "font-size:14px;min-width:520px'>"
+            f"<thead>{head}</thead><tbody>{rows}</tbody></table></div>"
+            "<div style='font-size:12px;color:#8fb0bb;margin-top:8px'>"
+            "🟢 Beginner · 🟡 Advanced · 🔴 Pro &nbsp;·&nbsp; sports: "
+            f"{_SC_SPORT_ICON['yes']} suitable · {_SC_SPORT_ICON['limited']} limited</div>")
+
+
 def render_spots_page(user=None):
-    """Reine Spot-Seite (Revierführer): Filter Land/Spot -> Beschreibung, Webcam/
-    Bild, Foto-Galerie (+ User-Upload) und Wetter des gewählten Spots."""
+    """Reine Spot-Seite (Revierführer): Filter Land/Gebiet/Spot -> Beschreibung,
+    Webcam/Bild, Foto-Galerie (+ User-Upload) und Wetter des gewählten Spots."""
     st.markdown("## 🗺️ Spots")
     st.caption(
         "💡 Spot missing? Just type its name when you log a session "
@@ -9852,11 +9927,25 @@ def render_spots_page(user=None):
             "background:rgba(43,212,217,.12);border:1px solid rgba(43,212,217,.4);color:#8fe3ff;"
             "border-radius:999px;padding:5px 14px;text-decoration:none;font-weight:700'>"
             f"📺 Spot-TV · {_sp_disp}</a>")
+    # Gebiets-Pill: zeigt das Revier des gewaehlten Spots; Klick oeffnet die
+    # Gebiets-Uebersicht (deep-link ?region=). Nur wenn dem Spot ein Gebiet zugeordnet ist.
+    _region_btn = ""
+    _sel_region = next(((s.get("region") or "").strip() for s in all_info
+                        if (s.get("spot") or "").strip() == _sel_spot
+                        and (s.get("region") or "").strip()), "")
+    if _sel_region:
+        _rg_qs = urlencode({"view": "spots", "region": _sel_region})
+        _rg_disp = _sel_region.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        _region_btn = (
+            f"<a href='?{_rg_qs}' target='_self' style='display:inline-block;margin:2px 0 6px 8px;"
+            "background:rgba(43,212,217,.12);border:1px solid rgba(43,212,217,.4);color:#8fe3ff;"
+            "border-radius:999px;padding:5px 14px;text-decoration:none;font-weight:700'>"
+            f"🗺️ Region · {_rg_disp}</a>")
     st.markdown(
         "<a href='?view=safety' target='_self' style='display:inline-block;margin:2px 0 6px;"
         "background:rgba(43,212,217,.12);border:1px solid rgba(43,212,217,.4);color:#8fe3ff;"
         "border-radius:999px;padding:5px 14px;text-decoration:none;font-weight:700'>"
-        "🛟 Water sports safety guide</a>" + _tv_btn,
+        "🛟 Water sports safety guide</a>" + _tv_btn + _region_btn,
         unsafe_allow_html=True)
     if not all_info:
         st.info(
@@ -9864,6 +9953,18 @@ def render_spots_page(user=None):
             "the AI enrichment has run (or when you save a text in the backoffice)."
         )
         return
+
+    # Deep-Link ?region=… (vom Gebiets-Pill): einmalig Land + Gebiet vorwaehlen,
+    # danach uebernehmen die Selectboxen (Session-State). Param wird verbraucht.
+    _url_region = (st.query_params.get("region") or "").strip()
+    if _url_region:
+        _rc = next(((s.get("country") or "").strip() for s in all_info
+                    if (s.get("region") or "").strip() == _url_region
+                    and (s.get("country") or "").strip()), "")
+        if _rc:
+            st.session_state["spots_country"] = _rc
+        st.session_state["spots_region"] = _url_region
+        del st.query_params["region"]
 
     countries = sorted({
         (s.get("country") or "").strip() for s in all_info if (s.get("country") or "").strip()
@@ -9874,6 +9975,21 @@ def render_spots_page(user=None):
         s for s in all_info
         if country == "All countries" or (s.get("country") or "").strip() == country
     ]
+    # Gebiets-Kaskade: erscheint erst, wenn ein konkretes Land gewaehlt ist UND es
+    # dort Gebiete gibt (Konzept Abschnitt 4 – sonst waere die Liste unuebersichtlich).
+    region_sel = "All regions"
+    if country != "All countries":
+        regions = sorted({(s.get("region") or "").strip() for s in pool
+                          if (s.get("region") or "").strip()})
+        if regions:
+            _ropts = ["All regions"] + regions
+            # Land gewechselt -> ggf. veralteten Region-Wert zuruecksetzen (sonst wirft
+            # das Selectbox eine Exception, weil der Wert nicht in den Optionen steht).
+            if st.session_state.get("spots_region") not in _ropts:
+                st.session_state["spots_region"] = "All regions"
+            region_sel = fcol2.selectbox("Region", _ropts, key="spots_region")
+            if region_sel != "All regions":
+                pool = [s for s in pool if (s.get("region") or "").strip() == region_sel]
     # Einstufungs-Filter (nur einblenden, wenn schon Klassifizierungs-Daten da sind).
     if any((s.get("spot_class") or "").strip() for s in all_info):
         ff1, ff2 = st.columns(2)
@@ -9884,6 +10000,11 @@ def render_spots_page(user=None):
         if _f_beg or _f_flat:
             pool = [s for s in pool
                     if _spot_class_matches(s.get("spot_class"), _f_beg, _f_flat)]
+    # Gebiets-Uebersicht: kompakte Tabelle aller Spots im gewaehlten Gebiet (Konzept
+    # Abschnitt 5). Reine Abfrage ueber die Spot-Daten, mit Voll-/Kurzprofil-Badge.
+    if region_sel != "All regions" and pool:
+        with st.expander(f"🗺️ {region_sel} — {len(pool)} spots at a glance", expanded=True):
+            st.markdown(_region_overview_html(pool), unsafe_allow_html=True)
     names = [s["spot"] for s in pool]
     if not names:
         st.info("No spots match these filters – try removing a filter or picking another country.")
@@ -9900,7 +10021,7 @@ def render_spots_page(user=None):
     # Spot in der URL halten (bookmarkbar / direkt verlinkbar).
     url_spot = st.query_params.get("spot")
     default_idx = names.index(url_spot) if url_spot in names else 0
-    spot = fcol2.selectbox("Spot", names, index=default_idx, format_func=_fmt_spot)
+    spot = st.selectbox("Spot", names, index=default_idx, format_func=_fmt_spot)
     if spot != st.query_params.get("spot"):
         st.query_params["spot"] = spot
         st.session_state.pop("spots_fcday", None)   # anderer Spot -> Stundenansicht zu
@@ -9915,6 +10036,8 @@ def render_spots_page(user=None):
 
     # (Der Werbebanner sitzt jetzt oben rechts im Hero, s. render oben.)
     heading = f"### {spot}"
+    if chosen.get("region"):
+        heading += f"  ·  🗺️ {chosen['region']}"
     if chosen.get("country"):
         heading += f"  ·  📍 {chosen['country']}"
     st.markdown(heading)
@@ -12635,6 +12758,12 @@ def render_admin_ads():
             "Land (für den Filter der Spots-Seite)", value=info.get("country") or "",
             help="Wird vom KI-Job automatisch gesetzt; hier überschreibbar.",
         )
+        region = st.text_input(
+            "Gebiet / Revier (Ebene zwischen Land und Spot)", value=info.get("region") or "",
+            help="z.B. 'Ringkøbing Fjord', 'Cold Hawaii', 'Jammerbugt'. Bündelt mehrere "
+                 "Spots eines Reviers in der Region-Übersicht. Wird vom KI-Job "
+                 "vorgeschlagen; hier überschreibbar. Leer = keine Gebietszuordnung.",
+        )
         best_winds = st.text_input(
             "Beste Windrichtungen (für die Lohnt-sich-Ampel)",
             value=info.get("best_winds") or "",
@@ -12687,6 +12816,7 @@ def render_admin_ads():
                  "läuft senkrecht durch. Leer = kein Abspann.")
         if st.form_submit_button("💾 Spot-Info speichern"):
             save_spot_info(spot, desc, webcam, country=country, best_winds=best_winds,
+                           region=region,
                            webcam_link=webcam_link, water_ok=water_ok,
                            tv_image_bytes=tv_up.getvalue() if tv_up else None,
                            tv_image_mime=tv_up.type if tv_up else None,
