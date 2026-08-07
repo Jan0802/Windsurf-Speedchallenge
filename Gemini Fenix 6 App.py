@@ -9793,10 +9793,17 @@ def _extra_lang_editor(spot, prefix):
     zurueck. NICHT in einem st.form verwenden (die Buttons braeuchten Reruns)."""
     ss = st.session_state
     ids_k = f"{prefix}_ids_{spot}"
-    seed_k = f"{prefix}_seed_{spot}"
-    if not ss.get(seed_k):
-        ss[seed_k] = True
-        _ex = _parse_desc_extra((load_spot_info(spot) or {}).get("descriptions_extra")) if spot else []
+    sig_k = f"{prefix}_sig"   # EIN Marker je Editor (prefix): "<spot>\x00<db-json>"
+    # Frisch aus der DB seeden, sobald sich der Spot ODER der gespeicherte Inhalt
+    # aendert (Wiederoeffnen, nach dem Speichern, nach KI-Uebersetzung). Der frueher
+    # verwendete Einmal-Flag brach, wenn Streamlit die Textfeld-Werte beim Spot-
+    # Wechsel verwarf: der Flag sagte "schon geladen", die Felder waren aber leer,
+    # und ein Speichern schrieb dann eine leere descriptions_extra (= Loeschen).
+    _raw = ((load_spot_info(spot) or {}).get("descriptions_extra") or "") if spot else ""
+    _sig = f"{spot}\x00{_raw}"
+    if ss.get(sig_k) != _sig:
+        ss[sig_k] = _sig
+        _ex = _parse_desc_extra(_raw)
         _ids = []
         for j, e in enumerate(_ex):
             _ids.append(j)
@@ -12342,9 +12349,9 @@ def render_admin_spots():
                         json.loads(_resp.read().decode("utf-8"))
                 load_spot_info.clear()
                 load_all_spot_info.clear()
-                # Sprach-Editor aus der DB neu seeden -> neue Übersetzung erscheint.
-                st.session_state.pop(f"adx_seed_{name}", None)
-                st.session_state.pop(f"adx_ids_{name}", None)
+                # Sprach-Editor neu seeden -> neue Übersetzung erscheint. Signatur
+                # invalidieren erzwingt das Re-Seed aus der frischen DB.
+                st.session_state.pop("adx_sig", None)
                 st.session_state["_admin_spot_loaded"] = pick
                 st.success(f"KI-Übersetzung nach {_tr_lang.strip()} hinzugefügt.")
                 st.rerun()
@@ -13192,8 +13199,7 @@ def _render_sponsor_fields(spot):
                         json.loads(_resp.read().decode("utf-8"))
                 load_spot_info.clear()
                 load_all_spot_info.clear()
-                st.session_state.pop(f"sax_seed_{spot}", None)   # Sprach-Editor neu seeden
-                st.session_state.pop(f"sax_ids_{spot}", None)
+                st.session_state.pop("sax_sig", None)   # Signatur invalidieren -> Re-Seed
                 st.session_state["_spotadmin_flash"] = (
                     f"KI-Übersetzung nach {_sa_tlang.strip()} hinzugefügt.")
                 st.rerun()
