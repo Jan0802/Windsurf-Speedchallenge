@@ -11897,7 +11897,21 @@ def render_admin_feedback():
         st.info("Noch kein Feedback.")
         return
     open_n = sum(1 for f in items if not f.get("handled"))
-    st.markdown(f"**{len(items)}** Nachrichten · **{open_n}** offen")
+    done_n = len(items) - open_n
+    st.markdown(f"**{len(items)}** Nachrichten · **{open_n}** offen · **{done_n}** erledigt")
+
+    _flt = st.radio(
+        "Filter", ["Offen", "Erledigt", "Alle"],
+        horizontal=True, key="fb_filter", label_visibility="collapsed",
+    )
+    if _flt == "Offen":
+        items = [f for f in items if not f.get("handled")]
+    elif _flt == "Erledigt":
+        items = [f for f in items if f.get("handled")]
+    if not items:
+        st.info("Keine Nachrichten in diesem Filter.")
+        return
+
     for f in items:
         _ca = f.get("created_at")
         when = _ca.strftime("%d.%m.%Y %H:%M") if hasattr(_ca, "strftime") else str(_ca or "")
