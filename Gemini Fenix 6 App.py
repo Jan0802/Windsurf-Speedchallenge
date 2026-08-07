@@ -7594,6 +7594,8 @@ function comp(d){return (d==null)?"":C[Math.round(d/22.5)%16];}
 function wd(iso){return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(iso).getDay()];}
 function r0(x){return (x==null)?"–":Math.round(x);}
 function r1(x){return (x==null)?"–":(Math.round(x*10)/10);}
+// Ampel fuer die Grundstroemung (km/h): <2 gruen, 2–4 gelb, >4 rot.
+function cc(x){return x==null?"#eaf4ff":(x<2?"#4ad991":(x<4?"#ffcc4d":"#ff6b6b"));}
 function loadFC(){
  fetch("https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+"&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant&wind_speed_unit=kmh&timezone=auto&forecast_days=3")
  .then(r=>r.json()).then(d=>{const q=d.daily||{};var t=q.time||[];var h="";
@@ -7617,7 +7619,7 @@ function loadMarine(){
   var h="";
   if(sst!=null)h+="<div class='mc'><div class='l'>🌡️ Water</div><div class='v'>"+r1(sst)+" °C</div><div class='s'>sea surface</div></div>";
   if(wv!=null)h+="<div class='mc'><div class='l'>🌊 Waves</div><div class='v'>"+r1(wv)+" m</div><div class='s'>"+(wp!=null?("period "+r0(wp)+" s"):"significant height")+"</div></div>";
-  if(cv!=null)h+="<div class='mc'><div class='l'>🧭 Current</div><div class='v'>"+r1(cv)+" km/h</div><div class='s'>"+(cd!=null?("towards "+comp(cd)):"drift")+"</div></div>";
+  if(cv!=null)h+="<div class='mc'><div class='l'>🧭 Current (avg)</div><div class='v' style='color:"+cc(cv)+"'>"+r1(cv)+" km/h</div><div class='s'>"+(cd!=null?("towards "+comp(cd)):"area average")+"</div></div>";
   if(h)document.getElementById('marine').innerHTML="<div class='hd'>🌊 Water conditions (now)</div><div class='marine'>"+h+"</div>";
  }).catch(e=>{});
 }
@@ -8806,6 +8808,7 @@ const LAT=__LAT__,LON=__LON__,DAY=__DAY__;
 const C=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 function comp(d){return d==null?"":C[Math.round(d/22.5)%16];}
 function r1(x){return Math.round(x*10)/10;}
+function cc(x){return x==null?"#eaf4ff":(x<2?"#4ad991":(x<4?"#ffcc4d":"#ff6b6b"));}
 fetch("https://marine-api.open-meteo.com/v1/marine?latitude="+LAT+"&longitude="+LON+"&hourly=wave_height,wave_period,sea_surface_temperature,ocean_current_velocity,ocean_current_direction&timezone=auto&forecast_days=3")
 .then(r=>r.json()).then(d=>{var q=d.hourly||{},t=q.time||[];if(!t.length)return;
  var idx=0;
@@ -8818,7 +8821,7 @@ fetch("https://marine-api.open-meteo.com/v1/marine?latitude="+LAT+"&longitude="+
      cv=v(q.ocean_current_velocity),cd=v(q.ocean_current_direction),h="";
  if(sst!=null)h+="<div class='mc'><div class='l'>🌡️ Water</div><div class='v'>"+r1(sst)+" °C</div><div class='s'>sea surface</div></div>";
  if(wv!=null)h+="<div class='mc'><div class='l'>🌊 Waves</div><div class='v'>"+r1(wv)+" m</div><div class='s'>"+(wp!=null?("period "+Math.round(wp)+" s"):"significant")+"</div></div>";
- if(cv!=null)h+="<div class='mc'><div class='l'>🧭 Current</div><div class='v'>"+r1(cv)+" km/h</div><div class='s'>"+(cd!=null?("towards "+comp(cd)):"drift")+"</div></div>";
+ if(cv!=null)h+="<div class='mc'><div class='l'>🧭 Current (avg)</div><div class='v' style='color:"+cc(cv)+"'>"+r1(cv)+" km/h</div><div class='s'>"+(cd!=null?("towards "+comp(cd)):"area average")+"</div></div>";
  document.getElementById('m').innerHTML=h;
 }).catch(e=>{});
 </script></body></html>"""
@@ -9047,6 +9050,17 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
     components.html(_marine_strip_html(coords[0], coords[1], day_index),
                     height=190 if _is_mobile() else 96)
 
+    # Der Current-Wert ist ein grossflaechiger Durchschnitt. An Spots mit Rip-/
+    # Tide-/Fluss-Gefahr kann die oertliche Stroemung (Bankrinnen, Buhnen) VIEL
+    # hoeher sein als angezeigt – dann warnen wir unabhaengig vom gruenen Wert.
+    if _spot_rip_risk(spot):
+        st.caption(
+            "⚠️ **Local currents:** the current above is an area average. In channels "
+            "between sandbanks, near groynes or in tidal/river venues the local current "
+            "can be far stronger — a green value here doesn't mean the water is safe. "
+            "[More on currents](?view=safety#rip-current)"
+        )
+
     # Warum steht (k)eine Groessen-Empfehlung da? Kurzer Hinweis fuer eingeloggte
     # Nutzer in einer unterstuetzten Sportart – erklaert das Ausbleiben.
     if _uname and active_sport() in _ADVISOR:
@@ -9222,7 +9236,7 @@ function loadMarine(){
     var sst=v(q.sea_surface_temperature),wv=v(q.wave_height),cv=v(q.ocean_current_velocity),parts=[];
     if(sst!=null)parts.push('\\ud83c\\udf21\\ufe0f '+(Math.round(sst*10)/10)+'\\u00b0C water');
     if(wv!=null)parts.push('\\ud83c\\udf0a '+(Math.round(wv*10)/10)+' m');
-    if(cv!=null)parts.push('\\ud83e\\udded '+(Math.round(cv*10)/10)+' km/h');
+    if(cv!=null){var _cc=(cv<2?'#4ad991':(cv<4?'#ffcc4d':'#ff6b6b'));parts.push('<span style="color:'+_cc+'">\\ud83e\\udded '+(Math.round(cv*10)/10)+' km/h</span>');}
     var el=document.getElementById('ftMarine');if(el)el.innerHTML=parts.join(' \\u00b7 ');
   }).catch(function(){});
 }
@@ -9335,6 +9349,33 @@ def _hazard_slug_app(x):
         return _HZ_ALIASES_APP[s]
     norm = re.sub(r"[\s/]+", "-", s)
     return norm if norm in _HZ_BY_SLUG_APP else None
+
+
+# Stroemungs-Gefahren, bei denen der grossflaechige Marine-Durchschnittswert
+# ("Current avg") allein truegt – lokal (Bankrinnen, Buhnen, Tide/Fluss) kann er
+# deutlich hoeher liegen. Loest den Zusatzhinweis an solchen Spots aus.
+_RIP_RISK_SLUGS = {"rip-current", "tidal-current", "river-current"}
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _spot_rip_risk(spot):
+    """True, wenn der Spot ein Stroemungs-Gefahren-Tag traegt (Rip/Tide/Fluss)."""
+    if not spot:
+        return False
+    try:
+        with get_engine().connect() as conn:
+            raw = conn.execute(
+                select(spot_info_table.c.spot_class)
+                .where(spot_info_table.c.spot == spot)
+            ).scalar()
+        if not raw:
+            return False
+        for x in (json.loads(raw).get("hazards") or []):
+            if _hazard_slug_app(x) in _RIP_RISK_SLUGS:
+                return True
+    except Exception:  # noqa: BLE001
+        return False
+    return False
 
 
 def _hazard_tags_app(hz, lang="en"):
