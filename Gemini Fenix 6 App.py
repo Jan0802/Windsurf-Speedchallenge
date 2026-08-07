@@ -696,6 +696,7 @@ users_table = Table(
     Column("token_created_at", DateTime),               # für Ablauf des Tokens
     Column("weight_kg", Float),         # optionales Profilfeld
     Column("height_cm", Float),         # optionales Profilfeld
+    Column("username_changed_at", DateTime),  # letzte Username-Aenderung (Cooldown)
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -1850,6 +1851,83 @@ def change_password(user_id, old_password, new_password):
         )
 
     return True, "Password changed."
+
+
+_RESERVED_USERNAMES = {
+    "admin", "administrator", "support", "mywatersessions", "mywatersession",
+    "root", "moderator", "mod", "official", "team", "staff", "system", "help",
+    "info", "contact", "null", "none", "guest", "anonymous", "owner",
+}
+_USERNAME_COOLDOWN_DAYS = 14
+# Diese Tabellen speichern den Username-STRING als Fahrer-/Konto-Identitaet und
+# muessen beim Umbenennen mitgezogen werden (Rest ist user_id-basiert = sicher).
+_USERNAME_REF_COLS = [
+    (lambda: sessions_table, "name"),
+    (lambda: profiles_table, "name"),
+    (lambda: user_prefs_table, "username"),
+    (lambda: polar_tokens_table, "username"),
+    (lambda: group_events_table, "username"),
+    (lambda: equip_shares_table, "owner"),
+    (lambda: spot_ratings_table, "username"),
+]
+
+
+def rename_user(user_id, new_username):
+    """Benennt einen Nutzer um UND zieht ALLE username-gebundenen Daten atomar mit
+    (Sessions/Ranglisten, Profil, Prefs, Polar-Token, Gruppen-Events, Equip-Shares,
+    Spot-Bewertungen). Gibt (ok, message, new_name)."""
+    new = (new_username or "").strip()
+    if user_id is None:
+        return False, "Not logged in.", None
+    if not (3 <= len(new) <= 30):
+        return False, "Username must be 3–30 characters.", None
+    if any(c in new for c in "<>/\\@\"'`{}|"):
+        return False, "Username contains invalid characters.", None
+    if new.lower() in _RESERVED_USERNAMES:
+        return False, "This username is reserved – please choose another.", None
+    with get_engine().begin() as conn:
+        me = conn.execute(
+            select(users_table.c.username, users_table.c.username_changed_at)
+            .where(users_table.c.id == int(user_id))
+        ).first()
+        if not me:
+            return False, "Account not found.", None
+        old = me[0]
+        if new == old:
+            return False, "That is already your username.", None
+        if new.lower() == old.lower():
+            pass   # nur Gross-/Kleinschreibung geaendert -> erlaubt (kein Konflikt)
+        else:
+            # Cooldown gegen Identitaets-Hopping.
+            _chg = me[1]
+            if _chg is not None:
+                _nextok = _chg + timedelta(days=_USERNAME_COOLDOWN_DAYS)
+                if datetime.now() < _nextok:
+                    return (False,
+                            f"You can change your username again on {_nextok:%d %b %Y}.", None)
+            # Eindeutigkeit: kein anderes Konto (case-insensitive) ...
+            if conn.execute(
+                select(users_table.c.id)
+                .where(func.lower(users_table.c.username) == new.lower())
+                .where(users_table.c.id != int(user_id))
+            ).first():
+                return False, "This username is already taken.", None
+            # ... und keine Sessions eines ANDEREN Fahrers unter dem Namen (auch Gaeste).
+            if conn.execute(
+                select(func.count()).select_from(sessions_table)
+                .where(func.lower(sessions_table.c.name) == new.lower())
+                .where(sessions_table.c.name != old)
+            ).scalar():
+                return False, "This name already belongs to another rider's sessions.", None
+        # --- Umbenennen + alle Referenzen mitziehen (eine Transaktion) ---
+        conn.execute(update(users_table).where(users_table.c.id == int(user_id))
+                     .values(username=new, username_changed_at=datetime.now()))
+        for _tbl, _col in _USERNAME_REF_COLS:
+            t = _tbl()
+            conn.execute(update(t).where(getattr(t.c, _col) == old)
+                         .values(**{_col: new}))
+    clear_data_caches()
+    return True, f"Username changed to {new}.", new
 
 
 def set_profile_list(name, key, values):
@@ -14057,6 +14135,29 @@ def render_user_profile(user):
                     else:
                         ok, msg = change_password(user["id"], old_pw, new_pw1)
                         (st.success if ok else st.error)(msg)
+
+        # --- Username ändern ---
+        if _section("🏷️ Change username", f"sec_un_{user['id']}"):
+            st.caption(
+                "Your username is also your rider name in the rankings. Changing it moves "
+                "your whole history (sessions, records, ratings, groups) to the new name — "
+                "nothing is lost. You can change it once every 14 days."
+            )
+            with st.form(f"un_form_{user['id']}"):
+                new_un = st.text_input("New username", value="",
+                                       placeholder=user["username"], max_chars=30)
+                if st.form_submit_button("Change username", use_container_width=True):
+                    ok, msg, _newname = rename_user(user["id"], new_un)
+                    if ok:
+                        # Session-State + Profil-Cache auf den neuen Namen umstellen.
+                        if isinstance(st.session_state.get("user"), dict):
+                            st.session_state["user"]["username"] = _newname
+                        user["username"] = _newname
+                        st.session_state.pop(_profile_key, None)
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
 
         # --- Uhr verbinden (Pairing-Code) ---
         _tok_key = f"_device_token_{user['id']}"
