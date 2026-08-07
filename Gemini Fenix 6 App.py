@@ -697,6 +697,11 @@ users_table = Table(
     Column("weight_kg", Float),         # optionales Profilfeld
     Column("height_cm", Float),         # optionales Profilfeld
     Column("username_changed_at", DateTime),  # letzte Username-Aenderung (Cooldown)
+    # E-Mail-Aenderung mit Bestaetigung: neue Adresse bleibt "pending", bis der
+    # Nutzer den Link an die NEUE Adresse klickt. Login-Adresse bleibt bis dahin alt.
+    Column("pending_email", String(255)),
+    Column("pending_email_token", String(64)),
+    Column("pending_email_expires", DateTime),
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -1817,6 +1822,205 @@ def update_user_account(user_id, email=None, weight_kg=None, height_cm=None):
         conn.execute(
             update(users_table).where(users_table.c.id == int(user_id)).values(**values)
         )
+
+
+# ---------------------------------------------------------------------------
+# Sichere E-Mail-Aenderung (verify-new + notify-old, kein sofortiges Umstellen).
+# Ablauf: Passwort erneut abfragen -> Link an NEUE Adresse (24 h) + Warn-Mail an
+# ALTE Adresse -> erst der Klick auf den Link macht die neue Adresse aktiv und
+# meldet dabei alle Geraete ab. Login laeuft ueber den Usernamen, nicht die Mail;
+# trotzdem ist die Mail der Kanal fuer Konto-Bestaetigung, daher der volle Flow.
+# ---------------------------------------------------------------------------
+_EMAIL_CHANGE_TTL_HOURS = 24
+
+
+def send_email_change_verify(new_email, username, token):
+    """Bestaetigungs-Link an die NEUE Adresse."""
+    link = f"{_app_base_url()}/?confirm_email={token}"
+    html = (
+        f"<div style='font-family:system-ui,sans-serif;font-size:16px;color:#0b2942;'>"
+        f"<h2>Confirm your new email, {username}</h2>"
+        f"<p>You asked to change the email address on your MyWaterSessions account "
+        f"to this one. Click below to confirm – until you do, nothing changes and "
+        f"your account keeps using your current email.</p>"
+        f"<p style='margin:24px 0;'>"
+        f"<a href='{link}' style='background:#2bd4d9;color:#06303a;padding:12px 22px;"
+        f"border-radius:10px;text-decoration:none;font-weight:700;'>Confirm new email</a>"
+        f"</p>"
+        f"<p style='font-size:13px;opacity:.7;'>Or paste this link into your browser:<br>{link}</p>"
+        f"<p style='font-size:13px;opacity:.7;'>This link expires in "
+        f"{_EMAIL_CHANGE_TTL_HOURS} hours. If you didn't request this, you can ignore it.</p>"
+        f"</div>"
+    )
+    return _send_email(new_email, "Confirm your new MyWaterSessions email", html)
+
+
+def send_email_change_alert(old_email, username, new_email):
+    """Sicherheits-Warnung SOFORT an die ALTE Adresse – macht Kaperversuche sichtbar."""
+    html = (
+        f"<div style='font-family:system-ui,sans-serif;font-size:16px;color:#0b2942;'>"
+        f"<h2>Email change requested</h2>"
+        f"<p>Hi {username}, someone requested to change the email address on your "
+        f"MyWaterSessions account to <b>{new_email}</b>.</p>"
+        f"<p><b>Was this you?</b> Then no action is needed – just confirm from the "
+        f"link we sent to the new address.</p>"
+        f"<p style='background:#fff3f3;border:1px solid #f3c1c1;border-radius:10px;"
+        f"padding:12px 14px;'><b>Was this NOT you?</b> Your account may be at risk. "
+        f"Please sign in and change your password immediately. The change is not "
+        f"active yet – your current email still works until the new one is confirmed.</p>"
+        f"</div>"
+    )
+    return _send_email(old_email, "Security alert: email change requested", html)
+
+
+def send_email_change_done(new_email, username):
+    """Kurze Erfolgsmeldung an die (jetzt aktive) neue Adresse."""
+    html = (
+        f"<div style='font-family:system-ui,sans-serif;font-size:16px;color:#0b2942;'>"
+        f"<h2>Your email was changed</h2>"
+        f"<p>Hi {username}, this is now the email address on your MyWaterSessions "
+        f"account. For security, we've signed you out on all devices – just log in "
+        f"again with your username.</p>"
+        f"</div>"
+    )
+    return _send_email(new_email, "Your MyWaterSessions email was changed", html)
+
+
+def request_email_change(user_id, current_password, new_email):
+    """Startet die E-Mail-Aenderung: Re-Auth per Passwort, Eindeutigkeit pruefen,
+    Link an die NEUE Adresse + Warnung an die ALTE senden. (ok, message)."""
+    if user_id is None:
+        return False, "Not logged in."
+    new_email = (new_email or "").strip()
+    if not new_email or not _valid_email(new_email):
+        return False, "Please enter a valid email address."
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            select(users_table.c.username, users_table.c.email,
+                   users_table.c.password_hash, users_table.c.salt)
+            .where(users_table.c.id == int(user_id))
+        ).mappings().first()
+    if not row:
+        return False, "User not found."
+    # Re-Authentifizierung: schuetzt gegen gekaperte/vergessene Sessions.
+    if not secrets.compare_digest(
+        _hash_password(current_password, row["salt"]), row["password_hash"]
+    ):
+        return False, "The current password is incorrect."
+    if (row["email"] or "").strip().lower() == new_email.lower():
+        return False, "That is already your email address."
+    # Eindeutigkeit (case-insensitive). Der Endpunkt ist bereits durch das Passwort
+    # geschuetzt, daher ist Account-Enumeration hier kein realer Vektor -> klare
+    # Meldung. Gegen die AKTIVE Adresse anderer Konten UND deren offene pending_email.
+    with get_engine().begin() as conn:
+        clash = conn.execute(
+            select(users_table.c.id)
+            .where(users_table.c.id != int(user_id))
+            .where(
+                (func.lower(users_table.c.email) == new_email.lower())
+                | (func.lower(users_table.c.pending_email) == new_email.lower())
+            )
+        ).first()
+        if clash:
+            return False, "This email address is already in use by another account."
+        token = secrets.token_urlsafe(32)
+        conn.execute(
+            update(users_table).where(users_table.c.id == int(user_id)).values(
+                pending_email=new_email,
+                pending_email_token=token,
+                pending_email_expires=datetime.now() + timedelta(hours=_EMAIL_CHANGE_TTL_HOURS),
+            )
+        )
+    username, old_email = row["username"], (row["email"] or "").strip()
+    send_email_change_verify(new_email, username, token)
+    if old_email:
+        send_email_change_alert(old_email, username, new_email)
+    return (True,
+            f"We've sent a confirmation link to {new_email}. Your login stays "
+            f"unchanged until you click it. We've also alerted your current address.")
+
+
+def resend_email_change(user_id):
+    """Verifizierungs-Mail zur laufenden Aenderung neu senden (frisches Token)."""
+    if user_id is None:
+        return False, "Not logged in."
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            select(users_table.c.username, users_table.c.pending_email)
+            .where(users_table.c.id == int(user_id))
+        ).mappings().first()
+        if not row or not row["pending_email"]:
+            return False, "No pending email change."
+        token = secrets.token_urlsafe(32)
+        conn.execute(
+            update(users_table).where(users_table.c.id == int(user_id)).values(
+                pending_email_token=token,
+                pending_email_expires=datetime.now() + timedelta(hours=_EMAIL_CHANGE_TTL_HOURS),
+            )
+        )
+        pending, username = row["pending_email"], row["username"]
+    send_email_change_verify(pending, username, token)
+    return True, f"We've sent a fresh confirmation link to {pending}."
+
+
+def cancel_email_change(user_id):
+    """Bricht eine laufende E-Mail-Aenderung ab (loescht die pending-Felder)."""
+    if user_id is None:
+        return
+    with get_engine().begin() as conn:
+        conn.execute(
+            update(users_table).where(users_table.c.id == int(user_id)).values(
+                pending_email=None, pending_email_token=None, pending_email_expires=None,
+            )
+        )
+
+
+def confirm_email_change(token):
+    """Loest den Link aus der NEUEN Adresse ein: macht sie aktiv, meldet alle
+    Geraete ab (auth_tokens loeschen) und schickt eine Erfolgsmail. (ok, message)."""
+    token = (token or "").strip()
+    if not token:
+        return False, "Invalid confirmation link."
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            select(users_table.c.id, users_table.c.username, users_table.c.email,
+                   users_table.c.pending_email, users_table.c.pending_email_expires)
+            .where(users_table.c.pending_email_token == token)
+        ).mappings().first()
+        if not row or not row["pending_email"]:
+            return False, "This confirmation link is invalid or has already been used."
+        exp = row["pending_email_expires"]
+        if exp is not None and datetime.now() > exp:
+            conn.execute(
+                update(users_table).where(users_table.c.id == row["id"]).values(
+                    pending_email=None, pending_email_token=None, pending_email_expires=None,
+                )
+            )
+            return False, "This confirmation link has expired. Please request the change again."
+        new_email = row["pending_email"]
+        # Zwischenzeitliche Kollision abfangen (jemand anderes hat die Adresse belegt).
+        clash = conn.execute(
+            select(users_table.c.id)
+            .where(users_table.c.id != row["id"])
+            .where(func.lower(users_table.c.email) == new_email.lower())
+        ).first()
+        if clash:
+            conn.execute(
+                update(users_table).where(users_table.c.id == row["id"]).values(
+                    pending_email=None, pending_email_token=None, pending_email_expires=None,
+                )
+            )
+            return False, "This email address is no longer available. Please try another."
+        conn.execute(
+            update(users_table).where(users_table.c.id == row["id"]).values(
+                email=new_email, email_verified=True,
+                pending_email=None, pending_email_token=None, pending_email_expires=None,
+            )
+        )
+        # Alle Sitzungen abmelden -> sperrt evtl. parallele fremde Sessions aus.
+        conn.execute(delete(auth_tokens_table).where(auth_tokens_table.c.user_id == row["id"]))
+    send_email_change_done(new_email, row["username"])
+    return True, "Email confirmed – this is now your account email. Please log in again."
 
 
 def change_password(user_id, old_password, new_password):
@@ -12999,6 +13203,25 @@ if "verify" in st.query_params:
         st.link_button("➡️ Go to login", _app_base_url(), use_container_width=True)
     st.stop()
 
+# E-Mail-Änderung bestätigen per ?confirm_email=<token> – schaltet die neue
+# Adresse aktiv und meldet alle Geräte ab. Wie bei ?verify: Token erst per
+# Klick einlösen (Firmen-Mailscanner rufen Links vorab auf).
+if "confirm_email" in st.query_params:
+    ensure_schema()
+    _ctoken = st.query_params.get("confirm_email")
+    st.markdown("## 📧 Confirm email change")
+    _cres = st.session_state.get("_confirm_email_result")
+    if not (_cres and _cres.get("token") == _ctoken):
+        st.write("Click the button below to confirm your new email address.")
+        if st.button("📧 Confirm my new email", type="primary", use_container_width=True):
+            ok, msg = confirm_email_change(_ctoken)
+            st.session_state["_confirm_email_result"] = {"token": _ctoken, "ok": ok, "msg": msg}
+            st.rerun()
+    else:
+        (st.success if _cres["ok"] else st.error)(_cres["msg"])
+        st.link_button("➡️ Go to login", _app_base_url(), use_container_width=True)
+    st.stop()
+
 # Strava OAuth-Rückkanal: nach "Connect with Strava" kehrt der Nutzer mit
 # ?code=…&state=strava… zurück. Code gegen ein Token tauschen, in der Session
 # ablegen, URL säubern und normal weiterlaufen – die Upload-Seite zeigt dann
@@ -14098,8 +14321,11 @@ def render_user_profile(user):
 
         # --- Account-Daten ---
         if _section("👤 Account details", f"sec_acc_{user['id']}"):
+            # E-Mail ist NUR Anzeige – Aenderung laeuft ueber den sicheren
+            # "Change email"-Flow unten (Bestaetigung an die neue Adresse).
+            st.text_input("Email", value=full.get("email") or "", disabled=True,
+                          help="Change your email in the “📧 Change email” section below.")
             with st.form(f"profile_form_{user['id']}"):
-                email = st.text_input("Email", value=full.get("email") or "")
                 weight = st.number_input(
                     "Weight (kg)", min_value=0.0, max_value=300.0, step=0.5,
                     value=float(full.get("weight_kg") or 0.0),
@@ -14112,15 +14338,12 @@ def render_user_profile(user):
                 )
 
                 if st.form_submit_button("Save profile", use_container_width=True):
-                    if email and not _valid_email(email):
-                        st.error("Please enter a valid email address.")
-                    else:
-                        update_user_account(
-                            user["id"], email=email,
-                            weight_kg=weight or None, height_cm=height or None,
-                        )
-                        st.session_state[_profile_key] = get_user(user["username"]) or {}
-                        st.success("Profile saved.")
+                    update_user_account(
+                        user["id"],
+                        weight_kg=weight or None, height_cm=height or None,
+                    )
+                    st.session_state[_profile_key] = get_user(user["username"]) or {}
+                    st.success("Profile saved.")
 
         # --- Passwort ändern ---
         if _section("🔒 Change password", f"sec_pw_{user['id']}"):
@@ -14158,6 +14381,46 @@ def render_user_profile(user):
                         st.rerun()
                     else:
                         st.error(msg)
+
+        # --- E-Mail ändern (mit Bestätigung) ---
+        if _section("📧 Change email", f"sec_em_{user['id']}"):
+            _pending = full.get("pending_email")
+            if _pending:
+                st.info(f"⏳ Change pending to **{_pending}** — we've emailed a "
+                        f"confirmation link there. It becomes active once you click it "
+                        f"(link valid {_EMAIL_CHANGE_TTL_HOURS} h). Your current email "
+                        f"keeps working until then.")
+                c1, c2 = st.columns(2)
+                if c1.button("Resend link", key=f"em_resend_{user['id']}",
+                             use_container_width=True):
+                    ok, msg = resend_email_change(user["id"])
+                    (st.success if ok else st.error)(msg)
+                if c2.button("Cancel change", key=f"em_cancel_{user['id']}",
+                             use_container_width=True):
+                    cancel_email_change(user["id"])
+                    st.session_state[_profile_key] = get_user(user["username"]) or {}
+                    st.success("Email change cancelled.")
+                    st.rerun()
+            else:
+                st.caption(
+                    "For your security we confirm the new address before switching. "
+                    "We send a link to the new email and a heads-up to your current one; "
+                    "nothing changes until you click the link — then you're signed out "
+                    "everywhere and log back in with your username."
+                )
+                with st.form(f"em_form_{user['id']}"):
+                    em_pw = st.text_input("Current password", type="password",
+                                          key=f"em_pw_{user['id']}")
+                    em_new = st.text_input("New email", key=f"em_new_{user['id']}")
+                    if st.form_submit_button("Send confirmation link",
+                                             use_container_width=True):
+                        ok, msg = request_email_change(user["id"], em_pw, em_new)
+                        if ok:
+                            st.session_state[_profile_key] = get_user(user["username"]) or {}
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
 
         # --- Uhr verbinden (Pairing-Code) ---
         _tok_key = f"_device_token_{user['id']}"
