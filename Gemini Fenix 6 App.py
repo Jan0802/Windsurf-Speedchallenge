@@ -697,6 +697,7 @@ users_table = Table(
     Column("weight_kg", Float),         # optionales Profilfeld
     Column("height_cm", Float),         # optionales Profilfeld
     Column("username_changed_at", DateTime),  # letzte Username-Aenderung (Cooldown)
+    Column("previous_username", String(80)),  # vorheriger Name -> Rueckbenennen ohne Cooldown
     # E-Mail-Aenderung mit Bestaetigung: neue Adresse bleibt "pending", bis der
     # Nutzer den Link an die NEUE Adresse klickt. Login-Adresse bleibt bis dahin alt.
     Column("pending_email", String(255)),
@@ -2063,7 +2064,7 @@ _RESERVED_USERNAMES = {
     "root", "moderator", "mod", "official", "team", "staff", "system", "help",
     "info", "contact", "null", "none", "guest", "anonymous", "owner",
 }
-_USERNAME_COOLDOWN_DAYS = 14
+_USERNAME_COOLDOWN_DAYS = 1   # Wechsel auf einen NEUEN Namen 1×/Tag; Rueckbenennen jederzeit
 # Diese Tabellen speichern den Username-STRING als Fahrer-/Konto-Identitaet und
 # muessen beim Umbenennen mitgezogen werden (Rest ist user_id-basiert = sicher).
 _USERNAME_REF_COLS = [
@@ -2092,23 +2093,31 @@ def rename_user(user_id, new_username):
         return False, "This username is reserved – please choose another.", None
     with get_engine().begin() as conn:
         me = conn.execute(
-            select(users_table.c.username, users_table.c.username_changed_at)
+            select(users_table.c.username, users_table.c.username_changed_at,
+                   users_table.c.previous_username)
             .where(users_table.c.id == int(user_id))
         ).first()
         if not me:
             return False, "Account not found.", None
         old = me[0]
+        prev = (me[2] or "").strip()
+        # Rueckbenennen auf den zuletzt genutzten eigenen Namen ist IMMER erlaubt
+        # (Undo eines versehentlichen Wechsels – kein Identitaets-Hopping).
+        is_revert = bool(prev) and new.lower() == prev.lower()
         if new == old:
             return False, "That is already your username.", None
         if new.lower() == old.lower():
             pass   # nur Gross-/Kleinschreibung geaendert -> erlaubt (kein Konflikt)
         else:
-            # Cooldown gegen Identitaets-Hopping.
+            # Cooldown gegen Identitaets-Hopping – entfaellt beim Rueckbenennen (Undo).
             _chg = me[1]
-            if _chg is not None:
+            if not is_revert and _chg is not None:
                 _nextok = _chg + timedelta(days=_USERNAME_COOLDOWN_DAYS)
                 if datetime.now() < _nextok:
                     return (False,
+                            f"You can change your username again on {_nextok:%d %b %Y}. "
+                            f"(You can always switch back to “{prev}”.)"
+                            if prev else
                             f"You can change your username again on {_nextok:%d %b %Y}.", None)
             # Eindeutigkeit: kein anderes Konto (case-insensitive) ...
             if conn.execute(
@@ -2125,8 +2134,13 @@ def rename_user(user_id, new_username):
             ).scalar():
                 return False, "This name already belongs to another rider's sessions.", None
         # --- Umbenennen + alle Referenzen mitziehen (eine Transaktion) ---
+        # Beim Undo den Cooldown NICHT neu starten (sonst haengt man im Ping-Pong fest);
+        # previous_username merkt sich den gerade verlassenen Namen fuer den naechsten Undo.
+        _vals = {"username": new, "previous_username": old}
+        if not is_revert:
+            _vals["username_changed_at"] = datetime.now()
         conn.execute(update(users_table).where(users_table.c.id == int(user_id))
-                     .values(username=new, username_changed_at=datetime.now()))
+                     .values(**_vals))
         for _tbl, _col in _USERNAME_REF_COLS:
             t = _tbl()
             conn.execute(update(t).where(getattr(t.c, _col) == old)
@@ -14555,7 +14569,8 @@ def render_user_profile(user):
             st.caption(
                 "Your username is also your rider name in the rankings. Changing it moves "
                 "your whole history (sessions, records, ratings, groups) to the new name — "
-                "nothing is lost. You can change it once every 14 days."
+                "nothing is lost. You can pick a new name once a day, but you can always "
+                "switch back to your previous name right away."
             )
             with st.form(f"un_form_{user['id']}"):
                 new_un = st.text_input("New username", value="",
