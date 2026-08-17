@@ -148,7 +148,7 @@ NEW_ENTRY = "➕ Add new..."
 # Eine DB, eine sessions-Tabelle mit Spalte `sport`. Der aktive Sport kommt aus
 # dem URL-Parameter ?sport= (bleibt so über Reload/Link erhalten). Standard:
 # Windsurf. So bleiben Caching & Performance unverändert – nur ein WHERE mehr.
-SPORTS = ("windsurf", "kitesurf", "wingsurf", "sup", "wakeboard")
+SPORTS = ("windsurf", "kitesurf", "wingsurf", "sup", "wakeboard", "surf")
 
 # Beta-Hinweis neben dem Logo: verirrte Besucher sollen wissen, dass die Seite
 # noch im Aufbau ist (volle Geschwindigkeit erst nach Umzug auf einen Pay-Server).
@@ -251,6 +251,21 @@ SPORT_META = {
         "boards_key": "wake_boards",
         "gear_key": "wake_tows",
         "bg_stem": "background_wake",                # assets/background_wake.webp
+    },
+    "surf": {
+        "label": "🌊 Surf",
+        "emoji": "🌊",
+        "title": "SURF",
+        # Board-only + windunabhaengig. Kein Segel/Kite/Wing – das "2. Material" ist
+        # optional die Finnen-Konfiguration; der Board-Typ steckt im gear_type-Feld.
+        # Finnen sind fuer eine gewertete Session NICHT Pflicht (_SPORT_GEAR_OPTIONAL).
+        "gear_label": "Fins",
+        "gear_size_unit": "",                       # Finnen haben keine m²-Größe
+        "gear_type_label": "Board type",
+        "gear_type_options": ["Shortboard", "Fish", "Longboard", "Gun", "Foil"],
+        "boards_key": "surf_boards",
+        "gear_key": "surf_fins",
+        "bg_stem": "background_surf",                # fehlt -> faellt auf Windsurf-Bild zurueck
     },
 }
 
@@ -4456,6 +4471,9 @@ def mark_group_events_seen(user_id):
 
 # Pflichtfelder, damit eine Session im Ranking/in den Personal Bests zählt.
 RANKING_REQUIRED = ["surfspot", "board", "sail"]
+# Board-only-Sportarten: eine Session gilt auch OHNE zweites Material ("sail") als
+# vollstaendig. Surf hat kein Segel/Kite; Finnen sind optional.
+_SPORT_GEAR_OPTIONAL = {"surf"}
 
 # Öffentliche Bestenliste zeigt nur die Top N je Tabelle. Den eigenen Rang
 # (auch jenseits der Top N) sieht der Nutzer im persönlichen Bereich.
@@ -4467,7 +4485,8 @@ RANKING_TABLES_DEFAULT = ["30s", "2s"]
 # Sportartgerechte Default-Tabellen. Wakeboard: Speed-Distanz-Disziplinen
 # (30s/500m/nm/Longest run) sind uninteressant – es zaehlen Airtime & Sprunghoehe
 # (siehe wakeboard-gps-kennzahlen.md). Andere Sportarten spaeter (Multisport).
-RANKING_TABLES_DEFAULT_BY_SPORT = {"wakeboard": ["airtime", "jump"]}
+RANKING_TABLES_DEFAULT_BY_SPORT = {"wakeboard": ["airtime", "jump"],
+                                   "surf": ["2s", "run", "time"]}
 
 
 def _rank_default_tables(sport):
@@ -4477,6 +4496,7 @@ def _rank_default_tables(sport):
 RANKING_TABLE_LABELS = {
     "30s": "🏆 Best 30 s", "2s": "⚡ Top 2 s", "500m": "📏 Best 500 m",
     "nm": "⚓ Nautical mile", "run": "🚩 Longest run", "total": "👥 Total distance",
+    "time": "⏱️ Most water time",
     "airtime": "🪂 Best airtime", "jump": "🚀 Highest jump", "airs": "🔁 Most airs",
     "strokes": "🛶 Most strokes", "cadence": "⏱️ Max cadence",
     "kw_ppf": "💪 Pound-for-pound", "kw_force": "🏋️ Sail force", "kw_power": "⚡ Power",
@@ -4486,15 +4506,26 @@ RANKING_TABLE_LABELS = {
 def complete_sessions(df):
     """Nur Sessions, die fürs Ranking vollständig sind: Spot + Board + Segel/
     Kite gesetzt. Unvollständige (z.B. frisch von der Uhr, ohne Equipment)
-    bleiben aus Ranking & Personal Bests draußen, bis sie nachgepflegt wurden."""
+    bleiben aus Ranking & Personal Bests draußen, bis sie nachgepflegt wurden.
+    Board-only-Sportarten (Surf) brauchen KEIN zweites Material."""
     if df is None or df.empty:
         return df
-    if not all(col in df.columns for col in RANKING_REQUIRED):
+    base = ["surfspot", "board"]
+    if not all(col in df.columns for col in base):
         return df.iloc[0:0]
     mask = pd.Series(True, index=df.index)
-    for col in RANKING_REQUIRED:
+    for col in base:
         s = df[col].astype(str).str.strip()
         mask &= s.ne("") & ~s.str.lower().isin(["none", "nan", "null"])
+    # Zweites Material ("sail") nur verlangen, wo der Sport eins braucht.
+    if "sail" in df.columns:
+        sail = df["sail"].astype(str).str.strip()
+        sail_ok = sail.ne("") & ~sail.str.lower().isin(["none", "nan", "null"])
+        if "sport" in df.columns:
+            gear_optional = df["sport"].astype(str).isin(_SPORT_GEAR_OPTIONAL)
+        else:
+            gear_optional = pd.Series(False, index=df.index)
+        mask &= (sail_ok | gear_optional)
     return df[mask]
 
 
@@ -5896,6 +5927,8 @@ def render_rankings(results_container):
                        "click (faster & lighter). Save via ‚My start' to keep it.")
             if sport == "wakeboard":
                 _tbl_opts = ["airtime", "jump", "airs", "2s", "total"]
+            elif sport == "surf":
+                _tbl_opts = ["2s", "run", "time", "total"]
             else:
                 _tbl_opts = ["30s", "2s", "500m", "nm", "run", "total"] + (
                     ["strokes", "cadence"] if sport == "sup" else ["airtime", "jump", "airs"])
@@ -6405,6 +6438,31 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             st.dataframe(_order_table_cols(_mobile_slim(rtotal), extra.get("columns"), gear_label),
                          width="stretch", hide_index=True, height=df_height(len(rtotal)))
 
+    def _r_time(c):
+        with c:
+            st.markdown("### ⏱️ Most time on the water per rider")
+            if "duration_s" not in ranking.columns:
+                st.caption("No session duration recorded yet.")
+                return
+            rtime = (
+                ranking.groupby("name", as_index=False)
+                .agg(secs=("duration_s", "sum"), last_date=("date", "max"))
+            )
+            rtime["secs"] = pd.to_numeric(rtime["secs"], errors="coerce").fillna(0)
+            rtime = (rtime[rtime["secs"] > 0]
+                     .sort_values("secs", ascending=False)
+                     .reset_index(drop=True).head(RANKING_TOP_N))
+            if rtime.empty:
+                st.caption("No session duration recorded yet.")
+                return
+            rtime.insert(0, "Rank", rtime.index + 1)
+            rtime["Water time"] = rtime["secs"].apply(
+                lambda s: f"{int(s) // 3600}h {int(s) % 3600 // 60:02d}m")
+            rtime = rtime.drop(columns=["secs"]).rename(
+                columns={"name": "Name", "last_date": "Last session"})
+            st.dataframe(_order_table_cols(_mobile_slim(rtime), extra.get("columns"), gear_label),
+                         width="stretch", hide_index=True, height=df_height(len(rtime)))
+
     def _metric_body(c, metric, title, col_label, decimals=1, empty_msg="No data yet."):
         with c:
             tbl = ranking[fin_cols + [
@@ -6475,6 +6533,10 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         # dazu Top-Speed + Distanz. KEINE Seemeile/500m/30s/Longest run.
         _avail = [("airtime", _r_airtime), ("jump", _r_jump), ("airs", _r_airs),
                   ("2s", _r_2s), ("total", _r_total)]
+    elif _sp == "surf":
+        # Wellenreiten: bei GPS ehrlich messbar sind Top-Speed, laengster Ritt
+        # (Longest run) und Wasserzeit. KEINE 500m/Seemeile/Airtime.
+        _avail = [("2s", _r_2s), ("run", _r_run), ("time", _r_time), ("total", _r_total)]
     else:
         _avail = [("30s", _r_30s), ("2s", _r_2s)]
         if "speed_500m_kmh" in ranking.columns:
@@ -8491,8 +8553,8 @@ def _forecast_card_html(daily, i, best_degs):
     wspeed = at("wind_speed_10m_max")
     wdir = at("wind_direction_10m_dominant")
     comp = _COMPASS[round(wdir / 22.5) % 16] if wdir is not None else ""
-    # Wind-Ampel ("worth it") ergibt für Wakeboard keinen Sinn -> ausblenden.
-    if active_sport() == "wakeboard":
+    # Wind-Ampel ("worth it") ergibt für Wakeboard/Surf keinen Sinn -> ausblenden.
+    if active_sport() in ("wakeboard", "surf"):
         rate = ""
     else:
         emoji, verdict = _assess_forecast_day(wspeed, wdir, best_degs)
@@ -8559,7 +8621,7 @@ def render_spots_forecast(spot, coords):
     di = st.session_state.get("spots_fcday")
     if di is not None and di < n:
         show_thermal = False
-        if active_sport() != "wakeboard":   # Thermik/Seewind irrelevant für Wakeboard
+        if active_sport() not in ("wakeboard", "surf"):   # Thermik/Seewind irrelevant
             show_thermal = st.toggle(
                 "🌡️ Show thermal / sea-breeze potential",
                 key="spots_thermal_toggle",
@@ -9324,7 +9386,7 @@ def _tv_footer(cfg):
             .replace("__SPOT__", json.dumps(spot))
             .replace("__NOTE__", json.dumps(note))
             .replace("__BEST__", json.dumps(best_degs))
-            .replace("__RATE__", "true" if cfg.get("sport") != "wakeboard" else "false")
+            .replace("__RATE__", "true" if cfg.get("sport") not in ("wakeboard", "surf") else "false")
             .replace("__LAT__", json.dumps(coords[0] if coords else None))
             .replace("__LON__", json.dumps(coords[1] if coords else None))
             .replace("__EMO__", json.dumps(_WCODE_EMOJI)))
@@ -9521,7 +9583,8 @@ def _spot_class_html_app(raw):
     if isinstance(sports, dict) and sports:
         cells = ""
         for key, label in (("windsurf", "Windsurf"), ("kite", "Kite"),
-                           ("wing", "Wing"), ("sup", "SUP"), ("wakeboard", "Wake")):
+                           ("wing", "Wing"), ("sup", "SUP"), ("wakeboard", "Wake"),
+                           ("surf", "Surf")):
             v = str(sports.get(key) or "").lower()
             if v not in ("yes", "limited", "no"):
                 continue
@@ -9883,6 +9946,7 @@ def _region_overview_html(spots):
         sports = c.get("sports") if isinstance(c.get("sports"), dict) else {}
         sp_cells = ""
         for key, label in (("windsurf", "WS"), ("kite", "KI"), ("wing", "WG"),
+                           ("surf", "SF"),
                            ("sup", "SUP"), ("wakeboard", "WK")):
             v = str(sports.get(key) or "").lower()
             if v in ("yes", "limited"):
@@ -11424,6 +11488,8 @@ def _polar_entry_from_df(df, username, sport, fname):
     best_30s = best_average_speed(df, 30)
     best_500m = best_distance_speed(df, 500)
     best_nm = best_distance_speed(df, 1852)
+    if sport == "surf":                 # Surf: keine 500m/Seemeile-Wertung
+        best_500m = best_nm = None
     distance_km = df["distance"].max() / 1000 if "distance" in df.columns else None
     session_date = None
     if "timestamp" in df.columns:
@@ -12496,7 +12562,7 @@ def render_admin_spots():
         _LEARN = ["–", "yes", "limited", "no"]
         _SPORT_OPTS = ["na", "yes", "limited", "no"]
         _SPORTS = [("windsurf", "Windsurf"), ("kite", "Kite"), ("wing", "Wing"),
-                   ("sup", "SUP"), ("wakeboard", "Wake")]
+                   ("sup", "SUP"), ("wakeboard", "Wake"), ("surf", "Surf")]
 
         _cur_level = [x for x in _as_list(_cur.get("level")) if x in _LEVELS]
         _cur_water = [x for x in _as_list(_cur.get("water")) if x in _WATERS]
@@ -15214,6 +15280,8 @@ def _guest_process_and_save(fit_source, sport, spot, name):
     best_30s = best_average_speed(df, 30)
     best_500m = best_distance_speed(df, 500)
     best_nm = best_distance_speed(df, 1852)
+    if sport == "surf":                 # Surf: keine 500m/Seemeile-Wertung
+        best_500m = best_nm = None
     distance_km = (df["distance"].max() / 1000) if "distance" in df.columns else None
     session_date = None
     if "timestamp" in df.columns:
@@ -16191,7 +16259,7 @@ if st.query_params.get("perf") and _PERF:
 required_ok = all([
     spot.strip(),
     board_ok,
-    sail_ok,
+    sail_ok or active_sport() == "surf",   # Surf ist board-only, Finnen optional
 ])
 
 
@@ -16226,6 +16294,8 @@ if fit_source is not None:
         best_30s = best_average_speed(df, 30)
     best_500m = best_distance_speed(df, 500)
     best_nm = best_distance_speed(df, 1852)
+    if active_sport() == "surf":         # Surf: keine 500m/Seemeile-Wertung
+        best_500m = best_nm = None
 
     distance_km = None
 
