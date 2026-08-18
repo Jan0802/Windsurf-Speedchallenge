@@ -15846,6 +15846,204 @@ def render_best_placement(name):
                           use_container_width=True)
 
 
+def _nearest_known_spot(lat, lon, max_km=2.0):
+    """Naechster bekannter Spot (Name) zu den Koordinaten, sonst None. Fuer den
+    Historien-Import: ordnet jede Datei automatisch ihrem Spot zu."""
+    if lat is None or lon is None:
+        return None
+    best = None
+    best_km = max_km
+    for nm, c in load_spots().items():
+        la = c.get("lat")
+        lo = c.get("lon")
+        if la is None or lo is None:
+            continue
+        try:
+            d = float(_haversine_m(float(lat), float(lon), float(la), float(lo))) / 1000.0
+        except (TypeError, ValueError):
+            continue
+        if d <= best_km:
+            best_km = d
+            best = nm
+    return best
+
+
+def _import_entry_from_df(df, sport, name, spot, board, sail, filename):
+    """Baut aus einem geparsten Track denselben Session-Eintrag wie der Upload –
+    fuer den Massen-Import. Spot: uebergebener Wert, sonst automatisch der naechste
+    bekannte Spot aus den Startkoordinaten. source='import'."""
+    best_1s = best_average_speed(df, 1)
+    best_30s = best_average_speed(df, 30)
+    best_500m = best_distance_speed(df, 500)
+    best_nm = best_distance_speed(df, 1852)
+    if sport == "surf":
+        best_500m = best_nm = None
+    distance_km = (df["distance"].max() / 1000) if "distance" in df.columns else None
+    session_date = None
+    if "timestamp" in df.columns:
+        ts = df["timestamp"].dropna()
+        if not ts.empty:
+            session_date = ts.min().strftime("%Y-%m-%d %H:%M:%S")
+    lat = lon = None
+    if "lat" in df.columns and "lon" in df.columns:
+        gps = df.dropna(subset=["lat", "lon"])
+        if not gps.empty:
+            lat = float(gps["lat"].iloc[0])
+            lon = float(gps["lon"].iloc[0])
+    if not spot and lat is not None:
+        spot = _nearest_known_spot(lat, lon) or ""
+    weather = None
+    _wt = surf_weather_time(df)
+    if _wt is not None and lat is not None:
+        weather = get_weather(lat, lon, _wt.strftime("%Y-%m-%dT%H:%M"))
+    runs = detect_runs(df)
+    longest_run_m = longest_run_km = None
+    if not runs.empty:
+        longest_run_m = float(runs["Distance m"].max())
+        longest_run_km = longest_run_m / 1000
+    spot_top = None
+    try:
+        _all = load_sessions(sport)
+        if spot and not _all.empty and {"surfspot", "speed_1s_kmh"}.issubset(_all.columns):
+            _m = pd.to_numeric(_all.loc[_all["surfspot"].astype(str) == spot, "speed_1s_kmh"],
+                               errors="coerce").max()
+            if pd.notna(_m):
+                spot_top = float(_m)
+    except Exception:  # noqa: BLE001
+        spot_top = None
+    trust = compute_trust_score(df, spot_top)
+
+    def _w(k):
+        return None if (weather is None or weather.get(k) is None) else weather.get(k)
+
+    return {
+        "sport": sport, "name": name, "date": session_date, "surfspot": spot,
+        "board": board, "sail": sail, "gear_type": None, "filename": filename,
+        "track": _track_json_from_df(df),
+        "total_distance_km": None if distance_km is None else round(distance_km, 2),
+        "longest_run_km": None if longest_run_km is None else round(longest_run_km, 3),
+        "longest_run_m": None if longest_run_m is None else round(longest_run_m, 2),
+        "speed_1s_kmh": None if best_1s is None else round(best_1s, 2),
+        "speed_1s_kn": None if best_1s is None else round(best_1s / 1.852, 2),
+        "speed_30s_kmh": None if best_30s is None else round(best_30s, 2),
+        "speed_30s_kn": None if best_30s is None else round(best_30s / 1.852, 2),
+        "speed_500m_kmh": None if best_500m is None else round(best_500m, 2),
+        "speed_nm_kmh": None if best_nm is None else round(best_nm, 2),
+        "wind_kmh": None if _w("wind") is None else round(_w("wind"), 1),
+        "gust_kmh": None if _w("gust") is None else round(_w("gust"), 1),
+        "wind_dir_deg": None if _w("dir") is None else round(_w("dir")),
+        "temp_c": None if _w("temp") is None else round(_w("temp"), 1),
+        "precip_mm": None if _w("precip") is None else round(_w("precip"), 1),
+        "weather_code": None if _w("code") is None else int(_w("code")),
+        "trust_score": trust.get("score") if isinstance(trust, dict) else None,
+        "source": "import",
+    }
+
+
+def render_history_import(user):
+    """Massen-Import der eigenen Historie von anderen Diensten: mehrere FIT/GPX/TCX
+    (oder ein ZIP davon) auf einmal. Wechselhuerde senken – 'bring deine ganze
+    Historie mit'. Nutzt denselben Parser/Trust/Spot-Weg wie der normale Upload."""
+    import zipfile   # nur hier gebraucht
+    name = user["username"]
+    sport = active_sport()
+    with st.expander("📥 Import your history (Strava · Garmin · GPS-Speedsurfing …)",
+                     expanded=False):
+        st.caption(
+            "Switching apps shouldn't cost you your history. Export your files from "
+            "Strava (Account → Download your data), Garmin Connect, GPS-Speedsurfing / "
+            "GPSResults or any GPS app and drop them here — FIT, GPX, TCX, or a ZIP of "
+            f"them. Imported into **{SPORT_META[sport]['label']}**; each file is matched "
+            "to the nearest known spot by GPS."
+        )
+        gear_label = SPORT_META[sport]["gear_label"]
+        c1, c2 = st.columns(2)
+        def_board = c1.text_input("Default board (optional)", key=f"imp_board_{sport}",
+            help="Applied to all imported sessions so they count in the rankings. "
+                 "You can edit each session afterwards.").strip()
+        def_sail = c2.text_input(f"Default {gear_label.lower()} (optional)",
+                                 key=f"imp_sail_{sport}").strip()
+        _spots = sorted(load_spots().keys())
+        spot_choice = st.selectbox(
+            "Spot", ["📍 Auto-detect from GPS"] + _spots, key=f"imp_spot_{sport}",
+            help="By default each file is matched to the nearest known spot. Pick one "
+                 "here to assign ALL files to that spot (also used when GPS has no match).")
+        force_spot = None if spot_choice.startswith("📍") else spot_choice
+        files = st.file_uploader(
+            "Files — FIT, GPX, TCX or ZIP", type=["fit", "gpx", "tcx", "zip"],
+            accept_multiple_files=True, key=f"imp_files_{sport}")
+        if not st.button("📥 Import", type="primary", key=f"imp_go_{sport}",
+                         disabled=not files):
+            return
+
+        # 1) Dateien einsammeln (ZIPs entpacken -> (name, bytes)).
+        items = []
+        for f in files:
+            data = f.getvalue()
+            if f.name.lower().endswith(".zip"):
+                try:
+                    zf = zipfile.ZipFile(io.BytesIO(data))
+                    for zn in zf.namelist():
+                        low = zn.lower()
+                        if not zn.endswith("/") and low.endswith((".fit", ".gpx", ".tcx")):
+                            items.append((zn.split("/")[-1], zf.read(zn)))
+                except Exception:  # noqa: BLE001
+                    pass
+            else:
+                items.append((f.name, data))
+        if not items:
+            st.warning("No FIT/GPX/TCX files found in the upload.")
+            return
+
+        # 2) Der Reihe nach verarbeiten.
+        n_ok = n_dup = n_bad = n_noassign = 0
+        best_seen = 0.0
+        prog = st.progress(0.0)
+        for i, (fn, data) in enumerate(items):
+            prog.progress(float(i + 1) / len(items))
+            if session_exists(fn, name, sport):
+                n_dup += 1
+                continue
+            try:
+                df = read_activity_file(io.BytesIO(data), fn)
+            except Exception:  # noqa: BLE001
+                df = None
+            if df is None or df.empty:
+                n_bad += 1
+                continue
+            try:
+                entry = _import_entry_from_df(df, sport, name, force_spot or "",
+                                              def_board, def_sail, fn)
+                save_session(entry)
+                n_ok += 1
+                if not entry.get("surfspot"):
+                    n_noassign += 1
+                _s1 = entry.get("speed_1s_kmh")
+                if _s1 is not None and _s1 > best_seen:
+                    best_seen = _s1
+            except Exception:  # noqa: BLE001
+                n_bad += 1
+        prog.empty()
+
+        msg = f"✅ Imported {n_ok} session(s)."
+        if n_dup:
+            msg += f" Skipped {n_dup} already in your history."
+        if n_bad:
+            msg += f" {n_bad} couldn't be read."
+        if best_seen > 0:
+            msg += f" Best 2 s: {best_seen:.1f} km/h."
+        st.success(msg)
+        if not def_board and n_ok:
+            st.info("Tip: set a **default board** (and sail) next time — imported sessions "
+                    "need equipment to count in the rankings. You can still add it below in "
+                    "‘Complete my sessions’.")
+        if n_noassign:
+            st.info(f"{n_noassign} session(s) had no matching spot within 2 km — set their "
+                    "spot in ‘Complete my sessions’ so they count in the rankings.")
+        clear_data_caches()
+        st.rerun()
+
+
 def render_my_results_page(user):
     """Persönliche Seite: KPI-Rekorde, eigener Rang, Bestleistungen (mit Filter),
     eigene Sessions + Detailanalyse und der „complete my sessions“-Editor – alles
@@ -15880,6 +16078,11 @@ def render_my_results_page(user):
 
     # --- Finnenberater (Windsurf, aufklappbar; reine Faustregel, kein Serverkost) ---
     _render_fin_advisor(name)
+
+    st.markdown("---")
+
+    # --- Historie von anderen Diensten importieren (Wechselhuerde senken) ---
+    render_history_import(user)
 
     st.markdown("---")
 
