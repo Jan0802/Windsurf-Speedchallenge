@@ -14362,6 +14362,15 @@ def render_login():
         unsafe_allow_html=True,
     )
 
+    # Wechselhuerde senken: Neuzugaenge sehen sofort, dass sie ihre Historie mitbringen koennen.
+    st.markdown(
+        "<div style='text-align:center;margin:0 0 1rem;'>"
+        "<a href='https://mywatersessions.com/import.html' target='_blank' "
+        "style='color:#2bd4d9;font-weight:700;'>📥 Coming from another app? "
+        "Import your whole history</a></div>",
+        unsafe_allow_html=True,
+    )
+
     tab_login, tab_register = st.tabs(["Log in", "Register"])
 
     with tab_login:
@@ -16033,6 +16042,8 @@ def render_history_import(user):
             f"ZIP of them. Imported into **{SPORT_META[sport]['label']}**; each file is "
             "matched to the nearest known spot by GPS."
         )
+        st.caption("↳ [How the history import works — step by step ↗]"
+                   "(https://mywatersessions.com/import.html)")
         gear_label = SPORT_META[sport]["gear_label"]
         c1, c2 = st.columns(2)
         def_board = c1.text_input("Default board (optional)", key=f"imp_board_{sport}",
@@ -16294,6 +16305,9 @@ with st.sidebar:
                    use_container_width=True)
     st.link_button("⌚ Watches · Uhren · Horloges",
                    "https://mywatersessions.com/watches.html",
+                   use_container_width=True)
+    st.link_button("📥 Import your history · Historie importieren",
+                   "https://mywatersessions.com/import.html",
                    use_container_width=True)
 
 

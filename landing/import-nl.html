@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
+<link rel="manifest" href="/site.webmanifest">
+<title>Je historie importeren – Strava, Garmin, GPS-Speedsurfing, GPSResults, GT-31 | MyWaterSessions</title>
+<meta name="description" content="Van app wisselen mag je historie niet kosten. Importeer jaren aan windsurf-, kite-, wing-, SUP- of surfsessies in één keer – uit Strava, Garmin Connect, GPS-Speedsurfing, GPSResults of oude GPS-loggers (GT-31, GW-52). FIT, GPX, TCX, UBX, SBP, ZIP of een resultaten-CSV.">
+<link rel="canonical" href="https://mywatersessions.com/import-nl.html">
+<link rel="alternate" hreflang="en" href="https://mywatersessions.com/import.html">
+<link rel="alternate" hreflang="de" href="https://mywatersessions.com/import-de.html">
+<link rel="alternate" hreflang="nl" href="https://mywatersessions.com/import-nl.html">
+<link rel="alternate" hreflang="fr" href="https://mywatersessions.com/import-fr.html">
+<link rel="alternate" hreflang="es" href="https://mywatersessions.com/import-es.html">
+<link rel="alternate" hreflang="x-default" href="https://mywatersessions.com/import.html">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#06303a">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MyWaterSessions">
+<meta property="og:title" content="Je historie importeren – MyWaterSessions">
+<meta property="og:description" content="Breng jaren aan sessies uit Strava, Garmin, GPS-Speedsurfing, GPSResults of oude GPS-loggers in één keer naar MyWaterSessions.">
+<meta property="og:url" content="https://mywatersessions.com/import-nl.html">
+<meta property="og:image" content="https://mywatersessions.com/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://mywatersessions.com/og.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Kan ik mijn historie uit een andere app importeren?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Ja. Exporteer je sessies uit Strava, Garmin Connect, GPS-Speedsurfing, GPSResults of elke GPS-app en zet ze in één keer in MyWaterSessions. We lezen FIT, GPX, TCX, u-blox UBX en SiRF SBP, een ZIP daarvan of een resultaten-CSV." } },
+    { "@type": "Question", "name": "Werken oude GPS-loggers zoals de GT-31?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Ja. We lezen SiRF-.sbp-logs (GT-31) en u-blox-.ubx-logs (GW-52 / GW-60) rechtstreeks, of de GPX die GPSResults exporteert." } },
+    { "@type": "Question", "name": "En als ik alleen de getallen heb, geen trackbestanden?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Upload een resultaten-CSV met datum, spot en je 2 s / 500 m / zeemijl-snelheden (bijvoorbeeld een GPSResults-export). Je records komen ook zonder GPS-track binnen." } },
+    { "@type": "Question", "name": "Ontstaan er duplicaten bij het importeren?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Nee. Dezelfde sessie wordt nooit dubbel geteld, en elke geïmporteerde track doorloopt nog steeds de eerlijke GPS-betrouwbaarheidscontrole." } }
+  ]
+}
+</script>
+
+<style>
+  :root{ --aqua:#2bd4d9; --ink:#06303a; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+        color:#eaf4ff; background:#06222e; line-height:1.6; }
+  a{ color:var(--aqua); }
+  .wrap{ max-width:820px; margin:0 auto; padding:0 20px; }
+  .top{ background:linear-gradient(180deg, rgba(6,34,46,.5), rgba(6,34,46,.95)),
+        radial-gradient(900px 360px at 75% -20%, #0b6b8c, #06222e 60%);
+        padding:46px 0 36px; }
+  .brand{ font-size:30px; font-weight:800; text-decoration:none; color:#fff; }
+  .brand .dot{ color:var(--aqua); }
+  .nav{ font-size:14px; margin:10px 0 0; }
+  .nav a{ margin-right:14px; text-decoration:none; color:#bfe7ee; }
+  .langbar{ font-size:14px; margin:8px 0 0; }
+  .langbar a{ margin-right:12px; text-decoration:none; }
+  .langbar .active{ color:#fff; font-weight:700; }
+  h1{ font-size:clamp(26px,4.4vw,38px); margin:18px 0 6px; }
+  .lead{ color:#dceaf0; font-size:19px; margin:0 0 8px; }
+  .btn{ display:inline-block; background:var(--aqua); color:var(--ink); font-weight:800;
+        text-decoration:none; padding:12px 24px; border-radius:12px; margin-top:18px; }
+  .btn:hover{ filter:brightness(1.07); }
+  article{ padding:10px 0 40px; }
+  .method{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+           border-radius:16px; padding:18px 22px; margin:16px 0; }
+  .method h2{ color:#8fe3ff; font-size:22px; margin:0 0 4px; display:flex;
+              align-items:center; flex-wrap:wrap; gap:10px; }
+  .tag{ font-size:12px; font-weight:800; letter-spacing:.5px; text-transform:uppercase;
+        padding:3px 10px; border-radius:999px; }
+  .tag.file{ background:rgba(255,255,255,.14); color:#dceaf0; }
+  .tag.csv{ background:#ffca7a; color:#3a2a06; }
+  article ol, article ul{ padding-left:22px; margin:8px 0 2px; }
+  article li{ margin:5px 0; color:#dceaf0; }
+  .note{ color:#a8c6d0; font-size:15px; margin:8px 0 0; }
+  h2.sec{ color:#8fe3ff; font-size:22px; margin:34px 0 6px; }
+  .steps{ background:rgba(43,212,217,.08); border:1px solid rgba(43,212,217,.3);
+          border-radius:16px; padding:18px 22px; margin:16px 0; }
+  .cta{ text-align:center; background:rgba(255,255,255,.04);
+        border-top:1px solid rgba(255,255,255,.1); padding:34px 0; margin-top:20px; }
+  footer{ padding:30px 0 48px; color:#7fa6b2; font-size:13px; text-align:center; }
+  footer a{ color:#9fd9e3; margin:0 8px; }
+</style>
+<script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "c16ea8dadd7749e1826d6ea48f80ca6d"}'></script>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/index-nl.html">MyWaterSessions<span class="dot">.</span></a>
+    <div class="nav">
+      <a href="/index-nl.html">Home</a>
+      <a href="/guide-nl.html">Handleiding</a>
+      <a href="/watches-nl.html">Horloges</a>
+      <a href="https://spots.mywatersessions.com/spots">Spots</a>
+      <a href="https://app.mywatersessions.com/">App openen</a>
+    </div>
+    <div class="langbar"><a href="/import.html">EN</a><a href="/import-de.html">DE</a><a class="active">NL</a><a href="/import-fr.html">FR</a><a href="/import-es.html">ES</a></div>
+    <h1>Neem je hele historie mee</h1>
+    <p class="lead">Van app wisselen mag je geen jaren aan sessies kosten. Importeer je historie uit
+      <b>Strava, Garmin Connect, GPS-Speedsurfing, GPSResults</b> of elke GPS-app — in <b>één keer</b>.
+      Elke sessie telt mee in je records en het klassement per spot.</p>
+    <a class="btn" href="https://app.mywatersessions.com/?view=results">📥 Importeren in de app</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <article>
+
+    <p>Twee manieren, vrij te combineren:</p>
+    <ul>
+      <li><b>Trackbestanden</b> — veel <b>FIT / GPX / TCX / UBX / SBP</b> tegelijk, of een hele
+        <b>ZIP</b>. We berekenen elke waarde (2 s, 30 s, 500 m, zeemijl, langste run) en tekenen de kaart.</li>
+      <li><b>Resultaten-CSV</b> — alleen de getallen? Een CSV met datum, spot en snelheden brengt je
+        records binnen, ook zonder GPS-track.</li>
+    </ul>
+
+    <div class="steps">
+      <h2 style="color:#8fe3ff;margin:0 0 6px;">Zo werkt het — 4 stappen</h2>
+      <ol>
+        <li>Exporteer je bestanden bij de andere dienst (zie de bronnen hieronder).</li>
+        <li>Open de app → <b>My Results</b> → <b>📥 Import your history</b>.</li>
+        <li>Zet je bestanden of een ZIP neer. Elk wordt via GPS aan de dichtstbijzijnde bekende spot gekoppeld.</li>
+        <li>Stel een <b>standaardboard</b> (en zeil) in zodat geïmporteerde sessies meetellen in het
+          klassement — elke sessie is achteraf te bewerken. Klaar.</li>
+      </ol>
+    </div>
+
+    <h2 class="sec">Waar exporteren</h2>
+
+    <div class="method">
+      <h2>Strava <span class="tag file">FIT / GPX / TCX</span></h2>
+      <ol>
+        <li>Op strava.com: <b>Instellingen → Mijn account → Je gegevens downloaden → Archief aanvragen</b>.</li>
+        <li>Je krijgt een <b>ZIP</b> met je originele activiteitsbestanden.</li>
+        <li>Zet die ZIP direct in de importer.</li>
+      </ol>
+      <p class="note">Eén activiteit exporteer je via <b>… → GPX exporteren</b>.</p>
+    </div>
+
+    <div class="method">
+      <h2>Garmin Connect <span class="tag file">FIT / GPX / TCX</span></h2>
+      <ol>
+        <li>Per activiteit: <b>⚙ → Exporteren naar FIT / GPX / TCX</b>.</li>
+        <li>Of vraag de volledige data-export van je Garmin-account aan.</li>
+        <li>Upload de bestanden (of de ZIP) in de importer.</li>
+      </ol>
+    </div>
+
+    <div class="method">
+      <h2>GPS-Speedsurfing &amp; KA72 <span class="tag file">GPX / SBP</span></h2>
+      <ol>
+        <li>Download per sessie het geüploade trackbestand (GPX, of het originele .sbp).</li>
+        <li>De meeste speedsurfers hebben hun originelen nog in <b>GPSResults</b> — nog beter.</li>
+        <li>Zet ze (of een ZIP) in de importer.</li>
+      </ol>
+    </div>
+
+    <div class="method">
+      <h2>GPSResults <span class="tag file">GPX</span> <span class="tag csv">of CSV</span></h2>
+      <ol>
+        <li>Exporteer je tracks als <b>GPX</b> en importeer ze als bestanden, <b>of</b></li>
+        <li>exporteer een <b>resultatentabel (CSV)</b> en gebruik het „Results CSV"-vak — je
+          2 s / 500 m / zeemijl-records komen zonder tracks binnen.</li>
+      </ol>
+    </div>
+
+    <div class="method">
+      <h2>Oude GPS-loggers <span class="tag file">SBP / UBX</span></h2>
+      <p>We lezen de ruwe loggerbestanden rechtstreeks:</p>
+      <ul>
+        <li><b>Locosys GT-31</b> en andere SiRF-toestellen → <b>.sbp</b></li>
+        <li><b>Locosys GW-52 / GW-60</b> en andere u-blox-toestellen → <b>.ubx</b></li>
+      </ul>
+      <p class="note">Of exporteer GPX uit GPSResults — beide werkt.</p>
+    </div>
+
+    <div class="method">
+      <h2>Elk GPS-horloge of telefoon-app <span class="tag file">FIT / GPX / TCX</span></h2>
+      <p>Kan het toestel een FIT-, GPX- of TCX-bestand maken, dan werkt het — COROS, Suunto, Apple Watch
+        (via HealthFit), telefoon-GPS-apps en meer. Zie ook <a href="/watches-nl.html">Je horloge koppelen</a>.</p>
+    </div>
+
+    <h2 class="sec">Goed om te weten</h2>
+    <ul>
+      <li><b>Geen duplicaten.</b> Dezelfde sessie komt nooit twee keer in het klassement.</li>
+      <li><b>Eerlijk.</b> Elke geïmporteerde track doorloopt dezelfde GPS-betrouwbaarheidscontrole die
+        onwaarschijnlijke tracks eruit filtert — geïmporteerde records zijn net zo betrouwbaar als nieuwe.</li>
+      <li><b>Spot-automatiek.</b> Elk bestand wordt via GPS aan de dichtstbijzijnde bekende spot gekoppeld;
+        kies een standaardspot als terugval.</li>
+      <li><b>Stel je materiaal in.</b> Een standaardboard (en zeil) laat geïmporteerde sessies meetellen;
+        pas losse sessies altijd aan onder <b>My Results</b>.</li>
+      <li><b>Wat we niet kunnen importeren:</b> diensten zonder track-export (bijv. Woo, Surfline) — er is
+        geen bestand om te lezen.</li>
+    </ul>
+
+  </article>
+</div>
+
+<section class="cta">
+  <div class="wrap">
+    <h2 style="color:#fff;margin-top:0;">Neem je historie mee — gratis</h2>
+    <a class="btn" href="https://app.mywatersessions.com/?view=results">📥 Importeren in de app</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a href="/index-nl.html">Home</a> ·
+    <a href="/guide-nl.html">Handleiding</a> ·
+    <a href="/watches-nl.html">Horloges</a> ·
+    <a href="/import-nl.html">Import</a> ·
+    <a href="https://spots.mywatersessions.com/spots">Spots</a> ·
+    <a href="https://app.mywatersessions.com/">App openen</a> ·
+    <a href="https://app.mywatersessions.com/?seite=impressum">Impressum</a> ·
+    <a href="https://app.mywatersessions.com/?seite=datenschutz">Privacy</a>
+    <div style="margin-top:8px;">© MyWaterSessions · gratis speed-klassement &amp; spotgids voor windsurf · kite · wing · SUP · wakeboard · surf</div>
+  </div>
+</footer>
+
+</body>
+</html>
