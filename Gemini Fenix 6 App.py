@@ -6781,13 +6781,90 @@ def read_tcx_file(uploaded_file):
     return _points_to_df(pts)
 
 
+def read_ubx_file(src):
+    """u-blox UBX-Binaerlog (z.B. Locosys GW-52/GW-60) -> Standard-DataFrame.
+    Liest die NAV-PVT-Nachrichten (Zeit, Position, Ground Speed)."""
+    import struct
+    data = _read_bytes(src)
+    pts = []
+    n = len(data)
+    i = 0
+    while i + 8 <= n:
+        if data[i] != 0xB5 or data[i + 1] != 0x62:
+            i += 1
+            continue
+        cls = data[i + 2]
+        mid = data[i + 3]
+        ln = data[i + 4] | (data[i + 5] << 8)
+        body = i + 6
+        if body + ln + 2 > n:
+            break
+        if cls == 0x01 and mid == 0x07 and ln >= 92:   # NAV-PVT
+            p = data[body:body + ln]
+            try:
+                year = p[4] | (p[5] << 8)
+                month, day, hour, minute, sec = p[6], p[7], p[8], p[9], p[10]
+                lon = struct.unpack_from("<i", p, 24)[0] * 1e-7
+                lat = struct.unpack_from("<i", p, 28)[0] * 1e-7
+                spd = struct.unpack_from("<i", p, 60)[0] / 1000.0   # gSpeed mm/s -> m/s
+                t = None
+                if 2000 <= year <= 2100 and 1 <= month <= 12 and 1 <= day <= 31 and sec < 60:
+                    t = "%04d-%02d-%02dT%02d:%02d:%02dZ" % (year, month, day, hour, minute, sec)
+                if abs(lat) <= 90 and abs(lon) <= 180 and (lat != 0 or lon != 0):
+                    pts.append({"lat": lat, "lon": lon, "time": t, "speed": spd})
+            except Exception:  # noqa: BLE001
+                pass
+        i = body + ln + 2
+    return _points_to_df(pts)
+
+
+def read_sbp_file(src):
+    """SiRF-Binaerlog (.sbp, z.B. Locosys GT-31) -> Standard-DataFrame. Liest MID 41
+    (Geodetic Navigation Data): Zeit, Position, Speed over Ground. SiRF ist big-endian."""
+    import struct
+    data = _read_bytes(src)
+    pts = []
+    n = len(data)
+    i = 0
+    while i + 8 <= n:
+        if data[i] != 0xA0 or data[i + 1] != 0xA2:
+            i += 1
+            continue
+        ln = ((data[i + 2] << 8) | data[i + 3]) & 0x7FFF
+        body = i + 4
+        if body + ln + 4 > n:
+            break
+        p = data[body:body + ln]
+        if ln >= 42 and p and p[0] == 41:   # MID 41 Geodetic Navigation Data
+            try:
+                year = (p[11] << 8) | p[12]
+                month, day, hour, minute = p[13], p[14], p[15], p[16]
+                sec = ((p[17] << 8) | p[18]) // 1000
+                lat = struct.unpack_from(">i", p, 23)[0] * 1e-7
+                lon = struct.unpack_from(">i", p, 27)[0] * 1e-7
+                spd = (((p[40] << 8) | p[41])) / 100.0   # SOG 0.01 m/s -> m/s
+                t = None
+                if 2000 <= year <= 2100 and 1 <= month <= 12 and 1 <= day <= 31 and sec < 60:
+                    t = "%04d-%02d-%02dT%02d:%02d:%02dZ" % (year, month, day, hour, minute, sec)
+                if abs(lat) <= 90 and abs(lon) <= 180 and (lat != 0 or lon != 0):
+                    pts.append({"lat": lat, "lon": lon, "time": t, "speed": spd})
+            except Exception:  # noqa: BLE001
+                pass
+        i = body + ln + 4
+    return _points_to_df(pts)
+
+
 def read_activity_file(src, filename=None):
-    """Dispatcher: waehlt Parser nach Dateiendung (.fit / .gpx / .tcx)."""
+    """Dispatcher: waehlt Parser nach Dateiendung (.fit/.gpx/.tcx/.ubx/.sbp)."""
     name = (filename or getattr(src, "name", "") or "").lower()
     if name.endswith(".gpx"):
         return read_gpx_file(src)
     if name.endswith(".tcx"):
         return read_tcx_file(src)
+    if name.endswith(".ubx"):
+        return read_ubx_file(src)
+    if name.endswith(".sbp"):
+        return read_sbp_file(src)
     return read_fit_file(src)
 
 
@@ -15950,16 +16027,16 @@ def render_history_import(user):
     with st.expander("📥 Import your history (Strava · Garmin · GPS-Speedsurfing …)",
                      expanded=False):
         st.caption(
-            "Switching apps shouldn't cost you your history. Export your files from "
-            "Strava (Account → Download your data), Garmin Connect, GPS-Speedsurfing / "
-            "GPSResults or any GPS app and drop them here — FIT, GPX, TCX, or a ZIP of "
-            f"them. Imported into **{SPORT_META[sport]['label']}**; each file is matched "
-            "to the nearest known spot by GPS."
+            "Switching apps shouldn't cost you your history. Export from Strava "
+            "(Account → Download your data), Garmin Connect, GPS-Speedsurfing / GPSResults "
+            "or any GPS app and drop it here — FIT, GPX, TCX, u-blox .ubx, SiRF .sbp, or a "
+            f"ZIP of them. Imported into **{SPORT_META[sport]['label']}**; each file is "
+            "matched to the nearest known spot by GPS."
         )
         gear_label = SPORT_META[sport]["gear_label"]
         c1, c2 = st.columns(2)
         def_board = c1.text_input("Default board (optional)", key=f"imp_board_{sport}",
-            help="Applied to all imported sessions so they count in the rankings. "
+            help="Applied to imported sessions so they count in the rankings. "
                  "You can edit each session afterwards.").strip()
         def_sail = c2.text_input(f"Default {gear_label.lower()} (optional)",
                                  key=f"imp_sail_{sport}").strip()
@@ -15969,79 +16046,186 @@ def render_history_import(user):
             help="By default each file is matched to the nearest known spot. Pick one "
                  "here to assign ALL files to that spot (also used when GPS has no match).")
         force_spot = None if spot_choice.startswith("📍") else spot_choice
+
+        # --- A) Track-Dateien: FIT/GPX/TCX/UBX/SBP oder ZIP ---
+        _EXT = (".fit", ".gpx", ".tcx", ".ubx", ".sbp")
         files = st.file_uploader(
-            "Files — FIT, GPX, TCX or ZIP", type=["fit", "gpx", "tcx", "zip"],
+            "Track files — FIT, GPX, TCX, UBX, SBP or ZIP",
+            type=["fit", "gpx", "tcx", "ubx", "sbp", "zip"],
             accept_multiple_files=True, key=f"imp_files_{sport}")
-        if not st.button("📥 Import", type="primary", key=f"imp_go_{sport}",
-                         disabled=not files):
-            return
-
-        # 1) Dateien einsammeln (ZIPs entpacken -> (name, bytes)).
-        items = []
-        for f in files:
-            data = f.getvalue()
-            if f.name.lower().endswith(".zip"):
-                try:
-                    zf = zipfile.ZipFile(io.BytesIO(data))
-                    for zn in zf.namelist():
-                        low = zn.lower()
-                        if not zn.endswith("/") and low.endswith((".fit", ".gpx", ".tcx")):
-                            items.append((zn.split("/")[-1], zf.read(zn)))
-                except Exception:  # noqa: BLE001
-                    pass
+        if files and st.button("📥 Import track files", type="primary", key=f"imp_go_{sport}"):
+            items = []
+            for f in files:
+                data = f.getvalue()
+                if f.name.lower().endswith(".zip"):
+                    try:
+                        zf = zipfile.ZipFile(io.BytesIO(data))
+                        for zn in zf.namelist():
+                            if not zn.endswith("/") and zn.lower().endswith(_EXT):
+                                items.append((zn.split("/")[-1], zf.read(zn)))
+                    except Exception:  # noqa: BLE001
+                        pass
+                else:
+                    items.append((f.name, data))
+            if not items:
+                st.warning("No FIT/GPX/TCX/UBX/SBP files found in the upload.")
             else:
-                items.append((f.name, data))
-        if not items:
-            st.warning("No FIT/GPX/TCX files found in the upload.")
-            return
+                n_ok = n_dup = n_bad = n_noassign = 0
+                best_seen = 0.0
+                prog = st.progress(0.0)
+                for i, (fn, data) in enumerate(items):
+                    prog.progress(float(i + 1) / len(items))
+                    if session_exists(fn, name, sport):
+                        n_dup += 1
+                        continue
+                    try:
+                        df = read_activity_file(io.BytesIO(data), fn)
+                    except Exception:  # noqa: BLE001
+                        df = None
+                    if df is None or df.empty:
+                        n_bad += 1
+                        continue
+                    try:
+                        entry = _import_entry_from_df(df, sport, name, force_spot or "",
+                                                      def_board, def_sail, fn)
+                        save_session(entry)
+                        n_ok += 1
+                        if not entry.get("surfspot"):
+                            n_noassign += 1
+                        _s1 = entry.get("speed_1s_kmh")
+                        if _s1 is not None and _s1 > best_seen:
+                            best_seen = _s1
+                    except Exception:  # noqa: BLE001
+                        n_bad += 1
+                prog.empty()
+                msg = f"✅ Imported {n_ok} session(s)."
+                if n_dup:
+                    msg += f" Skipped {n_dup} already in your history."
+                if n_bad:
+                    msg += f" {n_bad} couldn't be read."
+                if best_seen > 0:
+                    msg += f" Best 2 s: {best_seen:.1f} km/h."
+                st.success(msg)
+                if not def_board and n_ok:
+                    st.info("Tip: set a **default board** (and sail) — imported sessions need "
+                            "equipment to count in the rankings (editable in ‘Complete my sessions’).")
+                if n_noassign:
+                    st.info(f"{n_noassign} session(s) had no matching spot within 2 km — set "
+                            "their spot in ‘Complete my sessions’ so they count.")
+                clear_data_caches()
+                st.rerun()
 
-        # 2) Der Reihe nach verarbeiten.
-        n_ok = n_dup = n_bad = n_noassign = 0
-        best_seen = 0.0
-        prog = st.progress(0.0)
-        for i, (fn, data) in enumerate(items):
-            prog.progress(float(i + 1) / len(items))
-            if session_exists(fn, name, sport):
-                n_dup += 1
-                continue
+        # --- B) Ergebnis-CSV (nur Zahlen, kein Track) ---
+        st.markdown("---")
+        st.markdown("**Results CSV — numbers only (no track)**")
+        st.caption(
+            "No track files? A CSV with date, spot and speeds (e.g. a GPSResults export) brings "
+            "your records in — no map or speed curve, marked as imported. Columns are auto-"
+            "detected; adjust the mapping if needed.")
+        csv_file = st.file_uploader("Results CSV", type=["csv"], key=f"imp_csv_{sport}")
+        if csv_file is not None:
             try:
-                df = read_activity_file(io.BytesIO(data), fn)
+                cdf = pd.read_csv(io.BytesIO(csv_file.getvalue()), sep=None, engine="python")
             except Exception:  # noqa: BLE001
-                df = None
-            if df is None or df.empty:
-                n_bad += 1
-                continue
-            try:
-                entry = _import_entry_from_df(df, sport, name, force_spot or "",
-                                              def_board, def_sail, fn)
-                save_session(entry)
-                n_ok += 1
-                if not entry.get("surfspot"):
-                    n_noassign += 1
-                _s1 = entry.get("speed_1s_kmh")
-                if _s1 is not None and _s1 > best_seen:
-                    best_seen = _s1
-            except Exception:  # noqa: BLE001
-                n_bad += 1
-        prog.empty()
+                cdf = None
+                st.error("Could not read that CSV file.")
+            if cdf is not None and not cdf.empty:
+                cols = [str(c) for c in cdf.columns]
+                _NONE = "(none)"
+                opts = [_NONE] + cols
 
-        msg = f"✅ Imported {n_ok} session(s)."
-        if n_dup:
-            msg += f" Skipped {n_dup} already in your history."
-        if n_bad:
-            msg += f" {n_bad} couldn't be read."
-        if best_seen > 0:
-            msg += f" Best 2 s: {best_seen:.1f} km/h."
-        st.success(msg)
-        if not def_board and n_ok:
-            st.info("Tip: set a **default board** (and sail) next time — imported sessions "
-                    "need equipment to count in the rankings. You can still add it below in "
-                    "‘Complete my sessions’.")
-        if n_noassign:
-            st.info(f"{n_noassign} session(s) had no matching spot within 2 km — set their "
-                    "spot in ‘Complete my sessions’ so they count in the rankings.")
-        clear_data_caches()
-        st.rerun()
+                def _guess(cands):
+                    for c in cols:
+                        cl = c.strip().lower()
+                        for k in cands:
+                            if k in cl:
+                                return c
+                    return _NONE
+
+                def _idx(v):
+                    return opts.index(v) if v in opts else 0
+
+                st.caption("Column mapping:")
+                m1, m2, m3 = st.columns(3)
+                cD = m1.selectbox("Date", opts, index=_idx(_guess(["date", "datum", "day"])),
+                                  key=f"csv_d_{sport}")
+                cS = m2.selectbox("Spot", opts,
+                                  index=_idx(_guess(["spot", "location", "ort", "beach", "place"])),
+                                  key=f"csv_s_{sport}")
+                c2s = m3.selectbox("2 s", opts, index=_idx(_guess(["2s", "2 s", "2sec", "2 sec"])),
+                                   key=f"csv_2_{sport}")
+                m4, m5, m6 = st.columns(3)
+                c30 = m4.selectbox("30 s", opts, index=_idx(_guess(["30s", "30 s", "30sec"])),
+                                   key=f"csv_30_{sport}")
+                c500 = m5.selectbox("500 m", opts, index=_idx(_guess(["500"])), key=f"csv_500_{sport}")
+                cNM = m6.selectbox("Nautical mile", opts,
+                                   index=_idx(_guess(["nm", "mile", "naut", "1852"])),
+                                   key=f"csv_nm_{sport}")
+                cMax = st.selectbox("Max / top speed (used if 2 s is empty)", opts,
+                                    index=_idx(_guess(["max", "top", "peak"])), key=f"csv_max_{sport}")
+                unit = st.radio("Speed unit in the CSV", ["knots", "km/h"], horizontal=True,
+                                key=f"csv_u_{sport}")
+                if st.button("📥 Import CSV rows", type="primary", key=f"imp_csvgo_{sport}"):
+                    factor = 1.852 if unit == "knots" else 1.0    # -> km/h
+
+                    def _num(row, c):
+                        if c == _NONE:
+                            return None
+                        v = pd.to_numeric(row.get(c), errors="coerce")
+                        return None if pd.isna(v) else float(v)
+
+                    def _kmh(v):
+                        return None if v is None else round(v * factor, 2)
+
+                    def _kn(v):
+                        return None if v is None else round(v * factor / 1.852, 2)
+
+                    n_ok = n_dup = n_bad = 0
+                    for _, row in cdf.iterrows():
+                        dt = pd.to_datetime(row.get(cD), errors="coerce", dayfirst=True) \
+                            if cD != _NONE else pd.NaT
+                        date_str = dt.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(dt) else None
+                        spot = ""
+                        if cS != _NONE and pd.notna(row.get(cS)):
+                            raw = str(row.get(cS)).strip()
+                            spot = next((s for s in _spots if s.lower() == raw.lower()), raw)
+                        if not spot and force_spot:
+                            spot = force_spot
+                        s2 = _num(row, c2s)
+                        if s2 is None:
+                            s2 = _num(row, cMax)          # Top-Speed als 2s werten, wenn 2s fehlt
+                        s30 = _num(row, c30)
+                        s5 = _num(row, c500)
+                        snm = _num(row, cNM)
+                        if date_str is None and not any(v is not None for v in (s2, s30, s5, snm)):
+                            n_bad += 1
+                            continue
+                        fn = f"csv-{date_str or 'na'}-{spot or 'na'}-{s2 if s2 is not None else ''}"
+                        if session_exists(fn, name, sport):
+                            n_dup += 1
+                            continue
+                        entry = {
+                            "sport": sport, "name": name, "date": date_str, "surfspot": spot,
+                            "board": def_board, "sail": def_sail, "gear_type": None, "filename": fn,
+                            "speed_1s_kmh": _kmh(s2), "speed_1s_kn": _kn(s2),
+                            "speed_30s_kmh": _kmh(s30), "speed_30s_kn": _kn(s30),
+                            "speed_500m_kmh": None if sport == "surf" else _kmh(s5),
+                            "speed_nm_kmh": None if sport == "surf" else _kmh(snm),
+                            "source": "import-csv",
+                        }
+                        try:
+                            save_session(entry)
+                            n_ok += 1
+                        except Exception:  # noqa: BLE001
+                            n_bad += 1
+                    _m = f"✅ Imported {n_ok} row(s)."
+                    if n_dup:
+                        _m += f" Skipped {n_dup} duplicates."
+                    if n_bad:
+                        _m += f" {n_bad} unusable."
+                    st.success(_m)
+                    clear_data_caches()
+                    st.rerun()
 
 
 def render_my_results_page(user):
@@ -16333,8 +16517,8 @@ with left:
         )
 
     if source == "📁 Upload file":
-        uploaded_file = st.file_uploader("Upload session file — FIT, GPX or TCX",
-                                         type=["fit", "gpx", "tcx"])
+        uploaded_file = st.file_uploader("Upload session file — FIT, GPX, TCX, UBX or SBP",
+                                         type=["fit", "gpx", "tcx", "ubx", "sbp"])
 
         if uploaded_file is not None:
             fit_source = uploaded_file
