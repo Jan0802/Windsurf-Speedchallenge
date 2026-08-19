@@ -2742,6 +2742,7 @@ def _spot_completeness_rows():
     with get_engine().connect() as conn:
         rows = conn.execute(
             select(spot_info_table.c.spot, spot_info_table.c.country,
+                   spot_info_table.c.region,
                    spot_info_table.c.description, spot_info_table.c.description_local,
                    spot_info_table.c.spot_class, spot_info_table.c.updated_at)
         ).mappings().all()
@@ -2783,8 +2784,53 @@ def _spot_completeness_rows():
         elif i.get("updated_at"):
             created = str(i["updated_at"])[:10]
         out.append({"spot": nm, "fields": fields,
-                    "sessions": int(_s.get("n") or 0), "created": created})
+                    "sessions": int(_s.get("n") or 0), "created": created,
+                    "country": (i.get("country") or ""), "region": (i.get("region") or ""),
+                    "lat": co.get("lat"), "lon": co.get("lon")})
     return out
+
+
+def _longform_prompt(spot, country="", region="", lat=None, lon=None, sessions=0):
+    """Fertiger, selbst-erklaerender Prompt fuer eine AUSFÜHRLICHE Spot-Beschreibung
+    im Løkken-Stil (EN + Landessprache + Deutsch). Zum Copy&Paste ins Sprachmodell."""
+    try:
+        coord = f"{float(lat):.5f}, {float(lon):.5f}" if (lat and lon) else "unknown"
+    except (TypeError, ValueError):
+        coord = "unknown"
+    fp = (f"{sessions} sessions logged on MyWaterSessions (real community data — use it)"
+          if sessions else "no community sessions logged yet")
+    return (
+        "You are an expert watersports spot-guide editor for MyWaterSessions "
+        "(windsurf, kitesurf, wingfoil, SUP, wakeboard, surf). Write a COMPLETE, in-depth "
+        "spot guide for the spot below, in the same rich structure and honest tone as a "
+        "top reference guide (e.g. Løkken).\n\n"
+        "HARD RULES:\n"
+        "- Research the web first; NEVER invent facts. If something (wind, club rules, prices, "
+        "lifeguard hours) is unknown, leave it out or mark it 'not verified' — no plausible "
+        "placeholders.\n"
+        "- Cover ALL SIX sports explicitly (windsurf, kitesurf, wingfoil, SUP, wakeboard, "
+        "surf); if one is not viable here, say so honestly with a short reason.\n"
+        "- Mandatory 'Honest limitations' section — no pure marketing.\n"
+        "- Safety first: name concrete local hazards (current, reef, shipping lane, closed "
+        "zones), not generic warnings.\n"
+        "- Use Markdown with real tables (wind directions, gear per sport, level, season) "
+        "and headings.\n\n"
+        "STRUCTURE (in order): title; 2-paragraph intro; 'How the spot works'; wind + "
+        "direction table; wind-strength & gear table (per sport where relevant); conditions "
+        "& levels table; sports line (✅/⚠️/🚫 per sport with reason); courses & local schools; "
+        "on-site facilities & logistics; best-season table; nearby alternatives; rainy/no-wind "
+        "days; safety ('Good to know'); honest limitations; short advice per sport; facts "
+        "block (country, region, water, type, address, coordinates, best direction, "
+        "school/club, tides, rescue); 'Who is this spot for' with level + per-sport icons; "
+        "disclaimer line.\n\n"
+        "LANGUAGES: produce the FULL guide three times — first English, then the spot's local "
+        "language, then German. Keep all three factually identical (translate, do not shorten).\n\n"
+        "OUTPUT: pure Markdown, no code fences, no preamble or comments.\n\n"
+        f"SPOT: {spot}\n"
+        f"COUNTRY / REGION: {country or '?'} / {region or '?'}\n"
+        f"COORDINATES: {coord}\n"
+        f"MYWATERSESSIONS FIRST-PARTY DATA: {fp}.\n"
+    )
 
 
 def _sport_all_clause(col, sport):
@@ -12416,42 +12462,62 @@ def render_admin_spots():
                 _rows.sort(key=lambda r: (sum(r["fields"].values()), r["spot"].lower()))
 
             st.caption("✓ = vorhanden · – = fehlt · Text EN = Kurzbeschreibung vorhanden · "
-                       "Erstellt = erste Session, sonst letzte Änderung. "
-                       "Öffne einen Spot unten zum Ergänzen.")
-            _hdr = "".join(f"<th style='padding:4px 8px;font-weight:600'>{c}</th>"
-                           for c in _SPOT_FIELDS)
-            _trs = []
-            for r in _rows:
-                nm, f = r["spot"], r["fields"]
-                _score = sum(f.values())
-                _cells = ""
-                for c in _SPOT_FIELDS:
-                    if f[c]:
-                        _cells += "<td style='text-align:center;color:#1a9d5a'>✓</td>"
-                    else:
-                        _cells += "<td style='text-align:center;color:#e5484d;font-weight:700'>–</td>"
-                _sc_col = "#1a9d5a" if _score == len(_SPOT_FIELDS) else (
-                    "#e0a000" if _score >= 4 else "#e5484d")
-                _trs.append(
-                    f"<tr style='border-top:1px solid rgba(128,128,128,.25)'>"
-                    f"<td style='padding:4px 8px;white-space:nowrap'>{nm}</td>{_cells}"
-                    f"<td style='text-align:center'>{r['sessions']}</td>"
-                    f"<td style='text-align:center;white-space:nowrap'>{r['created']}</td>"
-                    f"<td style='text-align:center;font-weight:700;color:{_sc_col}'>"
-                    f"{_score}/{len(_SPOT_FIELDS)}</td></tr>")
-            if _rows:
-                st.caption(f"{len(_rows)} Spot(s)")
-                st.markdown(
-                    "<div style='overflow-x:auto'><table style='border-collapse:collapse;"
-                    "font-size:.9rem;width:100%'>"
-                    f"<tr><th style='padding:4px 8px;text-align:left'>Spot</th>{_hdr}"
-                    "<th style='padding:4px 8px'>Sessions</th>"
-                    "<th style='padding:4px 8px'>Erstellt</th>"
-                    "<th style='padding:4px 8px'>∑</th></tr>"
-                    + "".join(_trs) + "</table></div>",
-                    unsafe_allow_html=True)
-            else:
+                       "Erstellt = erste Session, sonst letzte Änderung · "
+                       "📋 kopiert den Langbeschreibungs-Prompt (Løkken-Stil) in die Zwischenablage.")
+            if not _rows:
                 st.info("Keine Spots für diese Suche/Filter.")
+            else:
+                st.caption(f"{len(_rows)} Spot(s)")
+                _e = lambda s: (str(s).replace("&", "&amp;").replace("<", "&lt;")
+                                .replace(">", "&gt;"))
+                _prompts = {str(k): _longform_prompt(r["spot"], r.get("country", ""),
+                                                     r.get("region", ""), r.get("lat"),
+                                                     r.get("lon"), r["sessions"])
+                            for k, r in enumerate(_rows)}
+                _hdrh = "".join(f"<th>{_e(c)}</th>" for c in _SPOT_FIELDS)
+                _trh = ""
+                for k, r in enumerate(_rows):
+                    f = r["fields"]
+                    _score = sum(f.values())
+                    _cells = "".join(
+                        ("<td class='c ok'>✓</td>" if f[c] else "<td class='c no'>–</td>")
+                        for c in _SPOT_FIELDS)
+                    _sc_col = ("#1a9d5a" if _score == len(_SPOT_FIELDS)
+                               else ("#e0a000" if _score >= 4 else "#e5484d"))
+                    _trh += (
+                        "<tr>"
+                        f"<td class='nm'>{_e(r['spot'])}</td>{_cells}"
+                        f"<td class='c'>{r['sessions']}</td>"
+                        f"<td class='c'>{_e(r['created'])}</td>"
+                        f"<td class='c' style='font-weight:700;color:{_sc_col}'>"
+                        f"{_score}/{len(_SPOT_FIELDS)}</td>"
+                        f"<td class='c'><button class='cp' id='b{k}' "
+                        f"onclick=\"cp('{k}')\">📋</button></td></tr>")
+                _doc = (
+                    "<style>body{background:transparent;margin:0;color:#e7eef1;"
+                    "font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}"
+                    "table{border-collapse:collapse;font-size:.86rem;width:100%}"
+                    "th{padding:5px 8px;text-align:center;font-weight:600;color:#bcd7de;"
+                    "position:sticky;top:0;background:#0e2b38}"
+                    "th.l{text-align:left}td.nm{text-align:left;white-space:nowrap;padding:5px 8px}"
+                    "td.c{text-align:center;padding:4px 8px;white-space:nowrap}"
+                    "td.ok{color:#1a9d5a}td.no{color:#e5484d;font-weight:700}"
+                    "tr{border-top:1px solid rgba(128,128,128,.25)}"
+                    "button.cp{cursor:pointer;border:1px solid rgba(43,212,217,.5);"
+                    "background:rgba(43,212,217,.14);color:#8fe3ff;border-radius:8px;"
+                    "padding:2px 9px;font-size:14px}</style>"
+                    "<div style='overflow:auto;max-height:520px'><table>"
+                    f"<tr><th class='l'>Spot</th>{_hdrh}<th>Sessions</th><th>Erstellt</th>"
+                    f"<th>∑</th><th>Prompt</th></tr>{_trh}</table></div>"
+                    "<script>var P=" + json.dumps(_prompts, ensure_ascii=False) + ";"
+                    "function cp(k){var t=document.createElement('textarea');t.value=P[k];"
+                    "t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);"
+                    "t.focus();t.select();try{document.execCommand('copy');}catch(e){}"
+                    "document.body.removeChild(t);var b=document.getElementById('b'+k);"
+                    "if(b){var o=b.textContent;b.textContent='✓';"
+                    "setTimeout(function(){b.textContent=o;},1400);}}</script>"
+                )
+                components.html(_doc, height=min(560, 150 + len(_rows) * 34), scrolling=True)
 
     coords = load_spots()                 # {name: {lat, lon}} – nur mit Koordinaten
     all_names = all_known_spots()         # alle bekannten Namen (auch aus Sessions)
