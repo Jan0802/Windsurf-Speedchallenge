@@ -3241,8 +3241,9 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
         values["image"] = None
         values["image_mime"] = None
     elif image_bytes is not None:
+        image_bytes, image_mime = _optimize_image(image_bytes, image_mime)   # -> WebP, <=300 KB
         values["image"] = image_bytes
-        values["image_mime"] = image_mime or "image/jpeg"
+        values["image_mime"] = image_mime or "image/webp"
 
     with get_engine().begin() as conn:
         exists = conn.execute(
@@ -3313,10 +3314,12 @@ def _sniff_image_mime(data):
     return None
 
 
-def _optimize_image(data, mime, max_dim=1600, quality=82):
+def _optimize_image(data, mime, max_dim=1600, quality=82, max_kb=300):
     """Macht ein hochgeladenes Bild webfaehig: skaliert auf max_dim herunter und
-    komprimiert (JPEG, bzw. PNG bei Transparenz). Spart Speicher/Transfer und
-    macht Galerie/TV schneller. Bei Fehlern bleibt das Original erhalten."""
+    komprimiert nach WebP, bis es unter max_kb liegt (Qualitaet senken, notfalls
+    weiter verkleinern). WebP ist deutlich kleiner als JPEG bei gleicher Optik und
+    kann Transparenz. Spart Speicher (Bilder liegen als Bytes in der DB) + Transfer.
+    Faellt WebP mangels libwebp aus -> JPEG/PNG. Bei Fehlern bleibt das Original."""
     if not data:
         return data, mime
     try:
@@ -3326,13 +3329,37 @@ def _optimize_image(data, mime, max_dim=1600, quality=82):
         has_alpha = im.mode in ("RGBA", "LA") or (
             im.mode == "P" and "transparency" in im.info
         )
-        im.thumbnail((max_dim, max_dim))  # nur verkleinern, Seitenverhaeltnis bleibt
-        buf = io.BytesIO()
-        if has_alpha:
-            im.convert("RGBA").save(buf, format="PNG", optimize=True)
-            return buf.getvalue(), "image/png"
-        im.convert("RGB").save(buf, format="JPEG", quality=quality, optimize=True)
-        return buf.getvalue(), "image/jpeg"
+        im = im.convert("RGBA") if has_alpha else im.convert("RGB")
+        im.thumbnail((max_dim, max_dim))   # nur verkleinern, Seitenverhaeltnis bleibt
+        limit = max(60, int(max_kb)) * 1024
+
+        def _webp(image, q):
+            buf = io.BytesIO()
+            image.save(buf, format="WEBP", quality=q, method=6)
+            return buf.getvalue()
+
+        try:
+            q = int(quality)
+            out = _webp(im, q)
+            # 1) Qualitaet senken, bis unter Ziel oder Mindestqualitaet.
+            while len(out) > limit and q > 45:
+                q -= 8
+                out = _webp(im, q)
+            # 2) Immer noch zu gross -> zusaetzlich verkleinern (max. 3x, bis ~480 px).
+            shrink = 0
+            while len(out) > limit and shrink < 3 and max(im.size) > 480:
+                shrink += 1
+                _n = int(max(im.size) * 0.8)
+                im.thumbnail((_n, _n))
+                out = _webp(im, max(q, 60))
+            return out, "image/webp"
+        except Exception:  # noqa: BLE001 – kein WebP-Support -> JPEG/PNG
+            buf = io.BytesIO()
+            if has_alpha:
+                im.save(buf, format="PNG", optimize=True)
+                return buf.getvalue(), "image/png"
+            im.convert("RGB").save(buf, format="JPEG", quality=quality, optimize=True)
+            return buf.getvalue(), "image/jpeg"
     except Exception:  # noqa: BLE001 – im Zweifel Original behalten
         return data, mime
 
