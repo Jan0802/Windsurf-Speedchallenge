@@ -12439,6 +12439,17 @@ def render_admin_spots():
             st.session_state["admin_spot_extra"] = []
         st.rerun()
 
+    # KI-Ergebnis aus dem "KI-Beschreibung holen"-Lauf VOR der Widget-Erzeugung in die
+    # Felder schreiben. Direkt im Button-Handler geht das nicht: Streamlit verbietet das
+    # Setzen eines Widget-Keys, nachdem das Widget in diesem Run schon erzeugt wurde.
+    _kp = st.session_state.pop("_ki_pending", None)
+    if isinstance(_kp, dict):
+        for _k, _v in _kp.items():
+            st.session_state[_k] = _v
+    _kflash = st.session_state.pop("_ki_flash", None)
+    if _kflash:
+        st.success(_kflash)
+
     name = st.text_input("Spot-Name", key="admin_spot_name").strip()
 
     if st.button("🔎 Koordinaten aus dem Namen suchen", use_container_width=True):
@@ -12549,12 +12560,19 @@ def render_admin_spots():
                 load_all_spot_info.clear()
                 _new = load_spot_info(name) or {}
                 if (_new.get("description") or "").strip():
-                    st.session_state["admin_spot_desc"] = _new.get("description")
-                    st.session_state["admin_spot_country"] = _new.get("country") or country
-                    st.session_state["admin_spot_desc_local"] = _new.get("description_local") or ""
-                    st.session_state["admin_spot_lang"] = _new.get("local_lang") or ""
-                    st.session_state["_admin_spot_loaded"] = pick  # Rerun soll Felder nicht ueberschreiben
-                    st.success("KI-Beschreibung (EN + Landessprache) erzeugt & gespeichert – bitte oben prüfen.")
+                    # Werte NICHT direkt in die Widget-Keys schreiben (Widgets sind in
+                    # diesem Run schon erzeugt). Stattdessen als „pending" ablegen; der
+                    # Block oben schreibt sie beim Rerun VOR der Widget-Erzeugung.
+                    st.session_state["_ki_pending"] = {
+                        "admin_spot_desc": _new.get("description") or "",
+                        "admin_spot_country": _new.get("country") or country,
+                        "admin_spot_desc_local": _new.get("description_local") or "",
+                        "admin_spot_lang": _new.get("local_lang") or "",
+                    }
+                    st.session_state["_ki_flash"] = (
+                        "KI-Beschreibung (EN + Landessprache + DE) erzeugt & gespeichert – "
+                        "bitte oben prüfen.")
+                    st.session_state["_admin_spot_loaded"] = pick  # Reload soll Felder nicht ueberschreiben
                     st.rerun()
                 else:
                     st.warning("Keine Beschreibung erhalten – bitte manuell eintragen.")
