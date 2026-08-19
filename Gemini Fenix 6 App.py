@@ -945,6 +945,7 @@ spot_info_table = Table(
     Column("best_winds", String(120)),   # beste Windrichtungen, z.B. "SW, W, NW"
     Column("spot_class", String),         # JSON: "Für wen geeignet?"-Einstufung (vom Ingest-KI-Job)
     Column("auto_filled", Boolean, nullable=False, default=False),  # KI-Entwurf?
+    Column("created_at", DateTime, server_default=func.now()),  # Anlagedatum des Spots
     Column("updated_at", DateTime, server_default=func.now()),
 )
 
@@ -2744,7 +2745,8 @@ def _spot_completeness_rows():
             select(spot_info_table.c.spot, spot_info_table.c.country,
                    spot_info_table.c.region,
                    spot_info_table.c.description, spot_info_table.c.description_local,
-                   spot_info_table.c.spot_class, spot_info_table.c.updated_at)
+                   spot_info_table.c.spot_class, spot_info_table.c.created_at,
+                   spot_info_table.c.updated_at)
         ).mappings().all()
         sess = conn.execute(
             select(sessions_table.c.surfspot,
@@ -2777,9 +2779,11 @@ def _spot_completeness_rows():
             "Einstufung": bool(cls.get("level")),
         }
         _s = sess_map.get(nm) or {}
-        # Erstelldatum = erste Session (echte Aktivitaet), sonst letzte Aenderung.
+        # Erstelldatum: echtes created_at (neu), sonst erste Session, sonst letzte Aenderung.
         created = "–"
-        if _s.get("first"):
+        if i.get("created_at"):
+            created = str(i["created_at"])[:10]
+        elif _s.get("first"):
             created = str(_s["first"])[:10]
         elif i.get("updated_at"):
             created = str(i["updated_at"])[:10]
@@ -3254,7 +3258,8 @@ def save_spot_info(spot, description, webcam_url, country="", best_winds="",
                 update(spot_info_table).where(spot_info_table.c.spot == spot).values(**values)
             )
         else:
-            conn.execute(insert(spot_info_table).values(spot=spot, **values))
+            conn.execute(insert(spot_info_table).values(
+                spot=spot, created_at=func.now(), **values))
     _clear_ad_caches()
     load_spot_info.clear()
     load_all_spot_info.clear()
@@ -3276,7 +3281,7 @@ def save_spot_class(spot, class_json):
                          .values(spot_class=val, auto_filled=False))
         else:
             conn.execute(insert(spot_info_table).values(
-                spot=spot, spot_class=val, auto_filled=False))
+                spot=spot, spot_class=val, auto_filled=False, created_at=func.now()))
     _clear_ad_caches()
     load_spot_info.clear()
     load_all_spot_info.clear()
