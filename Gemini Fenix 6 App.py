@@ -12512,7 +12512,7 @@ def render_admin_spots():
                          expanded=True):
             _fc1, _fc2 = st.columns([2, 1])
             _q = _fc1.text_input("🔎 Spot suchen", key="admin_spot_search",
-                                 placeholder="Name eingeben …").strip().lower()
+                                 placeholder="Name, Gebiet oder Land …").strip().lower()
             _view = _fc2.selectbox(
                 "Anzeigen", ["Nur unvollständige", "Ohne Beschreibung", "Alle"],
                 key="admin_spot_ov_view")
@@ -12522,7 +12522,9 @@ def render_admin_spots():
 
             _rows = list(_ov)
             if _q:
-                _rows = [r for r in _rows if _q in r["spot"].lower()]
+                _rows = [r for r in _rows
+                         if _q in r["spot"].lower()
+                         or _q in (f"{r.get('region', '')} {r.get('country', '')}").lower()]
             if _view == "Nur unvollständige":
                 _rows = [r for r in _rows if not all(r["fields"].values())]
             elif _view == "Ohne Beschreibung":
@@ -12561,9 +12563,13 @@ def render_admin_spots():
                         for c in _SPOT_FIELDS)
                     _sc_col = ("#1a9d5a" if _score == len(_SPOT_FIELDS)
                                else ("#e0a000" if _score >= 4 else "#e5484d"))
+                    # Bereich (Gebiet · Land) als dezente Unterzeile – keine Extra-Spalte.
+                    _sub = " · ".join([x for x in (r.get("region", ""), r.get("country", ""))
+                                       if x])
+                    _subhtml = f"<div class='sub'>{_e(_sub)}</div>" if _sub else ""
                     _trh += (
                         "<tr>"
-                        f"<td class='nm'>{_e(r['spot'])}</td>{_cells}"
+                        f"<td class='nm'>{_e(r['spot'])}{_subhtml}</td>{_cells}"
                         f"<td class='c'>{r['sessions']}</td>"
                         f"<td class='c'>{_e(r['created'])}</td>"
                         f"<td class='c' style='font-weight:700;color:{_sc_col}'>"
@@ -12577,6 +12583,7 @@ def render_admin_spots():
                     "th{padding:5px 8px;text-align:center;font-weight:600;color:#bcd7de;"
                     "position:sticky;top:0;background:#0e2b38}"
                     "th.l{text-align:left}td.nm{text-align:left;white-space:nowrap;padding:5px 8px}"
+                    ".nm .sub{font-size:.78em;color:#8fb0bb;font-weight:400}"
                     "td.c{text-align:center;padding:4px 8px;white-space:nowrap}"
                     "td.ok{color:#1a9d5a}td.no{color:#e5484d;font-weight:700}"
                     "tr{border-top:1px solid rgba(128,128,128,.25)}"
