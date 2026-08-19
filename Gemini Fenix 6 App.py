@@ -2734,17 +2734,26 @@ _SPOT_FIELDS = ["Land", "Koord.", "Text EN", "Lokal", "Wind", "Gefahren", "Einst
 
 
 def _spot_completeness_rows():
-    """Fuer jeden bekannten Spot: welche Pflichtfelder gefuellt sind. Ein Blick
-    statt in jeden Spot springen. -> [(spot, {feld: bool, ...}), ...]."""
+    """Fuer jeden bekannten Spot: welche Pflichtfelder gefuellt sind, plus Anzahl
+    aufgezeichneter Sessions und ein Datum (erste Session, sonst letzte Aenderung).
+    -> [{spot, fields:{feld:bool}, sessions:int, created:str}, ...]."""
     coords = load_spots()
     names = all_known_spots()
     with get_engine().connect() as conn:
         rows = conn.execute(
             select(spot_info_table.c.spot, spot_info_table.c.country,
                    spot_info_table.c.description, spot_info_table.c.description_local,
-                   spot_info_table.c.spot_class)
+                   spot_info_table.c.spot_class, spot_info_table.c.updated_at)
+        ).mappings().all()
+        sess = conn.execute(
+            select(sessions_table.c.surfspot,
+                   func.count().label("n"),
+                   func.min(sessions_table.c.date).label("first"))
+            .where(sessions_table.c.surfspot.isnot(None))
+            .group_by(sessions_table.c.surfspot)
         ).mappings().all()
     info = {r["spot"]: dict(r) for r in rows}
+    sess_map = {r["surfspot"]: r for r in sess}
     out = []
     for nm in names:
         i = info.get(nm, {})
@@ -2766,7 +2775,15 @@ def _spot_completeness_rows():
             "Gefahren": bool(cls.get("hazards")),
             "Einstufung": bool(cls.get("level")),
         }
-        out.append((nm, fields))
+        _s = sess_map.get(nm) or {}
+        # Erstelldatum = erste Session (echte Aktivitaet), sonst letzte Aenderung.
+        created = "–"
+        if _s.get("first"):
+            created = str(_s["first"])[:10]
+        elif i.get("updated_at"):
+            created = str(i["updated_at"])[:10]
+        out.append({"spot": nm, "fields": fields,
+                    "sessions": int(_s.get("n") or 0), "created": created})
     return out
 
 
@@ -12366,19 +12383,46 @@ def render_admin_spots():
     # --- Vollstaendigkeits-Uebersicht: auf einen Blick, wo noch was fehlt ------
     _ov = _spot_completeness_rows()
     if _ov:
-        _n_done = sum(1 for _, f in _ov if all(f.values()))
+        _n_done = sum(1 for r in _ov if all(r["fields"].values()))
         with st.expander(f"📋 Übersicht: wo fehlt noch was? ({_n_done}/{len(_ov)} vollständig)",
                          expanded=True):
-            _only_gaps = st.checkbox("Nur unvollständige Spots zeigen", value=True,
-                                     key="admin_spot_only_gaps")
-            _rows = [(nm, f) for nm, f in _ov if not (all(f.values()) and _only_gaps)]
-            _rows.sort(key=lambda r: (sum(r[1].values()), r[0].lower()))  # Lücken oben
-            st.caption("✓ = vorhanden · – = fehlt. Öffne einen Spot unten zum Ergänzen. "
-                       "Wind / Gefahren / Einstufung stammen aus „Für wen geeignet?“.")
+            _fc1, _fc2 = st.columns([2, 1])
+            _q = _fc1.text_input("🔎 Spot suchen", key="admin_spot_search",
+                                 placeholder="Name eingeben …").strip().lower()
+            _view = _fc2.selectbox(
+                "Anzeigen", ["Nur unvollständige", "Ohne Beschreibung", "Alle"],
+                key="admin_spot_ov_view")
+            _sortkey = st.selectbox(
+                "Sortieren", ["Lücken zuerst", "Sessions ↓", "Erstellt ↓", "Name A–Z"],
+                key="admin_spot_ov_sort")
+
+            _rows = list(_ov)
+            if _q:
+                _rows = [r for r in _rows if _q in r["spot"].lower()]
+            if _view == "Nur unvollständige":
+                _rows = [r for r in _rows if not all(r["fields"].values())]
+            elif _view == "Ohne Beschreibung":
+                _rows = [r for r in _rows if not r["fields"]["Text EN"]]
+
+            if _sortkey == "Sessions ↓":
+                _rows.sort(key=lambda r: (-r["sessions"], r["spot"].lower()))
+            elif _sortkey == "Erstellt ↓":
+                # Neueste zuerst; Spots ohne Datum ("–") ans Ende.
+                _rows.sort(key=lambda r: r["created"] if r["created"] != "–" else "",
+                           reverse=True)
+            elif _sortkey == "Name A–Z":
+                _rows.sort(key=lambda r: r["spot"].lower())
+            else:  # Lücken zuerst
+                _rows.sort(key=lambda r: (sum(r["fields"].values()), r["spot"].lower()))
+
+            st.caption("✓ = vorhanden · – = fehlt · Text EN = Kurzbeschreibung vorhanden · "
+                       "Erstellt = erste Session, sonst letzte Änderung. "
+                       "Öffne einen Spot unten zum Ergänzen.")
             _hdr = "".join(f"<th style='padding:4px 8px;font-weight:600'>{c}</th>"
                            for c in _SPOT_FIELDS)
             _trs = []
-            for nm, f in _rows:
+            for r in _rows:
+                nm, f = r["spot"], r["fields"]
                 _score = sum(f.values())
                 _cells = ""
                 for c in _SPOT_FIELDS:
@@ -12391,18 +12435,23 @@ def render_admin_spots():
                 _trs.append(
                     f"<tr style='border-top:1px solid rgba(128,128,128,.25)'>"
                     f"<td style='padding:4px 8px;white-space:nowrap'>{nm}</td>{_cells}"
+                    f"<td style='text-align:center'>{r['sessions']}</td>"
+                    f"<td style='text-align:center;white-space:nowrap'>{r['created']}</td>"
                     f"<td style='text-align:center;font-weight:700;color:{_sc_col}'>"
                     f"{_score}/{len(_SPOT_FIELDS)}</td></tr>")
             if _rows:
+                st.caption(f"{len(_rows)} Spot(s)")
                 st.markdown(
                     "<div style='overflow-x:auto'><table style='border-collapse:collapse;"
                     "font-size:.9rem;width:100%'>"
                     f"<tr><th style='padding:4px 8px;text-align:left'>Spot</th>{_hdr}"
+                    "<th style='padding:4px 8px'>Sessions</th>"
+                    "<th style='padding:4px 8px'>Erstellt</th>"
                     "<th style='padding:4px 8px'>∑</th></tr>"
                     + "".join(_trs) + "</table></div>",
                     unsafe_allow_html=True)
             else:
-                st.success("🎉 Alle Spots sind vollständig ausgefüllt.")
+                st.info("Keine Spots für diese Suche/Filter.")
 
     coords = load_spots()                 # {name: {lat, lon}} – nur mit Koordinaten
     all_names = all_known_spots()         # alle bekannten Namen (auch aus Sessions)
