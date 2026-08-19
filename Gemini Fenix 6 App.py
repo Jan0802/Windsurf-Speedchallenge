@@ -12512,7 +12512,7 @@ def render_admin_spots():
                 "Anzeigen", ["Nur unvollständige", "Ohne Beschreibung", "Alle"],
                 key="admin_spot_ov_view")
             _sortkey = st.selectbox(
-                "Sortieren", ["Lücken zuerst", "Sessions ↓", "Erstellt ↓", "Name A–Z"],
+                "Sortieren", ["Neueste zuerst", "Lücken zuerst", "Sessions ↓", "Name A–Z"],
                 key="admin_spot_ov_sort")
 
             _rows = list(_ov)
@@ -12523,16 +12523,15 @@ def render_admin_spots():
             elif _view == "Ohne Beschreibung":
                 _rows = [r for r in _rows if not r["fields"]["Text EN"]]
 
-            if _sortkey == "Sessions ↓":
+            if _sortkey == "Lücken zuerst":
+                _rows.sort(key=lambda r: (sum(r["fields"].values()), r["spot"].lower()))
+            elif _sortkey == "Sessions ↓":
                 _rows.sort(key=lambda r: (-r["sessions"], r["spot"].lower()))
-            elif _sortkey == "Erstellt ↓":
-                # Neueste zuerst; Spots ohne Datum ("–") ans Ende.
-                _rows.sort(key=lambda r: r["created"] if r["created"] != "–" else "",
-                           reverse=True)
             elif _sortkey == "Name A–Z":
                 _rows.sort(key=lambda r: r["spot"].lower())
-            else:  # Lücken zuerst
-                _rows.sort(key=lambda r: (sum(r["fields"].values()), r["spot"].lower()))
+            else:  # Neueste zuerst (Standard): nach Erstellt-Datum, ohne Datum ans Ende
+                _rows.sort(key=lambda r: r["created"] if r["created"] != "–" else "",
+                           reverse=True)
 
             st.caption("✓ = vorhanden · – = fehlt · Text EN = Kurzbeschreibung vorhanden · "
                        "Erstellt = erste Session, sonst letzte Änderung · "
