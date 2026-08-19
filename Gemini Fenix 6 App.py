@@ -12541,7 +12541,9 @@ def render_admin_spots():
                 with st.spinner("Claude schreibt die Beschreibung …"):
                     _req = Request(f"{_ingest}/enrich_spots?{_q}",
                                    headers={"User-Agent": "MyWaterSessions/1.0"})
-                    with urlopen(_req, timeout=60) as _resp:
+                    # Großzügig: Web-Suche + EN/Landessprache + DE-Übersetzung können
+                    # gut 1–2 Min dauern; kürzer würde das (bezahlte) Ergebnis verwerfen.
+                    with urlopen(_req, timeout=180) as _resp:
                         json.loads(_resp.read().decode("utf-8"))
                 load_spot_info.clear()
                 load_all_spot_info.clear()
