@@ -3364,6 +3364,52 @@ def _optimize_image(data, mime, max_dim=1600, quality=82, max_kb=300):
         return data, mime
 
 
+def optimize_existing_images():
+    """Einmal-Backfill: bestehende Bilder auf WebP (<=300 KB) bringen. Ueberspringt
+    bereits optimierte (WebP UND klein) sowie Faelle, in denen die Neukodierung nicht
+    kleiner wird. Gibt (anzahl_geaendert, gesparte_bytes) zurueck. Tabellen mit
+    zusammengesetztem Schluessel (spot_ads) werden bewusst ausgelassen."""
+    targets = [
+        (spot_images_table, spot_images_table.c.id, "image", "image_mime"),
+        (spot_info_table, spot_info_table.c.spot, "image", "image_mime"),
+        (spot_info_table, spot_info_table.c.spot, "tv_image", "tv_image_mime"),
+        (spot_products_table, spot_products_table.c.id, "image", "image_mime"),
+        (spot_webcam_ads_table, spot_webcam_ads_table.c.spot, "left_image", "left_mime"),
+        (spot_webcam_ads_table, spot_webcam_ads_table.c.spot, "right_image", "right_mime"),
+    ]
+    limit = 300 * 1024
+    n_changed = 0
+    saved = 0
+    with get_engine().begin() as conn:
+        for tbl, pk, imgcol, mimecol in targets:
+            rows = conn.execute(
+                select(pk, tbl.c[imgcol], tbl.c[mimecol]).where(tbl.c[imgcol].isnot(None))
+            ).all()
+            for pkval, img, mime in rows:
+                try:
+                    if img is None:
+                        continue
+                    raw = bytes(img)
+                    orig = len(raw)
+                    if (mime or "") == "image/webp" and orig <= limit:
+                        continue   # schon optimiert
+                    new, newmime = _optimize_image(raw, mime)
+                    if new and len(new) < orig:
+                        conn.execute(update(tbl).where(pk == pkval)
+                                     .values(**{imgcol: new, mimecol: newmime}))
+                        n_changed += 1
+                        saved += orig - len(new)
+                except Exception:  # noqa: BLE001 – ein defektes Bild darf nicht alles stoppen
+                    continue
+    try:
+        load_spot_info.clear()
+        load_all_spot_info.clear()
+        _clear_ad_caches()
+    except Exception:  # noqa: BLE001
+        pass
+    return n_changed, saved
+
+
 # ---- Produkt-Metadaten aus einer Shop-URL ziehen (Open Graph / JSON-LD) ----
 
 _BROWSER_HEADERS = {
@@ -12545,6 +12591,16 @@ def render_admin_spots():
                     "setTimeout(function(){b.textContent=o;},1400);}}</script>"
                 )
                 components.html(_doc, height=min(560, 150 + len(_rows) * 34), scrolling=True)
+
+    # --- Wartung: Alt-Bilder einmalig auf WebP/<=300 KB bringen -----------------
+    with st.expander("🗜️ Wartung: Bilder optimieren (WebP)", expanded=False):
+        st.caption("Wandelt ALLE bereits gespeicherten Bilder (Galerie, Spotbild, TV-Bild, "
+                   "Produkte, Webcam) einmalig in WebP (≤ ~300 KB) um. Bereits optimierte "
+                   "werden übersprungen. Bei vielen Bildern kann das etwas dauern.")
+        if st.button("🗜️ Alle Bilder jetzt optimieren", key="admin_img_backfill"):
+            with st.spinner("Optimiere Bilder …"):
+                _nimg, _saved = optimize_existing_images()
+            st.success(f"{_nimg} Bild(er) optimiert · {_saved / 1024 / 1024:.1f} MB gespart.")
 
     coords = load_spots()                 # {name: {lat, lon}} – nur mit Koordinaten
     all_names = all_known_spots()         # alle bekannten Namen (auch aus Sessions)
