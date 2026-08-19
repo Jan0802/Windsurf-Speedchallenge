@@ -2755,8 +2755,17 @@ def _spot_completeness_rows():
             .where(sessions_table.c.surfspot.isnot(None))
             .group_by(sessions_table.c.surfspot)
         ).mappings().all()
+        sbys = conn.execute(
+            select(sessions_table.c.surfspot, sessions_table.c.sport,
+                   func.count().label("n"))
+            .where(sessions_table.c.surfspot.isnot(None))
+            .group_by(sessions_table.c.surfspot, sessions_table.c.sport)
+        ).mappings().all()
     info = {r["spot"]: dict(r) for r in rows}
     sess_map = {r["surfspot"]: r for r in sess}
+    sport_map = {}   # {spot: {sport: count}} – Sessions je Sportart
+    for r in sbys:
+        sport_map.setdefault(r["surfspot"], {})[r["sport"] or "?"] = int(r["n"] or 0)
     out = []
     for nm in names:
         i = info.get(nm, {})
@@ -2789,6 +2798,7 @@ def _spot_completeness_rows():
             created = str(i["updated_at"])[:10]
         out.append({"spot": nm, "fields": fields,
                     "sessions": int(_s.get("n") or 0), "created": created,
+                    "sports": sport_map.get(nm, {}),
                     "country": (i.get("country") or ""), "region": (i.get("region") or ""),
                     "lat": co.get("lat"), "lon": co.get("lon")})
     return out
@@ -12543,12 +12553,23 @@ def render_admin_spots():
             st.caption("✓ = vorhanden · – = fehlt · Text EN = Kurzbeschreibung vorhanden · "
                        "Erstellt = erste Session, sonst letzte Änderung · "
                        "📋 kopiert den Langbeschreibungs-Prompt (Løkken-Stil) in die Zwischenablage.")
+            st.caption("Sessions nach Sportart: 🏄 Windsurf · 🪁 Kite · 🪽 Wing · "
+                       "🛶 SUP · 🤙 Wake · 🌊 Surf")
             if not _rows:
                 st.info("Keine Spots für diese Suche/Filter.")
             else:
                 st.caption(f"{len(_rows)} Spot(s)")
                 _e = lambda s: (str(s).replace("&", "&amp;").replace("<", "&lt;")
                                 .replace(">", "&gt;"))
+
+                def _spb(sp):
+                    """Sessions je Sportart als Icon+Zahl, z.B. '🏄 40 🪁 12'."""
+                    if not sp:
+                        return "0"
+                    parts = [f"{SPORT_META[s]['emoji']} {sp[s]}" for s in SPORTS if sp.get(s)]
+                    parts += [f"• {sp[k]}" for k in sp if k not in SPORT_META and sp.get(k)]
+                    return " ".join(parts) if parts else "0"
+
                 _prompts = {str(k): _longform_prompt(r["spot"], r.get("country", ""),
                                                      r.get("region", ""), r.get("lat"),
                                                      r.get("lon"), r["sessions"])
@@ -12570,7 +12591,7 @@ def render_admin_spots():
                     _trh += (
                         "<tr>"
                         f"<td class='nm'>{_e(r['spot'])}{_subhtml}</td>{_cells}"
-                        f"<td class='c'>{r['sessions']}</td>"
+                        f"<td class='c'>{_spb(r.get('sports') or {})}</td>"
                         f"<td class='c'>{_e(r['created'])}</td>"
                         f"<td class='c' style='font-weight:700;color:{_sc_col}'>"
                         f"{_score}/{len(_SPOT_FIELDS)}</td>"
