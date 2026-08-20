@@ -4620,10 +4620,12 @@ def mark_group_events_seen(user_id):
     unseen_group_events.clear()
 
 
-# Pflichtfelder, damit eine Session im Ranking/in den Personal Bests zählt.
-RANKING_REQUIRED = ["surfspot", "board", "sail"]
-# Board-only-Sportarten: eine Session gilt auch OHNE zweites Material ("sail") als
-# vollstaendig. Surf hat kein Segel/Kite; Finnen sind optional.
+# Pflichtfeld, damit eine Session im Ranking/in den Personal Bests zählt.
+# Material (Board/Segel) ist BEWUSST keine Voraussetzung – siehe complete_sessions.
+RANKING_REQUIRED = ["surfspot"]
+# Board-only-Sportarten brauchen kein zweites Material ("sail"). Seit die Wertung
+# kein Material mehr verlangt, zaehlt das nur noch fuer den "Material gepflegt?"-
+# Hinweis im Session-Editor, nicht mehr fuer die Aufnahme in die Rangliste.
 _SPORT_GEAR_OPTIONAL = {"surf"}
 
 # Öffentliche Bestenliste zeigt nur die Top N je Tabelle. Den eigenen Rang
@@ -4655,28 +4657,31 @@ RANKING_TABLE_LABELS = {
 
 
 def complete_sessions(df):
-    """Nur Sessions, die fürs Ranking vollständig sind: Spot + Board + Segel/
-    Kite gesetzt. Unvollständige (z.B. frisch von der Uhr, ohne Equipment)
-    bleiben aus Ranking & Personal Bests draußen, bis sie nachgepflegt wurden.
-    Board-only-Sportarten (Surf) brauchen KEIN zweites Material."""
+    """Sessions, die in Ranking und Personal Bests zählen.
+
+    Verlangt NUR einen Spot. Material (Board/Segel) ist ausdrücklich KEINE
+    Voraussetzung mehr: früher mussten Board und Segel gesetzt sein, wodurch
+    frisch von der Uhr hochgeladene Sessions unsichtbar blieben, bis der Fahrer
+    sie nachpflegte. Damit sahen genau die Leute, die wir auf die Seite holen
+    wollen (Uhr-Nutzer ohne Konto-Pflege), ihre Leistung nirgends – und ein
+    Fahrer musste erst Material eintragen, bevor er überhaupt in der Bestenliste
+    auftauchte. Über Plausibilität entscheidet allein das Trust-Gate
+    (_drop_excluded), nicht die Materialpflege; dieselbe Entscheidung trifft der
+    Ingest schon bei /spot_record (Spot-Rekord ohne Equipment-Filter).
+
+    Der Spot bleibt Pflicht, weil er die Leistung überhaupt erst zuordenbar
+    macht (Spot-Ranglisten, Spot-Rekorde, Wetter). Fehlt er, kann die Session
+    nirgends einsortiert werden.
+    """
     if df is None or df.empty:
         return df
-    base = ["surfspot", "board"]
-    if not all(col in df.columns for col in base):
+    if "surfspot" not in df.columns:
         return df.iloc[0:0]
-    mask = pd.Series(True, index=df.index)
-    for col in base:
-        s = df[col].astype(str).str.strip()
-        mask &= s.ne("") & ~s.str.lower().isin(["none", "nan", "null"])
-    # Zweites Material ("sail") nur verlangen, wo der Sport eins braucht.
-    if "sail" in df.columns:
-        sail = df["sail"].astype(str).str.strip()
-        sail_ok = sail.ne("") & ~sail.str.lower().isin(["none", "nan", "null"])
-        if "sport" in df.columns:
-            gear_optional = df["sport"].astype(str).isin(_SPORT_GEAR_OPTIONAL)
-        else:
-            gear_optional = pd.Series(False, index=df.index)
-        mask &= (sail_ok | gear_optional)
+    # fillna("") ist wichtig: ein NULL-Spot kommt als echtes NaN aus der DB, und
+    # ohne fillna liefert .str.lower() darauf wieder NaN -> die isin()-Pruefung
+    # greift nicht und die Session rutschte trotz fehlendem Spot durch.
+    spot = df["surfspot"].fillna("").astype(str).str.strip()
+    mask = spot.ne("") & ~spot.str.lower().isin(["none", "nan", "null"])
     return df[mask]
 
 
@@ -6482,11 +6487,18 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "date", "name", "speed_30s_kmh", "speed_30s_kn",
                 "surfspot", "board", "sail", "Weather", "Trust",
             ]].copy()
+            # Nur echte Werte: 0/leer ist keine Leistung. Wichtig, seit die
+            # Wertung kein Material mehr verlangt – sonst fuellen Sessions ohne
+            # gemessenen Speed (z.B. Balkon-Test) die Liste mit Nullen.
+            r30 = r30[pd.to_numeric(r30["speed_30s_kmh"], errors="coerce") > 0]
             r30 = (
                 r30.sort_values("speed_30s_kmh", ascending=False)
                 .drop_duplicates(subset="name", keep="first")
                 .reset_index(drop=True).head(RANKING_TOP_N)
             )
+            if r30.empty:
+                st.caption("No entries yet.")
+                return
             r30.insert(0, "Rank", r30.index + 1)
             r30 = r30.rename(columns={
                 "date": "Date", "name": "Name", "surfspot": "Surf spot",
@@ -6503,11 +6515,15 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "date", "name", "speed_1s_kmh", "speed_1s_kn",
                 "surfspot", "board", "sail", "Weather", "Trust",
             ]].copy()
+            r1 = r1[pd.to_numeric(r1["speed_1s_kmh"], errors="coerce") > 0]
             r1 = (
                 r1.sort_values("speed_1s_kmh", ascending=False)
                 .drop_duplicates(subset="name", keep="first")
                 .reset_index(drop=True).head(RANKING_TOP_N)
             )
+            if r1.empty:
+                st.caption("No entries yet.")
+                return
             r1.insert(0, "Rank", r1.index + 1)
             r1 = r1.rename(columns={
                 "date": "Date", "name": "Name", "surfspot": "Surf spot",
@@ -6523,6 +6539,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             tab = ranking[fin_cols + [
                 "date", "name", col, "surfspot", "board", "sail", "Weather", "Trust",
             ]].copy()
+            tab = tab[pd.to_numeric(tab[col], errors="coerce") > 0]
             tab = (
                 tab.dropna(subset=[col])
                 .sort_values(col, ascending=False)
@@ -6557,11 +6574,15 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "date", "name", "longest_run_km", "longest_run_m",
                 "surfspot", "board", "sail", "Weather", "Trust",
             ]].copy()
+            rrun = rrun[pd.to_numeric(rrun["longest_run_m"], errors="coerce") > 0]
             rrun = (
                 rrun.sort_values("longest_run_m", ascending=False)
                 .drop_duplicates(subset="name", keep="first")
                 .reset_index(drop=True).head(RANKING_TOP_N)
             )
+            if rrun.empty:
+                st.caption("No entries yet.")
+                return
             rrun.insert(0, "Rank", rrun.index + 1)
             rrun = rrun.rename(columns={
                 "date": "Date", "name": "Name", "surfspot": "Surf spot",
@@ -8004,7 +8025,8 @@ def _spot_tv_live(cfg):
     today = now.normalize()
     today_df = df[df["_date"].dt.normalize() == today]
 
-    # Nur VOLLSTAENDIGE Sessions (Spot+Board+Segel) zaehlen fuer Bestzeiten/Rangliste.
+    # Fuer Bestzeiten/Rangliste zaehlt jede plausible Session mit Spot (Material
+    # ist keine Voraussetzung mehr, siehe complete_sessions).
     ranked = complete_sessions(df)
 
     # Zeitraum (mode) bestimmt Header-Kacheln UND Leaderboard.
@@ -14761,17 +14783,32 @@ def render_group_news_banner(user):
     st.markdown("---")
 
 
-def _session_is_complete(spot, board, sail):
-    def ok(v):
-        v = str(v or "").strip().lower()
-        return v != "" and v not in ("none", "nan", "null")
-    return ok(spot) and ok(board) and ok(sail)
+def _field_set(v):
+    v = str(v or "").strip().lower()
+    return v != "" and v not in ("none", "nan", "null")
+
+
+def _session_counts_in_ranking(spot):
+    """Zählt die Session in Ranking/Personal Bests? Nur der Spot ist Pflicht –
+    Material ist Kür (siehe complete_sessions)."""
+    return _field_set(spot)
+
+
+def _session_gear_complete(spot, board, sail, sport=None):
+    """Ist die Session sauber nachgepflegt (Material eingetragen)? Nur für den
+    Hinweis im Editor – für die Aufnahme in die Wertung NICHT entscheidend.
+    Board-only-Sportarten (Surf) brauchen kein zweites Material."""
+    if not (_field_set(spot) and _field_set(board)):
+        return False
+    if sport in _SPORT_GEAR_OPTIONAL:
+        return True
+    return _field_set(sail)
 
 
 def render_session_editor(user):
-    """Eigene Sessions nachpflegen: Spot/Board/Segel ergänzen, damit sie ins
-    Ranking aufgenommen werden (Pflicht: Spot + Board + Segel/Kite). Zeigt auch
-    unvollständige, von der Uhr hochgeladene Sessions an."""
+    """Eigene Sessions nachpflegen: Spot/Board/Segel ergänzen. Fürs Ranking
+    genügt der Spot – Material macht den Eintrag nur aussagekräftiger. Zeigt
+    auch frisch von der Uhr hochgeladene Sessions an."""
     if not user:
         return
 
@@ -14782,8 +14819,9 @@ def render_session_editor(user):
 
     with st.expander("✏️ Edit / complete my sessions", expanded=False):
         st.caption(
-            "Sessions only appear in the ranking once spot, board and "
-            f"{gear_word.lower()} are filled in. Watch uploads start incomplete (⚠️)."
+            "Every plausible session counts in the ranking as soon as it has a "
+            f"spot. Adding board and {gear_word.lower()} (⚠️) is optional – it "
+            "just makes your entry more informative for everyone else."
         )
 
         if st.button("🔄 Refresh (show new uploads)", key="es_refresh",
@@ -14803,10 +14841,15 @@ def render_session_editor(user):
         row_by_label = {}
         for _, row in df.iterrows():
             sid = int(row["id"])
-            complete = _session_is_complete(
-                row.get("surfspot"), row.get("board"), row.get("sail")
-            )
-            mark = "✅" if complete else "⚠️"
+            # Drei Zustaende: zaehlt nicht (kein Spot) / zaehlt, Material fehlt /
+            # zaehlt und ist vollstaendig gepflegt.
+            if not _session_counts_in_ranking(row.get("surfspot")):
+                mark = "⛔"
+            elif _session_gear_complete(row.get("surfspot"), row.get("board"),
+                                        row.get("sail"), sport):
+                mark = "✅"
+            else:
+                mark = "⚠️"
             spot = str(row.get("surfspot") or "").strip() or "no spot"
             label = f"{mark} {row.get('date')} · {spot}  [#{sid}]"
             labels.append(label)
@@ -14879,11 +14922,15 @@ def render_session_editor(user):
                     fields["fin_carbon"] = None
                 update_session(sid, fields)
 
-                if _session_is_complete(fields["surfspot"], fields["board"], fields["sail"]):
-                    st.success("Saved – this session now counts in the ranking. ✅")
+                if not _session_counts_in_ranking(fields["surfspot"]):
+                    st.warning("Saved – but without a spot it stays out of the "
+                               "ranking. Pick a spot so it can be placed.")
+                elif _session_gear_complete(fields["surfspot"], fields["board"],
+                                            fields["sail"], sport):
+                    st.success("Saved – this session counts in the ranking. ✅")
                 else:
-                    st.warning("Saved, but still incomplete – spot, board and "
-                               f"{gear_word.lower()} are required for the ranking.")
+                    st.info("Saved – it counts in the ranking. Adding board and "
+                            f"{gear_word.lower()} would round out the entry.")
                 st.rerun()
 
         # Session löschen (z.B. fehlerhafte NaT-/Test-Sessions). Mit Bestätigung.
