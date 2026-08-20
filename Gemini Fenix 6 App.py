@@ -13867,22 +13867,25 @@ _is_spots_view = st.query_params.get("view") == "spots"
 _is_results_view = st.query_params.get("view") == "results"
 _is_safety_view = st.query_params.get("view") == "safety"
 _is_rankings_help = st.query_params.get("view") == "rankings-help"
+_is_beat_view = st.query_params.get("view") == "beat"
 
 # Eigener App-Seitenaufruf-Zaehler (Cloudflare sieht die App nicht). Zaehlt nur
 # bei echter Navigation/Reload, nicht bei jedem Rerun.
 _track_pageview("safety" if _is_safety_view else "rankings-help" if _is_rankings_help
                 else "spots" if _is_spots_view
+                else "beat" if _is_beat_view
                 else "results" if _is_results_view else "home")
 
 # Header-Umschalter Sportarten + ganz rechts die reine Spots-Seite. Klick setzt
 # ?sport= bzw. ?view=spots in der URL (bleibt über Reload/Link erhalten).
-_sw_cols = st.columns([2] * len(SPORTS) + [2, 2])
+_sw_cols = st.columns([2] * len(SPORTS) + [2, 2, 2])
 for _i, _key in enumerate(SPORTS):
     if _sw_cols[_i].button(
         SPORT_META[_key]["label"],
         key=f"switch_sport_{_key}",
         use_container_width=True,
-        type="primary" if (_key == sport and not _is_spots_view and not _is_results_view) else "secondary",
+        type="primary" if (_key == sport and not _is_spots_view and not _is_results_view
+                           and not _is_beat_view) else "secondary",
     ):
         if "view" in st.query_params:
             del st.query_params["view"]
@@ -13896,6 +13899,13 @@ if _sw_cols[len(SPORTS)].button(
         st.query_params["view"] = "spots"
         st.rerun()
 if _sw_cols[len(SPORTS) + 1].button(
+    "🎯 Beat the Beach", key="switch_view_beat", use_container_width=True,
+    type="primary" if _is_beat_view else "secondary",
+):
+    if not _is_beat_view:
+        st.query_params["view"] = "beat"
+        st.rerun()
+if _sw_cols[len(SPORTS) + 2].button(
     "👤 My Results", key="switch_view_results", use_container_width=True,
     type="primary" if _is_results_view else "secondary",
 ):
@@ -16554,6 +16564,10 @@ def render_my_results_page(user):
     render_my_results_kpis(name)
     st.markdown("---")
 
+    # --- Beat the Beach: kompakte Kachel, Hauptort ist ?view=beat ---
+    render_btb_teaser(name)
+    st.markdown("---")
+
     # --- Personal Bests: Filter offen + eigener Rang + Top-10-Tabelle ---
     pb_table, pb_caption, pb_total = render_personal_best_filter(name, inline=True)
     render_my_results_rank(name, st.session_state.get(f"pb_spot_{name}", "All"))
@@ -16582,9 +16596,287 @@ def render_my_results_page(user):
     render_session_editor(user)
 
 
+# ===========================================================================
+#  „Beat the Beach" im Web – die Uebersetzung des Uhr-Rings auf die Website.
+#
+#  Der Ring auf der Uhr lebt davon, dass er sich WAEHREND der Fahrt fuellt. Im
+#  Web ist die Session vorbei, ein nachgebauter Ring waere also nur Deko. Was das
+#  Web dafuer kann und die Uhr nicht: (a) die Jagdliste – alle Spots des Fahrers
+#  danach sortiert, wo am wenigsten fehlt, (b) den Fortschritt ueber die Zeit und
+#  (c) die Konsequenz in der Rangliste („mit dem Rekord waerst du #1"). Der Ring
+#  kommt als Wiedererkennung mit, in der Aqua-Optik der Uhr.
+#
+#  Kennzahl ist bewusst dieselbe wie auf der Uhr und im Ingest-/spot_record:
+#  der beste 2s-Schnitt (Spalte speed_1s_kmh, historischer Name).
+# ===========================================================================
+
+_BTB_METRIC = "speed_1s_kmh"
+_BTB_AQUA = "#2BD4D9"
+_BTB_GOLD = "#ffd166"
+
+
+def _btb_overview(name, sport):
+    """Je Spot: Rekord (+Halter) und – wenn `name` dort gefahren ist – der eigene
+    Bestwert, Abstand und Prozent. EIN Query fuer alles, sortiert nach Naehe zum
+    Rekord (am nächsten dran zuerst). `name=None` -> nur Rekorde je Spot."""
+    df = _drop_excluded(complete_sessions(load_sessions(sport)))
+    if df is None or df.empty or _BTB_METRIC not in df.columns:
+        return []
+    d = df.copy()
+    d[_BTB_METRIC] = pd.to_numeric(d[_BTB_METRIC], errors="coerce")
+    d = d.dropna(subset=[_BTB_METRIC])
+    d = d[d[_BTB_METRIC] > 0]
+    if d.empty:
+        return []
+    d["_spot"] = d["surfspot"].fillna("").astype(str).str.strip()
+    d = d[d["_spot"] != ""]
+    if d.empty:
+        return []
+    d = d.sort_values(_BTB_METRIC, ascending=False)
+    rec = d.drop_duplicates(subset="_spot", keep="first")
+
+    mine_best = None
+    if name:
+        mine = d[d["name"].astype(str) == str(name)]
+        if not mine.empty:
+            mine_best = mine.drop_duplicates(subset="_spot", keep="first")
+
+    out = []
+    for _, r in rec.iterrows():
+        spot = r["_spot"]
+        recv = float(r[_BTB_METRIC])
+        holder = str(r.get("name") or "")
+        row = {"spot": spot, "record": recv, "holder": holder,
+               "mine": None, "pct": None, "gap": None, "i_hold": False,
+               "date": r.get("date")}
+        if mine_best is not None:
+            m = mine_best[mine_best["_spot"] == spot]
+            if not m.empty:
+                myv = float(m.iloc[0][_BTB_METRIC])
+                row["mine"] = myv
+                row["pct"] = (myv / recv * 100.0) if recv > 0 else 0.0
+                row["gap"] = max(0.0, recv - myv)
+                row["i_hold"] = (holder == str(name))
+        out.append(row)
+    # Eigene Spots zuerst (nach Naehe), danach die uebrigen Spots alphabetisch.
+    mine_rows = [r for r in out if r["mine"] is not None]
+    other_rows = [r for r in out if r["mine"] is None]
+    mine_rows.sort(key=lambda x: -(x["pct"] or 0.0))
+    other_rows.sort(key=lambda x: x["spot"].lower())
+    return mine_rows + other_rows
+
+
+def _btb_ring_svg(pct, center_top, center_big, center_sub, done=False):
+    """Fortschrittsring wie auf der Uhr: Fuellung = Anteil am Spot-Rekord.
+    `done` (Rekord erreicht/gehalten) faerbt ihn gold statt aqua."""
+    W = 260.0
+    cx = cy = W / 2.0
+    r = 104.0
+    circ = 2.0 * float(np.pi) * r   # np, nicht math – math ist hier nicht importiert
+    frac = 0.0 if pct is None else max(0.0, min(1.0, pct / 100.0))
+    col = _BTB_GOLD if done else _BTB_AQUA
+    parts = [
+        f"<circle cx='{cx}' cy='{cy}' r='{r}' fill='none' stroke='rgba(255,255,255,.13)' "
+        "stroke-width='16'/>",
+    ]
+    if frac > 0:
+        parts.append(
+            f"<circle cx='{cx}' cy='{cy}' r='{r}' fill='none' stroke='{col}' "
+            f"stroke-width='16' stroke-linecap='round' "
+            f"stroke-dasharray='{circ * frac:.1f} {circ:.1f}' "
+            f"transform='rotate(-90 {cx} {cy})'/>"
+        )
+    parts.append(
+        f"<text x='{cx}' y='{cy - 34:.0f}' fill='#9AA7AD' font-size='15' "
+        f"text-anchor='middle' font-family='system-ui,sans-serif'>{center_top}</text>"
+    )
+    parts.append(
+        f"<text x='{cx}' y='{cy + 14:.0f}' fill='{col}' font-size='46' font-weight='800' "
+        f"text-anchor='middle' font-family='system-ui,sans-serif'>{center_big}</text>"
+    )
+    parts.append(
+        f"<text x='{cx}' y='{cy + 46:.0f}' fill='#cfe3e8' font-size='16' "
+        f"text-anchor='middle' font-family='system-ui,sans-serif'>{center_sub}</text>"
+    )
+    return (f"<svg viewBox='0 0 {W:.0f} {W:.0f}' width='100%' style='max-width:300px'>"
+            f"{''.join(parts)}</svg>")
+
+
+def _btb_progress_svg(values, record):
+    """Kleine Verlaufskurve der eigenen Top-Speeds an einem Spot (aelteste links)
+    mit dem Rekord als Ziellinie. Zeigt, ob man naeher kommt – das kann die Uhr
+    nicht. Braucht mindestens zwei Werte."""
+    if not values or len(values) < 2:
+        return None
+    W, H, pad = 620.0, 130.0, 16.0
+    top = max([record] + values) * 1.05
+    if top <= 0:
+        return None
+
+    def X(i):
+        return pad + (W - 2 * pad) * (i / float(len(values) - 1))
+
+    def Y(v):
+        return H - pad - (H - 2 * pad) * (v / top)
+
+    pts = " ".join([f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(values)])
+    parts = [
+        f"<line x1='{pad}' y1='{Y(record):.1f}' x2='{W - pad}' y2='{Y(record):.1f}' "
+        f"stroke='{_BTB_GOLD}' stroke-width='2' stroke-dasharray='6 5'/>",
+        f"<text x='{W - pad}' y='{Y(record) - 6:.1f}' fill='{_BTB_GOLD}' font-size='11' "
+        f"text-anchor='end' font-family='system-ui,sans-serif'>record {record:.1f}</text>",
+        f"<polyline points='{pts}' fill='none' stroke='{_BTB_AQUA}' stroke-width='3' "
+        "stroke-linejoin='round' stroke-linecap='round'/>",
+    ]
+    for i, v in enumerate(values):
+        parts.append(f"<circle cx='{X(i):.1f}' cy='{Y(v):.1f}' r='3.5' fill='{_BTB_AQUA}'/>")
+    return (f"<svg viewBox='0 0 {W:.0f} {H:.0f}' width='100%' style='max-width:{W:.0f}px;"
+            "background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);"
+            f"border-radius:12px'>{''.join(parts)}</svg>")
+
+
+def render_beat_the_beach(user):
+    """Eigene Seite (?view=beat): Ring gegen den Spot-Rekord, Jagdliste ueber alle
+    eigenen Spots und der Fortschritt am gewaehlten Spot. Ohne Login bleibt der
+    Rekord sichtbar (Conversion-Haken fuer die vielen Uhr-Nutzer ohne Konto),
+    nur die eigenen Werte fehlen."""
+    sport = active_sport()
+    name = user["username"] if user else None
+    st.markdown("## 🎯 Beat the Beach")
+    st.caption(
+        "The ring from your watch – plus what the watch cannot show you: where you are "
+        f"closest to a record, and what it would mean for your rank · {SPORT_META[sport]['label']}"
+    )
+
+    rows = _btb_overview(name, sport)
+    if not rows:
+        st.info(f"No {SPORT_META[sport]['label']} records yet. Upload a session and be the first.")
+        return
+
+    # Spot-Auswahl: ?spot= gewinnt, sonst der Spot, an dem am wenigsten fehlt
+    # (bzw. der erste ueberhaupt) – das ist der motivierende Einstieg.
+    spots = [r["spot"] for r in rows]
+    want = (st.query_params.get("spot") or "").strip()
+    idx = spots.index(want) if want in spots else 0
+    pick = st.selectbox("Spot", spots, index=idx, key="btb_spot")
+    if pick != want:
+        st.query_params["spot"] = pick
+    row = next(r for r in rows if r["spot"] == pick)
+
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        if row["mine"] is None:
+            svg = _btb_ring_svg(100.0, "SPOT RECORD", f"{row['record']:.1f}",
+                                row["holder"] or "–", done=True)
+        else:
+            svg = _btb_ring_svg(row["pct"], "OF SPOT RECORD", f"{row['pct']:.0f}%",
+                                f"{row['mine']:.1f} km/h", done=row["i_hold"])
+        components.html(
+            f"<div style='display:flex;justify-content:center'>{svg}</div>", height=310)
+
+    with c2:
+        st.metric("🏆 Spot record", f"{row['record']:.1f} km/h", row["holder"] or "–")
+        if row["mine"] is None:
+            if name:
+                st.metric("⚡ Your best here", "–", "no session at this spot yet")
+                st.caption("Record a session at this spot and your ring appears here.")
+            else:
+                st.markdown(
+                    "**How close are you?** Log in to see your own ring – or upload a "
+                    "session (FIT, GPX or TCX) from any watch to find out."
+                )
+        elif row["i_hold"]:
+            st.metric("👑 Your best here", f"{row['mine']:.1f} km/h", "you hold this record")
+        else:
+            st.metric("⚡ Your best here", f"{row['mine']:.1f} km/h",
+                      f"-{row['gap']:.1f} km/h to the record")
+            st.progress(min(1.0, (row["pct"] or 0) / 100.0))
+            st.caption(f"You need **+{row['gap']:.1f} km/h** to take the record from "
+                       f"{row['holder']}.")
+
+    # Was der Rekord fuer die Rangliste bedeuten wuerde – die Uhr kennt keine Plaetze.
+    if name and row["mine"] is not None and not row["i_hold"]:
+        rk = _user_rank(name, sport, pick, _BTB_METRIC)
+        if rk:
+            st.info(f"At **{pick}** you are **#{rk['rank']} of {rk['total']}** right now – "
+                    f"beating {row['record']:.1f} km/h puts you **#1**.")
+
+    # Fortschritt am gewaehlten Spot: kommst du naeher?
+    if name:
+        mine_df = _drop_excluded(complete_sessions(load_rider_sessions(name, sport)))
+        if mine_df is not None and not mine_df.empty:
+            d = mine_df.copy()
+            d["_spot"] = d["surfspot"].fillna("").astype(str).str.strip()
+            d = d[d["_spot"] == pick]
+            d[_BTB_METRIC] = pd.to_numeric(d[_BTB_METRIC], errors="coerce")
+            d = d.dropna(subset=[_BTB_METRIC])
+            d = d[d[_BTB_METRIC] > 0]
+            if len(d) >= 2:
+                # Aelteste zuerst. Ueber echte Datumswerte sortieren, nicht ueber
+                # den String – gemischte Formate wuerden sonst falsch ordnen.
+                if "date" in d.columns:
+                    d = d.assign(_d=pd.to_datetime(d["date"], errors="coerce")) \
+                         .sort_values("_d", na_position="first")
+                vals = [float(v) for v in d[_BTB_METRIC].tolist()]
+                svg = _btb_progress_svg(vals, row["record"])
+                if svg:
+                    st.markdown(f"### 📈 Your progress at {pick}")
+                    first_pct = vals[0] / row["record"] * 100.0 if row["record"] > 0 else 0
+                    best_pct = max(vals) / row["record"] * 100.0 if row["record"] > 0 else 0
+                    st.caption(f"{len(vals)} sessions · from {first_pct:.0f}% to "
+                               f"{best_pct:.0f}% of the record")
+                    components.html(f"<div>{svg}</div>", height=160)
+
+    # Jagdliste: wo lohnt sich der naechste Versuch?
+    mine_rows = [r for r in rows if r["mine"] is not None]
+    if mine_rows:
+        st.markdown("### 🎯 Your hunting list")
+        st.caption("Your spots, closest to the record first – that is where the next "
+                   "session pays off most.")
+        tbl = pd.DataFrame([{
+            "Spot": r["spot"],
+            "Your best": round(r["mine"], 1),
+            "Record": round(r["record"], 1),
+            "Holder": ("you" if r["i_hold"] else (r["holder"] or "–")),
+            "Missing": ("–" if r["i_hold"] else round(r["gap"], 1)),
+            "% of record": round(r["pct"], 0),
+        } for r in mine_rows])
+        st.dataframe(tbl, width="stretch", hide_index=True, height=df_height(len(tbl)))
+    elif name:
+        st.caption("Ride one of the listed spots and it shows up here as your hunting ground.")
+
+
+def render_btb_teaser(name):
+    """Kompakte Kachel in My Results: der Spot, an dem am wenigsten fehlt, plus
+    Link auf die volle Seite. Bewusst klein – die Seite ist der Hauptort."""
+    rows = [r for r in _btb_overview(name, active_sport()) if r["mine"] is not None]
+    if not rows:
+        return
+    r = rows[0]
+    st.markdown("### 🎯 Beat the Beach")
+    c1, c2, c3 = st.columns([1, 1, 1])
+    if r["i_hold"]:
+        c1.metric(f"👑 {r['spot']}", f"{r['mine']:.1f} km/h", "you hold the record")
+    else:
+        c1.metric(f"⚡ {r['spot']}", f"{r['pct']:.0f}% of record",
+                  f"-{r['gap']:.1f} km/h to {r['holder'] or 'the record'}")
+    c2.metric("🏆 Record there", f"{r['record']:.1f} km/h", r["holder"] or "–")
+    with c3:
+        st.write("")
+        if st.button("🎯 Open Beat the Beach", key="btb_open", use_container_width=True):
+            st.query_params["view"] = "beat"
+            st.query_params["spot"] = r["spot"]
+            st.rerun()
+
+
 # Persönliche „My Results"-Seite (Bestleistungen + eigene Sessions + Editor).
 if _is_results_view:
     render_my_results_page(current_user)
+    st.stop()
+
+# „Beat the Beach"-Seite (?view=beat) – auch ohne Login (dann nur der Rekord).
+if _is_beat_view:
+    render_beat_the_beach(current_user)
     st.stop()
 
 
