@@ -16565,8 +16565,14 @@ def render_my_results_page(user):
     st.markdown("---")
 
     # --- Beat the Beach: kompakte Kachel, Hauptort ist ?view=beat ---
-    render_btb_teaser(name)
-    st.markdown("---")
+    # Bewusst abgesichert: die Kachel ist ein Zusatz auf einer bestehenden Seite.
+    # Ein Fehler darin darf My Results (Bestleistungen, Sessions, Editor) nicht
+    # mitreissen – die eigene Seite ?view=beat zeigt Probleme dann offen an.
+    try:
+        render_btb_teaser(name)
+        st.markdown("---")
+    except Exception:  # noqa: BLE001
+        logging.exception("Beat-the-Beach-Kachel fehlgeschlagen")
 
     # --- Personal Bests: Filter offen + eigener Rang + Top-10-Tabelle ---
     pb_table, pb_caption, pb_total = render_personal_best_filter(name, inline=True)
