@@ -310,6 +310,88 @@ P = {
  },
 }
 
+# --- Surf (Wellenreiten) als 6. Sportart -----------------------------------
+# Nachtraeglich angehaengt statt in die Dicts oben eingeruehrt: so bleibt an EINER
+# Stelle sichtbar, was Surf von den anderen unterscheidet. Gewertet wird Surf auf
+# Top-Speed, laengsten Ride und Wasserzeit – KEINE 500 m/Seemeile (windunabhaengig,
+# board-only), darum eine eigene Karte statt der generischen "runs"-Karte.
+M["en"]["ride"] = ("🌊 Longest ride &amp; water time",
+                   "Your longest single ride and the time you spent in the water.")
+M["de"]["ride"] = ("🌊 Längster Ride &amp; Wasserzeit",
+                   "Dein längster einzelner Ride und deine Zeit im Wasser.")
+M["nl"]["ride"] = ("🌊 Langste ride &amp; tijd op het water",
+                   "Je langste ride en de tijd die je in het water was.")
+M["fr"]["ride"] = ("🌊 Plus longue vague &amp; temps sur l'eau",
+                   "Votre plus longue vague et le temps passé dans l'eau.")
+M["es"]["ride"] = ("🌊 Ola más larga y tiempo en el agua",
+                   "Tu ola más larga y el tiempo que pasaste en el agua.")
+
+SLUGS.append("surf")
+SPORTS["surf"] = {"cards": ["speed", "ride", "trust"],
+                  "name": {"en": "Surf", "de": "Wellenreiten", "nl": "Golfsurfen",
+                           "fr": "Surf", "es": "Surf"}}
+SPORT_KEY["surf"] = "surf"
+P["surf"] = {
+ "en": ("Surf tracker app — top speed &amp; longest ride, free | MyWaterSessions",
+        "Free surf tracker: your top speed, longest ride and time in the water for every "
+        "session, in a fair community ranking per spot. Works with any watch (Garmin, or upload "
+        "a FIT/GPX/TCX file).",
+        "Surf tracking — speed &amp; longest ride",
+        "Track your surf sessions — top speed, longest ride and water time — and see where you "
+        "stand at your break. 100% free, with any watch.",
+        "The free community <b>ranking &amp; session tracker</b> for surfing — part of a platform "
+        "that also covers windsurf, kite, wing, SUP and wakeboard. No sail, no kite: just you, "
+        "your board and the wave."),
+ "de": ("Wellenreiten-Tracker — Top-Speed &amp; längster Ride, kostenlos | MyWaterSessions",
+        "Kostenloser Wellenreiten-Tracker: Top-Speed, längster Ride und Wasserzeit jeder Session, "
+        "in einer fairen Community-Rangliste pro Spot. Mit jeder Uhr (Garmin oder FIT/GPX/TCX-Upload).",
+        "Wellenreiten-Tracking — Speed &amp; längster Ride",
+        "Zeichne deine Surf-Sessions auf — Top-Speed, längster Ride und Wasserzeit — und sieh, wo "
+        "du an deinem Break stehst. 100% kostenlos, mit jeder Uhr.",
+        "Die kostenlose Community-<b>Rangliste &amp; der Session-Tracker</b> für das Wellenreiten — "
+        "Teil einer Plattform, die auch Windsurf, Kite, Wing, SUP und Wakeboard abdeckt. Kein Segel, "
+        "kein Kite: nur du, dein Board und die Welle."),
+ "nl": ("Golfsurf-tracker — topsnelheid &amp; langste ride, gratis | MyWaterSessions",
+        "Gratis golfsurf-tracker: topsnelheid, langste ride en tijd op het water per sessie, in een "
+        "eerlijke community-ranglijst per spot. Met elk horloge (Garmin of FIT/GPX/TCX-upload).",
+        "Golfsurfen tracken — snelheid &amp; langste ride",
+        "Track je surfsessies — topsnelheid, langste ride en tijd op het water — en zie waar je "
+        "staat op jouw break. 100% gratis, met elk horloge.",
+        "De gratis community-<b>ranglijst &amp; sessietracker</b> voor golfsurfen — onderdeel van een "
+        "platform voor windsurf, kite, wing, SUP en wakeboard. Geen zeil, geen kite: alleen jij, je "
+        "board en de golf."),
+ "fr": ("Appli de suivi surf — vitesse max &amp; plus longue vague, gratuit | MyWaterSessions",
+        "Suivi surf gratuit : vitesse max, plus longue vague et temps dans l'eau à chaque session, "
+        "dans un classement communautaire équitable par spot. Avec n'importe quelle montre (Garmin "
+        "ou fichier FIT/GPX/TCX).",
+        "Suivi surf — vitesse &amp; plus longue vague",
+        "Suivez vos sessions de surf — vitesse max, plus longue vague et temps dans l'eau — et voyez "
+        "où vous en êtes sur votre spot. 100% gratuit, avec n'importe quelle montre.",
+        "Le <b>classement &amp; tracker de sessions</b> gratuit et communautaire pour le surf — au sein "
+        "d'une plateforme qui couvre aussi windsurf, kite, wing, SUP et wakeboard. Ni voile ni aile : "
+        "juste vous, votre planche et la vague."),
+ "es": ("App de seguimiento de surf — velocidad máxima y ola más larga, gratis | MyWaterSessions",
+        "Seguimiento de surf gratis: velocidad máxima, ola más larga y tiempo en el agua en cada "
+        "sesión, en un ranking comunitario justo por spot. Con cualquier reloj (Garmin o archivo "
+        "FIT/GPX/TCX).",
+        "Seguimiento de surf — velocidad y ola más larga",
+        "Registra tus sesiones de surf — velocidad máxima, ola más larga y tiempo en el agua — y mira "
+        "dónde estás en tu spot. 100% gratis, con cualquier reloj.",
+        "El <b>ranking y tracker de sesiones</b> gratuito y comunitario para el surf — parte de una "
+        "plataforma que también cubre windsurf, kite, wing, SUP y wakeboard. Sin vela ni cometa: solo "
+        "tú, tu tabla y la ola."),
+}
+
+# Footer-Zeile: Surf mit aufnehmen (gilt fuer ALLE generierten Sportseiten).
+for _l, _old, _new in [
+    ("en", "SUP &amp; wakeboard", "SUP, wakeboard &amp; surf"),
+    ("de", "SUP &amp; Wakeboard", "SUP, Wakeboard &amp; Surf"),
+    ("nl", "SUP &amp; wakeboard", "SUP, wakeboard &amp; surf"),
+    ("fr", "SUP &amp; wakeboard", "SUP, wakeboard &amp; surf"),
+    ("es", "SUP y wakeboard", "SUP, wakeboard y surf"),
+]:
+    T[_l]["foot"] = T[_l]["foot"].replace(_old, _new)
+
 TEMPLATE = """<!doctype html>
 <html lang="{html}">
 <head>
