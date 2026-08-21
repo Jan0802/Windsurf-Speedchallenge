@@ -13868,24 +13868,26 @@ _is_results_view = st.query_params.get("view") == "results"
 _is_safety_view = st.query_params.get("view") == "safety"
 _is_rankings_help = st.query_params.get("view") == "rankings-help"
 _is_beat_view = st.query_params.get("view") == "beat"
+_is_live_view = st.query_params.get("view") == "live"
 
 # Eigener App-Seitenaufruf-Zaehler (Cloudflare sieht die App nicht). Zaehlt nur
 # bei echter Navigation/Reload, nicht bei jedem Rerun.
 _track_pageview("safety" if _is_safety_view else "rankings-help" if _is_rankings_help
                 else "spots" if _is_spots_view
                 else "beat" if _is_beat_view
+                else "live" if _is_live_view
                 else "results" if _is_results_view else "home")
 
 # Header-Umschalter Sportarten + ganz rechts die reine Spots-Seite. Klick setzt
 # ?sport= bzw. ?view=spots in der URL (bleibt über Reload/Link erhalten).
-_sw_cols = st.columns([2] * len(SPORTS) + [2, 2, 2])
+_sw_cols = st.columns([2] * len(SPORTS) + [2, 2, 2, 2])
 for _i, _key in enumerate(SPORTS):
     if _sw_cols[_i].button(
         SPORT_META[_key]["label"],
         key=f"switch_sport_{_key}",
         use_container_width=True,
         type="primary" if (_key == sport and not _is_spots_view and not _is_results_view
-                           and not _is_beat_view) else "secondary",
+                           and not _is_beat_view and not _is_live_view) else "secondary",
     ):
         if "view" in st.query_params:
             del st.query_params["view"]
@@ -13899,13 +13901,20 @@ if _sw_cols[len(SPORTS)].button(
         st.query_params["view"] = "spots"
         st.rerun()
 if _sw_cols[len(SPORTS) + 1].button(
+    "🌍 Live", key="switch_view_live", use_container_width=True,
+    type="primary" if _is_live_view else "secondary",
+):
+    if not _is_live_view:
+        st.query_params["view"] = "live"
+        st.rerun()
+if _sw_cols[len(SPORTS) + 2].button(
     "🎯 Beat the Beach", key="switch_view_beat", use_container_width=True,
     type="primary" if _is_beat_view else "secondary",
 ):
     if not _is_beat_view:
         st.query_params["view"] = "beat"
         st.rerun()
-if _sw_cols[len(SPORTS) + 2].button(
+if _sw_cols[len(SPORTS) + 3].button(
     "👤 My Results", key="switch_view_results", use_container_width=True,
     type="primary" if _is_results_view else "secondary",
 ):
@@ -16875,6 +16884,266 @@ def render_btb_teaser(name):
             st.rerun()
 
 
+# ===========================================================================
+#  Öffentliche Live-Seite (?view=live) – OHNE Login: letzte Sessions bzw. neu
+#  aufgestellte Spot-Rekorde, jeweils mit Karte und den Werten der Sportart.
+#
+#  Wichtige Design-Entscheidung: Auf der Karte erscheint IMMER nur der schnellste
+#  Abschnitt einer Session, nie die komplette Fahrt. Zwei Gründe: (1) Datenschutz –
+#  die Leute haben ihren Track für die Wertung hochgeladen, nicht für eine
+#  öffentliche Weltkarte; ein voller Track verrät Start und Ende (Parkplatz,
+#  Ferienhaus). (2) Es sieht besser aus – ein Strich statt der Spaghetti eines
+#  ganzen Tages.
+#
+#  Grenze der Datenrate: Die Uhr speichert nur alle ~5 s einen Punkt (bei 40 km/h
+#  also ~55 m). Ein 2-s-Spitzenwert ist damit KÜRZER als ein Punktabstand und
+#  nicht als Strecke zeichenbar. Darum wird das schnellste Fenster über eine echte
+#  Distanz (Standard 500 m) gesucht – das deckt sich mit der 500-m-Wertung und ist
+#  bei jeder Datenrate ehrlich darstellbar.
+# ===========================================================================
+
+_LIVE_SEG_M = 500.0     # Fensterlänge für „der schnelle Lauf"
+_LIVE_LIMIT = 30        # so viele Einträge in der Auswahl
+
+
+def _fastest_track_segment(track_pts, duration_s, meters=_LIVE_SEG_M):
+    """Schnellster zusammenhängender Abschnitt eines Tracks über >= `meters`.
+
+    Liefert (punkte, v_kmh, laenge_m, dauer_s) oder None. Zwei-Zeiger-Fenster über
+    die kumulierte Strecke; dt je Segment wird wie in _speed_series_from_track aus
+    der Sessiondauer geschätzt (der Track hat keine Zeitstempel). Ist der Track
+    insgesamt kürzer als `meters`, wird das schnellste kurze Fenster genommen,
+    damit auch Mini-Sessions etwas zeigen."""
+    if not track_pts or len(track_pts) < 3:
+        return None
+    n = len(track_pts)
+    dt = (float(duration_s) / (n - 1)) if duration_s and n > 1 else 5.0
+    if dt <= 0:
+        dt = 5.0
+    lat = np.array([p[0] for p in track_pts], dtype=float)
+    lon = np.array([p[1] for p in track_pts], dtype=float)
+    seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])
+    if seg.size == 0:
+        return None
+    cum = np.concatenate([[0.0], np.cumsum(seg)])
+    total = float(cum[-1])
+    target = float(meters)
+    if total < target:
+        # Zu kurz für 500 m -> kleines Fenster (max. 8 Segmente) nehmen.
+        target = 0.0
+        win = min(8, n - 1)
+    else:
+        win = None
+
+    best = None
+    j = 1
+    for i in range(n - 1):
+        if win is not None:
+            j = min(n - 1, i + win)
+        else:
+            if j < i + 1:
+                j = i + 1
+            while j < n - 1 and (cum[j] - cum[i]) < target:
+                j += 1
+            if (cum[j] - cum[i]) < target:
+                break          # ab hier reicht der Rest nicht mehr
+        dist = float(cum[j] - cum[i])
+        secs = (j - i) * dt
+        if secs <= 0 or dist <= 0:
+            continue
+        v = dist / secs * 3.6
+        # Bei praktisch gleicher Geschwindigkeit das LAENGERE Fenster nehmen. Ohne
+        # diesen Gleichstand-Vergleich entscheiden Rundungsfehler, und bei ruhiger,
+        # gleichmaessiger Fahrt landet auf der Karte ein sinnloser Schnipsel von
+        # wenigen Metern statt der ganzen Passage.
+        if best is None or v > best[1] + 1e-9 or (abs(v - best[1]) <= 1e-9
+                                                  and dist > best[2]):
+            best = (track_pts[i:j + 1], v, dist, secs)
+    return best
+
+
+def _live_metric_fields(sport):
+    """Anzuzeigende Werte je Sportart – nur was für diese Sportart gewertet wird.
+    (key, Label, Einheit, Dezimalstellen)"""
+    surf = sport == "surf"
+    wind = sport in ("windsurf", "kitesurf", "wingsurf", "wakeboard")
+    f = [("speed_1s_kmh", "⚡ Top 2 s", "km/h", 1)]
+    if not surf:
+        f.append(("speed_30s_kmh", "🏆 Top 30 s", "km/h", 1))
+        f += [("speed_500m_kmh", "📏 Best 500 m", "km/h", 1),
+              ("speed_nm_kmh", "⚓ Best nautical mile", "km/h", 1)]
+    f.append(("longest_run_m", "🚩 Longest ride" if surf else "🚩 Longest run", "m", 0))
+    f.append(("total_distance_km", "🧭 Distance", "km", 2))
+    if wind:
+        f += [("jumps", "🚀 Jumps", "", 0),
+              ("max_jump_m", "📐 Highest jump", "m", 1),
+              ("max_airtime_s", "⏱️ Max airtime", "s", 1)]
+    if sport == "sup":
+        f += [("strokes", "🌊 Strokes", "", 0),
+              ("max_cadence_spm", "🥁 Max cadence", "spm", 0)]
+    return f
+
+
+def _live_base_df(sport):
+    """Öffentlich zeigbare Sessions: plausibel, mit Spot und echtem Speed."""
+    df = _drop_excluded(complete_sessions(load_sessions(sport)))
+    if df is None or df.empty or _BTB_METRIC not in df.columns:
+        return None
+    d = df.copy()
+    d[_BTB_METRIC] = pd.to_numeric(d[_BTB_METRIC], errors="coerce")
+    d = d.dropna(subset=[_BTB_METRIC])
+    d = d[d[_BTB_METRIC] > 0]
+    d["_spot"] = d["surfspot"].fillna("").astype(str).str.strip()
+    d = d[d["_spot"] != ""]
+    if "date" in d.columns:
+        d = d.assign(_d=pd.to_datetime(d["date"], errors="coerce"))
+        d = d.dropna(subset=["_d"])
+    else:
+        return None
+    return d if not d.empty else None
+
+
+def _live_recent(sport, limit=_LIVE_LIMIT):
+    """Die letzten Sessions, neueste zuerst."""
+    d = _live_base_df(sport)
+    if d is None:
+        return []
+    d = d.sort_values("_d", ascending=False).head(limit)
+    return d.to_dict("records")
+
+
+def _live_records(sport, limit=_LIVE_LIMIT):
+    """Neu aufgestellte Spot-Rekorde, chronologisch (neueste zuerst).
+
+    Eine Session ist ein Rekord-Ereignis, wenn ihr 2s-Speed höher war als ALLES,
+    was am selben Spot vorher gefahren wurde – also der Rekord zum Zeitpunkt des
+    Uploads. Der jeweils erste Eintrag an einem Spot zählt als „erster Eintrag"
+    (kein gebrochener Rekord, aber eine Nachricht wert)."""
+    d = _live_base_df(sport)
+    if d is None:
+        return []
+    d = d.sort_values("_d")
+    prev = d.groupby("_spot")[_BTB_METRIC].transform(lambda s: s.cummax().shift())
+    d["_prev"] = prev
+    d["_is_first"] = prev.isna()
+    d["_gain"] = d[_BTB_METRIC] - prev
+    d = d[d["_is_first"] | (d[_BTB_METRIC] > prev)]
+    d = d.sort_values("_d", ascending=False).head(limit)
+    return d.to_dict("records")
+
+
+def _live_label(row, records_mode):
+    """Zeile für die Auswahlliste."""
+    dt = row.get("_d")
+    when = dt.strftime("%d.%m. %H:%M") if pd.notna(dt) and (dt.hour or dt.minute) \
+        else (dt.strftime("%d.%m.%Y") if pd.notna(dt) else "?")
+    val = float(row.get(_BTB_METRIC) or 0)
+    base = f"{when} · {row.get('name') or '?'} · {row.get('_spot')} · {val:.1f} km/h"
+    if records_mode:
+        base += " · 🥇 first entry" if row.get("_is_first") else \
+            f" · 🏆 +{float(row.get('_gain') or 0):.1f}"
+    return base
+
+
+def render_public_live_page():
+    """Öffentliche Seite (?view=live): letzte Sessions oder neue Spot-Rekorde,
+    mit Karte des schnellsten Abschnitts und den Werten der Sportart."""
+    sport = active_sport()
+    st.markdown("## 🌍 Live")
+    st.caption(
+        "What is happening on the water right now – no account needed. Switch between the "
+        f"latest sessions and freshly broken spot records · {SPORT_META[sport]['label']}"
+    )
+
+    mode = st.radio("Show", ["🕒 Latest sessions", "🏆 New spot records"],
+                    horizontal=True, key="live_mode", label_visibility="collapsed")
+    records_mode = mode.startswith("🏆")
+
+    rows = _live_records(sport, _LIVE_LIMIT) if records_mode else _live_recent(sport, _LIVE_LIMIT)
+    if not rows:
+        st.info("Nothing here yet for this sport. Upload a session and you are the first.")
+        return
+
+    labels = [_live_label(r, records_mode) for r in rows]
+    pick = st.selectbox("Session", labels, key=f"live_pick_{records_mode}",
+                        label_visibility="collapsed")
+    row = rows[labels.index(pick)]
+
+    cmap, cdata = st.columns([1.35, 1])
+
+    with cmap:
+        seg = None
+        track = _parse_track(load_session_track(row.get("id")))
+        if track:
+            seg = _fastest_track_segment(track, row.get("duration_s"))
+        if seg:
+            pts, v_kmh, dist_m, secs = seg
+            html, height = _track_map_html(pts, secs)
+            if html:
+                components.html(html, height=height)
+                st.caption(
+                    f"Fastest stretch of this session: **{dist_m:.0f} m** in "
+                    f"**{secs:.0f} s** = **{v_kmh:.1f} km/h** average. Only this "
+                    "section is shown publicly, never the whole track."
+                )
+            else:
+                st.info("Track too short to draw.")
+        elif track:
+            st.info("Track has too few points for a fastest-stretch map.")
+        else:
+            st.info("No GPS track stored for this session – the values on the right "
+                    "still count.")
+
+    with cdata:
+        st.markdown(f"### {row.get('_spot')}")
+        bits = [f"👤 **{row.get('name') or '?'}**"]
+        dt = row.get("_d")
+        if pd.notna(dt):
+            bits.append(f"📅 {dt:%Y-%m-%d %H:%M}" if (dt.hour or dt.minute)
+                        else f"📅 {dt:%Y-%m-%d}")
+        for k, ic in (("board", "🛹"), ("sail", "⛵")):
+            v = str(row.get(k) or "").strip()
+            if v and v.lower() not in ("none", "nan", "null"):
+                bits.append(f"{ic} {v}")
+        st.caption(" · ".join(bits))
+
+        if records_mode:
+            if row.get("_is_first"):
+                st.success("🥇 First entry at this spot")
+            else:
+                st.success(f"🏆 New spot record · +{float(row.get('_gain') or 0):.1f} km/h "
+                           f"over the previous {float(row.get('_prev') or 0):.1f} km/h")
+
+        shown = 0
+        for key, label, unit, dec in _live_metric_fields(sport):
+            val = pd.to_numeric(row.get(key), errors="coerce")
+            if pd.isna(val) or float(val) <= 0:
+                continue
+            st.metric(label, f"{float(val):.{dec}f} {unit}".strip())
+            shown += 1
+        if not shown:
+            st.caption("No detailed values for this session.")
+
+    # Überblick über alle gezeigten Einträge.
+    st.markdown("---")
+    st.markdown("#### " + ("Recently broken records" if records_mode else "Latest sessions"))
+    tbl = []
+    for r in rows:
+        item = {"When": (r["_d"].strftime("%Y-%m-%d %H:%M")
+                         if pd.notna(r.get("_d")) and (r["_d"].hour or r["_d"].minute)
+                         else (r["_d"].strftime("%Y-%m-%d") if pd.notna(r.get("_d")) else "")),
+                "Rider": r.get("name"), "Spot": r.get("_spot"),
+                "Top 2 s km/h": round(float(r.get(_BTB_METRIC) or 0), 1)}
+        if records_mode:
+            item["Gain km/h"] = ("first" if r.get("_is_first")
+                                 else round(float(r.get("_gain") or 0), 1))
+        tbl.append(item)
+    st.dataframe(pd.DataFrame(tbl), width="stretch", hide_index=True,
+                 height=df_height(len(tbl)))
+    st.caption("Only plausible sessions appear here (trust check), and the map always "
+               "shows just the fastest stretch – never the full route.")
+
+
 # Persönliche „My Results"-Seite (Bestleistungen + eigene Sessions + Editor).
 if _is_results_view:
     render_my_results_page(current_user)
@@ -16883,6 +17152,11 @@ if _is_results_view:
 # „Beat the Beach"-Seite (?view=beat) – auch ohne Login (dann nur der Rekord).
 if _is_beat_view:
     render_beat_the_beach(current_user)
+    st.stop()
+
+# Öffentliche Live-Seite (?view=live) – bewusst ganz ohne Login.
+if _is_live_view:
+    render_public_live_page()
     st.stop()
 
 
