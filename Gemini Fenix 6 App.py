@@ -10113,6 +10113,123 @@ def _parse_desc_extra(raw):
     return out
 
 
+# ---------------------------------------------------------------------------
+#  Wartung: aus der App-Ansicht mitkopierte Kopfzeilen aus Spot-Beschreibungen
+#  entfernen. Bei 36 von 47 Spots begann der Text mit »Spot · 📍 Land«,
+#  »🌐 English«, »🇩🇰 Dansk« – das stand auch in der Meta-Description der
+#  öffentlichen Spot-Seiten, also mitten im Google-Snippet. Der Ingest filtert
+#  es beim Anzeigen schon weg (_strip_copied_header dort); hier verschwindet es
+#  dauerhaft aus den Daten.
+# ---------------------------------------------------------------------------
+_HDR_FLAG_RE = re.compile(r"^[\U0001F1E6-\U0001F1FF]{2}\s")
+
+
+def _strip_copied_header(text):
+    """Entfernt am ANFANG mitkopierte Kopfzeilen. Bewusst konservativ: nur die
+    ersten Zeilen, nur KURZE Zeilen, nur mit Pin/Globus/Flaggenpaar – beim ersten
+    echten Satz wird abgebrochen, damit nie Inhalt verloren geht."""
+    if not text:
+        return text
+    lines = str(text).replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    i = 0
+    dropped = 0
+    while i < len(lines) and dropped < 5:
+        s = lines[i].strip()
+        if not s:
+            i += 1
+            continue
+        if len(s) <= 70 and ("📍" in s or "🌐" in s or _HDR_FLAG_RE.match(s)):
+            i += 1
+            dropped += 1
+            continue
+        break
+    return "\n".join(lines[i:]).lstrip("\n") if dropped else text
+
+
+def _desc_junk_rows():
+    """Spots, deren Beschreibungsfelder Kopfzeilen-Reste enthalten.
+    [{spot, changes: {spalte: (alt, neu)}}] – gelesen, nichts geschrieben."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(select(
+            spot_info_table.c.spot, spot_info_table.c.description,
+            spot_info_table.c.description_local,
+            spot_info_table.c.descriptions_extra)).mappings().all()
+    out = []
+    for r in rows:
+        spot = (r["spot"] or "").strip()
+        if not spot:
+            continue
+        changes = {}
+        for col in ("description", "description_local"):
+            old = r[col] or ""
+            new = _strip_copied_header(old)
+            if new != old:
+                changes[col] = (old, new)
+        items = _parse_desc_extra(r["descriptions_extra"])
+        if items:
+            cleaned, hit = [], False
+            for it in items:
+                t = it.get("text") or ""
+                nt = _strip_copied_header(t)
+                if nt != t:
+                    hit = True
+                cleaned.append({"lang": it.get("lang"), "text": nt})
+            if hit:
+                changes["descriptions_extra"] = (
+                    r["descriptions_extra"] or "",
+                    json.dumps(cleaned, ensure_ascii=False))
+        if changes:
+            out.append({"spot": spot, "changes": changes})
+    return out
+
+
+def render_desc_cleanup():
+    """Backoffice-Block: Vorschau + einmaliges Bereinigen der Beschreibungen."""
+    try:
+        rows = _desc_junk_rows()
+    except Exception as exc:  # noqa: BLE001
+        st.caption(f"🧽 Beschreibungs-Check nicht möglich: {exc}")
+        return
+    n = len(rows)
+    title = (f"🧽 Beschreibungen bereinigen ({n} betroffen)" if n
+             else "🧽 Beschreibungen bereinigen (alles sauber)")
+    with st.expander(title, expanded=False):
+        st.caption(
+            "Beim Einfügen sind bei vielen Spots die Kopfzeilen der App-Ansicht "
+            "mitgekommen (»Spot · 📍 Land«, »🌐 English«, »🇩🇰 Dansk«). Auf den "
+            "öffentlichen Spot-Seiten werden sie beim Anzeigen schon weggefiltert – "
+            "hier verschwinden sie dauerhaft aus den Daten. Es wird ausschließlich "
+            "am Textanfang gekürzt, der eigentliche Inhalt bleibt unberührt."
+        )
+        if not n:
+            st.success("Keine kopierten Kopfzeilen gefunden.")
+            return
+        prev = []
+        for r in rows:
+            for col, (old, new) in r["changes"].items():
+                if col == "descriptions_extra":
+                    removed = "(weitere Sprachen im JSON)"
+                else:
+                    removed = old[:len(old) - len(new)].strip().replace("\n", " ⏎ ")
+                prev.append({"Spot": r["spot"], "Feld": col,
+                             "wird entfernt": removed[:90]})
+        st.dataframe(pd.DataFrame(prev), width="stretch", hide_index=True,
+                     height=df_height(len(prev)))
+        ok = st.checkbox(f"Ja, bei {n} Spot(s) dauerhaft bereinigen", key="descclean_ok")
+        if st.button("🧽 Jetzt bereinigen", key="descclean_go", disabled=not ok):
+            done = 0
+            with get_engine().begin() as conn:
+                for r in rows:
+                    conn.execute(
+                        update(spot_info_table)
+                        .where(spot_info_table.c.spot == r["spot"])
+                        .values(**{c: v[1] for c, v in r["changes"].items()}))
+                    done += 1
+            clear_data_caches()
+            st.success(f"{done} Spot(s) bereinigt.")
+            st.rerun()
+
+
 def _extra_lang_editor(spot, prefix):
     """Editor fuer weitere Spot-Sprachen: pro Sprache ein Sprach-Feld + ein
     MEHRZEILIGES Textfeld, plus „➕"/„🗑️". Anders als st.data_editor sind hier
@@ -12535,6 +12652,9 @@ def render_admin_spots():
     _dmsg = st.session_state.pop("_spot_deleted_msg", None)
     if _dmsg:
         st.success(_dmsg)
+
+    # --- Wartung: mitkopierte Kopfzeilen aus den Beschreibungen entfernen -----
+    render_desc_cleanup()
 
     # --- Vollstaendigkeits-Uebersicht: auf einen Blick, wo noch was fehlt ------
     _ov = _spot_completeness_rows()
