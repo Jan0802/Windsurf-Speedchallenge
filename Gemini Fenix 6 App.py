@@ -779,6 +779,9 @@ sessions_table = Table(
     Column("cadence_spm", Integer),      # Paddelkadenz beim Stoppen (Schlaege/Minute)
     Column("max_cadence_spm", Integer),  # hoechste Kadenz der Session
     Column("duration_s", Integer),       # Aufzeichnungsdauer in Sekunden
+    # Aktive Zeit ohne lange Pausen. Von der Uhr sekundengenau gezaehlt; fehlt sie
+    # (Altbestand, Datei-Uploads), wird sie aus dem Track geschaetzt.
+    Column("active_s", Integer),
     Column("source", String(20)),        # Herkunft, z.B. "watch"
     Column("start_lat", Float),          # Startposition (von der Uhr)
     Column("start_lon", Float),
@@ -11316,7 +11319,17 @@ def _render_speed_curve(track_pts, duration_s, record):
         st.caption("🟨 " + glide_label + " · personalised from your board & weight "
                    "(starting values, calibrated over time).")
     glide_share = float(np.mean(v_kn >= glide_kn) * 100.0) if n_seg else 0.0
-    _act, _pause = _active_seconds(v_kn, dt, record.get("duration_s"))
+    # Uhr-Wert gewinnt: sie zaehlt sekundengenau, der Track gibt nur eine
+    # Schaetzung her (~5 s je Punkt). Gleiches Muster wie beim laengsten Run.
+    _tot_s = record.get("duration_s")
+    _watch_active = pd.to_numeric(record.get("active_s"), errors="coerce")
+    if pd.notna(_watch_active) and _tot_s:
+        _act = float(_watch_active)
+        _pause = max(0.0, float(_tot_s) - _act)
+        _act_src = "measured on the watch"
+    else:
+        _act, _pause = _active_seconds(v_kn, dt, _tot_s)
+        _act_src = "estimated from the GPS track"
     k1, k2, k3, k4 = st.columns(4)
     _d = record.get("total_distance_km")
     _lr = record.get("longest_run_km")
@@ -11340,7 +11353,7 @@ def _render_speed_curve(track_pts, duration_s, record):
             f"Pauses longer than {int(_MIN_PAUSE_S)} s below {_STILL_KN:.1f} kn are "
             "subtracted – carrying the board back, rigging, standing on the beach. "
             "Short stops (water starts) still count. This measures movement, not "
-            "land versus water, and it does not change any ranking."
+            f"land versus water, and it does not change any ranking. ({_act_src})"
         )
     components.html(
         f"<div style='margin:0;font-family:system-ui,sans-serif'>{svg}</div>",
