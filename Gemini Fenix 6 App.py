@@ -10233,6 +10233,80 @@ def render_desc_cleanup():
             st.rerun()
 
 
+def render_water_recheck():
+    """Backoffice: Wasser-Check fuer ausgeschlossene Sessions neu rechnen.
+
+    Ruft /recheck_water im Ingest mit dem SEED_KEY aus der App-Umgebung auf –
+    gleiches Muster wie die KI-Uebersetzung. So muss niemand den Key von Hand in
+    eine URL tippen (und es umgeht das Problem, dass der von Hand kopierte Key
+    dort 403 liefert).
+
+    Hintergrund: Der Wasser-Check lief bisher an der falschen Stelle – er nahm
+    Stichproben gleichmaessig ueber die Session und traf damit die Strandzeit
+    statt der Fahrt. Sessions, die dadurch auf trust_score 0 gesetzt wurden,
+    kann dieser Lauf zurueckholen.
+    """
+    with st.expander("🌊 Ausgeschlossene Sessions neu prüfen (Wasser-Check)",
+                     expanded=False):
+        st.caption(
+            "Prüft Sessions mit Trust 0 (also „nicht auf dem Wasser“) noch einmal – "
+            "mit der neuen Stichprobe aus den bewegten Abschnitten. Erst Vorschau, "
+            "dann übernehmen. Jede Session kostet bis zu 5 Abfragen an die freie "
+            "Wasser-API, darum in kleinen Häppchen."
+        )
+        _sk = _secret("SEED_KEY", "").strip()
+        _ingest = os.environ.get("INGEST_URL",
+                                 "https://ingest-kxxw.onrender.com").rstrip("/")
+        if not _sk:
+            st.warning("SEED_KEY fehlt in der App-Umgebung – ohne ihn lässt sich der "
+                       "Ingest nicht aufrufen.")
+            return
+
+        def _call(apply):
+            _q = urlencode({"key": _sk, "limit": int(st.session_state.get("rcw_limit", 10)),
+                            "apply": 1 if apply else 0})
+            _req = Request(f"{_ingest}/recheck_water?{_q}",
+                           headers={"User-Agent": "MyWaterSessions/1.0"})
+            with urlopen(_req, timeout=240) as _resp:
+                return json.loads(_resp.read().decode("utf-8"))
+
+        c1, c2 = st.columns([1, 2])
+        c1.number_input("Anzahl je Lauf", 1, 50, 10, key="rcw_limit")
+        if c2.button("🔍 Vorschau (schreibt nichts)", key="rcw_preview",
+                     use_container_width=True):
+            try:
+                with st.spinner("Wasser-Check läuft …"):
+                    st.session_state["_rcw_res"] = _call(False)
+            except Exception as exc:  # noqa: BLE001
+                st.session_state.pop("_rcw_res", None)
+                st.error(f"Aufruf fehlgeschlagen: {exc}")
+
+        res = st.session_state.get("_rcw_res")
+        if not res:
+            return
+        rows = res.get("results") or []
+        if not rows:
+            st.success("Keine ausgeschlossenen Sessions mit Track gefunden – nichts zu tun.")
+            return
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True,
+                     height=df_height(len(rows)))
+        _free = sum(1 for r in rows if str(r.get("verdict", "")).startswith("released"))
+        st.caption(f"{_free} von {len(rows)} würden wieder gewertet "
+                   f"(Modus: {res.get('mode')}).")
+        if _free and st.button(f"✅ {_free} Session(s) freigeben", key="rcw_apply",
+                               use_container_width=True):
+            try:
+                with st.spinner("Übernehme …"):
+                    out = _call(True)
+                _w = sum(1 for r in (out.get("results") or []) if r.get("written"))
+                clear_data_caches()
+                st.session_state["_rcw_res"] = out
+                st.success(f"{_w} Session(s) freigegeben.")
+                st.rerun()
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"Übernehmen fehlgeschlagen: {exc}")
+
+
 def _extra_lang_editor(spot, prefix):
     """Editor fuer weitere Spot-Sprachen: pro Sprache ein Sprach-Feld + ein
     MEHRZEILIGES Textfeld, plus „➕"/„🗑️". Anders als st.data_editor sind hier
@@ -12727,6 +12801,9 @@ def render_admin_spots():
 
     # --- Wartung: mitkopierte Kopfzeilen aus den Beschreibungen entfernen -----
     render_desc_cleanup()
+
+    # --- Wartung: zu Unrecht ausgeschlossene Sessions zurueckholen ------------
+    render_water_recheck()
 
     # --- Vollstaendigkeits-Uebersicht: auf einen Blick, wo noch was fehlt ------
     _ov = _spot_completeness_rows()
