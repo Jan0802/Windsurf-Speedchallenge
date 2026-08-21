@@ -11123,6 +11123,47 @@ def _render_gybe_detail_window(gnum, speeds, glide_kn):
                       "Computed on the watch, second-by-second.")
 
 
+_STILL_KN = 2.5          # darunter = steht/treibt/watet (deckt GPS-Rauschen mit ab)
+_MIN_PAUSE_S = 60.0      # erst ab einer Minute Stillstand ist es wirklich Pause
+
+
+def _active_seconds(v_kn, dt, duration_s):
+    """(aktive Sekunden, Pausensekunden) – Aufzeichnungsdauer minus LANGE
+    Stillstands-Phasen.
+
+    Gezaehlt wird nur Stillstand, der mindestens _MIN_PAUSE_S dauert: Brett
+    zurücktragen, Rigg umbauen, Pause am Strand. Kurzer Stillstand bleibt drin –
+    beim Wasserstart steht man ständig kurz, und das ist Sessionzeit, keine Pause.
+
+    Wichtig: Das misst BEWEGUNG, nicht Land gegen Wasser. Wer im Wasser sitzt,
+    zaehlt als Pause; wer am Strand entlanglaeuft, als aktiv. Genauer geht es mit
+    dem ~5-s-Track nicht – die Uhr koennte es sekundengenau liefern."""
+    if v_kn is None or len(v_kn) == 0 or not dt or dt <= 0:
+        return None, None
+    total = float(duration_s) if duration_s else float(len(v_kn)) * float(dt)
+    paused = 0.0
+    run = 0
+    for is_still in (np.asarray(v_kn) < _STILL_KN):
+        if is_still:
+            run += 1
+            continue
+        if run * dt >= _MIN_PAUSE_S:
+            paused += run * dt
+        run = 0
+    if run * dt >= _MIN_PAUSE_S:          # Stillstand bis zum Sessionende
+        paused += run * dt
+    paused = min(paused, total)
+    return max(0.0, total - paused), paused
+
+
+def _fmt_hm(secs):
+    """Sekunden -> '1h 23m' bzw. '23m'."""
+    if secs is None:
+        return "–"
+    m = int(round(float(secs) / 60.0))
+    return f"{m // 60}h {m % 60:02d}m" if m >= 60 else f"{m}m"
+
+
 def _render_speed_curve(track_pts, duration_s, record):
     """Speed-über-Zeit-Kurve (Inline-SVG, kein matplotlib) mit Gleitschwelle,
     schattierten Runs, hervorgehobenem längstem Run und echtem Top-Speed."""
@@ -11275,6 +11316,7 @@ def _render_speed_curve(track_pts, duration_s, record):
         st.caption("🟨 " + glide_label + " · personalised from your board & weight "
                    "(starting values, calibrated over time).")
     glide_share = float(np.mean(v_kn >= glide_kn) * 100.0) if n_seg else 0.0
+    _act, _pause = _active_seconds(v_kn, dt, record.get("duration_s"))
     k1, k2, k3, k4 = st.columns(4)
     _d = record.get("total_distance_km")
     _lr = record.get("longest_run_km")
@@ -11283,6 +11325,23 @@ def _render_speed_curve(track_pts, duration_s, record):
     k2.metric("Top 2 s", "–" if _t2 is None or pd.isna(_t2) else f"{float(_t2) / 1.852:.1f} kn")
     k3.metric("Glide share", f"{glide_share:.0f} %")
     k4.metric("Longest run", "–" if _lr is None or pd.isna(_lr) else f"{float(_lr):.2f} km")
+    # Aktive Zeit: die Aufzeichnung laeuft oft weiter, waehrend man das Brett
+    # zuruecktraegt oder am Strand steht. Rein informativ – die Wertung nutzt
+    # weiterhin die Aufzeichnungsdauer.
+    if _act is not None and _pause and _pause >= _MIN_PAUSE_S:
+        _tot = record.get("duration_s")
+        a1, a2, a3 = st.columns(3)
+        a1.metric("⏱️ Recorded", _fmt_hm(_tot))
+        a2.metric("🌊 Active", _fmt_hm(_act),
+                  f"-{_fmt_hm(_pause)} paused", delta_color="off")
+        a3.metric("Share active",
+                  f"{(_act / float(_tot) * 100.0):.0f} %" if _tot else "–")
+        st.caption(
+            f"Pauses longer than {int(_MIN_PAUSE_S)} s below {_STILL_KN:.1f} kn are "
+            "subtracted – carrying the board back, rigging, standing on the beach. "
+            "Short stops (water starts) still count. This measures movement, not "
+            "land versus water, and it does not change any ranking."
+        )
     components.html(
         f"<div style='margin:0;font-family:system-ui,sans-serif'>{svg}</div>",
         height=250,
@@ -14997,6 +15056,20 @@ def render_session_editor(user):
         choice = st.selectbox("Session", labels, key=f"edit_sess_sel_{sport}")
         row = row_by_label[choice]
         sid = int(row["id"])
+
+        # Wichtiger als jedes Material: zaehlt die Session ueberhaupt? Der Grund
+        # stand bisher NUR in der Sessions-Liste – wer im Editor landete, sah ein
+        # gruenes Haekchen (das nur das Material meint) und suchte den Grund
+        # vergeblich. Darum hier direkt an der gewaehlten Session.
+        _excl = _exclusion_reason(row, _water_ok_spots())
+        if _excl:
+            st.error(
+                f"⛔ **Not counted in the rankings:** {_excl}\n\n"
+                "The values stay visible for you. If this spot is definitely on the "
+                "water, an admin can tick “Gewässer bestätigt” for it in the "
+                "backoffice – then sessions like this count again (the physics "
+                "checks still apply)."
+            )
 
         rider = load_profiles().get(user["username"], {})
         spots = rider.get("spots", [])
