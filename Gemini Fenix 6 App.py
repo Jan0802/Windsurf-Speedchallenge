@@ -12861,6 +12861,13 @@ _TRIM_FIELDS = ("speed_1s_kmh", "speed_1s_kn", "speed_30s_kmh", "speed_30s_kn",
                 "speed_500m_kmh", "speed_nm_kmh", "total_distance_km",
                 "longest_run_m", "longest_run_km", "duration_s")
 
+# Original vor einem Zuschnitt sichern? Die Sicherung verdoppelt den Platzbedarf
+# einer zugeschnittenen Session (Track + Kennzahlen als JSON). Solange Zuschnitte
+# selten sind, ist das die sichere Wahl. Auf False setzen, wenn das nicht mehr
+# gewuenscht ist – dann entfaellt auch der „Original wiederherstellen"-Knopf,
+# und BEREITS gesicherte Originale bleiben unangetastet lesbar.
+_TRIM_KEEP_BACKUP = True
+
 
 def _trim_backup_of(session_id):
     """Vorhandene Zuschnitt-Sicherung einer Session (dict) oder None."""
@@ -12890,7 +12897,7 @@ def _save_trimmed_session(session_id, points, metrics):
             .where(sessions_table.c.id == int(session_id))).mappings().first()
         vals = dict(metrics)
         vals["track"] = json.dumps([[round(p[0], 5), round(p[1], 5)] for p in points])
-        if cur is not None and not cur.get("trim_backup"):
+        if _TRIM_KEEP_BACKUP and cur is not None and not cur.get("trim_backup"):
             vals["trim_backup"] = json.dumps({
                 "track": cur.get("track"),
                 "metrics": {f: (float(cur[f]) if isinstance(cur[f], (int, float))
