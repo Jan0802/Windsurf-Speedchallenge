@@ -782,6 +782,8 @@ sessions_table = Table(
     # Aktive Zeit ohne lange Pausen. Von der Uhr sekundengenau gezaehlt; fehlt sie
     # (Altbestand, Datei-Uploads), wird sie aus dem Track geschaetzt.
     Column("active_s", Integer),
+    # JSON-Sicherung vor einem Admin-Zuschnitt (Original-Track + Original-Werte).
+    Column("trim_backup", String),
     Column("source", String(20)),        # Herkunft, z.B. "watch"
     Column("start_lat", Float),          # Startposition (von der Uhr)
     Column("start_lon", Float),
@@ -1258,6 +1260,12 @@ _WATCH_COLUMNS = {
     "start_lon": "DOUBLE PRECISION",
     "track": "TEXT",
     "gybes": "TEXT",
+    "active_s": "INTEGER",
+    # Sicherung vor einem Admin-Zuschnitt: JSON mit Original-Track UND den
+    # Original-Kennzahlen. Beides zusammen, damit ein Zurueck die exakten
+    # UHR-Werte wiederherstellt – ein aus dem Track nachgerechneter Wert waere
+    # gruber (der Track hat nur ~5 s je Punkt).
+    "trim_backup": "TEXT",
 }
 
 @st.cache_resource(show_spinner=False)
@@ -12849,14 +12857,66 @@ def _metrics_from_track(points, duration_s, sport):
     }
 
 
+_TRIM_FIELDS = ("speed_1s_kmh", "speed_1s_kn", "speed_30s_kmh", "speed_30s_kn",
+                "speed_500m_kmh", "speed_nm_kmh", "total_distance_km",
+                "longest_run_m", "longest_run_km", "duration_s")
+
+
+def _trim_backup_of(session_id):
+    """Vorhandene Zuschnitt-Sicherung einer Session (dict) oder None."""
+    with get_engine().connect() as conn:
+        row = conn.execute(select(sessions_table.c.trim_backup)
+                           .where(sessions_table.c.id == int(session_id))).first()
+    if not row or not row[0]:
+        return None
+    try:
+        data = json.loads(row[0])
+        return data if isinstance(data, dict) else None
+    except (ValueError, TypeError):
+        return None
+
+
 def _save_trimmed_session(session_id, points, metrics):
-    """Zuschnitt speichern: neuer Track + neu berechnete Kennzahlen."""
-    vals = dict(metrics)
-    vals["track"] = json.dumps([[round(p[0], 5), round(p[1], 5)] for p in points])
+    """Zuschnitt speichern: neuer Track + neu berechnete Kennzahlen.
+
+    Vorher wird EINMALIG das Original gesichert (Track + Kennzahlen als JSON).
+    Einmalig ist wichtig: beim zweiten Zuschnitt darf die Sicherung nicht mit dem
+    schon zugeschnittenen Stand ueberschrieben werden, sonst ist das echte
+    Original fuer immer weg."""
+    with get_engine().begin() as conn:
+        cur = conn.execute(
+            select(sessions_table.c.track, sessions_table.c.trim_backup,
+                   *[sessions_table.c[f] for f in _TRIM_FIELDS])
+            .where(sessions_table.c.id == int(session_id))).mappings().first()
+        vals = dict(metrics)
+        vals["track"] = json.dumps([[round(p[0], 5), round(p[1], 5)] for p in points])
+        if cur is not None and not cur.get("trim_backup"):
+            vals["trim_backup"] = json.dumps({
+                "track": cur.get("track"),
+                "metrics": {f: (float(cur[f]) if isinstance(cur[f], (int, float))
+                                else None) for f in _TRIM_FIELDS},
+                "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            })
+        conn.execute(sessions_table.update()
+                     .where(sessions_table.c.id == int(session_id)).values(**vals))
+    clear_data_caches()
+
+
+def _restore_original_session(session_id):
+    """Zuschnitt zuruecknehmen: Original-Track und Original-Kennzahlen zurueck.
+    Die Sicherung bleibt stehen, damit ein erneuter Zuschnitt sie wiederfindet."""
+    data = _trim_backup_of(session_id)
+    if not data:
+        return False
+    vals = {"track": data.get("track")}
+    for f, v in (data.get("metrics") or {}).items():
+        if f in _TRIM_FIELDS:
+            vals[f] = v
     with get_engine().begin() as conn:
         conn.execute(sessions_table.update()
                      .where(sessions_table.c.id == int(session_id)).values(**vals))
     clear_data_caches()
+    return True
 
 
 def render_session_trim(row):
@@ -12885,6 +12945,27 @@ def render_session_trim(row):
     total_min = (n - 1) * dt / 60.0
 
     st.markdown("##### 🗺️ Track prüfen und zuschneiden")
+
+    # Wurde hier schon zugeschnitten? Dann Rueckweg anbieten – mit den ECHTEN
+    # Uhr-Werten aus der Sicherung, nicht mit nachgerechneten.
+    _bak = _trim_backup_of(sid)
+    if _bak:
+        _m = _bak.get("metrics") or {}
+        _o2 = _m.get("speed_1s_kmh")
+        b1, b2 = st.columns([2, 1])
+        b1.info(
+            f"✂️ Diese Session wurde am {_bak.get('saved_at', '?')} zugeschnitten. "
+            "Das Original ist gesichert"
+            + (f" (Top 2 s damals: {_o2:.1f} km/h)." if isinstance(_o2, (int, float))
+               else ".")
+        )
+        if b2.button("↩️ Original wiederherstellen", key=f"untrim_{sid}",
+                     use_container_width=True):
+            if _restore_original_session(sid):
+                st.success(f"Session #{sid} auf das Original zurückgesetzt.")
+                st.rerun()
+            else:
+                st.error("Sicherung nicht lesbar – nichts geändert.")
     st.caption(f"{n} Punkte · ~{dt:.0f}s je Punkt · {total_min:.0f} min. "
                "Die Karte färbt schnelle Abschnitte hell – eine Anfahrt über Land "
                "fällt so sofort auf.")
