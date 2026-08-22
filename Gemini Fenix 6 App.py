@@ -7409,6 +7409,12 @@ def _exclusion_reason(row, water_ok_spots=None):
     spot = str(row.get("surfspot") or "").strip()
     water_ok = bool(water_ok_spots) and spot in water_ok_spots
 
+    # Admin-Entscheidung: negativer Trust = im Backoffice von Hand gestrichen.
+    # Bewusst NEGATIV und nicht 0, damit der automatische Wasser-Check und der
+    # Recheck-Lauf (beide arbeiten mit 0) die Entscheidung nicht wieder aufheben.
+    # Gilt auch an Spots mit „Gewässer bestätigt" – der Admin hat das letzte Wort.
+    if ts is not None and ts < 0:
+        return "Manually excluded by an admin"
     # Wasser-Sentinel aus dem Ingest: trust_score == 0 = GPS-Spur klar an Land.
     if not water_ok and ts is not None and ts == 0:
         return "GPS track was not on the water"
@@ -12768,7 +12774,8 @@ def render_admin():
     # WICHTIG: st.tabs rendert ALLE Tab-Inhalte bei jedem Rerun serverseitig – auf
     # der 512-MB-Instanz fuehrte das im Backoffice (Karte/Profile/Analytics
     # gleichzeitig) zu Segfaults/502. Radio -> nur der gewaehlte Bereich rendert.
-    _sections = ["📣 Werbung pro Spot", "📍 Spots", "👤 Profile", "📊 Web Analytics", fb_label]
+    _sections = ["📣 Werbung pro Spot", "📍 Spots", "🏄 Sessions", "👤 Profile",
+                 "📊 Web Analytics", fb_label]
     _pick = st.radio("Bereich", _sections, horizontal=True, key="admin_section",
                      label_visibility="collapsed")
     if _pick == _sections[0]:
@@ -12776,11 +12783,120 @@ def render_admin():
     elif _pick == _sections[1]:
         render_admin_spots()
     elif _pick == _sections[2]:
-        render_admin_profiles()
+        render_admin_sessions()
     elif _pick == _sections[3]:
+        render_admin_profiles()
+    elif _pick == _sections[4]:
         render_admin_analytics()
     else:
         render_admin_feedback()
+
+
+_TRUST_RELEASE = 80          # Uhr-Basis: geraeteauthentifiziert
+_TRUST_STRIKE = -1           # negativ = Admin-Entscheidung (siehe _exclusion_reason)
+
+
+def _set_session_trust(session_id, value):
+    """Trust einer einzelnen Session setzen (Freigeben/Streichen)."""
+    with get_engine().begin() as conn:
+        conn.execute(sessions_table.update()
+                     .where(sessions_table.c.id == int(session_id))
+                     .values(trust_score=value))
+    clear_data_caches()
+
+
+def render_admin_sessions():
+    """Eigener Backoffice-Bereich nur fuer die Wertung von Sessions.
+
+    Drei Dinge an einem Ort: sehen, WELCHE Sessions ausgeschlossen sind und warum;
+    eine zu Unrecht ausgeschlossene freigeben; eine unglaubwuerdige von Hand
+    streichen. Letzteres braucht es, weil der Wasser-Check bewusst nachsichtig
+    geworden ist (ein Punkt auf Wasser genuegt als Nachweis) – dann muss es einen
+    manuellen Gegenhebel geben.
+
+    Gestrichen wird mit NEGATIVEM Trust, nicht mit 0: der automatische Check und
+    der Recheck-Lauf arbeiten mit 0 und wuerden eine Admin-Entscheidung sonst
+    wieder aufheben."""
+    st.caption(
+        "Wertung einzelner Sessions prüfen und korrigieren. Ausgeschlossene Sessions "
+        "bleiben für den Fahrer sichtbar, zählen aber nicht in Ranglisten, Rekorden "
+        "und auf den öffentlichen Seiten."
+    )
+
+    # Recheck-Lauf (ruft den Ingest) direkt hier – gehoert thematisch hierher.
+    render_water_recheck()
+
+    sport = active_sport()
+    df = load_sessions(sport)
+    if df is None or df.empty:
+        st.info(f"Keine {SPORT_META[sport]['label']}-Sessions vorhanden.")
+        return
+    _wl = _water_ok_spots()
+    rows = []
+    for _, r in df.iterrows():
+        reason = _exclusion_reason(r, _wl)
+        _d = r.get("date")
+        rows.append({
+            "id": int(r["id"]) if pd.notna(r.get("id")) else None,
+            "Datum": (_d.strftime("%Y-%m-%d %H:%M") if hasattr(_d, "strftime")
+                      and pd.notna(_d) else ""),
+            "Fahrer": r.get("name"), "Spot": r.get("surfspot"),
+            "2s km/h": (round(float(r["speed_1s_kmh"]), 1)
+                        if pd.notna(r.get("speed_1s_kmh")) else None),
+            "Distanz km": (round(float(r["total_distance_km"]), 1)
+                           if pd.notna(r.get("total_distance_km")) else None),
+            "Trust": (int(r["trust_score"]) if pd.notna(r.get("trust_score")) else None),
+            "Quelle": r.get("source"),
+            "Status": ("⛔ " + reason) if reason else "✅ gewertet",
+            "_excluded": bool(reason),
+        })
+    rows.sort(key=lambda x: x["Datum"], reverse=True)
+    n_ex = sum(1 for r in rows if r["_excluded"])
+
+    f1, f2 = st.columns([1, 2])
+    view = f1.selectbox("Anzeigen", [f"Nur ausgeschlossene ({n_ex})", "Alle", "Nur gewertete"],
+                        key="adm_sess_view")
+    q = f2.text_input("Suche (Fahrer oder Spot)", key="adm_sess_q").strip().lower()
+    shown = rows
+    if view.startswith("Nur ausgeschlossene"):
+        shown = [r for r in shown if r["_excluded"]]
+    elif view == "Nur gewertete":
+        shown = [r for r in shown if not r["_excluded"]]
+    if q:
+        shown = [r for r in shown
+                 if q in str(r["Fahrer"] or "").lower() or q in str(r["Spot"] or "").lower()]
+    st.caption(f"{len(shown)} von {len(rows)} {SPORT_META[sport]['label']}-Sessions "
+               f"· insgesamt {n_ex} ausgeschlossen. Sportart oben im Kopf umschalten.")
+    if not shown:
+        st.info("Keine Session passt zu Filter/Suche.")
+        return
+    st.dataframe(pd.DataFrame([{k: v for k, v in r.items() if not k.startswith("_")}
+                               for r in shown]),
+                 width="stretch", hide_index=True, height=df_height(len(shown)))
+
+    st.markdown("##### Einzelne Session korrigieren")
+    labels = [f"{r['Datum']} · {r['Fahrer']} · {r['Spot']} · "
+              f"{r['2s km/h']} km/h · Trust {r['Trust']} [#{r['id']}]" for r in shown]
+    pick = st.selectbox("Session", labels, key="adm_sess_pick")
+    row = shown[labels.index(pick)]
+    st.write(f"**Status:** {row['Status']}")
+    c1, c2 = st.columns(2)
+    if row["_excluded"]:
+        if c1.button(f"✅ Freigeben (Trust {_TRUST_RELEASE})", key="adm_sess_free",
+                     use_container_width=True):
+            _set_session_trust(row["id"], _TRUST_RELEASE)
+            st.success(f"Session #{row['id']} zählt wieder.")
+            st.rerun()
+        c2.caption("Freigeben setzt den Trust auf die Uhr-Basis. Die Physik-Prüfungen "
+                   "(unmögliche Werte) greifen weiterhin.")
+    else:
+        if c1.button("⛔ Streichen (nicht mehr werten)", key="adm_sess_strike",
+                     use_container_width=True):
+            _set_session_trust(row["id"], _TRUST_STRIKE)
+            st.warning(f"Session #{row['id']} gestrichen.")
+            st.rerun()
+        c2.caption("Streichen ist eine Admin-Entscheidung: weder der automatische "
+                   "Wasser-Check noch der Recheck-Lauf heben sie wieder auf.")
 
 
 def render_admin_spots():
@@ -12802,8 +12918,7 @@ def render_admin_spots():
     # --- Wartung: mitkopierte Kopfzeilen aus den Beschreibungen entfernen -----
     render_desc_cleanup()
 
-    # --- Wartung: zu Unrecht ausgeschlossene Sessions zurueckholen ------------
-    render_water_recheck()
+    # (Der Wasser-Recheck sitzt jetzt im eigenen Bereich „🏄 Sessions".)
 
     # --- Vollstaendigkeits-Uebersicht: auf einen Blick, wo noch was fehlt ------
     _ov = _spot_completeness_rows()
