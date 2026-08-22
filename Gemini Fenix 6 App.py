@@ -12796,6 +12796,144 @@ _TRUST_RELEASE = 80          # Uhr-Basis: geraeteauthentifiziert
 _TRUST_STRIKE = -1           # negativ = Admin-Entscheidung (siehe _exclusion_reason)
 
 
+def _df_from_track(points, duration_s):
+    """Track-Punkte -> DataFrame im Upload-Format (timestamp/speed_kmh/distance).
+
+    Damit lassen sich fuer einen ZUSCHNITT dieselben Kennzahlen berechnen wie
+    beim Datei-Upload (best_average_speed, best_distance_speed, detect_runs) –
+    ohne die Formeln zu duplizieren. Zeitstempel sind synthetisch: der Uhr-Track
+    hat keine, das Intervall wird aus Dauer/Punktzahl geschaetzt."""
+    if not points or len(points) < 2:
+        return None
+    n = len(points)
+    dt = (float(duration_s) / (n - 1)) if duration_s and n > 1 else 5.0
+    if dt <= 0:
+        dt = 5.0
+    lat = np.array([p[0] for p in points], dtype=float)
+    lon = np.array([p[1] for p in points], dtype=float)
+    seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])
+    speeds = np.concatenate([[0.0], seg / dt * 3.6])
+    dist = np.concatenate([[0.0], np.cumsum(seg)])
+    t0 = pd.Timestamp("2000-01-01")
+    return pd.DataFrame({
+        "timestamp": [t0 + pd.Timedelta(seconds=i * dt) for i in range(n)],
+        "speed_kmh": speeds, "distance": dist, "lat": lat, "lon": lon,
+    })
+
+
+def _metrics_from_track(points, duration_s, sport):
+    """Kennzahlen eines (zugeschnittenen) Tracks – gleiche Formeln wie der Upload."""
+    df = _df_from_track(points, duration_s)
+    if df is None or df.empty:
+        return None
+    best_1s = best_average_speed(df, 1)
+    best_30s = best_average_speed(df, 30)
+    best_500m = best_distance_speed(df, 500)
+    best_nm = best_distance_speed(df, 1852)
+    if sport == "surf":                       # Surf: keine 500m/Seemeile-Wertung
+        best_500m = best_nm = None
+    runs = detect_runs(df)
+    lr_m = float(runs["Distance m"].max()) if not runs.empty else None
+    secs = float((df["timestamp"].iloc[-1] - df["timestamp"].iloc[0]).total_seconds())
+    return {
+        "speed_1s_kmh": None if best_1s is None else round(best_1s, 2),
+        "speed_1s_kn": None if best_1s is None else round(best_1s / 1.852, 2),
+        "speed_30s_kmh": None if best_30s is None else round(best_30s, 2),
+        "speed_30s_kn": None if best_30s is None else round(best_30s / 1.852, 2),
+        "speed_500m_kmh": None if best_500m is None else round(best_500m, 2),
+        "speed_nm_kmh": None if best_nm is None else round(best_nm, 2),
+        "total_distance_km": round(float(df["distance"].iloc[-1]) / 1000.0, 2),
+        "longest_run_m": None if lr_m is None else round(lr_m, 2),
+        "longest_run_km": None if lr_m is None else round(lr_m / 1000.0, 3),
+        "duration_s": int(round(secs)),
+    }
+
+
+def _save_trimmed_session(session_id, points, metrics):
+    """Zuschnitt speichern: neuer Track + neu berechnete Kennzahlen."""
+    vals = dict(metrics)
+    vals["track"] = json.dumps([[round(p[0], 5), round(p[1], 5)] for p in points])
+    with get_engine().begin() as conn:
+        conn.execute(sessions_table.update()
+                     .where(sessions_table.c.id == int(session_id)).values(**vals))
+    clear_data_caches()
+
+
+def render_session_trim(row):
+    """Karte + Zuschnitt einer Session (Admin).
+
+    Zweck: Wer die Uhr am Auto startet und auf dem Weg eine Bruecke mit 80 km/h
+    ueberquert, bekommt diese 80 als Top-Speed gutgeschrieben – die 45 vom Surfen
+    danach sind aber echt. Ohne Zuschnitt bliebe nur, die ganze Session zu
+    streichen und damit auch die ehrlichen Werte zu verlieren."""
+    sid = row["id"]
+    track = _parse_track(load_session_track(sid))
+    if not track or len(track) < 4:
+        st.caption("Für diese Session ist kein (ausreichender) GPS-Track gespeichert – "
+                   "ohne Track keine Karte und kein Zuschnitt.")
+        return
+    dur = None
+    with get_engine().connect() as conn:
+        _r = conn.execute(select(sessions_table.c.duration_s, sessions_table.c.sport)
+                          .where(sessions_table.c.id == int(sid))).first()
+    if _r is not None:
+        dur, _sport = _r[0], _r[1]
+    else:
+        _sport = active_sport()
+    n = len(track)
+    dt = (float(dur) / (n - 1)) if dur and n > 1 else 5.0
+    total_min = (n - 1) * dt / 60.0
+
+    st.markdown("##### 🗺️ Track prüfen und zuschneiden")
+    st.caption(f"{n} Punkte · ~{dt:.0f}s je Punkt · {total_min:.0f} min. "
+               "Die Karte färbt schnelle Abschnitte hell – eine Anfahrt über Land "
+               "fällt so sofort auf.")
+    lo, hi = st.slider("Diesen Zeitraum behalten (Minuten ab Start)", 0.0,
+                       round(total_min, 1), (0.0, round(total_min, 1)), step=0.5,
+                       key=f"trim_{sid}")
+    i0 = max(0, int(lo * 60.0 / dt))
+    i1 = min(n - 1, int(hi * 60.0 / dt))
+    part = track[i0:i1 + 1]
+    if len(part) < 4:
+        st.warning("Der gewählte Abschnitt ist zu kurz.")
+        return
+    html, height = _track_map_html(part, (len(part) - 1) * dt)
+    if html:
+        components.html(html, height=height)
+
+    new = _metrics_from_track(part, (len(part) - 1) * dt, _sport)
+    if not new:
+        return
+    trimmed = (i0 > 0) or (i1 < n - 1)
+    st.markdown("**Werte laut Zuschnitt** (aus dem Track gerechnet) "
+                "vs. **gespeichert** (von der Uhr):")
+    cmp_rows = []
+    for key, label in (("speed_1s_kmh", "Top 2 s km/h"), ("speed_30s_kmh", "Top 30 s km/h"),
+                       ("speed_500m_kmh", "500 m km/h"), ("speed_nm_kmh", "Seemeile km/h"),
+                       ("total_distance_km", "Distanz km"), ("longest_run_m", "Longest run m"),
+                       ("duration_s", "Dauer s")):
+        cmp_rows.append({"Wert": label, "gespeichert": row.get(key) if key in row else None,
+                         "nach Zuschnitt": new.get(key)})
+    st.dataframe(pd.DataFrame(cmp_rows), width="stretch", hide_index=True,
+                 height=df_height(len(cmp_rows)))
+    st.caption(
+        "⚠️ Die neuen Werte stammen aus dem gespeicherten Track (~"
+        f"{dt:.0f}s je Punkt) und sind darum meist etwas NIEDRIGER als die "
+        "sekundengenauen Uhr-Werte. Der Zuschnitt ist gedacht, um falsche "
+        "Spitzen (Anfahrt, Brücke) loszuwerden – nicht zur Feinjustage."
+    )
+    if not trimmed:
+        st.caption("Noch nichts ausgewählt zum Abschneiden – Regler anpassen.")
+        return
+    if st.checkbox("Ja, Track und Werte dieser Session dauerhaft ersetzen",
+                   key=f"trim_ok_{sid}"):
+        if st.button("✂️ Zuschnitt übernehmen", key=f"trim_go_{sid}",
+                     use_container_width=True):
+            _save_trimmed_session(sid, part, new)
+            st.success(f"Session #{sid} zugeschnitten: {len(part)} von {n} Punkten behalten.")
+            st.rerun()
+
+
 def _set_session_trust(session_id, value):
     """Trust einer einzelnen Session setzen (Freigeben/Streichen)."""
     with get_engine().begin() as conn:
@@ -12897,6 +13035,11 @@ def render_admin_sessions():
             st.rerun()
         c2.caption("Streichen ist eine Admin-Entscheidung: weder der automatische "
                    "Wasser-Check noch der Recheck-Lauf heben sie wieder auf.")
+
+    # Karte + Zuschnitt: erlaubt es, eine falsche Spitze (Anfahrt, Bruecke) zu
+    # entfernen, ohne die ehrlichen Werte der Session mitzuverlieren.
+    st.markdown("---")
+    render_session_trim(row)
 
 
 def render_admin_spots():
