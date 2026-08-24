@@ -11665,6 +11665,63 @@ try{
 </script></body></html>"""
 
 
+def _track_runs(track_pts, duration_s):
+    """Runs eines Tracks als [(start_seg, end_seg, dist_m, avg_kn)].
+
+    Gleiche Schwellen wie die Speedkurve und das Ranking (Start 10 km/h, Ende 5,
+    Glitch > 120, mindestens 50 m), damit „längster Run" hier denselben Abschnitt
+    meint wie der KPI-Wert und die Markierung in der Kurve. Indizes zaehlen
+    SEGMENTE; fuer Punkte gilt track_pts[start : end + 2]."""
+    series = _speed_series_from_track(track_pts, duration_s)
+    if series is None:
+        return [], 5.0
+    _t, v_kn, dt = series
+    start_kn, end_kn, glitch_kn, min_m = 10.0 / 1.852, 5.0 / 1.852, 120.0 / 1.852, 50.0
+    lat = np.array([p[0] for p in track_pts], dtype=float)
+    lon = np.array([p[1] for p in track_pts], dtype=float)
+    seg_m = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])
+    runs, in_run, r_start, r_dist = [], False, 0, 0.0
+
+    def _close(end_i):
+        if r_dist >= min_m:
+            secs = max(dt, (end_i - r_start) * dt)
+            runs.append((r_start, end_i, r_dist, r_dist / secs * 3.6 / 1.852))
+
+    for i in range(len(v_kn)):
+        sp = v_kn[i]
+        if sp > glitch_kn:
+            continue
+        if not in_run:
+            if sp >= start_kn:
+                in_run, r_start, r_dist = True, i, float(seg_m[i])
+        elif sp < end_kn:
+            _close(i)
+            in_run, r_dist = False, 0.0
+        else:
+            r_dist += float(seg_m[i])
+    if in_run:
+        _close(len(v_kn) - 1)
+    return runs, dt
+
+
+def _track_segment_for_mode(track_pts, duration_s, mode):
+    """(Punkte, Beschriftung) fuer den gewaehlten Kartenmodus."""
+    if mode == "all" or not track_pts:
+        return track_pts, ""
+    runs, dt = _track_runs(track_pts, duration_s)
+    if not runs:
+        return track_pts, "Kein Run erkannt – es wird der ganze Track gezeigt."
+    pick = (max(runs, key=lambda r: r[3]) if mode == "fastest"
+            else max(runs, key=lambda r: r[2]))
+    pts = track_pts[pick[0]:pick[1] + 2]
+    if len(pts) < 2:
+        return track_pts, "Run zu kurz für die Karte – ganzer Track."
+    secs = max(dt, (pick[1] - pick[0]) * dt)
+    label = (f"{pick[2]:.0f} m · {secs:.0f} s · Ø {pick[3]:.1f} kn "
+             f"({pick[3] * 1.852:.1f} km/h) · {len(runs)} Runs erkannt")
+    return pts, label
+
+
 def _track_map_html(track_pts, duration_s):
     """Interaktive Leaflet-Karte (OpenStreetMap-Kacheln, verschieb-/zoombar) mit
     speed-gefärbter Tracklinie. Rendert im BROWSER (iFrame) -> fast keine Server-
@@ -11839,10 +11896,28 @@ def render_history_overview(record):
 
     if track_pts:
         st.markdown("## 🗺️ Track")
+        # Drei Ansichten: der ganze Tag, der schnellste Run und der laengste Run.
+        # Der ganze Track ist bei vielen Halsen eine Wolke – die beiden Run-Modi
+        # zeigen genau die Strecke, die hinter dem Speed- bzw. dem Run-Wert steht.
+        _modes = {"Ganzer Track": "all", "⚡ Schnellster Run": "fastest",
+                  "🚩 Längster Run": "longest"}
+        _mpick = st.radio("Kartenansicht", list(_modes), horizontal=True,
+                          key=f"trackmode_{record.get('id', 0)}",
+                          label_visibility="collapsed")
+        _mpts, _mnote = _track_segment_for_mode(track_pts, num("duration_s"),
+                                                _modes[_mpick])
+        if _mnote:
+            st.caption(_mnote)
         # Interaktive Leaflet-Karte (OSM-Kacheln, verschieb-/zoombar) – rendert im
         # Browser, daher fast keine Serverlast (im Gegensatz zu pydeck/st.map, das
         # auf 512 MB Segfaults auslöste). Fallback: leichte SVG-Linie (_track_svg).
-        _mhtml, _mh = _track_map_html(track_pts, num("duration_s"))
+        _mdur = num("duration_s")
+        if _modes[_mpick] != "all" and _mpts and len(_mpts) < len(track_pts):
+            # Fuer den Abschnitt die eigene Dauer, sonst faerbt die Karte falsch.
+            _series = _speed_series_from_track(track_pts, _mdur)
+            _dt = _series[2] if _series else 5.0
+            _mdur = (len(_mpts) - 1) * _dt
+        _mhtml, _mh = _track_map_html(_mpts, _mdur)
         if _mhtml:
             components.html(_mhtml, height=_mh, scrolling=False)
             st.caption("🟢 start · 🔴 finish · line colour = speed (dim → aqua) · "
