@@ -4880,7 +4880,7 @@ def render_personal_best_table(pb_table, pb_table_caption, total=0):
         if pb_table_caption:
             st.caption(pb_table_caption)
 
-        st.dataframe(_mobile_slim(pb_table), width="stretch", hide_index=True,
+        st.dataframe(_round_display(_mobile_slim(pb_table)), width="stretch", hide_index=True,
                      height=df_height(len(pb_table)))
 
     st.markdown("---")
@@ -4969,7 +4969,7 @@ def render_session_history(name):
             })
 
             st.dataframe(
-                show_history,
+                _round_display(show_history),
                 width="stretch",
                 hide_index=True,
                 height=df_height(len(show_history)),
@@ -7977,6 +7977,32 @@ loadFC();loadMarine();setInterval(function(){loadFC();loadMarine();},1800000);
     return html.replace("__LAT__", str(lat)).replace("__LON__", str(lon))
 
 
+# Anzeige-Rundung: gemessen und gespeichert wird weiter voll genau, in Tabellen
+# sind vier Nachkommastellen aber nur Rauschen (26.8724 statt 26.87).
+_DISPLAY_DEC = 2
+# Spalten, die eine Geschwindigkeit enthalten – erkannt am Namen, damit es auch
+# fuer die umbenannten Anzeige-Spalten greift ("2s km/h", "500m kn" …).
+_SPEED_COL_RE = re.compile(r"(km/?h|kmh|\bkn\b|knots|speed)", re.I)
+
+
+def _round_display(df, dec=_DISPLAY_DEC):
+    """Geschwindigkeitsspalten fuer die ANZEIGE runden (Kopie, Original bleibt).
+
+    Bewusst am Spaltennamen erkannt und nicht an einer festen Liste: die
+    Ranglisten benennen ihre Spalten vor der Ausgabe um, eine Liste der
+    DB-Feldnamen wuerde also nicht greifen."""
+    if df is None or getattr(df, "empty", True):
+        return df
+    out = df.copy()
+    for c in out.columns:
+        if not _SPEED_COL_RE.search(str(c)):
+            continue
+        v = pd.to_numeric(out[c], errors="coerce")
+        if v.notna().any():
+            out[c] = v.round(dec)
+    return out
+
+
 def _mobile_slim(df):
     """Nur auf dem Handy: Ranglisten-Tabelle schmaler machen – Datum ohne Uhrzeit
     (nur YYYY-MM-DD) und die zweite Einheit (kn-Spalten) ausblenden. Auf dem
@@ -8006,11 +8032,15 @@ def _default_cols(gear_label):
 
 def _order_table_cols(df, chosen, gear_label):
     """Zeigt Rank/Name/Speed (immer sichtbar) + die vom Nutzer gewaehlten,
-    sortierten optionalen Spalten. Nicht-optionale Spalten bleiben vorn."""
+    sortierten optionalen Spalten. Nicht-optionale Spalten bleiben vorn.
+
+    Rundet gleich die Geschwindigkeiten fuer die Anzeige: diese Funktion ist der
+    gemeinsame Trichter ALLER Ranglisten-Tabellen, also der eine Ort, an dem das
+    zuverlaessig passiert."""
     optional = set(_all_optional_cols(gear_label))
     fixed = [c for c in df.columns if c not in optional]
     chosen_present = [c for c in (chosen or []) if c in df.columns and c in optional]
-    return df[fixed + chosen_present]
+    return _round_display(df[fixed + chosen_present])
 
 
 @st.fragment(run_every=30)
@@ -10302,7 +10332,7 @@ def render_water_recheck():
         if not rows:
             st.success("Keine ausgeschlossenen Sessions mit Track gefunden – nichts zu tun.")
             return
-        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True,
+        st.dataframe(_round_display(pd.DataFrame(rows)), width="stretch", hide_index=True,
                      height=df_height(len(rows)))
         _free = sum(1 for r in rows if str(r.get("verdict", "")).startswith("released"))
         st.caption(f"{_free} von {len(rows)} würden wieder gewertet "
@@ -13002,7 +13032,7 @@ def render_session_trim(row):
                        ("duration_s", "Dauer s")):
         cmp_rows.append({"Wert": label, "gespeichert": row.get(key) if key in row else None,
                          "nach Zuschnitt": new.get(key)})
-    st.dataframe(pd.DataFrame(cmp_rows), width="stretch", hide_index=True,
+    st.dataframe(_round_display(pd.DataFrame(cmp_rows)), width="stretch", hide_index=True,
                  height=df_height(len(cmp_rows)))
     st.caption(
         "⚠️ Die neuen Werte stammen aus dem gespeicherten Track (~"
