@@ -10306,13 +10306,36 @@ def render_water_recheck():
                        "Ingest nicht aufrufen.")
             return
 
-        def _call(apply):
-            _q = urlencode({"key": _sk, "limit": int(st.session_state.get("rcw_limit", 10)),
+        def _call(apply, path="recheck_water", limit_key="rcw_limit"):
+            _q = urlencode({"key": _sk, "limit": int(st.session_state.get(limit_key, 10)),
                             "apply": 1 if apply else 0})
-            _req = Request(f"{_ingest}/recheck_water?{_q}",
+            _req = Request(f"{_ingest}/{path}?{_q}",
                            headers={"User-Agent": "MyWaterSessions/1.0"})
             with urlopen(_req, timeout=240) as _resp:
                 return json.loads(_resp.read().decode("utf-8"))
+
+        # --- Wetter nachtragen ------------------------------------------------
+        # Eigener kleiner Block: fehlendes Wetter hat dieselbe Ursache wie ein
+        # ausgebliebener Wasser-Check (Uhr schickte keinen start_lat), gehoert also
+        # hierher – nur ist es harmlos und braucht keine Vorschau-Tabelle.
+        w1, w2 = st.columns([1, 2])
+        w1.number_input("Anzahl", 1, 50, 20, key="bfw_limit")
+        if w2.button("🌦️ Fehlendes Wetter nachtragen", key="bfw_go",
+                     use_container_width=True):
+            try:
+                with st.spinner("Wetter wird geholt …"):
+                    _res = _call(True, "backfill_weather", "bfw_limit")
+                _rows = _res.get("results") or []
+                _ok = sum(1 for r in _rows if r.get("written"))
+                if _rows:
+                    st.dataframe(_round_display(pd.DataFrame(_rows)), width="stretch",
+                                 hide_index=True, height=df_height(len(_rows)))
+                clear_data_caches()
+                st.success(f"{_ok} von {len(_rows)} Session(s) mit Wetter ergänzt."
+                           if _rows else "Keine Session ohne Wetter gefunden.")
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"Aufruf fehlgeschlagen: {exc}")
+        st.markdown("---")
 
         c1, c2 = st.columns([1, 2])
         c1.number_input("Anzahl je Lauf", 1, 50, 10, key="rcw_limit")
