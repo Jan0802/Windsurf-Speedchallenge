@@ -10238,8 +10238,8 @@ def render_desc_cleanup():
         st.caption(f"🧽 Beschreibungs-Check nicht möglich: {exc}")
         return
     n = len(rows)
-    title = (f"🧽 Beschreibungen bereinigen ({n} betroffen)" if n
-             else "🧽 Beschreibungen bereinigen (alles sauber)")
+    title = (f"🧹 Beschreibungen bereinigen ({n} betroffen)" if n
+             else "🧹 Beschreibungen bereinigen (alles sauber)")
     with st.expander(title, expanded=False):
         st.caption(
             "Beim Einfügen sind bei vielen Spots die Kopfzeilen der App-Ansicht "
@@ -10263,7 +10263,7 @@ def render_desc_cleanup():
         st.dataframe(pd.DataFrame(prev), width="stretch", hide_index=True,
                      height=df_height(len(prev)))
         ok = st.checkbox(f"Ja, bei {n} Spot(s) dauerhaft bereinigen", key="descclean_ok")
-        if st.button("🧽 Jetzt bereinigen", key="descclean_go", disabled=not ok):
+        if st.button("🧹 Jetzt bereinigen", key="descclean_go", disabled=not ok):
             done = 0
             with get_engine().begin() as conn:
                 for r in rows:
@@ -10290,7 +10290,7 @@ def render_water_recheck():
     statt der Fahrt. Sessions, die dadurch auf trust_score 0 gesetzt wurden,
     kann dieser Lauf zurueckholen.
     """
-    with st.expander("🌊 Ausgeschlossene Sessions neu prüfen (Wasser-Check)",
+    with st.expander("💧 Ausgeschlossene Sessions neu prüfen (Wasser-Check)",
                      expanded=False):
         st.caption(
             "Prüft Sessions mit Trust 0 (also „nicht auf dem Wasser“) noch einmal – "
@@ -10322,7 +10322,7 @@ def render_water_recheck():
         # gibt es darunter den Browser-Weg.
         w1, w2 = st.columns([1, 2])
         w1.number_input("Anzahl", 1, 50, 20, key="bfw_limit")
-        if w2.button("🌦️ Wetter nachtragen (über Server)", key="bfw_go",
+        if w2.button("☁️ Wetter nachtragen (über Server)", key="bfw_go",
                      use_container_width=True):
             try:
                 with st.spinner("Wetter wird geholt …"):
@@ -10344,7 +10344,7 @@ def render_water_recheck():
 
         c1, c2 = st.columns([1, 2])
         c1.number_input("Anzahl je Lauf", 1, 50, 10, key="rcw_limit")
-        if c2.button("🔍 Vorschau (schreibt nichts)", key="rcw_preview",
+        if c2.button("👁️ Vorschau (schreibt nichts)", key="rcw_preview",
                      use_container_width=True):
             try:
                 with st.spinner("Wasser-Check läuft …"):
@@ -12915,7 +12915,7 @@ def render_admin():
     # WICHTIG: st.tabs rendert ALLE Tab-Inhalte bei jedem Rerun serverseitig – auf
     # der 512-MB-Instanz fuehrte das im Backoffice (Karte/Profile/Analytics
     # gleichzeitig) zu Segfaults/502. Radio -> nur der gewaehlte Bereich rendert.
-    _sections = ["📣 Werbung pro Spot", "📍 Spots", "🏄 Sessions", "👤 Profile",
+    _sections = ["📣 Werbung pro Spot", "📍 Spots", "⚖️ Sessions", "👤 Profile",
                  "📊 Web Analytics", fb_label]
     _pick = st.radio("Bereich", _sections, horizontal=True, key="admin_section",
                      label_visibility="collapsed")
@@ -13099,7 +13099,7 @@ def render_session_trim(row):
             + (f" (Top 2 s damals: {_o2:.1f} km/h)." if isinstance(_o2, (int, float))
                else ".")
         )
-        if b2.button("↩️ Original wiederherstellen", key=f"untrim_{sid}",
+        if b2.button("↺ Original wiederherstellen", key=f"untrim_{sid}",
                      use_container_width=True):
             if _restore_original_session(sid):
                 st.success(f"Session #{sid} auf das Original zurückgesetzt.")
