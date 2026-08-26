@@ -191,8 +191,9 @@ def render_beta_note():
 
 SPORT_META = {
     "windsurf": {
-        "label": "⛵ Windsurf",
-        "emoji": "⛵",
+        "name": "Windsurf",
+        "short": "Wind",
+        "emoji": "",
         "title": "WINDSURF",
         "gear_label": "Sail",                       # 2. Material (neben Board)
         "gear_size_unit": "m²",                     # Größeneinheit des 2. Materials
@@ -205,8 +206,9 @@ SPORT_META = {
         "bg_stem": "background",                    # assets/background.*
     },
     "kitesurf": {
-        "label": "🪁 Kitesurf",
-        "emoji": "🪁",
+        "name": "Kitesurf",
+        "short": "Kite",
+        "emoji": "",
         "title": "KITESURF",
         "gear_label": "Kite",
         "gear_size_unit": "m²",
@@ -217,8 +219,9 @@ SPORT_META = {
         "bg_stem": "background_kite",               # assets/background_kite.*
     },
     "wingsurf": {
-        "label": "🪽 Wingsurf",
-        "emoji": "🪽",
+        "name": "Wingsurf",
+        "short": "Wing",
+        "emoji": "",
         "title": "WINGSURF",
         "gear_label": "Wing",
         "gear_size_unit": "m²",
@@ -229,8 +232,9 @@ SPORT_META = {
         "bg_stem": "background_wing",               # assets/background_wing.*
     },
     "sup": {
-        "label": "🛶 SUP",
-        "emoji": "🛶",
+        "name": "SUP",
+        "short": "SUP",
+        "emoji": "",
         "title": "SUP",
         "gear_label": "Paddle",
         "gear_size_unit": "",                       # Paddel hat keine m²-Größe
@@ -241,8 +245,9 @@ SPORT_META = {
         "bg_stem": "background_sup",                # assets/background_sup.*
     },
     "wakeboard": {
-        "label": "🚤 Wakeboard",
-        "emoji": "🚤",
+        "name": "Wakeboard",
+        "short": "Wake",
+        "emoji": "",
         "title": "WAKEBOARD",
         "gear_label": "Tow",                        # 2. „Material": Boot/Cable
         "gear_size_unit": "",                       # keine m²-Größe
@@ -253,8 +258,9 @@ SPORT_META = {
         "bg_stem": "background_wake",                # assets/background_wake.webp
     },
     "surf": {
-        "label": "🏄 Surf",
-        "emoji": "🏄",
+        "name": "Surf",
+        "short": "Surf",
+        "emoji": "",
         "title": "SURF",
         # Board-only + windunabhaengig. Kein Segel/Kite/Wing – das "2. Material" ist
         # optional die Finnen-Konfiguration; der Board-Typ steckt im gear_type-Feld.
@@ -268,6 +274,13 @@ SPORT_META = {
         "bg_stem": "background_surf",                # fehlt -> faellt auf Windsurf-Bild zurueck
     },
 }
+
+# Sport-Piktogramme sind vorerst draussen: "emoji" ist ueberall leer. Unicode und
+# Material Symbols haben kein Zeichen fuer Windsurf, Wing und Wake - lieber gar
+# keins als drei Notloesungen. Zum Wiedereinschalten NUR oben je Sportart ein
+# Zeichen in "emoji" eintragen, dann erscheint es automatisch in allen Labels.
+for _sport_meta in SPORT_META.values():
+    _sport_meta["label"] = f"{_sport_meta['emoji']} {_sport_meta['name']}".strip()
 
 
 def active_sport():
@@ -8196,7 +8209,7 @@ def _spot_tv_live(cfg):
             _tv_card(f"🪂 Highest jump {period_word}", f"{best_jump:.1f}" if best_jump else "–",
                      "m" if best_jump else ""),
             _tv_card("🔁 Most airs (session)", f"{int(most_airs)}" if most_airs else "–", ""),
-            _tv_card("🤙 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
+            _tv_card("👥 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
             _tv_card(leader_label, air_leader),
         ])
     else:
@@ -8204,7 +8217,7 @@ def _spot_tv_live(cfg):
             _tv_card(f"🏆 Top 2s {period_word}", f"{top1:.1f}" if top1 else "–",
                      ("km/h" + (f" · {top1kn:.1f} kn" if top1kn else "")) if top1 else ""),
             _tv_card(f"🔥 Top 30s {period_word}", f"{top30:.1f}" if top30 else "–", "km/h" if top30 else ""),
-            _tv_card("🏄 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
+            _tv_card("👥 Sessions today", f"{n_sessions}", f"{n_riders} riders"),
             _tv_card(leader_label, leader),
             _tv_card("📅 Record date", leader_date, f"best {metric_word}"),
         ])
@@ -8935,9 +8948,9 @@ def render_spots_forecast(spot, coords):
 # k/min_kn aus gaengigen Groessen-Charts kalibriert; Board-Volumen-Feinschliff nur
 # Windsurf (Kite/Wing haengen am Foil/Schirm, Boardvolumen kaum relevant).
 _ADVISOR = {
-    "windsurf": {"k": 1.5,  "min_kn": 6, "board": True,  "emoji": "🎽"},
-    "kitesurf": {"k": 2.3,  "min_kn": 9, "board": False, "emoji": "🪁"},
-    "wingsurf": {"k": 0.95, "min_kn": 8, "board": False, "emoji": "🪽"},
+    "windsurf": {"k": 1.5,  "min_kn": 6, "board": True,  "emoji": "📐"},
+    "kitesurf": {"k": 2.3,  "min_kn": 9, "board": False, "emoji": "📐"},
+    "wingsurf": {"k": 0.95, "min_kn": 8, "board": False, "emoji": "📐"},
 }
 
 
@@ -13478,7 +13491,7 @@ def render_admin_spots():
     # --- Wartung: mitkopierte Kopfzeilen aus den Beschreibungen entfernen -----
     render_desc_cleanup()
 
-    # (Der Wasser-Recheck sitzt jetzt im eigenen Bereich „🏄 Sessions".)
+    # (Der Wasser-Recheck sitzt jetzt im eigenen Bereich „⚖️ Sessions".)
 
     # --- Vollstaendigkeits-Uebersicht: auf einen Blick, wo noch was fehlt ------
     _ov = _spot_completeness_rows()
@@ -13519,8 +13532,7 @@ def render_admin_spots():
             st.caption("✓ = vorhanden · – = fehlt · Text EN = Kurzbeschreibung vorhanden · "
                        "Erstellt = erste Session, sonst letzte Änderung · "
                        "📋 kopiert den Langbeschreibungs-Prompt (Løkken-Stil) in die Zwischenablage.")
-            st.caption("Sessions nach Sportart: ⛵ Windsurf · 🪁 Kite · 🪽 Wing · "
-                       "🛶 SUP · 🚤 Wake · 🏄 Surf")
+            st.caption("Sessions nach Sportart: Wind · Kite · Wing · SUP · Wake · Surf")
             if not _rows:
                 st.info("Keine Spots für diese Suche/Filter.")
             else:
@@ -13529,12 +13541,12 @@ def render_admin_spots():
                                 .replace(">", "&gt;"))
 
                 def _spb(sp):
-                    """Sessions je Sportart als Icon+Zahl, z.B. '🏄 40 🪁 12'."""
+                    """Sessions je Sportart als Kuerzel+Zahl, z.B. 'Wind 40 · Kite 12'."""
                     if not sp:
                         return "0"
-                    parts = [f"{SPORT_META[s]['emoji']} {sp[s]}" for s in SPORTS if sp.get(s)]
+                    parts = [f"{SPORT_META[s]['short']} {sp[s]}" for s in SPORTS if sp.get(s)]
                     parts += [f"• {sp[k]}" for k in sp if k not in SPORT_META and sp.get(k)]
-                    return " ".join(parts) if parts else "0"
+                    return " · ".join(parts) if parts else "0"
 
                 _prompts = {str(k): _longform_prompt(r["spot"], r.get("country", ""),
                                                      r.get("region", ""), r.get("lat"),
