@@ -191,8 +191,8 @@ def render_beta_note():
 
 SPORT_META = {
     "windsurf": {
-        "label": "🏄 Windsurf",
-        "emoji": "🏄",
+        "label": "⛵ Windsurf",
+        "emoji": "⛵",
         "title": "WINDSURF",
         "gear_label": "Sail",                       # 2. Material (neben Board)
         "gear_size_unit": "m²",                     # Größeneinheit des 2. Materials
@@ -241,8 +241,8 @@ SPORT_META = {
         "bg_stem": "background_sup",                # assets/background_sup.*
     },
     "wakeboard": {
-        "label": "🤙 Wakeboard",
-        "emoji": "🤙",
+        "label": "🚤 Wakeboard",
+        "emoji": "🚤",
         "title": "WAKEBOARD",
         "gear_label": "Tow",                        # 2. „Material": Boot/Cable
         "gear_size_unit": "",                       # keine m²-Größe
@@ -253,8 +253,8 @@ SPORT_META = {
         "bg_stem": "background_wake",                # assets/background_wake.webp
     },
     "surf": {
-        "label": "🌊 Surf",
-        "emoji": "🌊",
+        "label": "🏄 Surf",
+        "emoji": "🏄",
         "title": "SURF",
         # Board-only + windunabhaengig. Kein Segel/Kite/Wing – das "2. Material" ist
         # optional die Finnen-Konfiguration; der Board-Typ steckt im gear_type-Feld.
@@ -13519,8 +13519,8 @@ def render_admin_spots():
             st.caption("✓ = vorhanden · – = fehlt · Text EN = Kurzbeschreibung vorhanden · "
                        "Erstellt = erste Session, sonst letzte Änderung · "
                        "📋 kopiert den Langbeschreibungs-Prompt (Løkken-Stil) in die Zwischenablage.")
-            st.caption("Sessions nach Sportart: 🏄 Windsurf · 🪁 Kite · 🪽 Wing · "
-                       "🛶 SUP · 🤙 Wake · 🌊 Surf")
+            st.caption("Sessions nach Sportart: ⛵ Windsurf · 🪁 Kite · 🪽 Wing · "
+                       "🛶 SUP · 🚤 Wake · 🏄 Surf")
             if not _rows:
                 st.info("Keine Spots für diese Suche/Filter.")
             else:
