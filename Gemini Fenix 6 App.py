@@ -10318,9 +10318,11 @@ def render_water_recheck():
         # Eigener kleiner Block: fehlendes Wetter hat dieselbe Ursache wie ein
         # ausgebliebener Wasser-Check (Uhr schickte keinen start_lat), gehoert also
         # hierher – nur ist es harmlos und braucht keine Vorschau-Tabelle.
+        # Server-Weg; scheitert er an Open-Meteos Rate-Limit fuer die Render-IP,
+        # gibt es darunter den Browser-Weg.
         w1, w2 = st.columns([1, 2])
         w1.number_input("Anzahl", 1, 50, 20, key="bfw_limit")
-        if w2.button("🌦️ Fehlendes Wetter nachtragen", key="bfw_go",
+        if w2.button("🌦️ Wetter nachtragen (über Server)", key="bfw_go",
                      use_container_width=True):
             try:
                 with st.spinner("Wetter wird geholt …"):
@@ -10335,6 +10337,9 @@ def render_water_recheck():
                            if _rows else "Keine Session ohne Wetter gefunden.")
             except Exception as exc:  # noqa: BLE001
                 st.error(f"Aufruf fehlgeschlagen: {exc}")
+
+        # Browser-Weg: umgeht das Rate-Limit der Server-IP.
+        render_weather_via_browser()
         st.markdown("---")
 
         c1, c2 = st.columns([1, 2])
@@ -13157,6 +13162,202 @@ def _set_session_trust(session_id, value):
                      .where(sessions_table.c.id == int(session_id))
                      .values(trust_score=value))
     clear_data_caches()
+
+
+_WX_FIELDS = ("wind_kmh", "gust_kmh", "wind_dir_deg", "temp_c", "precip_mm",
+              "weather_code")
+
+# Browser-Teil des Wetter-Nachtrags: holt die Werte von Open-Meteo aus dem Browser
+# des Admins (die Server-IP wird rate-limitet) und legt das Ergebnis in die
+# Zwischenablage. Bewusst mit kleiner Pause zwischen den Abfragen – hoeflich
+# gegenueber der freien API, auch wenn die eigene IP nicht gedrosselt ist.
+_WX_BROWSER_HTML = """
+<div style="font-family:system-ui,sans-serif;color:#eaf4ff">
+  <button id="go" style="background:#2bd4d9;color:#06303a;border:0;border-radius:10px;
+      padding:10px 18px;font-weight:800;font-size:15px;cursor:pointer">
+    🌦️ Wetter jetzt im Browser abrufen</button>
+  <span id="st" style="margin-left:12px;color:#bcd4dd"></span>
+  <textarea id="out" readonly style="width:100%;height:104px;margin-top:10px;
+      background:rgba(255,255,255,.06);color:#eaf4ff;border:1px solid rgba(255,255,255,.18);
+      border-radius:10px;padding:8px;font-family:ui-monospace,monospace;font-size:12px"
+      placeholder="Ergebnis erscheint hier"></textarea>
+</div>
+<script>
+const ITEMS = __ITEMS__;
+const F = ["wind_speed_10m","wind_gusts_10m","wind_direction_10m",
+           "temperature_2m","precipitation","weather_code"];
+const btn = document.getElementById("go");
+const stx = document.getElementById("st");
+const out = document.getElementById("out");
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+btn.onclick = async () => {
+  btn.disabled = true;
+  const lines = [];
+  let done = 0, failed = 0;
+  for (const it of ITEMS) {
+    stx.textContent = `${done + failed + 1} von ${ITEMS.length} …`;
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + it.lat
+      + "&longitude=" + it.lon + "&hourly=" + F.join(",")
+      + "&wind_speed_unit=kmh&timezone=auto&start_date=" + it.day
+      + "&end_date=" + it.day;
+    try {
+      const r = await fetch(url);
+      const j = await r.json();
+      const t = (j.hourly && j.hourly.time) || [];
+      if (!t.length) { failed++; continue; }
+      // Stunde der Session waehlen (naechstliegende) – wie auf dem Server.
+      let bi = 0, bd = 99;
+      t.forEach((s, i) => {
+        const d = Math.abs(parseInt(s.slice(11, 13), 10) - it.hour);
+        if (d < bd) { bd = d; bi = i; }
+      });
+      const vals = F.map(k => {
+        const a = j.hourly[k];
+        const v = (a && a[bi] !== undefined && a[bi] !== null) ? a[bi] : null;
+        return v === null ? "-" : v;
+      });
+      if (vals[0] === "-") { failed++; continue; }
+      lines.push(it.id + ":" + vals.join(","));
+      done++;
+    } catch (e) { failed++; }
+    await sleep(350);
+  }
+  out.value = lines.join("\\n");
+  stx.textContent = `${done} geholt` + (failed ? `, ${failed} ohne Daten` : "")
+    + " – Ergebnis kopiert, unten einfügen.";
+  try { await navigator.clipboard.writeText(out.value); }
+  catch (e) { out.select(); stx.textContent += " (Zwischenablage blockiert: bitte "
+    + "im Feld oben markieren und kopieren)"; }
+  btn.disabled = false;
+};
+</script>
+"""
+
+
+def _sessions_missing_weather(limit=15):
+    """Sessions ohne Wetter samt Position und Stunde.
+
+    Position bevorzugt aus start_lat/lon, sonst aus dem ersten Track-Punkt (die
+    Uhr setzt start_lat erst ab GPS-Qualitaet USABLE). Der gespeicherte Track ist
+    in GRAD – _parse_track liest genau dieses Format."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(sessions_table.c.id, sessions_table.c.name,
+                   sessions_table.c.surfspot, sessions_table.c.date,
+                   sessions_table.c.start_lat, sessions_table.c.start_lon,
+                   sessions_table.c.track)
+            .where(sessions_table.c.wind_kmh.is_(None))
+            .where(sessions_table.c.date.isnot(None))
+            .order_by(sessions_table.c.date.desc()).limit(int(limit))
+        ).mappings().all()
+    out = []
+    for r in rows:
+        lat, lon = r["start_lat"], r["start_lon"]
+        if lat is None or lon is None:
+            pts = _parse_track(r["track"])
+            if pts:
+                lat, lon = pts[0][0], pts[0][1]
+        if lat is None or lon is None:
+            continue
+        _d = pd.to_datetime(r["date"], errors="coerce")
+        if pd.isna(_d):
+            continue
+        out.append({"id": int(r["id"]), "name": r["name"], "spot": r["surfspot"],
+                    "lat": round(float(lat), 5), "lon": round(float(lon), 5),
+                    "day": _d.strftime("%Y-%m-%d"), "hour": int(_d.hour),
+                    "when": _d.strftime("%Y-%m-%d %H:%M")})
+    return out
+
+
+def _apply_browser_weather(text):
+    """Vom Browser geholte Wetterwerte einlesen und speichern.
+
+    Format je Zeile: id:wind,gust,dir,temp,precip,code  ('-' = kein Wert).
+    Gibt (geschrieben, uebersprungen) zurueck."""
+    written = skipped = 0
+    for line in str(text or "").replace(";", "\n").splitlines():
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        sid, _, rest = line.partition(":")
+        try:
+            sid = int(sid.strip())
+        except ValueError:
+            skipped += 1
+            continue
+        parts = [p.strip() for p in rest.split(",")]
+        if len(parts) < len(_WX_FIELDS):
+            skipped += 1
+            continue
+        vals = {}
+        for field, raw in zip(_WX_FIELDS, parts):
+            if raw in ("", "-", "null", "None"):
+                continue
+            try:
+                vals[field] = float(raw)
+            except ValueError:
+                continue
+        if "wind_kmh" not in vals:
+            skipped += 1
+            continue
+        if "weather_code" in vals:
+            vals["weather_code"] = int(vals["weather_code"])
+        with get_engine().begin() as conn:
+            conn.execute(sessions_table.update()
+                         .where(sessions_table.c.id == sid).values(**vals))
+        written += 1
+    if written:
+        clear_data_caches()
+    return written, skipped
+
+
+def render_weather_via_browser():
+    """Wetter über den BROWSER des Admins holen statt über den Server.
+
+    Warum: Open-Meteo rate-limitet die geteilte Render-IP (HTTP 429) – ein
+    serverseitiger Nachtrag scheitert dort reihenweise, während dieselben Aufrufe
+    von einem normalen Rechner durchgehen. Open-Meteo erlaubt Cross-Origin
+    (`access-control-allow-origin: *`), der Browser darf also direkt fragen.
+
+    Der Rückweg läuft absichtlich über Zwischenablage + Einfügen und nicht über
+    einen URL-Parameter: Letzteres würde die Seite neu laden und dabei die
+    Backoffice-Anmeldung verlieren."""
+    with st.expander("🌦️ Wetter über deinen Browser holen (statt über den Server)",
+                     expanded=False):
+        st.caption(
+            "Open-Meteo blockt die Server-IP zeitweise (429) – dein Rechner ist davon "
+            "nicht betroffen. Der Abruf passiert also hier im Browser, das Ergebnis "
+            "wird in die Zwischenablage kopiert, unten einfügen und speichern."
+        )
+        c1, c2 = st.columns([1, 2])
+        _lim = c1.number_input("Anzahl", 1, 40, 15, key="wxb_limit")
+        items = _sessions_missing_weather(_lim)
+        if not items:
+            st.success("Alle Sessions haben Wetter (oder keine Position).")
+            return
+        c2.metric("Sessions ohne Wetter", len(items))
+        st.dataframe(pd.DataFrame([{"id": i["id"], "Fahrer": i["name"],
+                                    "Spot": i["spot"], "Zeit": i["when"],
+                                    "lat": i["lat"], "lon": i["lon"]} for i in items]),
+                     width="stretch", hide_index=True, height=df_height(len(items)))
+
+        _js_items = json.dumps([{k: i[k] for k in ("id", "lat", "lon", "day", "hour")}
+                                for i in items])
+        components.html(_WX_BROWSER_HTML.replace("__ITEMS__", _js_items), height=210)
+
+        _txt = st.text_area("Ergebnis hier einfügen", key="wxb_paste", height=110,
+                            placeholder="612:9.4,14.2,270,19.2,0,3")
+        if st.button("💾 Wetter speichern", key="wxb_save", use_container_width=True,
+                     disabled=not _txt.strip()):
+            ok, bad = _apply_browser_weather(_txt)
+            if ok:
+                st.success(f"{ok} Session(s) mit Wetter ergänzt."
+                           + (f" {bad} Zeile(n) übersprungen." if bad else ""))
+                st.rerun()
+            else:
+                st.error("Keine gültige Zeile erkannt. Erwartet wird "
+                         "`id:wind,gust,dir,temp,precip,code` je Zeile.")
 
 
 def render_admin_sessions():
