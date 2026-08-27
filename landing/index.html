@@ -106,6 +106,17 @@
         border-top:1px solid rgba(255,255,255,.10); border-bottom:1px solid rgba(255,255,255,.10); }
   footer{ padding:34px 0 48px; color:#7fa6b2; font-size:13px; text-align:center; }
   footer a{ color:#9fd9e3; margin:0 8px; }
+  .sportgrid{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-top:14px; }
+  @media(max-width:760px){ .sportgrid{ grid-template-columns:repeat(3,1fr); } }
+  @media(max-width:420px){ .sportgrid{ grid-template-columns:repeat(2,1fr); } }
+  .sportcard{ display:flex; flex-direction:column; align-items:center; gap:8px;
+    text-align:center; text-decoration:none; color:#eaf4ff; padding:16px 8px 14px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+    border-radius:16px; transition:border-color .15s, background .15s, transform .15s; }
+  .sportcard:hover{ border-color:var(--aqua); background:rgba(43,212,217,.10);
+    transform:translateY(-2px); }
+  .sportcard img{ width:52px; height:52px; }
+  .sportcard span{ font-size:14px; font-weight:600; line-height:1.3; }
 </style>
 <!-- Cloudflare Web Analytics (cookieless) -->
 <script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "c16ea8dadd7749e1826d6ea48f80ca6d"}'></script>
@@ -182,12 +193,14 @@
 <section style="padding-top:0;">
   <div class="wrap">
     <h2>Explore by sport</h2>
-    <p class="lead"><a href="/windsurf.html">Windsurf speed ranking</a> ·
-      <a href="/kitesurf.html">Kitesurf jump tracker</a> ·
-      <a href="/wingfoil.html">Wingfoil ranking</a> ·
-      <a href="/sup.html">SUP tracker</a> ·
-      <a href="/wakeboard.html">Wakeboard tracking</a> ·
-      <a href="/surf.html">Surf tracker</a></p>
+    <div class="sportgrid">
+      <a class="sportcard" href="/windsurf.html"><img src="/icons/windsurf.png" alt="" width="52" height="52"><span>Windsurf speed ranking</span></a>
+      <a class="sportcard" href="/kitesurf.html"><img src="/icons/kitesurf.png" alt="" width="52" height="52"><span>Kitesurf jump tracker</span></a>
+      <a class="sportcard" href="/wingfoil.html"><img src="/icons/wingsurf.png" alt="" width="52" height="52"><span>Wingfoil ranking</span></a>
+      <a class="sportcard" href="/sup.html"><img src="/icons/sup.png" alt="" width="52" height="52"><span>SUP tracker</span></a>
+      <a class="sportcard" href="/wakeboard.html"><img src="/icons/wakeboard.png" alt="" width="52" height="52"><span>Wakeboard tracking</span></a>
+      <a class="sportcard" href="/surf.html"><img src="/icons/surf.png" alt="" width="52" height="52"><span>Surf tracker</span></a>
+    </div>
   </div>
 </section>
 
