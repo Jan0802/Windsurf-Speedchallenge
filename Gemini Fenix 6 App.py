@@ -14854,25 +14854,32 @@ for _i, _key in enumerate(SPORTS):
             del st.query_params["view"]
         st.query_params["sport"] = _key
         st.rerun()
-# Sport-Piktogramm oben in den Umschalt-Knopf. Streamlit haengt jedem Widget mit
-# key die Klasse "st-key-<key>" an, darum laesst sich der Knopf von aussen bemalen
-# und bleibt ein echter Knopf (schneller Rerun) - HTML-Links wuerden bei jedem
-# Sportwechsel die ganze App neu laden. currentColor: das Icon nimmt die
-# Textfarbe an, faerbt sich also beim aktiven Knopf automatisch mit.
+# Die ganze Kopfzeile als Kacheln gleicher Hoehe: oben eine 38-px-Bildzone, der
+# Name darunter. Bei den Sportarten steckt in der Zone das freigestellte
+# Piktogramm, bei den vier Ansichten ihr Emoji - dadurch stehen alle zehn Knoepfe
+# auf einer Linie, statt sechs hohe neben vier flachen.
+# Streamlit haengt jedem Widget mit key die Klasse "st-key-<key>" an, darum laesst
+# sich der Knopf von aussen bemalen und bleibt ein echter Knopf (schneller Rerun)
+# - HTML-Links wuerden bei jedem Wechsel die ganze App neu laden. currentColor:
+# das Bild nimmt die Textfarbe an, faerbt sich also beim aktiven Knopf mit.
 # Einmal pro Session in den <style> des Eltern-Dokuments, wie beim Hintergrund;
 # die sechs Icons sind zusammen ~50 KB und haben in keinem Rerun etwas verloren.
-# Auf dem Handy bleibt das Icon aus: dort stapeln die Spalten, sechs Kacheln
-# wuerden die halbe Seite fuellen. Fehlt eine Datei, bleibt der Knopf wie er war.
 if not st.session_state.get("_sport_tile_css"):
+    _TILE_BOX = ("{flex-direction:column;height:auto;gap:3px;"
+                 "padding:9px 4px 7px;line-height:1.15;}")
     _tiles = []
     for _key in SPORTS:
         _ib = image_to_base64(app_path("assets", "icons", f"{_key}.png"))
         if not _ib:
             continue
         _sel = f".st-key-switch_sport_{_key} button"
+        # Nur ab Tablet-Breite. Auf dem Handy stapeln die Spalten, sechs Kacheln
+        # wuerden die halbe Seite fuellen - und weil hier gar nichts greift,
+        # behaelt der Knopf dort SEIN eigenes Streamlit-Aussehen, statt dass ich
+        # meine Kachel-Werte muehsam zurueckdrehen muss.
         _tiles.append(
-            f"{_sel}{{flex-direction:column;height:auto;gap:3px;"
-            f"padding:9px 4px 7px;line-height:1.15;}}"
+            "@media(min-width:641px){"
+            f"{_sel}{_TILE_BOX}"
             # Bilddaten nur EINMAL: als Variable, sonst stehen sie fuer -webkit-
             # und ohne Prefix doppelt im Stylesheet (100 KB statt 50).
             f"{_sel}::before{{content:'';display:block;width:38px;height:38px;"
@@ -14880,8 +14887,24 @@ if not st.session_state.get("_sport_tile_css"):
             "background-color:currentColor;"
             "-webkit-mask:var(--i) center/contain no-repeat;"
             "mask:var(--i) center/contain no-repeat;}"
-            f"@media(max-width:640px){{{_sel}::before{{display:none;}}"
-            f"{_sel}{{flex-direction:row;padding:initial;}}}}"
+            "}"
+        )
+    # Die vier Ansichten: ihr Emoji wandert aus dem Label in die gleiche
+    # Bildzone, damit ihre Kachel exakt so hoch wird wie eine Sportart-Kachel.
+    for _vkey, _emo in (("spots", "🗺️"), ("live", "🌍"),
+                        ("beat", "🎯"), ("results", "👤")):
+        _sel = f".st-key-switch_view_{_vkey} button"
+        _tiles.append(
+            # Immer vor dem Namen - so stand es vorher im Label, und anders als
+            # die Piktogramme bleibt ein Emoji auch klein lesbar.
+            f"{_sel}::before{{content:'{_emo}';margin-right:6px;}}"
+            # Ab Tablet-Breite dann als eigene Zone oben, gleiche Hoehe wie dort.
+            "@media(min-width:641px){"
+            f"{_sel}{_TILE_BOX}"
+            f"{_sel}::before{{display:flex;align-items:center;"
+            "justify-content:center;width:38px;height:38px;font-size:27px;"
+            "margin-right:0;}"
+            "}"
         )
     if _tiles:
         st.session_state["_sport_tile_css"] = True
@@ -14896,28 +14919,28 @@ if not st.session_state.get("_sport_tile_css"):
         )
 
 if _sw_cols[len(SPORTS)].button(
-    "🗺️ Spots", key="switch_view_spots", use_container_width=True,
+    "Spots", key="switch_view_spots", use_container_width=True,
     type="primary" if _is_spots_view else "secondary",
 ):
     if not _is_spots_view:
         st.query_params["view"] = "spots"
         st.rerun()
 if _sw_cols[len(SPORTS) + 1].button(
-    "🌍 Live", key="switch_view_live", use_container_width=True,
+    "Live", key="switch_view_live", use_container_width=True,
     type="primary" if _is_live_view else "secondary",
 ):
     if not _is_live_view:
         st.query_params["view"] = "live"
         st.rerun()
 if _sw_cols[len(SPORTS) + 2].button(
-    "🎯 Beat the Beach", key="switch_view_beat", use_container_width=True,
+    "Beat the Beach", key="switch_view_beat", use_container_width=True,
     type="primary" if _is_beat_view else "secondary",
 ):
     if not _is_beat_view:
         st.query_params["view"] = "beat"
         st.rerun()
 if _sw_cols[len(SPORTS) + 3].button(
-    "👤 My Results", key="switch_view_results", use_container_width=True,
+    "My Results", key="switch_view_results", use_container_width=True,
     type="primary" if _is_results_view else "secondary",
 ):
     if not _is_results_view:
