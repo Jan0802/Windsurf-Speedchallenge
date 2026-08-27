@@ -286,6 +286,32 @@ def active_sport():
     return s if s in SPORTS else "windsurf"
 
 
+def render_sport_switch(box=None, label="Sport"):
+    """Sportart mitten auf der Seite wechseln.
+
+    Die Kopfzeile kann das auch, wird dort aber uebersehen - und auf dem Handy
+    stehen ihre Knoepfe weit oben ausserhalb des Bildes. Gehoert auf jede Seite,
+    die je Sportart andere Zahlen zeigt, und zwar VOR einem etwaigen fruehen
+    Ausstieg ("noch keine Daten"), sonst sitzt man in einer leeren Sportart fest.
+
+    Der Widget-Key traegt den aktuellen Sport. Das ist wichtig: wechselt man ueber
+    die Kopfzeile, entsteht dadurch ein NEUES Dropdown, das auf dem neuen Sport
+    steht. Mit festem Key wuerde Streamlit den gespeicherten alten Wert
+    zurueckgeben und den Sport sofort wieder umstellen.
+    """
+    cur = active_sport()
+    target = box if box is not None else st
+    new = target.selectbox(
+        label, list(SPORTS), index=list(SPORTS).index(cur),
+        format_func=lambda k: SPORT_META[k]["label"],
+        key=f"sport_switch_{cur}",
+    )
+    if new != cur:
+        st.query_params["sport"] = new
+        st.rerun()
+    return cur
+
+
 def format_board(brand, model, volume=0):
     """Einheitlicher Anzeige-String fürs Board (Session-Upload UND Profil), damit
     identische Eingaben denselben String ergeben (keine Duplikate)."""
@@ -17028,7 +17054,16 @@ def _user_rank(name, sport, spot=None, metric="speed_1s_kmh"):
     if name not in names:
         return None
     rank = names.index(name) + 1
-    return {"rank": rank, "total": len(names), "value": float(best.iloc[rank - 1][metric])}
+    out = {"rank": rank, "total": len(names),
+           "value": float(best.iloc[rank - 1][metric])}
+    # Der Fahrer direkt vor dir. Fuer "Beat the Beach" ist der naechste Platz oft
+    # viel greifbarer als der Spot-Rekord - vor allem weiter hinten im Feld.
+    if rank > 1:
+        _prev = best.iloc[rank - 2]
+        out["ahead"] = {"name": str(_prev["name"]),
+                        "value": float(_prev[metric]),
+                        "gap": float(_prev[metric]) - out["value"]}
+    return out
 
 
 def render_my_results_rank(name, spot):
@@ -17617,6 +17652,8 @@ def render_my_results_page(user):
         f"{SPORT_META[active_sport()]['label']}"
     )
 
+    render_sport_switch(st.columns([1, 2])[0])
+
     # --- "Wo du gerade vorne bist" – Erfolgs-Badge zur Begrüßung ---
     render_best_placement(name)
 
@@ -17814,6 +17851,12 @@ def render_beat_the_beach(user):
         f"closest to a record, and what it would mean for your rank · {SPORT_META[sport]['label']}"
     )
 
+    # Sportart und Spot als Paar oben. Die Spalten werden hier angelegt, aber die
+    # rechte erst weiter unten gefuellt - der Sport-Wechsel muss VOR dem fruehen
+    # Ausstieg stehen, sonst kommt man aus einer Sportart ohne Rekorde nicht raus.
+    _c_sport, _c_spot = st.columns([1, 2])
+    render_sport_switch(_c_sport)
+
     rows = _btb_overview(name, sport)
     if not rows:
         st.info(f"No {SPORT_META[sport]['label']} records yet. Upload a session and be the first.")
@@ -17824,10 +17867,15 @@ def render_beat_the_beach(user):
     spots = [r["spot"] for r in rows]
     want = (st.query_params.get("spot") or "").strip()
     idx = spots.index(want) if want in spots else 0
-    pick = st.selectbox("Spot", spots, index=idx, key="btb_spot")
+    pick = _c_spot.selectbox("Spot", spots, index=idx, key="btb_spot")
     if pick != want:
         st.query_params["spot"] = pick
     row = next(r for r in rows if r["spot"] == pick)
+
+    # Rang am gewaehlten Spot. Wird zweimal gebraucht: rechts fuer den Abstand
+    # zum naechsten Platz und in der Zeile darunter fuer die Rekord-Rechnung.
+    rk = (_user_rank(name, sport, pick, _BTB_METRIC)
+          if name and row["mine"] is not None and not row["i_hold"] else None)
 
     c1, c2 = st.columns([1, 1])
     with c1:
@@ -17859,13 +17907,24 @@ def render_beat_the_beach(user):
             st.progress(min(1.0, (row["pct"] or 0) / 100.0))
             st.caption(f"You need **+{row['gap']:.1f} km/h** to take the record from "
                        f"{row['holder']}.")
+            # Der naechste Platz ist meist das erreichbarere Ziel als der Rekord.
+            # Nur wenn zwischen dir und dem Rekord ueberhaupt jemand steht: auf
+            # Platz 2 waere der "Naechste" der Rekordhalter selbst, und dessen
+            # Abstand steht schon in der Kachel darueber.
+            # gap > 0.05: bei Gleichstand stuende hier "-0.0 km/h", und "+0.0
+            # bringt dich einen Platz nach vorn" waere schlicht falsch.
+            _ahead = (rk or {}).get("ahead")
+            if _ahead and rk["rank"] > 2 and _ahead["gap"] > 0.05:
+                st.metric(f"🎯 Next place (#{rk['rank'] - 1})",
+                          f"{_ahead['value']:.1f} km/h",
+                          f"-{_ahead['gap']:.1f} km/h to pass {_ahead['name']}")
+                st.caption(f"Closer than the record: **+{_ahead['gap']:.1f} km/h** "
+                           f"moves you up one place.")
 
     # Was der Rekord fuer die Rangliste bedeuten wuerde – die Uhr kennt keine Plaetze.
-    if name and row["mine"] is not None and not row["i_hold"]:
-        rk = _user_rank(name, sport, pick, _BTB_METRIC)
-        if rk:
-            st.info(f"At **{pick}** you are **#{rk['rank']} of {rk['total']}** right now – "
-                    f"beating {row['record']:.1f} km/h puts you **#1**.")
+    if rk:
+        st.info(f"At **{pick}** you are **#{rk['rank']} of {rk['total']}** right now – "
+                f"beating {row['record']:.1f} km/h puts you **#1**.")
 
     # Fortschritt am gewaehlten Spot: kommst du naeher?
     if name:
@@ -18105,6 +18164,10 @@ def render_public_live_page():
         "What is happening on the water right now – no account needed. Switch between the "
         f"latest sessions and freshly broken spot records · {SPORT_META[sport]['label']}"
     )
+
+    # Vor dem "Nothing here yet"-Ausstieg, sonst kaeme man aus einer leeren
+    # Sportart nicht wieder heraus.
+    render_sport_switch(st.columns([1, 2])[0])
 
     mode = st.radio("Show", ["🕒 Latest sessions", "🏆 New spot records"],
                     horizontal=True, key="live_mode", label_visibility="collapsed")
