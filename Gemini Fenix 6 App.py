@@ -11689,11 +11689,121 @@ def _track_svg(track_pts, duration_s):
     return svg, int(H) + 8
 
 
+# Farbrampe der Tracklinie: blau (langsam) ueber Aqua und Gelb nach Orangerot.
+# Vorher lief sie von Graublau nach Aqua - auf Satellitenbildern (gruen/blau) war
+# der Unterschied kaum zu sehen. EINE Funktion fuer Linie UND Legende, sonst
+# zeigt die Legende irgendwann andere Farben als die Karte.
+_SPEED_RAMP = ((0.00, (0x1E, 0x5F, 0x8C)),
+               (0.33, (0x2B, 0xD4, 0xD9)),
+               (0.66, (0xF5, 0xD5, 0x47)),
+               (1.00, (0xF4, 0x63, 0x3A)))
+
+
+def _speed_color(t):
+    """Farbe fuer den Anteil t (0..1) der Spitzengeschwindigkeit."""
+    t = 0.0 if t < 0 else (1.0 if t > 1 else float(t))
+    for i in range(len(_SPEED_RAMP) - 1):
+        t0, c0 = _SPEED_RAMP[i]
+        t1, c1 = _SPEED_RAMP[i + 1]
+        if t <= t1:
+            f = 0.0 if t1 <= t0 else (t - t0) / (t1 - t0)
+            return tuple(int(round(c0[k] + (c1[k] - c0[k]) * f)) for k in range(3))
+    return _SPEED_RAMP[-1][1]
+
+
+def _map_overlay_html(headline=None, stats=None, vmax_kmh=None):
+    """Werte ins Kartenbild legen: grosse Zahl oben links, Wertezeile unten,
+    dazu die Farbskala der Tracklinie.
+
+    Alles `pointer-events:none`, damit Ziehen und Zoomen weiter funktionieren.
+    Wenn unten eine Wertezeile sitzt, wird Leaflets Attribution nach oben
+    geschoben - sie MUSS sichtbar bleiben (Lizenz von OpenStreetMap und Esri).
+    """
+    def esc(s):
+        return (str(s).replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;").replace('"', "&quot;"))
+
+    out = []
+    if headline:
+        out.append(
+            "<div class='ov ov-big'><div class='l'>{}</div>"
+            "<div class='v'>{}<span>{}</span></div></div>".format(
+                esc(headline.get("label", "")), esc(headline.get("value", "")),
+                esc(headline.get("unit", "")))
+        )
+    if vmax_kmh and vmax_kmh > 0:
+        stops = ", ".join(
+            "rgb({},{},{}) {}%".format(*(_speed_color(i / 4.0) + (i * 25,)))
+            for i in range(5)
+        )
+        out.append(
+            "<div class='ov ov-leg'><div class='t'><span>slow</span>"
+            "<span>{:.0f} km/h</span></div>"
+            "<div class='bar' style='background:linear-gradient(90deg,{})'></div>"
+            "</div>".format(vmax_kmh, stops)
+        )
+    if stats:
+        cells = "".join(
+            "<div><div class='v'>{}<span>{}</span></div>"
+            "<div class='l'>{}</div></div>".format(
+                esc(s.get("value", "")), esc(s.get("unit", "")), esc(s.get("label", "")))
+            for s in stats
+        )
+        out.append("<div class='ov ov-row'>{}</div>".format(cells))
+        # Wertezeile ist ~48 px hoch: Attribution UND Legende darueber heben.
+        # Die Attribution darf die Zeile nicht verschwinden lassen (Lizenz).
+        out.append("<style>.leaflet-bottom{bottom:48px;}"
+                   ".ov-leg{bottom:58px;}</style>")
+    return "".join(out)
+
+
 _MAP_TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<style>html,body,#map{height:100%;margin:0;background:#06222e;}
-.leaflet-container{background:#06222e;} .leaflet-control-attribution{font-size:10px;}</style>
-</head><body><div id="map"></div>
+<style>html,body{height:100%;margin:0;background:#06222e;}
+/* relative: Bezugsrahmen fuer die absolut gesetzten Werte-Kaesten */
+body{position:relative;}
+#map{height:100%;}
+.leaflet-container{background:#06222e;} .leaflet-control-attribution{font-size:10px;}
+/* Werte im Kartenbild. pointer-events:none -> Karte bleibt bedienbar. */
+.ov{position:absolute;z-index:500;pointer-events:none;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+.ov-big{top:12px;left:12px;background:rgba(4,20,26,.70);border-radius:14px;
+    border:1px solid rgba(255,255,255,.16);padding:8px 15px 9px;
+    box-shadow:0 4px 18px rgba(0,0,0,.35);}
+.ov-big .l{font-size:10px;letter-spacing:1.7px;text-transform:uppercase;color:#9fd9e3;}
+.ov-big .v{font-size:31px;font-weight:800;color:#fff;line-height:1.08;
+    letter-spacing:-.5px;}
+.ov-big .v span{font-size:14px;font-weight:700;color:#bfe7ee;margin-left:5px;
+    letter-spacing:0;}
+.ov-row{bottom:0;left:0;right:0;display:flex;background:rgba(4,20,26,.74);
+    border-top:1px solid rgba(255,255,255,.14);}
+.ov-row>div{flex:1;padding:6px 8px 7px;text-align:center;min-width:0;}
+.ov-row .v{font-size:17px;font-weight:800;color:#fff;letter-spacing:-.3px;
+    white-space:nowrap;}
+.ov-row .v span{font-size:10px;font-weight:700;color:#bfe7ee;margin-left:3px;
+    letter-spacing:0;}
+.ov-row .l{font-size:9px;letter-spacing:1.2px;text-transform:uppercase;
+    color:#9fd9e3;margin-top:1px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;}
+.ov-leg{bottom:12px;left:12px;background:rgba(4,20,26,.70);border-radius:10px;
+    border:1px solid rgba(255,255,255,.14);padding:5px 9px 6px;}
+.ov-leg .bar{height:6px;width:118px;border-radius:99px;}
+.ov-leg .t{display:flex;justify-content:space-between;font-size:9px;
+    color:#bfe7ee;letter-spacing:.6px;margin-bottom:3px;}
+/* Handy: vier Werte à 17px passen nicht in eine ~330px breite Karte. */
+@media(max-width:520px){
+  .ov-big{top:8px;left:8px;padding:6px 11px 7px;}
+  .ov-big .v{font-size:23px;}
+  .ov-big .v span{font-size:12px;margin-left:3px;}
+  .ov-big .l{font-size:9px;letter-spacing:1.2px;}
+  .ov-row>div{padding:5px 3px 6px;}
+  .ov-row .v{font-size:13px;}
+  .ov-row .v span{font-size:9px;margin-left:2px;}
+  .ov-row .l{font-size:8px;letter-spacing:.5px;}
+  .ov-leg{left:8px;padding:4px 7px 5px;}
+  .ov-leg .bar{width:84px;}
+}</style>
+</head><body><div id="map"></div>__OVERLAY__
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 var pts=__PTS__, cols=__COLS__;
@@ -11710,8 +11820,11 @@ try{
   /* Die Wahl merken: sonst springt die Karte bei jedem Moduswechsel und jedem
      Seitenaufruf auf Strasse zurueck. localStorage kann im iFrame gesperrt sein,
      darum in try/catch - dann bleibt es eben bei der Strassenkarte. */
-  var want='street';
-  try{ want=localStorage.getItem('ws_map_layer')||'street'; }catch(e){}
+  /* Satellit ist die Startansicht: auf dem Wasser sagt ein Luftbild mehr als
+     eine Strassenkarte (Sandbank, Riff, wo der Strand bricht). Wer umschaltet,
+     bekommt seine Wahl beim naechsten Mal wieder. */
+  var want='sat';
+  try{ want=localStorage.getItem('ws_map_layer')||'sat'; }catch(e){}
   var map=L.map('map',{scrollWheelZoom:true,
                        layers:[want==='sat'?sat:street]});
   L.control.layers({'Map':street,'Satellite':sat},null,
@@ -11789,10 +11902,16 @@ def _track_segment_for_mode(track_pts, duration_s, mode):
     return pts, label
 
 
-def _track_map_html(track_pts, duration_s):
-    """Interaktive Leaflet-Karte (OpenStreetMap-Kacheln, verschieb-/zoombar) mit
+def _track_map_html(track_pts, duration_s, headline=None, stats=None):
+    """Interaktive Leaflet-Karte (Satellit oder Strasse, verschieb-/zoombar) mit
     speed-gefärbter Tracklinie. Rendert im BROWSER (iFrame) -> fast keine Server-
-    last, anders als pydeck. Gibt (html, height) zurück oder ("", 0)."""
+    last, anders als pydeck. Gibt (html, height) zurück oder ("", 0).
+
+    `headline` = {"label","value","unit"} als grosse Zahl oben links im Bild,
+    `stats` = Liste gleicher Dicts als Wertezeile am unteren Rand. Beide optional -
+    ohne sie sieht die Karte aus wie vorher. Die Farbskala der Linie wird immer
+    eingeblendet, sonst ist die Faerbung nur Dekoration.
+    """
     if not track_pts or len(track_pts) < 2:
         return "", 0
     n0 = len(track_pts)
@@ -11809,16 +11928,14 @@ def _track_map_html(track_pts, duration_s):
     vmax = float(np.percentile(v, 95)) if v.size else 1.0
     if vmax <= 0:
         vmax = 1.0
-    cols = []
-    for i in range(n - 1):
-        t = min(1.0, float(v[i]) / vmax)
-        r = int(0x5b + (0x2b - 0x5b) * t)
-        g = int(0x7b + (0xd4 - 0x7b) * t)
-        b = int(0x86 + (0xd9 - 0x86) * t)
-        cols.append("rgb(%d,%d,%d)" % (r, g, b))
+    cols = ["rgb(%d,%d,%d)" % _speed_color(float(v[i]) / vmax)
+            for i in range(n - 1)]
     pts_js = json.dumps([[round(p[0], 5), round(p[1], 5)] for p in pts])
+    # vmax ist das 95%-Perzentil in Knoten -> fuer die Legende in km/h.
+    overlay = _map_overlay_html(headline, stats, vmax * 1.852)
     html = (_MAP_TEMPLATE.replace("__PTS__", pts_js)
-            .replace("__COLS__", json.dumps(cols)))
+            .replace("__COLS__", json.dumps(cols))
+            .replace("__OVERLAY__", overlay))
     return html, 430
 
 
@@ -11984,11 +12101,27 @@ def render_history_overview(record):
             _series = _speed_series_from_track(track_pts, _mdur)
             _dt = _series[2] if _series else 5.0
             _mdur = (len(_mpts) - 1) * _dt
-        _mhtml, _mh = _track_map_html(_mpts, _mdur)
+
+        # Die Werte der Session mit ins Bild: die grosse Zahl ist der Top-Speed,
+        # darunter die Wertungen. Nur was wirklich vorliegt - ein Feld ohne Wert
+        # bekommt keine leere Kachel.
+        _hl = None
+        if num("speed_1s_kmh"):
+            _hl = {"label": "Top 2 s", "value": f"{num('speed_1s_kmh'):.2f}",
+                   "unit": "km/h"}
+        _mstats = []
+        for _k, _lb, _un, _dc in (("speed_30s_kmh", "30 s", "km/h", 2),
+                                  ("speed_500m_kmh", "500 m", "km/h", 2),
+                                  ("speed_nm_kmh", "1 nm", "km/h", 2),
+                                  ("longest_run_km", "Longest run", "km", 2)):
+            _val = num(_k)
+            if _val:
+                _mstats.append({"label": _lb, "value": f"{_val:.{_dc}f}", "unit": _un})
+        _mhtml, _mh = _track_map_html(_mpts, _mdur, headline=_hl, stats=_mstats)
         if _mhtml:
             components.html(_mhtml, height=_mh, scrolling=False)
-            st.caption("🟢 start · 🔴 finish · line colour = speed (dim → aqua) · "
-                       "drag to pan, scroll to zoom")
+            st.caption("🟢 start · 🔴 finish · line colour = speed (see scale) · "
+                       "switch Map/Satellite top right · drag to pan, scroll to zoom")
         else:
             _tsvg, _th = _track_svg(track_pts, num("duration_s"))
             if _tsvg:
@@ -13180,11 +13313,24 @@ def render_session_trim(row):
     if len(part) < 4:
         st.warning("Der gewählte Abschnitt ist zu kurz.")
         return
-    html, height = _track_map_html(part, (len(part) - 1) * dt)
+    _pdur = (len(part) - 1) * dt
+    # Werte VOR der Karte rechnen: dann steht der Top-Speed des Zuschnitts gross
+    # im Bild und eine Anfahrt ueber Land verraet sich auf einen Blick.
+    new = _metrics_from_track(part, _pdur, _sport)
+    _thl, _tstats = None, []
+    if new:
+        if new.get("speed_1s_kmh"):
+            _thl = {"label": "Top 2 s", "value": f"{new['speed_1s_kmh']:.2f}",
+                    "unit": "km/h"}
+        for _k, _lb, _un in (("speed_30s_kmh", "30 s", "km/h"),
+                             ("speed_500m_kmh", "500 m", "km/h"),
+                             ("longest_run_km", "Längster Run", "km")):
+            if new.get(_k):
+                _tstats.append({"label": _lb, "value": f"{new[_k]:.2f}", "unit": _un})
+    html, height = _track_map_html(part, _pdur, headline=_thl, stats=_tstats)
     if html:
         components.html(html, height=height)
 
-    new = _metrics_from_track(part, (len(part) - 1) * dt, _sport)
     if not new:
         return
     trimmed = (i0 > 0) or (i1 < n - 1)
@@ -18212,7 +18358,15 @@ def render_public_live_page():
             seg = _fastest_track_segment(track, row.get("duration_s"))
         if seg:
             pts, v_kmh, dist_m, secs = seg
-            html, height = _track_map_html(pts, secs)
+            # Grosse Zahl = der Schnitt dieses Abschnitts, denn genau der ist
+            # hier gezeigt. Daneben Laenge und Dauer, damit die Zahl nachprueft.
+            html, height = _track_map_html(
+                pts, secs,
+                headline={"label": "Fastest stretch", "value": f"{v_kmh:.2f}",
+                          "unit": "km/h"},
+                stats=[{"label": "Distance", "value": f"{dist_m:.0f}", "unit": "m"},
+                       {"label": "Duration", "value": f"{secs:.0f}", "unit": "s"}],
+            )
             if html:
                 components.html(html, height=height)
                 st.caption(
