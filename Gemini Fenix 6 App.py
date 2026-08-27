@@ -172,21 +172,18 @@ def _last_update_str():
 
 
 LAST_UPDATE = _last_update_str()
-BETA_WHY = (
-    "**MyWaterSessions is brand new.** Everything here works, but it hasn't had a real "
-    "load test yet — so far there simply haven't been many riders on the server at the "
-    "same time. So you might occasionally hit a rough edge or a slower moment. "
-    "We're improving it constantly — thanks for being one of the first on board! 🌊"
-)
 
 
 def render_beta_note():
-    """Kleines 'Last update'-Datum + ?-Popover, das erklaert, warum Beta."""
-    c1, c2, _sp = st.columns([2, 1.4, 6.6], vertical_alignment="center")
-    c1.caption(f"🔧 Last update: {LAST_UPDATE}")
-    with c2.popover("❓ Why Beta?"):
-        st.markdown(BETA_WHY)
-        st.markdown("[📋 What's new — changelog](https://mywatersessions.com/changelog.html)")
+    """Datum des letzten Deploys, daneben der Changelog.
+
+    Hier stand ein '❓ Why Beta?'-Popover mit Erklaertext. Das sagt jetzt das
+    Abzeichen an der Wortmarke ("Beta 0.9.6") - eine Stelle genuegt. Der
+    Changelog-Link lag mit im Popover und bleibt darum hier stehen, sonst waere
+    er beim Aufraeumen still verschwunden.
+    """
+    st.caption(f"🔧 Last update: {LAST_UPDATE} · "
+               "[📋 What's new](https://mywatersessions.com/changelog.html)")
 
 
 SPORT_META = {
