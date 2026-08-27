@@ -14838,16 +14838,28 @@ _track_pageview("safety" if _is_safety_view else "rankings-help" if _is_rankings
 
 # Header-Umschalter Sportarten + ganz rechts die reine Spots-Seite. Klick setzt
 # ?sport= bzw. ?view=spots in der URL (bleibt über Reload/Link erhalten).
+#
+# Beat the Beach, Live und My Results zeigen je Sportart andere Zahlen (alle drei
+# fragen active_sport()). Auf diesen Seiten BLEIBT man deshalb beim Sportwechsel -
+# vorher warf der Klick die Ansicht weg und man landete auf der Startseite, konnte
+# dort also gar nicht zwischen den Sportarten vergleichen.
+# Die Spots-Seite und die Textseiten (Sicherheit, Ranglisten-Hilfe) haengen nicht
+# am Sport; dort fuehrt der Klick weiter auf die Startseite der Sportart, sonst
+# klickt man ins Leere und nichts passiert sichtbar.
+_SPORT_AWARE_VIEWS = ("beat", "live", "results")
 _sw_cols = st.columns([2] * len(SPORTS) + [2, 2, 2, 2])
 for _i, _key in enumerate(SPORTS):
     if _sw_cols[_i].button(
         SPORT_META[_key]["label"],
         key=f"switch_sport_{_key}",
         use_container_width=True,
-        type="primary" if (_key == sport and not _is_spots_view and not _is_results_view
-                           and not _is_beat_view and not _is_live_view) else "secondary",
+        # Der aktive Sport ist jetzt auch auf den drei Ansichten hervorgehoben -
+        # sonst sieht man dort nicht, welche Sportart man gerade anschaut.
+        type="primary" if (_key == sport and not _is_spots_view
+                           and not _is_safety_view and not _is_rankings_help)
+        else "secondary",
     ):
-        if "view" in st.query_params:
+        if st.query_params.get("view") not in _SPORT_AWARE_VIEWS and "view" in st.query_params:
             del st.query_params["view"]
         st.query_params["sport"] = _key
         st.rerun()
