@@ -445,6 +445,10 @@ TEMPLATE = """<!doctype html>
   .hero{{ background: linear-gradient(180deg, rgba(6,34,46,.55), rgba(6,34,46,.92)), radial-gradient(1200px 500px at 70% -10%, #0b6b8c, #06222e 60%); padding:60px 0 40px; text-align:center; }}
   .logo{{ font-size:clamp(24px,4vw,34px); font-weight:800; }}
   .logo .dot{{ color:var(--aqua); }}
+  /* Sport-Piktogramm ueber der Ueberschrift. Die Datei ist eine weisse
+     Freistellung und liegt damit richtig auf dem dunklen Hero. */
+  .sport-icon{{ display:block; width:clamp(58px,9vw,96px); height:auto;
+     margin:20px auto 2px; filter:drop-shadow(0 4px 16px rgba(0,0,0,.45)); }}
   h1{{ font-size:clamp(26px,4.5vw,40px); margin:14px 0 6px; }}
   .sub{{ color:#bfe7ee; font-size:clamp(16px,2.2vw,19px); max-width:680px; margin:0 auto; }}
   .langbar{{ font-size:13px; margin:0 0 10px; }}
@@ -472,6 +476,7 @@ TEMPLATE = """<!doctype html>
   <div class="wrap">
     <div class="langbar">{langbar}</div>
     <div class="logo">MyWaterSessions<span class="dot">.</span></div>
+    <img class="sport-icon" src="/icons/{sportkey}.png" alt="" width="96" height="96">
     <h1>{h1}</h1>
     <p class="sub">{sub}</p>
     <a class="btn" href="{app}/?sport={sportkey}">{cta}</a>

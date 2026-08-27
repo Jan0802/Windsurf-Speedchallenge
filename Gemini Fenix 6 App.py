@@ -8398,12 +8398,19 @@ def render_spot_tv(cfg):
     # Aktuelle Sportart als gläsernes Kästchen unter dem Spot-Namen (Wechsel über
     # das Dropdown in den Controls direkt darunter).
     _sp_label = SPORT_META.get(cfg["sport"], {}).get("label", cfg["sport"] or "—")
+    # Piktogramm mit ins Kaestchen. Weiss freigestellt, passt also auf das dunkle
+    # TV-Bild; fehlt die Datei, steht dort nur der Name.
+    _sp_ic = image_to_base64(app_path("assets", "icons", f"{cfg['sport']}.png"))
+    _sp_ic_html = (
+        f"<img src='data:image/png;base64,{_sp_ic}' alt='' "
+        "style='height:30px;width:30px;vertical-align:-7px;margin-right:10px;'>"
+        if _sp_ic else "")
     sport_chip = (
         "<div style='display:inline-block;margin-top:8px;padding:5px 18px;"
         "border-radius:999px;background:rgba(43,212,217,.14);"
         "border:1px solid rgba(43,212,217,.45);color:#8fe3ff;font-weight:800;"
         "font-size:20px;letter-spacing:.5px;backdrop-filter:blur(4px);'>"
-        f"{_sp_label}</div>")
+        f"{_sp_ic_html}{_sp_label}</div>")
 
     # Sponsor/Werbung oben rechts, je Spot (auf hellem Chip, damit dunkle Logos
     # sichtbar bleiben). Logo wenn vorhanden, sonst "Presented by <Name>".
@@ -14847,6 +14854,47 @@ for _i, _key in enumerate(SPORTS):
             del st.query_params["view"]
         st.query_params["sport"] = _key
         st.rerun()
+# Sport-Piktogramm oben in den Umschalt-Knopf. Streamlit haengt jedem Widget mit
+# key die Klasse "st-key-<key>" an, darum laesst sich der Knopf von aussen bemalen
+# und bleibt ein echter Knopf (schneller Rerun) - HTML-Links wuerden bei jedem
+# Sportwechsel die ganze App neu laden. currentColor: das Icon nimmt die
+# Textfarbe an, faerbt sich also beim aktiven Knopf automatisch mit.
+# Einmal pro Session in den <style> des Eltern-Dokuments, wie beim Hintergrund;
+# die sechs Icons sind zusammen ~50 KB und haben in keinem Rerun etwas verloren.
+# Auf dem Handy bleibt das Icon aus: dort stapeln die Spalten, sechs Kacheln
+# wuerden die halbe Seite fuellen. Fehlt eine Datei, bleibt der Knopf wie er war.
+if not st.session_state.get("_sport_tile_css"):
+    _tiles = []
+    for _key in SPORTS:
+        _ib = image_to_base64(app_path("assets", "icons", f"{_key}.png"))
+        if not _ib:
+            continue
+        _sel = f".st-key-switch_sport_{_key} button"
+        _tiles.append(
+            f"{_sel}{{flex-direction:column;height:auto;gap:3px;"
+            f"padding:9px 4px 7px;line-height:1.15;}}"
+            # Bilddaten nur EINMAL: als Variable, sonst stehen sie fuer -webkit-
+            # und ohne Prefix doppelt im Stylesheet (100 KB statt 50).
+            f"{_sel}::before{{content:'';display:block;width:38px;height:38px;"
+            f'--i:url("data:image/png;base64,{_ib}");'
+            "background-color:currentColor;"
+            "-webkit-mask:var(--i) center/contain no-repeat;"
+            "mask:var(--i) center/contain no-repeat;}"
+            f"@media(max-width:640px){{{_sel}::before{{display:none;}}"
+            f"{_sel}{{flex-direction:row;padding:initial;}}}}"
+        )
+    if _tiles:
+        st.session_state["_sport_tile_css"] = True
+        components.html(
+            "<script>(function(){try{var d=window.parent.document;"
+            "var el=d.getElementById('ws-sport-tiles');"
+            "if(!el){el=d.createElement('style');el.id='ws-sport-tiles';"
+            "d.head.appendChild(el);}"
+            "el.textContent=" + json.dumps("".join(_tiles)) + ";"
+            "}catch(e){}})();</script>",
+            height=0,
+        )
+
 if _sw_cols[len(SPORTS)].button(
     "🗺️ Spots", key="switch_view_spots", use_container_width=True,
     type="primary" if _is_spots_view else "secondary",
