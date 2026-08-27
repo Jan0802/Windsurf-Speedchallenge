@@ -11979,7 +11979,10 @@ try{
      bekommt seine Wahl beim naechsten Mal wieder. */
   var want='sat';
   try{ want=localStorage.getItem('ws_map_layer')||'sat'; }catch(e){}
-  var map=L.map('map',{scrollWheelZoom:true,
+  /* Kein +/- Knopf: er sitzt oben links genau auf der Hauptkennzahl und hat ihr
+     die ersten Stellen verdeckt. Zoomen geht weiter - Finger zusammen/auseinander
+     auf dem Handy, Mausrad und Doppelklick am Rechner. */
+  var map=L.map('map',{scrollWheelZoom:true, zoomControl:false,
                        layers:[want==='sat'?sat:street]});
   L.control.layers({'Map':street,'Satellite':sat},null,
                    {position:'topright'}).addTo(map);
@@ -18617,10 +18620,15 @@ def render_public_live_page():
             if _l510:
                 _lstats.append({"label": "AVG 5×10", "value": f"{_l510:.2f}",
                                 "unit": "km/h"})
+            # Beschriftung mit der ECHTEN Laenge, nicht "Fastest stretch". Sonst
+            # liest sich der Wert wie ein Fehler: wer 56 Minuten Wasserstart
+            # uebt, braucht fuer 500 m auch mal 9 Minuten - dann stehen hier
+            # ehrliche 3,4 km/h neben einem Top-Speed von 15,6, und das sieht
+            # nach kaputt aus, obwohl beides stimmt.
             html, height = _track_map_html(
                 pts, secs,
-                headline={"label": "Fastest stretch", "value": f"{v_kmh:.2f}",
-                          "unit": "km/h"},
+                headline={"label": f"Fastest {dist_m:.0f} m",
+                          "value": f"{v_kmh:.2f}", "unit": "km/h"},
                 stats=_lstats,
             )
             if html:
