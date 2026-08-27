@@ -7130,6 +7130,52 @@ def best_average_speed(df, seconds):
     return float(best)
 
 
+def best_5x10_avg(df, count=5, seconds=10):
+    """GPS-Speedsurf-Klassiker „avg 5x10": Mittel der fuenf besten
+    10-Sekunden-Fahrten, die sich zeitlich NICHT ueberlappen.
+
+    Warum das die Kennzahl der Szene ist: ein 2-Sekunden-Spitzenwert kann ein
+    GPS-Ausrutscher sein, fuenf getrennte 10-Sekunden-Fahrten kann man nicht
+    faelschen - man muss sie fahren.
+
+    Vorgehen: gleitendes 10-s-Mittel, dann fuenfmal das Maximum nehmen und
+    jeweils das Zeitfenster darum sperren. Ein Fenster endet zum Zeitstempel und
+    reicht 10 s zurueck; zwei Fenster ueberlappen also genau dann NICHT, wenn
+    ihre Enden mindestens 10 s auseinander liegen.
+
+    WICHTIG zur Bedeutung: gezaehlt werden die fuenf besten Fenster, auch wenn
+    darunter langsame sind. Wer nur drei gute Fahrten hatte, bekommt eben ein
+    schwaches 5x10 - das ist kein Fehler, sondern der Zweck der Kennzahl. Nur
+    wenn die Aufzeichnung zu kurz fuer fuenf getrennte Fenster ist (unter etwa
+    50 s Fahrtzeit), gibt es None.
+
+    Die Auswahl ist gierig ("beste Fahrt, dann die beste uebrige"), so wie es die
+    Szene-Werkzeuge rechnen. Theoretisch koennte eine andere Fuenferkombination
+    in Summe hoeher liegen - das waere aber eine andere Definition.
+    """
+    if "timestamp" not in df.columns or "speed_kmh" not in df.columns:
+        return None
+    d = df[["timestamp", "speed_kmh"]].dropna().copy()
+    if len(d) < 2:
+        return None
+    d = d.sort_values("timestamp").set_index("timestamp")
+    roll = d["speed_kmh"].rolling(f"{seconds}s").mean().dropna()
+    if roll.empty:
+        return None
+    win = pd.Timedelta(seconds=seconds)
+    # Angebrochene Fenster am Trackanfang wegwerfen: die mitteln ueber weniger
+    # als 10 s und fielen sonst zu hoch aus.
+    roll = roll[roll.index >= roll.index[0] + win]
+    picks = []
+    while len(picks) < count and not roll.empty:
+        ts = roll.idxmax()
+        picks.append(float(roll.loc[ts]))
+        roll = roll[(roll.index <= ts - win) | (roll.index >= ts + win)]
+    if len(picks) < count:
+        return None
+    return float(sum(picks) / count)
+
+
 def best_distance_speed(df, meters):
     """Schnellste Durchschnittsgeschwindigkeit (km/h) über ein zusammenhängendes
     Streckenfenster von >= `meters` Metern – die GPS-Speedsurf-Disziplinen
@@ -12109,19 +12155,39 @@ def render_history_overview(record):
         if num("speed_1s_kmh"):
             _hl = {"label": "Top 2 s", "value": f"{num('speed_1s_kmh'):.2f}",
                    "unit": "km/h"}
-        _mstats = []
+
+        # AVG 5x10 aus dem Track rechnen, nicht aus der Datenbank: so haben auch
+        # alle alten Sessions den Wert sofort, ohne Migration und Backfill.
+        _avg510 = None
+        _d510 = _df_from_track(track_pts, num("duration_s"))
+        if _d510 is not None and not _d510.empty:
+            _avg510 = best_5x10_avg(_d510)
+
+        # Hoechstens vier Werte in die Zeile - fuenf passen auf dem Handy nicht.
+        # Reihenfolge = Wichtigkeit, gefuellt wird mit dem was vorliegt.
+        _cands = []
+        if _avg510:
+            _cands.append(("AVG 5×10", f"{_avg510:.2f}", "km/h"))
         for _k, _lb, _un, _dc in (("speed_30s_kmh", "30 s", "km/h", 2),
                                   ("speed_500m_kmh", "500 m", "km/h", 2),
-                                  ("speed_nm_kmh", "1 nm", "km/h", 2),
-                                  ("longest_run_km", "Longest run", "km", 2)):
+                                  ("longest_run_km", "Longest run", "km", 2),
+                                  ("speed_nm_kmh", "1 nm", "km/h", 2)):
             _val = num(_k)
             if _val:
-                _mstats.append({"label": _lb, "value": f"{_val:.{_dc}f}", "unit": _un})
+                _cands.append((_lb, f"{_val:.{_dc}f}", _un))
+        _mstats = [{"label": a, "value": b, "unit": c} for a, b, c in _cands[:4]]
         _mhtml, _mh = _track_map_html(_mpts, _mdur, headline=_hl, stats=_mstats)
         if _mhtml:
             components.html(_mhtml, height=_mh, scrolling=False)
             st.caption("🟢 start · 🔴 finish · line colour = speed (see scale) · "
                        "switch Map/Satellite top right · drag to pan, scroll to zoom")
+            if _avg510:
+                st.caption(
+                    f"**AVG 5×10 = {_avg510:.2f} km/h** — the average of your five "
+                    "best 10-second runs that do not overlap in time. Harder to "
+                    "fluke than a 2-second peak: one gust cannot carry it, five "
+                    "runs have to be sailed."
+                )
         else:
             _tsvg, _th = _track_svg(track_pts, num("duration_s"))
             if _tsvg:
@@ -18321,6 +18387,57 @@ def _live_label(row, records_mode):
     return base
 
 
+def _render_live_card_head(row):
+    """Kopfzeile im Stil einer Feed-Karte: links wer und wo, rechts die
+    Rahmenwerte als Chips. Nur was vorliegt bekommt ein Chip - leere Kaesten
+    sehen nach Fehler aus."""
+    def esc(s):
+        return (str(s).replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;"))
+
+    def num(key):
+        try:
+            v = float(row.get(key))
+        except (TypeError, ValueError):
+            return None
+        return v if v and v > 0 else None
+
+    dt = row.get("_d")
+    when = dt.strftime("%d.%m.%Y") if pd.notna(dt) else ""
+    chips = []
+    _w = num("wind_kmh")
+    if _w:
+        chips.append(f"💨 {_w / 1.852:.0f} kn")
+    _d = num("duration_s")
+    if _d:
+        chips.append(f"⏱️ {_fmt_hm(_d)}")
+    _t = num("temp_c")
+    if _t:
+        chips.append(f"🌡️ {_t:.0f} °C")
+    _s = esc(row.get("sail") or row.get("board") or "")
+    if _s:
+        chips.append("🎽 " + (_s[:26] + "…" if len(_s) > 27 else _s))
+    st.markdown(
+        "<style>"
+        ".lvhead{display:flex;justify-content:space-between;align-items:center;"
+        "gap:12px;flex-wrap:wrap;background:rgba(255,255,255,.05);"
+        "border:1px solid rgba(255,255,255,.13);border-radius:14px;"
+        "padding:10px 14px;margin:2px 0 10px;}"
+        ".lvname{font-size:19px;font-weight:800;color:#2bd4d9;letter-spacing:-.3px;}"
+        ".lvsub{font-size:13px;color:#cfe3ea;margin-top:1px;}"
+        ".lvchips{display:flex;gap:7px;flex-wrap:wrap;}"
+        ".lvchips span{font-size:12px;font-weight:600;color:#eaf4ff;"
+        "background:rgba(43,212,217,.13);border:1px solid rgba(43,212,217,.34);"
+        "border-radius:999px;padding:3px 10px;white-space:nowrap;}"
+        "</style>"
+        f"<div class='lvhead'><div><div class='lvname'>{esc(row.get('name') or '–')}"
+        f"</div><div class='lvsub'>{esc(row.get('_spot') or '')}"
+        f"{' · ' + when if when else ''}</div></div>"
+        f"<div class='lvchips'>{''.join(f'<span>{c}</span>' for c in chips)}</div></div>",
+        unsafe_allow_html=True,
+    )
+
+
 def render_public_live_page():
     """Öffentliche Seite (?view=live): letzte Sessions oder neue Spot-Rekorde,
     mit Karte des schnellsten Abschnitts und den Werten der Sportart."""
@@ -18349,6 +18466,8 @@ def render_public_live_page():
                         label_visibility="collapsed")
     row = rows[labels.index(pick)]
 
+    _render_live_card_head(row)
+
     cmap, cdata = st.columns([1.35, 1])
 
     with cmap:
@@ -18358,14 +18477,24 @@ def render_public_live_page():
             seg = _fastest_track_segment(track, row.get("duration_s"))
         if seg:
             pts, v_kmh, dist_m, secs = seg
+            # AVG 5x10 ueber die GANZE Session, nicht ueber den gezeigten
+            # Abschnitt - die Kennzahl ist eine Session-Aussage.
+            _l510 = None
+            _dl = _df_from_track(track, row.get("duration_s"))
+            if _dl is not None and not _dl.empty:
+                _l510 = best_5x10_avg(_dl)
             # Grosse Zahl = der Schnitt dieses Abschnitts, denn genau der ist
             # hier gezeigt. Daneben Laenge und Dauer, damit die Zahl nachprueft.
+            _lstats = [{"label": "Distance", "value": f"{dist_m:.0f}", "unit": "m"},
+                       {"label": "Duration", "value": f"{secs:.0f}", "unit": "s"}]
+            if _l510:
+                _lstats.append({"label": "AVG 5×10", "value": f"{_l510:.2f}",
+                                "unit": "km/h"})
             html, height = _track_map_html(
                 pts, secs,
                 headline={"label": "Fastest stretch", "value": f"{v_kmh:.2f}",
                           "unit": "km/h"},
-                stats=[{"label": "Distance", "value": f"{dist_m:.0f}", "unit": "m"},
-                       {"label": "Duration", "value": f"{secs:.0f}", "unit": "s"}],
+                stats=_lstats,
             )
             if html:
                 components.html(html, height=height)
