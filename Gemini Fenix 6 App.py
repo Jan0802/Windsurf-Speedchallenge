@@ -11698,9 +11698,28 @@ _MAP_TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
 <script>
 var pts=__PTS__, cols=__COLS__;
 try{
-  var map=L.map('map',{scrollWheelZoom:true});
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    {maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
+  var street=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom:19, attribution:'&copy; OpenStreetMap'});
+  /* Satellit: Esri World Imagery, ohne Schluessel nutzbar, Attribution Pflicht.
+     ACHTUNG die Kachel-Reihenfolge ist {z}/{y}/{x} - genau umgekehrt zu OSM.
+     Vertauscht liefert der Server stumm Bilder von der falschen Stelle. */
+  var sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/'
+    +'World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {maxZoom:19, attribution:'Imagery &copy; Esri, Maxar, Earthstar Geographics'
+      +' &middot; Powered by Esri'});
+  /* Die Wahl merken: sonst springt die Karte bei jedem Moduswechsel und jedem
+     Seitenaufruf auf Strasse zurueck. localStorage kann im iFrame gesperrt sein,
+     darum in try/catch - dann bleibt es eben bei der Strassenkarte. */
+  var want='street';
+  try{ want=localStorage.getItem('ws_map_layer')||'street'; }catch(e){}
+  var map=L.map('map',{scrollWheelZoom:true,
+                       layers:[want==='sat'?sat:street]});
+  L.control.layers({'Map':street,'Satellite':sat},null,
+                   {position:'topright'}).addTo(map);
+  map.on('baselayerchange',function(ev){
+    try{ localStorage.setItem('ws_map_layer',
+                              ev.name==='Satellite'?'sat':'street'); }catch(e2){}
+  });
   for(var i=0;i<cols.length;i++){
     L.polyline([pts[i],pts[i+1]],{color:cols[i],weight:4,opacity:.95,lineCap:'round'}).addTo(map);
   }
