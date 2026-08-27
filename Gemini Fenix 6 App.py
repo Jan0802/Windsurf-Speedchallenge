@@ -14815,8 +14815,6 @@ if st.query_params.get("state", "").startswith("strava") and "code" in st.query_
             del st.query_params[_k]
     st.rerun()
 
-logo_img = image_to_base64(app_path("assets", "windsurfer.png"))
-
 # Aktiver Sport (aus ?sport=). Standard: Windsurf.
 sport = active_sport()
 _is_spots_view = st.query_params.get("view") == "spots"
@@ -14939,21 +14937,24 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if sport == "windsurf" and logo_img:
-    logo_icon = (
-        f'<img src="data:image/png;base64,{logo_img}" '
-        'style="height:1em;vertical-align:-0.15em;margin-right:.15em;" alt="">'
-    )
-else:
-    logo_icon = SPORT_META[sport]["emoji"]
+# Sport-Piktogramm im Hero: weiss freigestellt, liegt damit richtig auf dem
+# dunklen Titelfoto. Fehlt die Datei, bleibt der Hero wie vorher (kein Fehler).
+_sport_icon = image_to_base64(app_path("assets", "icons", f"{sport}.png"))
+_hero_icon = (
+    f'<img class="hero-icon" src="data:image/png;base64,{_sport_icon}" '
+    f'alt="{SPORT_META[sport]["label"]}">' if _sport_icon else ""
+)
 
 _hero_html = f"""
 <div class="hero">
-    <div class="hero-content">
-        <div class="logo">MyWaterSessions<span class="logo-dot">.</span>{BETA_BADGE}</div>
-        <div class="logo-rule"></div>
-        <div class="title">{SPORT_META[sport]["title"]}</div>
-        <p>The home for everyone active on the water</p>
+    <div class="hero-row">
+        {_hero_icon}
+        <div class="hero-content">
+            <div class="logo">MyWaterSessions<span class="logo-dot">.</span>{BETA_BADGE}</div>
+            <div class="logo-rule"></div>
+            <div class="title">{SPORT_META[sport]["title"]}</div>
+            <p>The home for everyone active on the water</p>
+        </div>
     </div>
 </div>
 """
