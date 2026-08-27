@@ -801,6 +801,7 @@ sessions_table = Table(
     Column("speed_500m_kmh", Float),     # beste Ø-Geschwindigkeit über 500 m
     Column("speed_nm_kmh", Float),       # beste Ø-Geschwindigkeit über 1 Seemeile (1852 m)
     Column("speed_5x10_kmh", Float),     # Mittel der 5 besten 10-s-Fahrten (avg 5x10)
+    Column("speed_alpha500_kmh", Float), # schnellste 500 m mit Halse (Start/Ende < 50 m)
     Column("wind_kmh", Float),
     Column("gust_kmh", Float),
     Column("wind_dir_deg", Float),
@@ -1286,6 +1287,7 @@ _WATCH_COLUMNS = {
     "speed_500m_kmh": "DOUBLE PRECISION",
     "speed_nm_kmh": "DOUBLE PRECISION",
     "speed_5x10_kmh": "DOUBLE PRECISION",
+    "speed_alpha500_kmh": "DOUBLE PRECISION",
     "jumps": "INTEGER",
     "max_airtime_s": "DOUBLE PRECISION",
     "max_jump_m": "DOUBLE PRECISION",
@@ -4470,6 +4472,7 @@ RECORD_METRICS = [
     {"key": "speed_500m_kmh", "label": "Best 500 m", "unit": "km/h", "decimals": 2},
     {"key": "speed_nm_kmh", "label": "Best nautical mile", "unit": "km/h", "decimals": 2},
     {"key": "speed_5x10_kmh", "label": "Avg 5×10", "unit": "km/h", "decimals": 2},
+    {"key": "speed_alpha500_kmh", "label": "Alpha 500", "unit": "km/h", "decimals": 2},
     {"key": "longest_run_km", "label": "Longest run", "unit": "km", "decimals": 3},
     {"key": "total_distance_km", "label": "Total distance", "unit": "km", "decimals": 2},
 ]
@@ -4699,6 +4702,7 @@ def _rank_default_tables(sport):
 RANKING_TABLE_LABELS = {
     "30s": "🏆 Best 30 s", "2s": "⚡ Top 2 s", "500m": "📏 Best 500 m",
     "nm": "⚓ Nautical mile", "5x10": "🎯 Avg 5×10",
+    "alpha": "🔄 Alpha 500",
     "run": "🚩 Longest run", "total": "👥 Total distance",
     "time": "⏱️ Most water time",
     "airtime": "🪂 Best airtime", "jump": "🚀 Highest jump", "airs": "🔁 Most airs",
@@ -5689,6 +5693,8 @@ Every ranking shows each rider's best value (unless noted). Use the filters (spo
 - **🏆 Best 30 s** — your fastest 30-second average. Rewards holding speed, not just one gust.
 - **📏 Best 500 m** — fastest time over a 500 m stretch.
 - **⚓ Nautical mile** — fastest time over one nautical mile (1852 m).
+- **🎯 Avg 5×10** — the average of your five best 10-second runs that do not overlap in time. A 2-second peak can be a GPS glitch; five separate runs have to be sailed. Only the five best count, so a session with three good runs and a lot of standing scores lower – that is the point.
+- **🔄 Alpha 500** — fastest 500 m whose start and finish are less than 50 m apart, so a jibe has to be inside it. A straight downwind blast does not count. **Depends on your watch:** we compute it from the GPS track, and watches thin that track out. If the points are far apart, the 50 m test gets blurry and Alpha stays empty – that is the recording rate, not a mistake.
 - **🚩 Longest run** — the longest distance you rode in one go without stopping.
 - **👥 Total distance** — how far you travelled across all your sessions, added up.
 
@@ -5728,6 +5734,8 @@ Jede Rangliste zeigt den besten Wert je Fahrer (wenn nicht anders vermerkt). Üb
 - **🏆 Beste 30 s** — dein schnellster 30-Sekunden-Schnitt. Belohnt gehaltenes Tempo, nicht nur eine Böe.
 - **📏 Beste 500 m** — schnellste Zeit über 500 m.
 - **⚓ Seemeile** — schnellste Zeit über eine Seemeile (1852 m).
+- **🎯 Avg 5×10** — der Schnitt deiner fünf besten 10-Sekunden-Fahrten, die sich zeitlich nicht überlappen. Ein 2-Sekunden-Spitzenwert kann ein GPS-Ausrutscher sein, fünf getrennte Fahrten muss man fahren. Es zählen nur die fünf besten – wer drei gute Fahrten hatte und viel gestanden ist, bekommt entsprechend weniger. Genau das ist der Sinn.
+- **🔄 Alpha 500** — die schnellsten 500 m, bei denen Start und Ende weniger als 50 m auseinanderliegen; es muss also eine Halse drin sein. Eine Gerade mit Rückenwind zählt nicht. **Hängt von deiner Uhr ab:** wir rechnen es aus dem GPS-Track, und Uhren dünnen den aus. Liegen die Punkte weit auseinander, wird die 50-Meter-Prüfung unscharf und Alpha bleibt leer – das ist die Aufzeichnungsrate, kein Fehler.
 - **🚩 Longest run** — die längste Strecke, die du am Stück ohne Stopp gefahren bist.
 - **👥 Gesamtdistanz** — alle deine Sessions zusammengezählt.
 
@@ -5767,6 +5775,8 @@ Elke ranglijst toont de beste waarde per rijder (tenzij anders vermeld). Met de 
 - **🏆 Beste 30 s** — je snelste gemiddelde over 30 seconden. Beloont volgehouden snelheid, niet één vlaag.
 - **📏 Beste 500 m** — snelste tijd over 500 m.
 - **⚓ Zeemijl** — snelste tijd over één zeemijl (1852 m).
+- **🎯 Avg 5×10** — het gemiddelde van je vijf beste runs van 10 seconden die elkaar in tijd niet overlappen. Een piek van 2 seconden kan een GPS-foutje zijn; vijf losse runs moet je varen. Alleen de vijf beste tellen – drie goede runs en veel stilstaan geeft dus een lagere score. Dat is de bedoeling.
+- **🔄 Alpha 500** — de snelste 500 m waarvan start en finish minder dan 50 m van elkaar liggen; er moet dus een gijp in zitten. Een rechte lijn met de wind mee telt niet. **Afhankelijk van je horloge:** we rekenen het uit de GPS-track, en horloges dunnen die uit. Liggen de punten ver uit elkaar, dan wordt de 50-metertoets onscherp en blijft Alpha leeg – dat is de opnamefrequentie, geen fout.
 - **🚩 Langste run** — de langste afstand die je in één keer zonder stoppen voer.
 - **👥 Totale afstand** — al je sessies bij elkaar opgeteld.
 
@@ -5806,6 +5816,8 @@ Chaque classement montre la meilleure valeur par rider (sauf mention contraire).
 - **🏆 Meilleur 30 s** — ta meilleure moyenne sur 30 secondes. Récompense la vitesse tenue, pas une seule rafale.
 - **📏 Meilleur 500 m** — meilleur temps sur 500 m.
 - **⚓ Mille nautique** — meilleur temps sur un mille nautique (1852 m).
+- **🎯 Avg 5×10** — la moyenne de tes cinq meilleures runs de 10 secondes qui ne se chevauchent pas dans le temps. Une pointe de 2 secondes peut être un raté du GPS ; cinq runs séparées, il faut les naviguer. Seules les cinq meilleures comptent – trois bonnes runs et beaucoup d'attente donnent donc moins. C'est justement le but.
+- **🔄 Alpha 500** — les 500 m les plus rapides dont le départ et l'arrivée sont à moins de 50 m l'un de l'autre : il faut donc un empannage dedans. Une ligne droite au portant ne compte pas. **Dépend de ta montre :** nous le calculons depuis la trace GPS, et les montres l'allègent. Si les points sont espacés, le test des 50 m devient flou et Alpha reste vide – c'est la fréquence d'enregistrement, pas une erreur.
 - **🚩 Plus longue run** — la plus longue distance parcourue d'un seul trait sans t'arrêter.
 - **👥 Distance totale** — toutes tes sessions additionnées.
 
@@ -5845,6 +5857,8 @@ Cada clasificación muestra el mejor valor por rider (salvo que se indique). Con
 - **🏆 Mejor 30 s** — tu mejor media en 30 segundos. Premia mantener la velocidad, no una sola racha.
 - **📏 Mejor 500 m** — mejor tiempo en 500 m.
 - **⚓ Milla náutica** — mejor tiempo en una milla náutica (1852 m).
+- **🎯 Avg 5×10** — la media de tus cinco mejores tramos de 10 segundos que no se solapan en el tiempo. Un pico de 2 segundos puede ser un fallo del GPS; cinco tramos separados hay que navegarlos. Solo cuentan los cinco mejores: tres buenos tramos y mucho tiempo parado dan menos. Ahí está la idea.
+- **🔄 Alpha 500** — los 500 m más rápidos cuyo inicio y final están a menos de 50 m: tiene que haber una trasluchada dentro. Una línea recta con viento a favor no cuenta. **Depende de tu reloj:** lo calculamos desde el track GPS, y los relojes lo adelgazan. Si los puntos están muy separados, la prueba de los 50 m se vuelve imprecisa y Alpha queda vacío – es la frecuencia de grabación, no un error.
 - **🚩 Run más larga** — la distancia más larga que recorriste de un tirón sin parar.
 - **👥 Distancia total** — todas tus sesiones sumadas.
 
@@ -6653,6 +6667,39 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                                            gear_label),
                          width="stretch", hide_index=True, height=df_height(len(r5)))
 
+    def _r_alpha(c):
+        """Alpha 500: schnellste 500 m MIT Halse (Start/Ende unter 50 m)."""
+        with c:
+            st.markdown("### 🔄 Alpha 500")
+            st.caption("Fastest 500 m whose start and finish are less than 50 m "
+                       "apart – so a jibe has to be in it. A straight downwind "
+                       "blast does not count here.")
+            ra = ranking[fin_cols + [
+                "date", "name", "speed_alpha500_kmh",
+                "surfspot", "board", "sail", "Weather", "Trust",
+            ]].copy()
+            ra = ra[pd.to_numeric(ra["speed_alpha500_kmh"], errors="coerce") > 0]
+            ra = (
+                ra.sort_values("speed_alpha500_kmh", ascending=False)
+                .drop_duplicates(subset="name", keep="first")
+                .reset_index(drop=True).head(RANKING_TOP_N)
+            )
+            if ra.empty:
+                st.caption("No entries yet – needs a GPS track with a jibe inside "
+                           "500 m. Coarse tracks may miss it: see the manual.")
+                return
+            ra.insert(0, "Rank", ra.index + 1)
+            ra["alpha kn"] = (pd.to_numeric(ra["speed_alpha500_kmh"], errors="coerce")
+                              / 1.852).round(2)
+            ra = ra.rename(columns={
+                "date": "Date", "name": "Name", "surfspot": "Surf spot",
+                "board": "Board", "sail": gear_label,
+                "speed_alpha500_kmh": "alpha km/h",
+            })
+            st.dataframe(_order_table_cols(_mobile_slim(ra), extra.get("columns"),
+                                           gear_label),
+                         width="stretch", hide_index=True, height=df_height(len(ra)))
+
     def _r_run(c):
         with c:
             st.markdown("### 🚩 Longest run")
@@ -6803,6 +6850,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             _avail.append(("nm", _r_nm))
         if "speed_5x10_kmh" in ranking.columns:
             _avail.append(("5x10", _r_5x10))
+        if "speed_alpha500_kmh" in ranking.columns:
+            _avail.append(("alpha", _r_alpha))
         _avail += [("run", _r_run), ("total", _r_total)]
         if _sp == "sup":
             _avail += [("strokes", _r_strokes), ("cadence", _r_cadence)]
@@ -7244,6 +7293,69 @@ def best_distance_speed(df, meters):
         dt = t[j] - t[i]
         if dt > 0:
             v = (dist[j] - dist[i]) / dt * 3.6  # m/s -> km/h
+            if v > best:
+                best = v
+    return best if best > 0 else None
+
+
+def best_alpha_500(df, meters=500.0, max_gap_m=50.0, slack=1.35):
+    """Alpha 500: schnellste 500-m-Fahrt, deren Start und Ende hoechstens 50 m
+    auseinander liegen - innerhalb der Strecke muss also gehalst werden.
+
+    Warum die Szene das wertet: eine Gerade mit Rueckenwind zaehlt nicht, man
+    muss wenden und wieder Hoehe machen. Die Kennzahl misst Koennen, nicht
+    Bedingungen.
+
+    Vorgehen: fuer jeden Startpunkt das kuerzeste Fenster mit >= `meters` suchen
+    (Zwei-Zeiger wie best_distance_speed) und von dort nach oben, bis Start und
+    Ende nah genug sind - hoechstens bis `slack` mal die Strecke, sonst waere es
+    keine 500-m-Fahrt mehr. Ein laengeres Fenster ist immer langsamer, darum ist
+    die ERSTE Erfuellung fuer diesen Start auch die schnellste.
+
+    Braucht lat/lon UND kumulierte Distanz. Fehlt eins, gibt es None: eine
+    FIT-Datei ohne Positionen kann kein Alpha haben.
+
+    ACHTUNG Datenrate: bei einem groben Track (die Uhr duennt aus) liegen die
+    Punkte weit auseinander, dann ist die 50-m-Pruefung unscharf. Der Wert ist
+    so gut wie die Aufloesung des Tracks - das gehoert in jede Erklaerung.
+    """
+    for col in ("timestamp", "distance", "lat", "lon"):
+        if col not in df.columns:
+            return None
+    d = df[["timestamp", "distance", "lat", "lon"]].dropna()
+    if len(d) < 3:
+        return None
+    d = d.sort_values("timestamp")
+    ts = pd.to_datetime(d["timestamp"])
+    t = (ts - ts.iloc[0]).dt.total_seconds().to_numpy()
+    dist = pd.to_numeric(d["distance"], errors="coerce").to_numpy(dtype=float)
+    lat = d["lat"].to_numpy(dtype=float)
+    lon = d["lon"].to_numpy(dtype=float)
+    n = len(dist)
+    limit_extra = float(meters) * float(slack)
+    best = 0.0
+    j = 0
+    for i in range(n):
+        if j < i:
+            j = i
+        while j < n and (dist[j] - dist[i]) < meters:
+            j += 1
+        if j >= n:
+            break
+        # Obergrenze des Suchfensters ueber die kumulierte (monoton steigende)
+        # Distanz finden, dann alle Kandidaten in EINEM Rutsch pruefen - eine
+        # Python-Schleife ueber jeden Kandidaten waere im Backfill zu langsam.
+        k_hi = int(np.searchsorted(dist, dist[i] + limit_extra, side="right"))
+        if k_hi <= j:
+            continue
+        gaps = _haversine_m(lat[i], lon[i], lat[j:k_hi], lon[j:k_hi])
+        ok = np.flatnonzero(np.asarray(gaps) <= max_gap_m)
+        if ok.size == 0:
+            continue
+        k = j + int(ok[0])
+        span = t[k] - t[i]
+        if span > 0:
+            v = (dist[k] - dist[i]) / span * 3.6
             if v > best:
                 best = v
     return best if best > 0 else None
@@ -8272,6 +8384,7 @@ def _spot_tv_live(cfg):
                 ("500m", "speed_500m_kmh", "Best 500 m", "500 m", "km/h", 1),
                 ("nm", "speed_nm_kmh", "Best nautical mile", "naut. mile", "km/h", 1),
                 ("5x10", "speed_5x10_kmh", "Avg 5×10", "5×10", "km/h", 1),
+                ("alpha", "speed_alpha500_kmh", "Alpha 500", "alpha", "km/h", 1),
             ]
     metric, metric_col, metric_lbl, metric_word, metric_unit, metric_dec = _metrics[
         (int(now.timestamp()) // 30) % len(_metrics)]
@@ -10408,69 +10521,91 @@ def render_desc_cleanup():
             st.rerun()
 
 
-def _backfill_5x10(limit=400):
-    """avg 5x10 fuer Sessions nachtragen, die einen Track haben aber noch keinen
-    Wert. Rechnet mit derselben Funktion wie der Upload, damit nachgetragene und
-    neue Sessions in der Rangliste vergleichbar sind.
+def _backfill_track_metrics(limit=400):
+    """avg 5x10 UND Alpha 500 nachtragen fuer Sessions mit Track aber ohne Wert.
 
-    Gibt (geschrieben, uebersprungen, ohne_track) zurueck. Surf bleibt aussen vor
-    - dort ist die Kennzahl nicht gewertet (wie 500 m und Seemeile).
+    Beide in EINEM Lauf, weil beide aus demselben Track kommen - die Tracks
+    zweimal zu lesen und zweimal einen DataFrame zu bauen waere doppelte Arbeit.
+    Gerechnet wird mit denselben Funktionen wie beim Upload, damit nachgetragene
+    und neue Sessions in der Rangliste vergleichbar sind.
+
+    Gibt (5x10_neu, alpha_neu, ohne_ergebnis, ohne_track) zurueck. Surf bleibt
+    aussen vor - dort sind beide nicht gewertet (wie 500 m und Seemeile).
     """
-    written = skipped = no_track = 0
+    w510 = walpha = none_val = no_track = 0
     with get_engine().begin() as conn:
         rows = conn.execute(text(
-            "SELECT id, duration_s, sport FROM sessions "
-            "WHERE speed_5x10_kmh IS NULL AND track IS NOT NULL "
-            "AND lower(coalesce(sport,'')) <> 'surf' "
+            "SELECT id, duration_s, speed_5x10_kmh, speed_alpha500_kmh "
+            "FROM sessions "
+            "WHERE track IS NOT NULL AND lower(coalesce(sport,'')) <> 'surf' "
+            "AND (speed_5x10_kmh IS NULL OR speed_alpha500_kmh IS NULL) "
             "ORDER BY id DESC LIMIT :lim"
         ), {"lim": int(limit)}).fetchall()
         for r in rows:
-            pts = _parse_track(load_session_track(r[0]))
+            sid, dur, have510, havealpha = r[0], r[1], r[2], r[3]
+            pts = _parse_track(load_session_track(sid))
             if not pts or len(pts) < 4:
                 no_track += 1
                 continue
-            df = _df_from_track(pts, r[1])
-            val = None if (df is None or df.empty) else best_5x10_avg(df)
-            if val is None:
-                skipped += 1
+            df = _df_from_track(pts, dur)
+            if df is None or df.empty:
+                no_track += 1
                 continue
-            conn.execute(text("UPDATE sessions SET speed_5x10_kmh = :v WHERE id = :i"),
-                         {"v": round(float(val), 2), "i": r[0]})
-            written += 1
-    if written:
+            sets, params = [], {"i": sid}
+            if have510 is None:
+                v = best_5x10_avg(df)
+                if v is not None:
+                    sets.append("speed_5x10_kmh = :a")
+                    params["a"] = round(float(v), 2)
+                    w510 += 1
+            if havealpha is None:
+                v = best_alpha_500(df)
+                if v is not None:
+                    sets.append("speed_alpha500_kmh = :b")
+                    params["b"] = round(float(v), 2)
+                    walpha += 1
+            if not sets:
+                none_val += 1
+                continue
+            conn.execute(text(f"UPDATE sessions SET {', '.join(sets)} WHERE id = :i"),
+                         params)
+    if w510 or walpha:
         clear_data_caches()
-    return written, skipped, no_track
+    return w510, walpha, none_val, no_track
 
 
 def render_5x10_backfill():
-    """Backoffice-Block: avg 5x10 fuer aeltere Sessions nachtragen."""
-    with st.expander("🎯 Avg 5×10 nachtragen", expanded=False):
+    """Backoffice-Block: die aus dem Track gerechneten Kennzahlen nachtragen."""
+    with st.expander("🎯 Avg 5×10 und Alpha 500 nachtragen", expanded=False):
         st.caption(
-            "Die Kennzahl wird aus dem GPS-Track gerechnet. Neue Sessions bekommen "
-            "sie beim Upload; Sessions von vorher haben das Feld noch leer und "
-            "fehlen darum in der 5×10-Rangliste. Der Lauf holt sie nach – "
-            "in Blöcken, damit ein Durchgang nicht in einen Timeout läuft."
+            "Beide Kennzahlen entstehen aus dem GPS-Track. Neue Sessions bekommen "
+            "sie beim Upload bzw. im Ingest; Sessions von vorher haben die Felder "
+            "leer und fehlen darum in den beiden Ranglisten. Der Lauf holt sie "
+            "nach – in Blöcken, damit ein Durchgang nicht in einen Timeout läuft."
         )
         _lim = st.number_input("Sessions pro Durchgang", 50, 2000, 400, step=50,
                                key="bf510_lim")
         if st.button("🎯 Jetzt nachtragen", key="bf510_run",
                      use_container_width=True):
-            with st.spinner("Rechne avg 5×10 aus den Tracks…"):
+            with st.spinner("Rechne aus den Tracks…"):
                 try:
-                    w, s, n = _backfill_5x10(int(_lim))
+                    w5, wa, nv, nt = _backfill_track_metrics(int(_lim))
                 except Exception as exc:  # noqa: BLE001
                     st.error(f"Fehlgeschlagen: {exc}")
                     return
-            st.success(f"{w} Session(s) nachgetragen.")
-            if s:
-                st.caption(f"{s} ohne Ergebnis – Track zu kurz für fünf getrennte "
-                           "10-Sekunden-Fenster (unter ~50 s Fahrtzeit).")
-            if n:
-                st.caption(f"{n} mit unlesbarem oder zu kurzem Track.")
-            if w >= int(_lim):
+            st.success(f"Avg 5×10: {w5} · Alpha 500: {wa} nachgetragen.")
+            if nv:
+                st.caption(
+                    f"{nv} ohne Ergebnis – 5×10 braucht ~50 s Fahrtzeit, Alpha 500 "
+                    "eine Halse innerhalb von 500 m mit Start und Ende unter 50 m "
+                    "Abstand. Bei grob ausgedünnten Tracks fällt Alpha oft aus."
+                )
+            if nt:
+                st.caption(f"{nt} mit unlesbarem oder zu kurzem Track.")
+            if (w5 + wa + nv + nt) >= int(_lim):
                 st.info("Der Block war voll – nochmal laufen lassen, es sind "
                         "vermutlich noch mehr offen.")
-            if w:
+            if w5 or wa:
                 st.rerun()
 
 
@@ -12282,7 +12417,8 @@ def render_history_overview(record):
         _cands = []
         if _avg510:
             _cands.append(("AVG 5×10", f"{_avg510:.2f}", "km/h"))
-        for _k, _lb, _un, _dc in (("speed_30s_kmh", "30 s", "km/h", 2),
+        for _k, _lb, _un, _dc in (("speed_alpha500_kmh", "Alpha 500", "km/h", 2),
+                                  ("speed_30s_kmh", "30 s", "km/h", 2),
                                   ("speed_500m_kmh", "500 m", "km/h", 2),
                                   ("longest_run_km", "Longest run", "km", 2),
                                   ("speed_nm_kmh", "1 nm", "km/h", 2)):
@@ -12524,8 +12660,9 @@ def _polar_entry_from_df(df, username, sport, fname):
     best_500m = best_distance_speed(df, 500)
     best_nm = best_distance_speed(df, 1852)
     best_5x10 = best_5x10_avg(df)
+    best_alpha = best_alpha_500(df)
     if sport == "surf":                 # Surf: keine 500m/Seemeile-Wertung
-        best_500m = best_nm = best_5x10 = None
+        best_500m = best_nm = best_5x10 = best_alpha = None
     distance_km = df["distance"].max() / 1000 if "distance" in df.columns else None
     session_date = None
     if "timestamp" in df.columns:
@@ -12567,6 +12704,7 @@ def _polar_entry_from_df(df, username, sport, fname):
         "speed_500m_kmh": None if best_500m is None else round(best_500m, 2),
         "speed_nm_kmh": None if best_nm is None else round(best_nm, 2),
         "speed_5x10_kmh": None if best_5x10 is None else round(best_5x10, 2),
+        "speed_alpha500_kmh": None if best_alpha is None else round(best_alpha, 2),
         "wind_kmh": None if _w("wind") is None else round(_w("wind"), 1),
         "gust_kmh": None if _w("gust") is None else round(_w("gust"), 1),
         "wind_dir_deg": None if _w("dir") is None else round(_w("dir")),
@@ -13349,8 +13487,9 @@ def _metrics_from_track(points, duration_s, sport):
     best_500m = best_distance_speed(df, 500)
     best_nm = best_distance_speed(df, 1852)
     best_5x10 = best_5x10_avg(df)
+    best_alpha = best_alpha_500(df)
     if sport == "surf":                       # Surf: keine 500m/Seemeile-Wertung
-        best_500m = best_nm = best_5x10 = None
+        best_500m = best_nm = best_5x10 = best_alpha = None
     runs = detect_runs(df)
     lr_m = float(runs["Distance m"].max()) if not runs.empty else None
     secs = float((df["timestamp"].iloc[-1] - df["timestamp"].iloc[0]).total_seconds())
@@ -13362,6 +13501,7 @@ def _metrics_from_track(points, duration_s, sport):
         "speed_500m_kmh": None if best_500m is None else round(best_500m, 2),
         "speed_nm_kmh": None if best_nm is None else round(best_nm, 2),
         "speed_5x10_kmh": None if best_5x10 is None else round(best_5x10, 2),
+        "speed_alpha500_kmh": None if best_alpha is None else round(best_alpha, 2),
         "total_distance_km": round(float(df["distance"].iloc[-1]) / 1000.0, 2),
         "longest_run_m": None if lr_m is None else round(lr_m, 2),
         "longest_run_km": None if lr_m is None else round(lr_m / 1000.0, 3),
@@ -13371,6 +13511,7 @@ def _metrics_from_track(points, duration_s, sport):
 
 _TRIM_FIELDS = ("speed_1s_kmh", "speed_1s_kn", "speed_30s_kmh", "speed_30s_kn",
                 "speed_500m_kmh", "speed_nm_kmh", "speed_5x10_kmh",
+                "speed_alpha500_kmh",
                 "total_distance_km",
                 "longest_run_m", "longest_run_km", "duration_s")
 
@@ -13508,6 +13649,7 @@ def render_session_trim(row):
             _thl = {"label": "Top 2 s", "value": f"{new['speed_1s_kmh']:.2f}",
                     "unit": "km/h"}
         for _k, _lb, _un in (("speed_5x10_kmh", "AVG 5×10", "km/h"),
+                             ("speed_alpha500_kmh", "Alpha 500", "km/h"),
                              ("speed_30s_kmh", "30 s", "km/h"),
                              ("speed_500m_kmh", "500 m", "km/h"),
                              ("longest_run_km", "Längster Run", "km")):
@@ -13526,6 +13668,7 @@ def render_session_trim(row):
     for key, label in (("speed_1s_kmh", "Top 2 s km/h"), ("speed_30s_kmh", "Top 30 s km/h"),
                        ("speed_500m_kmh", "500 m km/h"), ("speed_nm_kmh", "Seemeile km/h"),
                        ("speed_5x10_kmh", "Avg 5×10 km/h"),
+                       ("speed_alpha500_kmh", "Alpha 500 km/h"),
                        ("total_distance_km", "Distanz km"), ("longest_run_m", "Longest run m"),
                        ("duration_s", "Dauer s")):
         cmp_rows.append({"Wert": label, "gespeichert": row.get(key) if key in row else None,
@@ -17116,8 +17259,9 @@ def _guest_process_and_save(fit_source, sport, spot, name):
     best_500m = best_distance_speed(df, 500)
     best_nm = best_distance_speed(df, 1852)
     best_5x10 = best_5x10_avg(df)
+    best_alpha = best_alpha_500(df)
     if sport == "surf":                 # Surf: keine 500m/Seemeile-Wertung
-        best_500m = best_nm = best_5x10 = None
+        best_500m = best_nm = best_5x10 = best_alpha = None
     distance_km = (df["distance"].max() / 1000) if "distance" in df.columns else None
     session_date = None
     if "timestamp" in df.columns:
@@ -17167,6 +17311,7 @@ def _guest_process_and_save(fit_source, sport, spot, name):
         "speed_500m_kmh": None if best_500m is None else round(best_500m, 2),
         "speed_nm_kmh": None if best_nm is None else round(best_nm, 2),
         "speed_5x10_kmh": None if best_5x10 is None else round(best_5x10, 2),
+        "speed_alpha500_kmh": None if best_alpha is None else round(best_alpha, 2),
         "wind_kmh": None if _w("wind") is None else round(_w("wind"), 1),
         "gust_kmh": None if _w("gust") is None else round(_w("gust"), 1),
         "wind_dir_deg": None if _w("dir") is None else round(_w("dir")),
@@ -17460,6 +17605,7 @@ _BP_METRICS_BASE = [
     ("speed_500m_kmh", "500 m", "km/h"),
     ("speed_nm_kmh", "nautical mile", "km/h"),
     ("speed_5x10_kmh", "avg 5×10", "km/h"),
+    ("speed_alpha500_kmh", "alpha 500", "km/h"),
     ("total_distance_km", "distance", "km"),
 ]
 _BP_METRICS_WIND = [
@@ -17724,8 +17870,9 @@ def _import_entry_from_df(df, sport, name, spot, board, sail, filename):
     best_500m = best_distance_speed(df, 500)
     best_nm = best_distance_speed(df, 1852)
     best_5x10 = best_5x10_avg(df)
+    best_alpha = best_alpha_500(df)
     if sport == "surf":
-        best_500m = best_nm = best_5x10 = None
+        best_500m = best_nm = best_5x10 = best_alpha = None
     distance_km = (df["distance"].max() / 1000) if "distance" in df.columns else None
     session_date = None
     if "timestamp" in df.columns:
@@ -17778,6 +17925,7 @@ def _import_entry_from_df(df, sport, name, spot, board, sail, filename):
         "speed_500m_kmh": None if best_500m is None else round(best_500m, 2),
         "speed_nm_kmh": None if best_nm is None else round(best_nm, 2),
         "speed_5x10_kmh": None if best_5x10 is None else round(best_5x10, 2),
+        "speed_alpha500_kmh": None if best_alpha is None else round(best_alpha, 2),
         "wind_kmh": None if _w("wind") is None else round(_w("wind"), 1),
         "gust_kmh": None if _w("gust") is None else round(_w("gust"), 1),
         "wind_dir_deg": None if _w("dir") is None else round(_w("dir")),
@@ -18443,7 +18591,8 @@ def _live_metric_fields(sport):
         f.append(("speed_30s_kmh", "🏆 Top 30 s", "km/h", 1))
         f += [("speed_500m_kmh", "📏 Best 500 m", "km/h", 1),
               ("speed_nm_kmh", "⚓ Best nautical mile", "km/h", 1),
-              ("speed_5x10_kmh", "🎯 Avg 5×10", "km/h", 2)]
+              ("speed_5x10_kmh", "🎯 Avg 5×10", "km/h", 2),
+              ("speed_alpha500_kmh", "🔄 Alpha 500", "km/h", 2)]
     f.append(("longest_run_m", "🚩 Longest ride" if surf else "🚩 Longest run", "m", 0))
     f.append(("total_distance_km", "🧭 Distance", "km", 2))
     if wind:
@@ -19117,8 +19266,9 @@ if fit_source is not None:
     best_500m = best_distance_speed(df, 500)
     best_nm = best_distance_speed(df, 1852)
     best_5x10 = best_5x10_avg(df)
+    best_alpha = best_alpha_500(df)
     if active_sport() == "surf":         # Surf: keine 500m/Seemeile-Wertung
-        best_500m = best_nm = best_5x10 = None
+        best_500m = best_nm = best_5x10 = best_alpha = None
 
     distance_km = None
 
@@ -19329,6 +19479,7 @@ if fit_source is not None:
                     "speed_500m_kmh": None if best_500m is None else round(best_500m, 2),
                     "speed_nm_kmh": None if best_nm is None else round(best_nm, 2),
                     "speed_5x10_kmh": None if best_5x10 is None else round(best_5x10, 2),
+                    "speed_alpha500_kmh": None if best_alpha is None else round(best_alpha, 2),
                     "wind_kmh": None if weather is None or weather["wind"] is None else round(weather["wind"], 1),
                     "gust_kmh": None if weather is None or weather["gust"] is None else round(weather["gust"], 1),
                     "wind_dir_deg": None if weather is None or weather["dir"] is None else round(weather["dir"]),
