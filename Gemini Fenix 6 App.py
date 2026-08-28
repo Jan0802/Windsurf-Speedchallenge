@@ -15401,6 +15401,30 @@ for _i, _key in enumerate(SPORTS):
 if not st.session_state.get("_sport_tile_css"):
     _TILE_BOX = ("{flex-direction:column;height:auto;gap:3px;"
                  "padding:9px 4px 7px;line-height:1.15;}")
+    # Niemals mitten im Wort trennen. Auf dem iPad sind zehn Kacheln nur ~75 px
+    # breit, und irgendetwas in der Streamlit-Kaskade brach "Windsurf" zu
+    # "Win dsu rf". Nur an Leerzeichen umbrechen ist immer lesbar.
+    _TILE_WORDS = ("{word-break:normal!important;overflow-wrap:normal!important;"
+                   "hyphens:none!important;}")
+
+    def _tile_narrow(sel):
+        """Tablet-Band: zehn Kacheln passen bei ~834-960 CSS-Pixeln (iPad) nicht
+        mit 14-px-Schrift - dort sind sie nur ~66 px breit.
+
+        Deckel bei 1200 px, damit Laptop und Rechner NICHT angefasst werden;
+        dort sieht die Zeile richtig aus. Statt einer festen Groesse waechst die
+        Schrift mit der Fensterbreite: am unteren Rand des Bandes (641 px) sind
+        die Kacheln nur ~46 px breit, da braucht "Wakeboard" 9 px, beim iPad
+        reichen 10-11 px. Eine feste Groesse wuerde eins von beidem sprengen.
+        """
+        return ("@media(min-width:641px) and (max-width:1200px){"
+                f"{sel}{{font-size:clamp(9px,1.25vw,11px)!important;"
+                "padding:6px 2px 6px!important;letter-spacing:-.2px;}"
+                f"{sel} p{{font-size:clamp(9px,1.25vw,11px)!important;}}"
+                f"{sel}::before{{width:clamp(24px,3.4vw,30px)!important;"
+                "height:clamp(24px,3.4vw,30px)!important;}"
+                "}")
+
     _tiles = []
     for _key in SPORTS:
         _ib = image_to_base64(app_path("assets", "icons", f"{_key}.png"))
@@ -15421,7 +15445,10 @@ if not st.session_state.get("_sport_tile_css"):
             "background-color:currentColor;"
             "-webkit-mask:var(--i) center/contain no-repeat;"
             "mask:var(--i) center/contain no-repeat;}"
+            f"{_sel}{_TILE_WORDS}"
+            f"{_sel} p{_TILE_WORDS}"
             "}"
+            + _tile_narrow(_sel)
         )
     # Die vier Ansichten: ihr Emoji wandert aus dem Label in die gleiche
     # Bildzone, damit ihre Kachel exakt so hoch wird wie eine Sportart-Kachel.
@@ -15438,7 +15465,14 @@ if not st.session_state.get("_sport_tile_css"):
             f"{_sel}::before{{display:flex;align-items:center;"
             "justify-content:center;width:38px;height:38px;font-size:27px;"
             "margin-right:0;}"
+            f"{_sel}{_TILE_WORDS}"
+            f"{_sel} p{_TILE_WORDS}"
             "}"
+            # Emoji im Tablet-Band nur leicht kleiner: es bleibt gut lesbar und
+            # haelt die Kachelhoehe gleich wie bei den Sportarten.
+            + _tile_narrow(_sel)
+            + ("@media(min-width:641px) and (max-width:1200px){"
+               f"{_sel}::before{{font-size:clamp(17px,2.5vw,22px)!important;}}}}")
         )
     if _tiles:
         st.session_state["_sport_tile_css"] = True
