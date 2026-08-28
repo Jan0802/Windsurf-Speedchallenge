@@ -11463,6 +11463,65 @@ def _render_gybe_detail(track_pts, v_kn, t_min, gybe, glide_kn, dt):
                       "sends a per-second window for an exact diagnosis.")
 
 
+def _render_gybe_map(track_pts, gybe, dt, man_name="gybe"):
+    """Karte EINES Manövers: der Bogen auf dem Satellitenbild, nach Geschwindigkeit
+    gefärbt, mit markiertem Apex.
+
+    Warum: die Diagnose sagt, WIE VIEL Speed verloren ging – die Karte zeigt,
+    WORAN es lag. Ein zu weit gezogener Bogen, ein zu früher Apex oder ein Ausgang
+    quer zum alten Kurs sieht man nur auf dem Wasserbild.
+
+    Dasselbe Fenster wie _render_gybe_detail (±18 s), damit Kurve und Karte
+    denselben Ausschnitt zeigen. Uhr-Halsen tragen ebenfalls einen Track-Index,
+    darum funktioniert das für beide Quellen; ohne Track gibt es keine Karte.
+    """
+    if not track_pts or len(track_pts) < 3:
+        return
+    n_pts = len(track_pts)
+    gi = int(gybe.get("i") or 0)
+    wseg = max(3, int(round(18.0 / dt))) if dt else 6
+    a = max(0, gi - wseg)
+    b = min(n_pts - 1, gi + wseg + 1)
+    pts = track_pts[a:b + 1]
+    if len(pts) < 4:
+        st.caption("Für eine Karte dieses Manövers liegen zu wenige GPS-Punkte "
+                   "im Fenster.")
+        return
+
+    # Strecke durch das Manöver: ein weiter Bogen kostet Weg UND Speed.
+    lat = np.array([p[0] for p in pts], dtype=float)
+    lon = np.array([p[1] for p in pts], dtype=float)
+    arc_m = float(np.sum(_haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])))
+
+    _stats = []
+    if gybe.get("entry"):
+        _stats.append({"label": "Entry", "value": f"{float(gybe['entry']):.1f}",
+                       "unit": "kn"})
+    if gybe.get("exit"):
+        _stats.append({"label": "Exit", "value": f"{float(gybe['exit']):.1f}",
+                       "unit": "kn"})
+    _stats.append({"label": "Arc", "value": f"{arc_m:.0f}", "unit": "m"})
+
+    _hl = None
+    if gybe.get("ret"):
+        _hl = {"label": f"{man_name.capitalize()} {gybe.get('n', '')} · kept",
+               "value": f"{float(gybe['ret']):.0f}", "unit": "%"}
+    # Apex markieren: er liegt im Fenster bei gi - a.
+    _apex = min(max(gi - a, 0), len(pts) - 1)
+    marks = [[round(pts[_apex][0], 6), round(pts[_apex][1], 6), "Apex"]]
+
+    html, height = _track_map_html(pts, (len(pts) - 1) * (dt or 1.0),
+                                   headline=_hl, stats=_stats, marks=marks)
+    if not html:
+        return
+    components.html(html, height=height, scrolling=False)
+    st.caption(
+        f"🟢 in · 🔴 out · 🔵 apex · line colour = speed · arc {arc_m:.0f} m. "
+        "A tight arc with the apex early keeps the most speed; a wide loop or a "
+        "late apex is where it goes. Switch to Map/Satellite top right."
+    )
+
+
 def _render_gybe_detail_window(gnum, speeds, glide_kn):
     """Halsen-Diagnose aus dem EXAKTEN Sekunden-Fenster der Uhr (Apex in der Mitte,
     1 Wert/Sekunde; -1 = ausserhalb)."""
@@ -11755,6 +11814,12 @@ def _render_speed_curve(track_pts, duration_s, record):
                     _render_gybe_detail_window(_g["n"], _g["speeds"], glide_kn)
                 else:
                     _render_gybe_detail(track_pts, v_kn, t_min, _g, glide_kn, dt)
+                # Karte des Bogens: die Diagnose sagt WIE VIEL verloren ging,
+                # die Karte woran es lag. Auch bei Uhr-Halsen moeglich, weil sie
+                # einen Track-Index tragen.
+                st.markdown(f"##### 🛰️ {_man['name'].capitalize()} "
+                            f"{_g['n']} on the water")
+                _render_gybe_map(track_pts, _g, dt, _man["name"])
 
         # --- Feedback-Loop (Beta): erkannte Manöver bestätigen/verwerfen ---
         # Sammelt Trainingsdaten + korrigiert die ANGEZEIGTE Zahl. Aendert NICHT
@@ -11922,6 +11987,11 @@ _MAP_TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
 body{position:relative;}
 #map{height:100%;}
 .leaflet-container{background:#06222e;} .leaflet-control-attribution{font-size:10px;}
+/* Beschriftung einer Zusatz-Markierung (Apex): dunkel, ohne Sprechblasen-Pfeil */
+.wsmark{background:rgba(4,20,26,.82);border:1px solid rgba(43,212,217,.5);
+  color:#eaf4ff;font-weight:700;font-size:11px;padding:2px 7px;border-radius:8px;
+  box-shadow:none;}
+.wsmark::before{display:none;}
 /* Werte im Kartenbild. pointer-events:none -> Karte bleibt bedienbar. */
 .ov{position:absolute;z-index:500;pointer-events:none;
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
@@ -11964,7 +12034,7 @@ body{position:relative;}
 </head><body><div id="map"></div>__OVERLAY__
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-var pts=__PTS__, cols=__COLS__;
+var pts=__PTS__, cols=__COLS__, marks=__MARKS__;
 try{
   var street=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     {maxZoom:19, attribution:'&copy; OpenStreetMap'});
@@ -12001,6 +12071,14 @@ try{
   map.fitBounds(line.getBounds().pad(0.15));
   L.circleMarker(pts[0],{radius:6,color:'#0a3',fillColor:'#25c26b',fillOpacity:1,weight:2}).addTo(map);
   L.circleMarker(pts[pts.length-1],{radius:6,color:'#a11',fillColor:'#e5484d',fillOpacity:1,weight:2}).addTo(map);
+  /* Zusatz-Markierungen, z.B. der Apex einer Halse: [lat, lon, "Text"]. */
+  for(var m=0;m<marks.length;m++){
+    L.circleMarker([marks[m][0],marks[m][1]],
+      {radius:7,color:'#063',fillColor:'#2bd4d9',fillOpacity:1,weight:2})
+      .addTo(map)
+      .bindTooltip(marks[m][2],{permanent:true,direction:'top',
+                                className:'wsmark'});
+  }
 }catch(e){document.getElementById('map').innerHTML=
   "<div style='color:#9fc4cf;font-family:sans-serif;padding:16px'>Map could not load.</div>";}
 </script></body></html>"""
@@ -12063,7 +12141,7 @@ def _track_segment_for_mode(track_pts, duration_s, mode):
     return pts, label
 
 
-def _track_map_html(track_pts, duration_s, headline=None, stats=None):
+def _track_map_html(track_pts, duration_s, headline=None, stats=None, marks=None):
     """Interaktive Leaflet-Karte (Satellit oder Strasse, verschieb-/zoombar) mit
     speed-gefärbter Tracklinie. Rendert im BROWSER (iFrame) -> fast keine Server-
     last, anders als pydeck. Gibt (html, height) zurück oder ("", 0).
@@ -12096,6 +12174,7 @@ def _track_map_html(track_pts, duration_s, headline=None, stats=None):
     overlay = _map_overlay_html(headline, stats, vmax * 1.852)
     html = (_MAP_TEMPLATE.replace("__PTS__", pts_js)
             .replace("__COLS__", json.dumps(cols))
+            .replace("__MARKS__", json.dumps(marks or []))
             .replace("__OVERLAY__", overlay))
     return html, 430
 
