@@ -11484,8 +11484,7 @@ def _render_gybe_map(track_pts, gybe, dt, man_name="gybe"):
     b = min(n_pts - 1, gi + wseg + 1)
     pts = track_pts[a:b + 1]
     if len(pts) < 4:
-        st.caption("Für eine Karte dieses Manövers liegen zu wenige GPS-Punkte "
-                   "im Fenster.")
+        st.caption("Too few GPS points around this manoeuvre to draw a map.")
         return
 
     # Strecke durch das Manöver: ein weiter Bogen kostet Weg UND Speed.
@@ -12129,15 +12128,15 @@ def _track_segment_for_mode(track_pts, duration_s, mode):
         return track_pts, ""
     runs, dt = _track_runs(track_pts, duration_s)
     if not runs:
-        return track_pts, "Kein Run erkannt – es wird der ganze Track gezeigt."
+        return track_pts, "No run detected – showing the whole track."
     pick = (max(runs, key=lambda r: r[3]) if mode == "fastest"
             else max(runs, key=lambda r: r[2]))
     pts = track_pts[pick[0]:pick[1] + 2]
     if len(pts) < 2:
-        return track_pts, "Run zu kurz für die Karte – ganzer Track."
+        return track_pts, "Run too short to draw – showing the whole track."
     secs = max(dt, (pick[1] - pick[0]) * dt)
-    label = (f"{pick[2]:.0f} m · {secs:.0f} s · Ø {pick[3]:.1f} kn "
-             f"({pick[3] * 1.852:.1f} km/h) · {len(runs)} Runs erkannt")
+    label = (f"{pick[2]:.0f} m · {secs:.0f} s · avg {pick[3]:.1f} kn "
+             f"({pick[3] * 1.852:.1f} km/h) · {len(runs)} runs detected")
     return pts, label
 
 
@@ -12323,9 +12322,9 @@ def render_history_overview(record):
         # Drei Ansichten: der ganze Tag, der schnellste Run und der laengste Run.
         # Der ganze Track ist bei vielen Halsen eine Wolke – die beiden Run-Modi
         # zeigen genau die Strecke, die hinter dem Speed- bzw. dem Run-Wert steht.
-        _modes = {"Ganzer Track": "all", "⚡ Schnellster Run": "fastest",
-                  "🚩 Längster Run": "longest"}
-        _mpick = st.radio("Kartenansicht", list(_modes), horizontal=True,
+        _modes = {"Whole track": "all", "⚡ Fastest run": "fastest",
+                  "🚩 Longest run": "longest"}
+        _mpick = st.radio("Map view", list(_modes), horizontal=True,
                           key=f"trackmode_{record.get('id', 0)}",
                           label_visibility="collapsed")
         _mpts, _mnote = _track_segment_for_mode(track_pts, num("duration_s"),
