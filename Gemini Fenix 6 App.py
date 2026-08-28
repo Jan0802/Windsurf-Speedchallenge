@@ -11638,6 +11638,21 @@ def _render_speed_curve(track_pts, duration_s, record):
     top_i = int(np.argmax(np.where(v_kn <= glitch_kn, v_kn, -1)))
 
     # --- SVG-Geometrie ---
+    # Manöver-Diagnose je Sport (Wakeboard hat KEINE → Boot/Cable zieht konstant).
+    # Bevorzugt die EXAKTEN Uhr-Werte, sonst grobe Track-Erkennung.
+    # BEWUSST hier oben, nicht erst bei den Markern: das gewählte Manöver
+    # bestimmt den Zeitausschnitt der Kurve, also muss es vor der Achse bekannt
+    # sein.
+    _man = _maneuver_cfg(active_sport())
+    _do_man = active_sport() in _MANEUVER
+    gybes = []
+    if _do_man:
+        _watch_g = _parse_watch_gybes(record.get("gybes"))
+        if _watch_g:
+            gybes = _watch_gybes_to_markers(_watch_g, t_min, v_kn)
+        else:
+            gybes = _detect_gybes(track_pts, v_kn, t_min)
+
     W, H = 700.0, 240.0
     L, R, T, B = 42.0, 12.0, 14.0, 26.0
     px0, px1, py0, py1 = L, W - R, T, H - B
@@ -11645,21 +11660,63 @@ def _render_speed_curve(track_pts, duration_s, record):
     y_max = max(float(np.max(valid)) if valid.size else 10.0, glide_kn * 1.25, 8.0)
     y_max = float(np.ceil(y_max / 2.0) * 2.0)
 
+    # --- Zoom auf ein einzelnes Manöver -------------------------------------
+    # Ist unten eines ausgewählt, zeigt die Kurve NUR dieses. Der Wert steht im
+    # session_state, also schon vor dem Widget zur Verfügung. y-Achse bleibt die
+    # der Session, damit gezoomte und ganze Kurve vergleichbar sind.
+    _zoom = None
+    _sel_prev = st.session_state.get(f"gybe_sel_{record.get('id')}")
+    if gybes and isinstance(_sel_prev, str) and _sel_prev != "–":
+        try:
+            _zn = int(_sel_prev.split()[-1])
+        except (ValueError, IndexError):
+            _zn = 0
+        _zg = next((g for g in gybes if g["n"] == _zn), None)
+        if _zg is not None:
+            # Fenster mit der Datenrate wachsen lassen: bei 1 s/Punkt genügen
+            # ±30 s, bei 40 s/Punkt wären das 1-2 Punkte und man sähe nichts.
+            _wmin = max(0.5, (8.0 * dt) / 60.0)
+            _lo = max(0.0, float(_zg["t"]) - _wmin)
+            _hi = min(t_total, float(_zg["t"]) + _wmin)
+            _cnt = int(np.sum((t_min >= _lo) & (t_min <= _hi)))
+            if _hi > _lo and _cnt >= 4:
+                _zoom = (_lo, _hi, _zg, _cnt)
+
+    x_lo, x_hi = (0.0, t_total) if _zoom is None else (_zoom[0], _zoom[1])
+    x_span = max(x_hi - x_lo, 1e-6)
+
     def X(tm):
-        return px0 + (tm / t_total) * (px1 - px0)
+        return px0 + ((tm - x_lo) / x_span) * (px1 - px0)
 
     def Y(kn):
         return py1 - (min(kn, y_max) / y_max) * (py1 - py0)
 
-    # Kurve ggf. ausdünnen (kompaktes SVG), max ~320 Punkte.
-    step = max(1, n_seg // 320)
+    def _inside(tm):
+        return x_lo <= tm <= x_hi
+
+    # Kurve ggf. ausdünnen (kompaktes SVG), max ~320 Punkte. Im Zoom NICHT
+    # ausdünnen - dort ist jeder Punkt die Aussage.
+    _idx = [i for i in range(n_seg) if _inside(float(t_min[i]))]
+    if _zoom is None:
+        step = max(1, n_seg // 320)
+        _idx = _idx[::step]
     poly = " ".join(f"{X(float(t_min[i])):.1f},{Y(float(v_kn[i])):.1f}"
-                    for i in range(0, n_seg, step))
+                    for i in _idx)
+    # Im Zoom die Messpunkte zeigen: bei grobem Track sieht man sonst eine
+    # glatte Linie und glaubt, es lägen mehr Daten vor als vorhanden.
+    dots = ""
+    if _zoom is not None:
+        dots = "".join(
+            f"<circle cx='{X(float(t_min[i])):.1f}' cy='{Y(float(v_kn[i])):.1f}' "
+            "r='2.6' fill='#2bd4d9'/>" for i in _idx)
 
     bands = ""
     for (a, b, _d) in runs:
-        x = X(float(t_min[a]))
-        w = max(1.0, X(float(t_min[b])) - x)
+        ta, tb = float(t_min[a]), float(t_min[b])
+        if tb < x_lo or ta > x_hi:           # Run liegt ausserhalb des Fensters
+            continue
+        x = X(max(ta, x_lo))
+        w = max(1.0, X(min(tb, x_hi)) - x)
         is_long = longest is not None and (a, b) == (longest[0], longest[1])
         fill = "rgba(43,212,217,.22)" if is_long else "rgba(43,212,217,.08)"
         bands += f"<rect x='{x:.1f}' y='{py0:.1f}' width='{w:.1f}' height='{py1 - py0:.1f}' fill='{fill}'/>"
@@ -11674,34 +11731,32 @@ def _render_speed_curve(track_pts, duration_s, record):
         yy = Y(kn)
         grid += (f"<text x='{px0 - 5:.1f}' y='{yy + 3:.1f}' fill='#7fa6b2' font-size='10' "
                  f"text-anchor='end'>{kn:.0f}</text>")
-    # x-Achse: 0 / Mitte / Ende (Minuten)
+    # x-Achse: Anfang / Mitte / Ende des gezeigten Fensters (Minuten). Im Zoom
+    # eine Dezimalstelle, sonst stehen dort dreimal dieselbe ganze Minute.
     xticks = ""
-    for tm in (0.0, t_total / 2.0, t_total):
+    _fmt_t = "{:.1f}" if _zoom is not None else "{:.0f}"
+    for tm in (x_lo, (x_lo + x_hi) / 2.0, x_hi):
         xx = X(tm)
         xticks += (f"<text x='{xx:.1f}' y='{H - 8:.1f}' fill='#7fa6b2' font-size='10' "
-                   f"text-anchor='middle'>{tm:.0f}</text>")
+                   f"text-anchor='middle'>{_fmt_t.format(tm)}</text>")
 
-    tx, ty = X(float(t_min[top_i])), Y(top_kn)
-    topmark = (f"<circle cx='{tx:.1f}' cy='{ty:.1f}' r='3.5' fill='#eaf4ff'/>"
-               f"<text x='{tx + 6:.1f}' y='{ty - 4:.1f}' fill='#eaf4ff' font-size='11' "
-               f"font-weight='700'>top {top_kn:.1f} kn</text>")
+    # Top-Speed nur markieren, wenn er im gezeigten Fenster liegt - sonst klebte
+    # die Beschriftung am Rand und behauptete etwas fuer diese Halse.
+    topmark = ""
+    if _inside(float(t_min[top_i])):
+        tx, ty = X(float(t_min[top_i])), Y(top_kn)
+        topmark = (f"<circle cx='{tx:.1f}' cy='{ty:.1f}' r='3.5' fill='#eaf4ff'/>"
+                   f"<text x='{tx + 6:.1f}' y='{ty - 4:.1f}' fill='#eaf4ff' font-size='11' "
+                   f"font-weight='700'>top {top_kn:.1f} kn</text>")
 
-    # Manöver-Diagnose je Sport (Wakeboard hat KEINE → Boot/Cable zieht konstant).
-    # Bevorzugt die EXAKTEN Uhr-Werte, sonst grobe Track-Erkennung. Nummerierte
-    # Marker auf die Kurve.
-    _man = _maneuver_cfg(active_sport())
-    _do_man = active_sport() in _MANEUVER
-    gybes = []
-    if _do_man:
-        _watch_g = _parse_watch_gybes(record.get("gybes"))
-        if _watch_g:
-            gybes = _watch_gybes_to_markers(_watch_g, t_min, v_kn)
-        else:
-            gybes = _detect_gybes(track_pts, v_kn, t_min)
+    # Nummerierte Marker: im Zoom nur das gewaehlte Manoever.
     gmarks = ""
     for g in gybes:
+        if not _inside(float(g["t"])):
+            continue
         gx, gy = X(g["t"]), Y(float(v_kn[g["i"]]))
-        gmarks += (f"<circle cx='{gx:.1f}' cy='{gy:.1f}' r='7' fill='{g['color']}' "
+        _r = 9 if (_zoom is not None) else 7
+        gmarks += (f"<circle cx='{gx:.1f}' cy='{gy:.1f}' r='{_r}' fill='{g['color']}' "
                    "fill-opacity='.9' stroke='#06222e' stroke-width='1'/>"
                    f"<text x='{gx:.1f}' y='{gy + 3.5:.1f}' fill='#06222e' font-size='9' "
                    f"font-weight='800' text-anchor='middle'>{g['n']}</text>")
@@ -11713,7 +11768,7 @@ def _render_speed_curve(track_pts, duration_s, record):
         f"{bands}{grid}"
         f"<polyline points='{poly}' fill='none' stroke='#2bd4d9' stroke-width='1.6' "
         "stroke-linejoin='round'/>"
-        f"{topmark}{gmarks}{xticks}"
+        f"{dots}{topmark}{gmarks}{xticks}"
         f"<text x='{(px0 + px1) / 2:.1f}' y='{H - 0.5:.1f}' fill='#7fa6b2' font-size='10' "
         "text-anchor='middle'>time (min)</text>"
         "</svg>"
@@ -11764,7 +11819,15 @@ def _render_speed_curve(track_pts, duration_s, record):
         f"<div style='margin:0;font-family:system-ui,sans-serif'>{svg}</div>",
         height=250,
     )
-    if longest is not None:
+    if _zoom is not None:
+        _zg, _zcnt = _zoom[2], _zoom[3]
+        st.caption(
+            f"🔍 Zoomed to **{_man['name']} {_zg['n']}** "
+            f"({x_lo:.1f}–{x_hi:.1f} min, {_zcnt} GPS points, dots = the actual "
+            f"measurements). Pick **–** below to see the whole session again. "
+            f"The y-axis stays the session's, so the height is comparable."
+        )
+    elif longest is not None:
         _mins = (float(t_min[longest[1]]) - float(t_min[longest[0]]))
         st.caption(f"🟦 Highlighted band = longest run ({longest[2] / 1000.0:.2f} km · "
                    f"{_mins:.1f} min). Curve reconstructed from the GPS track "
@@ -11774,9 +11837,25 @@ def _render_speed_curve(track_pts, duration_s, record):
     if gybes:
         planing = sum(1 for g in gybes if g["ret"] >= 70)
         avg_ret = sum(g["ret"] for g in gybes) / len(gybes)
-        st.markdown(f"**🔄 {_man['name'].capitalize()} analysis (beta):** "
-                    f"{len(gybes)} detected · **{planing} carried through** "
-                    f"(≥70% speed kept) · Ø speed kept {avg_ret:.0f}%")
+        # Bei grobem Track ist "Speed kept" KEINE Aussage ueber den Fahrer:
+        # Ein- und Ausgang liegen bis zu dt Sekunden auseinander, ein Stopp lange
+        # nach der Halse landet also im selben Messpunkt. Dann die Zahl nicht als
+        # Tatsache hinstellen - die Einzeldiagnose macht das schon richtig.
+        _coarse_man = dt > 3.5
+        if _coarse_man:
+            st.markdown(f"**🔄 {_man['name'].capitalize()} analysis (beta):** "
+                        f"{len(gybes)} detected")
+            st.warning(
+                f"At ~{dt:.0f} s per GPS point the **speed kept cannot be "
+                f"measured**: entry and exit are up to {dt:.0f} s apart, so a stop "
+                f"long after the {_man['name']} falls into the same sample. Treat "
+                "the percentages below as a rough hint, not as your technique – "
+                "a per-second recording is what makes them meaningful."
+            )
+        else:
+            st.markdown(f"**🔄 {_man['name'].capitalize()} analysis (beta):** "
+                        f"{len(gybes)} detected · **{planing} carried through** "
+                        f"(≥70% speed kept) · avg speed kept {avg_ret:.0f}%")
         rows = "".join(
             f"<tr><td style='padding:3px 10px'><b style='color:{g['color']}'>●</b> {g['n']}</td>"
             f"<td style='padding:3px 10px'>{g['t']:.1f} min</td>"
