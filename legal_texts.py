@@ -1,20 +1,22 @@
-"""Rechtstexte an EINER Stelle: Impressum und Datenschutzerklärung.
+"""Rechtstexte an EINER Stelle: Impressum und Datenschutzerklärung, DE und EN.
 
 Warum diese Datei existiert: die Texte standen nur in der Streamlit-App und waren
 darum von der Website aus nur über `app.mywatersessions.com/?seite=…` erreichbar.
 Damit hingen zwei Pflichtseiten daran, dass ein Streamlit-Server hochfährt, und
-sie waren für Suchmaschinen praktisch unsichtbar. Jetzt lesen BEIDE Seiten
-denselben Text:
+sie waren für Suchmaschinen unsichtbar. Jetzt lesen BEIDE Seiten denselben Text:
 
-  * die App          -> render_impressum() / render_datenschutz()
-  * die Website      -> gen_legal_pages.py schreibt statische HTML-Seiten
+  * die App          -> render_impressum() / render_datenschutz()   (deutsch)
+  * die Website      -> gen_legal_pages.py schreibt vier statische Seiten
+                        /impressum.html   /datenschutz.html   (deutsch)
+                        /imprint.html     /privacy.html       (englisch)
 
-Der Inhalt ist absichtlich HTML, nicht Markdown: so muss ihn niemand konvertieren
-und beide Ausgaben können nicht auseinanderlaufen. Streamlit gibt ihn mit
-`unsafe_allow_html=True` aus, der Generator legt ihn in eine Seitenvorlage.
+Der Inhalt ist absichtlich HTML, nicht Markdown: so muss ihn niemand
+konvertieren und die Ausgaben können nicht auseinanderlaufen. Streamlit gibt ihn
+mit `unsafe_allow_html=True` aus, der Generator legt ihn in eine Seitenvorlage.
 
-WICHTIG bei Änderungen: Text hier pflegen, dann `python gen_legal_pages.py`
-laufen lassen und die Landing neu deployen. LEGAL_STAND mit hochziehen.
+WICHTIG bei Änderungen: Text hier pflegen – und zwar BEIDE Sprachen –, dann
+`python gen_legal_pages.py` laufen lassen und die Landing neu deployen.
+LEGAL_STAND mit hochziehen.
 """
 
 LEGAL_OPERATOR = {
@@ -22,12 +24,19 @@ LEGAL_OPERATOR = {
     "street": "Thorner Strasse 12",
     "city": "51469 Bergisch Gladbach",
     "country": "Deutschland",
-    "email": "Windsurfspeedchallenge@outlook.de",
+    "email": "support@mywatersessions.com",
 }
 
+# Englische Fassung der Anschrift (nur das Land wird übersetzt).
+LEGAL_OPERATOR_EN = dict(LEGAL_OPERATOR, country="Germany")
+
 LEGAL_STAND = "August 2026"
+LEGAL_UPDATED_EN = "August 2026"
 
 
+# =====================================================================
+#  Impressum (deutsch)
+# =====================================================================
 IMPRESSUM_HTML = """
 <p class="lead">Angaben gemäß § 5 Digitale-Dienste-Gesetz (DDG)</p>
 
@@ -68,6 +77,52 @@ Sicherheit bleibt immer bei der fahrenden Person.</p>
 """
 
 
+# =====================================================================
+#  Imprint (englisch)
+# =====================================================================
+IMPRINT_HTML_EN = """
+<p class="lead">Information pursuant to § 5 of the German Digital Services Act (DDG)</p>
+
+<h2>Service provider</h2>
+<p>{name}<br>
+{street}<br>
+{city}<br>
+{country}</p>
+
+<h2>Contact</h2>
+<p>E-mail: <a href="mailto:{email}">{email}</a></p>
+
+<h2>Responsible for the content</h2>
+<p>pursuant to § 18 (2) MStV: {name}, address as above.</p>
+
+<h2>Liability for content</h2>
+<p>As a service provider we are responsible for our own content on these pages
+under the general laws. We are not obliged, however, to monitor third-party
+information that is transmitted or stored.</p>
+
+<h2>Liability for links</h2>
+<p>Our site contains links to external websites whose content is beyond our
+control. Responsibility for that content always rests with the provider of the
+respective site.</p>
+
+<h2>User-generated content</h2>
+<p>Rankings, spot descriptions, ratings and spot photos are partly submitted by
+users. The person who submits such content is responsible for it. We remove
+unlawful content once we become aware of it – a note to the e-mail address above
+is enough.</p>
+
+<h2>Not a rescue or safety service</h2>
+<p>MyWaterSessions is a leisure application. The optional safety check-in is a
+reminder feature and <strong>not a rescue system</strong>: it replaces neither an
+arrangement with someone on the beach nor an emergency call. Information about
+spots, hazards and conditions is guidance without warranty; judging your own
+safety always remains with you.</p>
+"""
+
+
+# =====================================================================
+#  Datenschutzerklärung (deutsch)
+# =====================================================================
 DATENSCHUTZ_HTML = """
 <h2>1. Verantwortlicher</h2>
 <p>Verantwortlich für die Datenverarbeitung ist:<br>
@@ -190,9 +245,9 @@ in der Regel deine IP-Adresse, teils Koordinaten:</p>
       Kontobezug.</li>
   <li><strong>Anthropic</strong> – Erstellen von Spot-Beschreibungen aus
       Spot- und Wetterangaben; es werden keine Kontodaten übermittelt.</li>
-  <li><strong>E-Mail-Versand</strong> – für Bestätigungs-, Hinweis- und
-      Check-in-Mails setzen wir einen Versanddienstleister ein; übermittelt wird
-      die Empfängeradresse mit dem Nachrichteninhalt.</li>
+  <li><strong>Brevo</strong> (Sendinblue GmbH / Brevo SAS) – Versand unserer
+      E-Mails (Bestätigung der Registrierung, Hinweise, Sicherheits-Check-in);
+      übermittelt werden Empfängeradresse und Nachrichteninhalt.</li>
   <li><strong>Polar</strong> – nur wenn du dein Polar-Konto ausdrücklich
       verbindest: Austausch von Zugriffstoken und Import deiner Aktivitäten.</li>
   <li><strong>Webcams</strong> – auf einzelnen Spot-Seiten binden wir die Livebilder
@@ -219,11 +274,167 @@ Datenverarbeitung ändert.</p>
 """
 
 
+# =====================================================================
+#  Privacy policy (englisch)
+# =====================================================================
+PRIVACY_HTML_EN = """
+<h2>1. Controller</h2>
+<p>The controller for the processing described here is:<br>
+{name}, {street}, {city}, {country}<br>
+E-mail: <a href="mailto:{email}">{email}</a></p>
+
+<h2>2. What data we process</h2>
+
+<p><strong>Account:</strong> username, e-mail address and password. The password is
+stored only as a salted hash (PBKDF2-HMAC-SHA256) – we never know it in plain
+text. Optionally weight and height, which are used only for recommendations
+(e.g. sail size) and for the fun rankings.</p>
+
+<p><strong>Session and performance data:</strong> for each session we store the
+date, sport, spot, gear (board, sail/kite/wing, fin) and the values we compute –
+among them top speed over 2 s and 30 s, best 500 m and nautical mile, avg 5×10,
+Alpha 500, longest run, total distance, duration and active time, jumps and
+airtime, paddle strokes – plus the weather that matched the session (wind, gusts,
+wind direction, temperature) and an internal plausibility score used to keep
+clearly impossible values out of the rankings.</p>
+
+<p><strong>GPS data:</strong> the file you upload, or the session your watch sends,
+contains GPS points (a thinned route). This route is stored and used to compute
+your values and to draw the map in your personal area.</p>
+<p>Only a <strong>short section of it becomes public</strong>: on the Live page and
+on Spot-TV we show the map of the <strong>fastest stretch</strong> of a session
+(in the order of 500 m). The <strong>complete route is never shown
+publicly</strong>, so neither where you started nor where you parked can be seen.
+You can delete your sessions including their track at any time under
+“Delete account &amp; data”.</p>
+
+<p><strong>Watch link:</strong> to attribute sessions from your watch we store a
+random device identifier (a token or a short connect code).</p>
+
+<p><strong>Safety check-in (optional):</strong> if you switch the check-in on, we
+store the <strong>emergency e-mail address</strong> you enter, the time you expect
+to be back and the spot, and we send an e-mail to that address if you are overdue.
+Please only enter addresses whose owner agrees to this – it is another person's
+data. The entry can be deleted at any time.</p>
+
+<p><strong>Spot photos and ratings:</strong> if you upload a spot photo or rate a
+spot, we store it together with your username; photos are shown publicly in the
+spot gallery. Please upload only your own, suitable photos, to which you hold the
+rights. We may remove unsuitable images at any time, and we delete your uploads on
+request.</p>
+
+<p><strong>Contact form:</strong> your message and, if given, your name and e-mail
+address so that we can reply.</p>
+
+<p><strong>Guest entry:</strong> the QR code on Spot-TV lets people take part
+without an account. We then store the name entered and the values from the
+uploaded file. Please do not enter a name under which you do not wish to appear
+publicly.</p>
+
+<h2>3. What is publicly visible</h2>
+<p>MyWaterSessions is a community leaderboard, and part of its content is visible
+<strong>without an account and to search engines</strong>. Public are:
+<strong>username, date, spot, sport, gear, the speed and distance values and the
+weather</strong>, plus the short map section described above. This applies to the
+rankings, the spot pages, the Live page, the record overview and Spot-TV.</p>
+<p>In <strong>private groups</strong>, results are visible only to confirmed
+members. If you prefer not to appear publicly, use a username unconnected to your
+identity, or delete your sessions or your account.</p>
+
+<h2>4. Purposes and legal bases</h2>
+<ul>
+  <li><strong>Account and sign-in</strong> to provide the service – Art. 6 (1) (b)
+      GDPR (performance of a contract).</li>
+  <li><strong>Publishing your results</strong> in the rankings and on the public
+      pages – Art. 6 (1) (a) GDPR (consent, given at registration and
+      withdrawable at any time with effect for the future).</li>
+  <li><strong>Safety check-in</strong> – Art. 6 (1) (a) GDPR (consent; the feature
+      is optional and switched on individually).</li>
+  <li><strong>Operation, security and abuse prevention</strong>, including the
+      plausibility check of sessions – Art. 6 (1) (f) GDPR (legitimate interest in
+      a leaderboard that cannot be gamed).</li>
+</ul>
+
+<h2>5. Cookies, measurement and advertising</h2>
+<p>If you tick “Stay signed in” at login, we store one functionally necessary
+cookie (<code>surf_auth</code>) holding a random sign-in token. Without that
+option no cookies are set.</p>
+<p>For audience measurement we use <strong>Cloudflare Web Analytics</strong>
+(Cloudflare, Inc.). The service works <strong>without cookies</strong> and without
+cross-device recognition; what is collected is aggregated information such as the
+page viewed, the referrer and technical parameters.</p>
+<p>Spot pages and Spot-TV may show <strong>sponsor logos and product
+listings</strong>. There is <strong>no</strong> personalised ad tracking and no
+profiling.</p>
+
+<h2>6. Hosting and database</h2>
+<p>Website and application run at <strong>Render Services, Inc.</strong> (USA),
+the database at <strong>Neon, Inc.</strong> (USA), with
+<strong>Cloudflare, Inc.</strong> (USA) in front for delivery and protection of the
+domains. Connection data (e.g. IP address) is technically necessarily processed,
+including in the USA. Transfers are based on the EU standard contractual clauses
+and/or the EU-US Data Privacy Framework.</p>
+
+<h2>7. Third-party services</h2>
+<p>When certain features are used, data is transmitted to the following
+providers – usually your IP address, in some cases coordinates:</p>
+<ul>
+  <li><strong>Open-Meteo</strong> – weather and forecast; the spot's coordinates are
+      transmitted.</li>
+  <li><strong>OpenStreetMap</strong> (map tiles) and <strong>Esri</strong>
+      (satellite imagery) – map display; your browser fetches the image tiles
+      directly from them.</li>
+  <li><strong>unpkg</strong> – delivery of the map library.</li>
+  <li><strong>Nominatim (OpenStreetMap)</strong> – deriving a place name from
+      coordinates for newly created spots.</li>
+  <li><strong>is-on-water</strong> – checking whether coordinates are on water
+      (plausibility check); single coordinates are transmitted, with no account
+      reference.</li>
+  <li><strong>Anthropic</strong> – generating spot descriptions from spot and
+      weather information; no account data is transmitted.</li>
+  <li><strong>Brevo</strong> (Brevo SAS / Sendinblue GmbH) – sending our e-mails
+      (registration confirmation, notices, safety check-in); recipient address and
+      message content are transmitted.</li>
+  <li><strong>Polar</strong> – only if you explicitly connect your Polar account:
+      exchange of access tokens and import of your activities.</li>
+  <li><strong>Webcams</strong> – on some spot pages we embed the live image of the
+      respective operator. Loading it gives that operator your IP address. We have
+      no influence over this content.</li>
+</ul>
+
+<h2>8. Retention</h2>
+<p>We keep account, session and group data until you delete your account or the
+individual entries, or ask us to delete them.</p>
+
+<h2>9. Your rights</h2>
+<p>You have the right of access, rectification, erasure, restriction of processing
+and data portability, and the right to withdraw consent with effect for the
+future. You also have the right to lodge a complaint with a data protection
+supervisory authority.</p>
+<p>To exercise your rights or delete your account, an informal message to
+<a href="mailto:{email}">{email}</a> is enough. When signed in you can also remove
+your account and all related data yourself under “Delete account &amp; data”.</p>
+
+<p class="stand">Last updated: {stand}. This policy is amended whenever our
+processing changes.</p>
+"""
+
+
 def impressum_html():
-    """Impressum als HTML-Fragment (ohne Seitenrahmen)."""
+    """Impressum als HTML-Fragment (ohne Seitenrahmen), deutsch."""
     return IMPRESSUM_HTML.format(**LEGAL_OPERATOR)
 
 
 def datenschutz_html():
-    """Datenschutzerklärung als HTML-Fragment (ohne Seitenrahmen)."""
+    """Datenschutzerklärung als HTML-Fragment (ohne Seitenrahmen), deutsch."""
     return DATENSCHUTZ_HTML.format(stand=LEGAL_STAND, **LEGAL_OPERATOR)
+
+
+def imprint_html_en():
+    """Imprint as an HTML fragment (no page frame), English."""
+    return IMPRINT_HTML_EN.format(**LEGAL_OPERATOR_EN)
+
+
+def privacy_html_en():
+    """Privacy policy as an HTML fragment (no page frame), English."""
+    return PRIVACY_HTML_EN.format(stand=LEGAL_UPDATED_EN, **LEGAL_OPERATOR_EN)

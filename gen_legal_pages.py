@@ -1,20 +1,35 @@
 #!/usr/bin/env python3
 """Erzeugt die statischen Rechtsseiten in ./landing/ aus legal_texts.py.
 
+Vier Seiten, zwei Sprachen:
+    /impressum.html   /datenschutz.html   (deutsch)
+    /imprint.html     /privacy.html       (englisch)
+
 Warum statisch: Impressum und Datenschutz lagen nur in der Streamlit-App. Damit
 hingen zwei Pflichtseiten daran, dass ein Server hochfährt, sie waren für
-Suchmaschinen praktisch unsichtbar, und sie liessen sich nicht auf `noindex`
-setzen, ohne unerreichbar zu werden. Jetzt liegen sie als eigene Seiten auf der
-Landing – und die App zeigt weiter denselben Text aus derselben Quelle.
+Suchmaschinen unsichtbar, und sie liessen sich nicht auf `noindex` setzen, ohne
+unerreichbar zu werden.
 
-Ablauf bei Textänderungen:  legal_texts.py pflegen  ->  python gen_legal_pages.py
-->  Landing neu deployen.  LEGAL_STAND nicht vergessen.
+Die Namen folgen der Sprache, nicht dem Suffix-Schema der uebrigen Seiten
+(index-de.html): "impressum" und "datenschutz" sind die Begriffe, nach denen
+deutschsprachige Besucher suchen, "imprint" und "privacy" die englischen. Die
+Paare sind ueber hreflang verknuepft, x-default zeigt auf Englisch.
+
+Ablauf bei Textänderungen:  legal_texts.py pflegen (BEIDE Sprachen)
+->  python gen_legal_pages.py  ->  Landing neu deployen.  LEGAL_STAND nicht
+vergessen.
 """
 import os
 import re
 import sys
 
-from legal_texts import LEGAL_STAND, datenschutz_html, impressum_html
+from legal_texts import (
+    LEGAL_STAND,
+    datenschutz_html,
+    imprint_html_en,
+    impressum_html,
+    privacy_html_en,
+)
 
 BASE = "https://mywatersessions.com"
 APP = "https://app.mywatersessions.com"
@@ -24,7 +39,7 @@ SPOTS = "https://spots.mywatersessions.com"
 # wirken. Absichtlich ohne Google Fonts: die Landing nutzt Systemschriften, das
 # spart einen Drittanbieter genau auf den Seiten, die Datenschutz erklären.
 TEMPLATE = """<!doctype html>
-<html lang="de">
+<html lang="{lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -34,6 +49,7 @@ TEMPLATE = """<!doctype html>
 <title>{title}</title>
 <meta name="description" content="{desc}">
 <link rel="canonical" href="{canon}">
+{hreflang}
 <meta name="theme-color" content="#06303a">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MyWaterSessions">
@@ -55,6 +71,9 @@ TEMPLATE = """<!doctype html>
   .logo .dot{{ color:var(--aqua); }}
   .kicker{{ font-size:13px; letter-spacing:3px; text-transform:uppercase;
     color:#8fd9e3; margin-top:10px; }}
+  .langbar{{ font-size:13px; margin-top:14px; }}
+  .langbar a{{ margin-right:10px; text-decoration:none; color:#bfe7ee; }}
+  .langbar .active{{ color:#fff; font-weight:700; }}
   main{{ padding:30px 0 10px; }}
   main h2{{ font-size:clamp(18px,2.6vw,23px); margin:30px 0 8px; }}
   main p, main li{{ color:#dcecf1; }}
@@ -76,25 +95,26 @@ TEMPLATE = """<!doctype html>
   <div class="wrap">
     <h1 class="logo">MyWaterSessions<span class="dot">.</span></h1>
     <div class="kicker">{kicker}</div>
+    <div class="langbar">{langbar}</div>
   </div>
 </header>
 
 <main>
   <div class="wrap">
 {body}
-    <p class="backline"><a href="/">&larr; Zur Startseite</a> &middot;
+    <p class="backline"><a href="{home}">{back}</a> &middot;
        <a href="{other_href}">{other_label}</a></p>
   </div>
 </main>
 
 <footer>
   <div class="wrap">
-    <a href="/">Start</a> ·
-    <a href="/guide-de.html">Anleitung</a> ·
+    <a href="{home}">{f_home}</a> ·
+    <a href="{f_guide_href}">{f_guide}</a> ·
     <a href="{spots}/spots">Spots</a> ·
-    <a href="/impressum.html">Impressum</a> ·
-    <a href="/datenschutz.html">Datenschutz</a> ·
-    <a href="{app}/">App öffnen</a>
+    <a href="{f_imp_href}">{f_imp}</a> ·
+    <a href="{f_priv_href}">{f_priv}</a> ·
+    <a href="{app}/">{f_app}</a>
   </div>
 </footer>
 
@@ -102,27 +122,69 @@ TEMPLATE = """<!doctype html>
 </html>
 """
 
+# Beschriftungen je Sprache – an einer Stelle, damit die Seiten nicht halb
+# uebersetzt herauskommen.
+LANG = {
+    "de": {
+        "home": "/index-de.html", "back": "← Zur Startseite",
+        "f_home": "Start", "f_guide": "Anleitung", "f_guide_href": "/guide-de.html",
+        "f_imp": "Impressum", "f_imp_href": "/impressum.html",
+        "f_priv": "Datenschutz", "f_priv_href": "/datenschutz.html",
+        "f_app": "App öffnen",
+    },
+    "en": {
+        "home": "/", "back": "← Back to the start page",
+        "f_home": "Home", "f_guide": "Guide", "f_guide_href": "/guide.html",
+        "f_imp": "Imprint", "f_imp_href": "/imprint.html",
+        "f_priv": "Privacy", "f_priv_href": "/privacy.html",
+        "f_app": "Open the app",
+    },
+}
+
+# (Datei, Sprache, Partnerdatei in der anderen Sprache)
 PAGES = {
     "impressum.html": {
+        "lang": "de", "twin": "imprint.html",
         "title": "Impressum – MyWaterSessions",
         "desc": ("Impressum von MyWaterSessions: Diensteanbieter, Kontakt und "
                  "Verantwortlicher nach § 5 DDG und § 18 Abs. 2 MStV."),
         "kicker": "Impressum",
         "body": impressum_html,
-        "other_href": "/datenschutz.html",
-        "other_label": "Datenschutzerklärung",
+        "other_href": "/datenschutz.html", "other_label": "Datenschutzerklärung",
     },
     "datenschutz.html": {
+        "lang": "de", "twin": "privacy.html",
         "title": "Datenschutzerklärung – MyWaterSessions",
         "desc": ("Datenschutzerklärung von MyWaterSessions: welche Daten wir "
                  "verarbeiten, was öffentlich sichtbar ist, welche Dienste "
                  "eingebunden sind und wie du deine Daten löschst."),
         "kicker": "Datenschutz",
         "body": datenschutz_html,
-        "other_href": "/impressum.html",
-        "other_label": "Impressum",
+        "other_href": "/impressum.html", "other_label": "Impressum",
+    },
+    "imprint.html": {
+        "lang": "en", "twin": "impressum.html",
+        "title": "Imprint – MyWaterSessions",
+        "desc": ("Imprint of MyWaterSessions: service provider, contact and the "
+                 "person responsible for the content."),
+        "kicker": "Imprint",
+        "body": imprint_html_en,
+        "other_href": "/privacy.html", "other_label": "Privacy policy",
+    },
+    "privacy.html": {
+        "lang": "en", "twin": "datenschutz.html",
+        "title": "Privacy policy – MyWaterSessions",
+        "desc": ("Privacy policy of MyWaterSessions: what data we process, what is "
+                 "publicly visible, which third-party services are involved and "
+                 "how to delete your data."),
+        "kicker": "Privacy",
+        "body": privacy_html_en,
+        "other_href": "/imprint.html", "other_label": "Imprint",
     },
 }
+
+# Sprachumschalter-Beschriftung je Zielsprache
+LANG_NAME = {"de": "DE", "en": "EN"}
 
 
 def build():
@@ -130,24 +192,51 @@ def build():
     if not os.path.isdir(out_dir):
         print(f"FEHLER: {out_dir} gibt es nicht", file=sys.stderr)
         return 1
+    problems = 0
     for fname, cfg in PAGES.items():
+        lang = cfg["lang"]
+        twin = cfg["twin"]
+        twin_lang = PAGES[twin]["lang"]
+        # hreflang-Paar + x-default auf Englisch: die deutsche und die englische
+        # Fassung sind derselbe Inhalt, sonst haelt Google sie fuer Dubletten.
+        en_file = fname if lang == "en" else twin
+        hreflang = "\n".join([
+            f'<link rel="alternate" hreflang="{lang}" href="{BASE}/{fname}">',
+            f'<link rel="alternate" hreflang="{twin_lang}" href="{BASE}/{twin}">',
+            f'<link rel="alternate" hreflang="x-default" href="{BASE}/{en_file}">',
+        ])
+        langbar = " ".join(
+            (f'<a class="active">{LANG_NAME[lang]}</a>' if lg == lang
+             else f'<a href="/{twin}">{LANG_NAME[lg]}</a>')
+            for lg in ("en", "de")
+        )
         body = cfg["body"]()
-        # Inhalt um zwei Ebenen einruecken, damit die Quelle lesbar bleibt.
         body = "\n".join(("    " + ln) if ln.strip() else ln
                          for ln in body.strip().splitlines())
         html = TEMPLATE.format(
-            title=cfg["title"], desc=cfg["desc"], kicker=cfg["kicker"],
-            canon=f"{BASE}/{fname}", body=body, app=APP, spots=SPOTS,
+            lang=lang, title=cfg["title"], desc=cfg["desc"], kicker=cfg["kicker"],
+            canon=f"{BASE}/{fname}", hreflang=hreflang, langbar=langbar, body=body,
+            app=APP, spots=SPOTS,
             other_href=cfg["other_href"], other_label=cfg["other_label"],
+            **LANG[lang],
         )
         with open(os.path.join(out_dir, fname), "w", encoding="utf-8") as fh:
             fh.write(html)
-        # Kurze Selbstpruefung: keine offenen Platzhalter, Tags ausgeglichen.
+
         leftover = re.findall(r"\{[a-z_]+\}", html)
-        print(f"{fname}: {len(html)} Zeichen, h1={html.count('<h1')}, "
-              f"h2={html.count('<h2')}, p={html.count('<p')}/{html.count('</p>')}, "
-              f"offene Platzhalter={leftover or 'keine'}")
+        h1 = html.count("<h1")
+        po, pc = html.count("<p"), html.count("</p>")
+        ok = not leftover and h1 == 1 and po == pc
+        if not ok:
+            problems += 1
+        print(f"{'ok ' if ok else '!! '}{fname:<20} {len(html):>6} Zeichen  "
+              f"h1={h1}  h2={html.count('<h2')}  p={po}/{pc}  "
+              f"hreflang={html.count('hreflang=')}  "
+              f"Platzhalter={leftover or 'keine'}")
     print(f"\nStand laut legal_texts.py: {LEGAL_STAND}")
+    if problems:
+        print(f"WARNUNG: {problems} Seite(n) mit Auffaelligkeiten")
+        return 1
     print("Nicht vergessen: Landing neu deployen (Manual Deploy).")
     return 0
 
