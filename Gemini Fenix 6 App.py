@@ -11205,7 +11205,12 @@ def _detect_gybes(track_pts, v_kn, t_min, min_entry_kn=10.0, turn_deg=90.0):
     """Halsen/Wenden aus dem Track: großer Kurswechsel (Bearing vorher vs.
     nachher > turn_deg), angefahren mit Fahrt (> min_entry_kn). Grob, da der
     Uhr-Track nur alle paar Sekunden abtastet – reicht für Anzahl + Speed-Erhalt
-    (Einfahrt- vs. Ausfahrt-Tempo). Liefert Liste mit Nr./Zeit/Speeds/Erhalt %."""
+    (Einfahrt- vs. Ausfahrt-Tempo). Liefert Liste mit Nr./Zeit/Speeds/Erhalt %.
+
+    ACHTUNG `min_entry_kn`: der Standard 10 kn passt nur zu Windsurf. Ein
+    SUP-Paddler erreicht das nie, dort wurde also NIE ein Manöver erkannt,
+    obwohl die Sportart konfiguriert ist. Der Aufrufer leitet die Schwelle darum
+    aus der Gleitschwelle der Sportart ab - siehe _render_speed_curve."""
     n = len(track_pts)
     if n < 6:
         return []
@@ -11651,7 +11656,13 @@ def _render_speed_curve(track_pts, duration_s, record):
         if _watch_g:
             gybes = _watch_gybes_to_markers(_watch_g, t_min, v_kn)
         else:
-            gybes = _detect_gybes(track_pts, v_kn, t_min)
+            # Einfahrtschwelle AUS DER SPORTART, nicht fest 10 kn: bei Windsurf
+            # bleibt es praktisch bei 10 (0,8 x 12), aber ein SUP-Paddler kommt
+            # nie auf 10 kn - dort wurde bisher nie ein Manöver erkannt. 0,8 x
+            # Gleitschwelle heisst "mit Arbeitstempo angefahren"; die 3-kn-Grenze
+            # verhindert, dass bei einer kaputten Schwelle Rauschen gezählt wird.
+            gybes = _detect_gybes(track_pts, v_kn, t_min,
+                                  min_entry_kn=max(3.0, 0.8 * glide_kn))
 
     W, H = 700.0, 240.0
     L, R, T, B = 42.0, 12.0, 14.0, 26.0
