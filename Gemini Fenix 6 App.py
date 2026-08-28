@@ -540,174 +540,43 @@ def background_data_uri(sport="windsurf"):
 
 # =====================================================================
 #  Rechtsseiten (Impressum / Datenschutz)
-#  Erreichbar über ?seite=impressum bzw. ?seite=datenschutz – BEWUSST vor
-#  dem Login-Gate, damit das Impressum (Pflicht!) ohne Anmeldung erreichbar
-#  ist. Bitte die [PLATZHALTER] im LEGAL_OPERATOR ausfüllen.
+#  In der App erreichbar über ?seite=impressum bzw. ?seite=datenschutz – BEWUSST
+#  vor dem Login-Gate. Der TEXT steht in legal_texts.py, dort auch die Anschrift
+#  (LEGAL_OPERATOR) und der Stand (LEGAL_STAND).
 # =====================================================================
 
-LEGAL_OPERATOR = {
-    "name": "Jan Brinkman",
-    "street": "Thorner Strasse 12",
-    "city": "51469 Bergisch Gladbach",
-    "country": "Deutschland",
-    "email": "Windsurfspeedchallenge@outlook.de",
-    }
+# EINE Quelle fuer App UND Website. Vorher standen die Texte nur hier, waren
+# damit nur ueber ?seite=... erreichbar und fuer Suchmaschinen unsichtbar.
+# gen_legal_pages.py erzeugt daraus /impressum.html und /datenschutz.html.
+from legal_texts import datenschutz_html, impressum_html  # noqa: E402
 
-LEGAL_STAND = "Juni 2026"
+_LEGAL_CSS = (
+    "<style>"
+    ".wslegal h2{font-size:1.15rem;margin:1.5rem 0 .4rem;}"
+    ".wslegal p,.wslegal li{line-height:1.65;}"
+    ".wslegal .lead{opacity:.85;}"
+    ".wslegal .stand{margin-top:1.6rem;font-size:.9rem;opacity:.75;}"
+    "</style>"
+)
 
 
 def _legal_back_button(key):
-    if st.button("← Zurück zur Startseite", key=key):
+    if st.button("Zurueck zur Startseite", key=key):
         st.query_params.clear()
         st.rerun()
 
 
 def render_impressum():
-    op = LEGAL_OPERATOR
-
-    st.markdown("## 📄 Impressum")
-    st.caption("Angaben gemäß § 5 Digitale-Dienste-Gesetz (DDG)")
-
-    # Optionale Felder (z.B. USt-IdNr.) werden nur angezeigt, wenn gesetzt –
-    # so stürzt nichts ab, wenn eine Zeile in LEGAL_OPERATOR entfernt wird.
-    vat_block = ""
-    if op.get("vat"):
-        vat_block = f"**Umsatzsteuer-Identifikationsnummer**<br>\n{op['vat']}\n\n"
-
-    st.markdown(
-        f"""
-**Diensteanbieter**<br>
-{op.get('name', '')}<br>
-{op.get('street', '')}<br>
-{op.get('city', '')}<br>
-{op.get('country', '')}
-
-**Kontakt**<br>
-E-Mail: {op.get('email', '')}
-
-{vat_block}**Verantwortlich für den Inhalt** nach § 18 Abs. 2 MStV<br>
-{op.get('name', '')}, Anschrift wie oben.
-
----
-
-**Haftung für Inhalte**<br>
-Als Diensteanbieter sind wir für eigene Inhalte auf diesen Seiten nach den
-allgemeinen Gesetzen verantwortlich. Wir sind jedoch nicht verpflichtet,
-übermittelte oder gespeicherte fremde Informationen zu überwachen.
-
-**Haftung für Links**<br>
-Unser Angebot enthält Links zu externen Websites Dritter, auf deren Inhalte
-wir keinen Einfluss haben. Für diese fremden Inhalte ist stets der jeweilige
-Anbieter der Seiten verantwortlich.
-""",
-        unsafe_allow_html=True,
-    )
-
+    st.markdown("## Impressum")
+    st.markdown(_LEGAL_CSS + f"<div class='wslegal'>{impressum_html()}</div>",
+                unsafe_allow_html=True)
     _legal_back_button("back_impressum")
 
 
 def render_datenschutz():
-    op = LEGAL_OPERATOR
-
-    st.markdown("## 🔒 Datenschutzerklärung")
-
-    st.markdown(
-        f"""
-### 1. Verantwortlicher
-
-Verantwortlich für die Datenverarbeitung auf dieser Website ist:<br>
-{op.get('name', '')}, {op.get('street', '')}, {op.get('city', '')}, {op.get('country', '')}<br>
-E-Mail: {op.get('email', '')}
-
-### 2. Welche Daten wir verarbeiten
-
-**Konto:** Benutzername und Passwort. Das Passwort wird ausschließlich als
-gesalzener Hash (PBKDF2-HMAC-SHA256) gespeichert – im Klartext ist es uns
-nicht bekannt.
-
-**Session-/Leistungsdaten:** Pro hochgeladener Windsurf-Session speichern wir
-Datum, Surfspot, Board, Segel sowie die berechneten Kennzahlen
-(Höchstgeschwindigkeit über 1 s und 30 s, längster Run, Gesamtstrecke) und die
-zur Session passenden Wetterdaten.
-
-**GPS-Daten:** Deine hochgeladene FIT-Datei bzw. die von deiner Uhr gesendete
-Session enthält GPS-Punkte (eine ausgedünnte Route). Diese **GPS-Route wird
-gespeichert** und dient der Berechnung deiner Kennzahlen sowie der Karten-Anzeige
-**ausschließlich in deinem persönlichen Bereich**. **Sie wird niemals öffentlich
-im Ranking angezeigt oder mit anderen Nutzern geteilt.** Du kannst deine Sessions
-inklusive Track jederzeit unter „Konto & Daten löschen" entfernen.
-
-**Gruppen:** Von dir erstellte oder beigetretene Gruppen und der jeweilige
-Mitgliedsstatus.
-
-**Spot-Fotos:** Lädst du auf der Spots-Seite ein Foto eines Spots hoch, speichern
-wir dieses Bild zusammen mit deinem **Benutzernamen** und zeigen es **öffentlich**
-in der Spot-Galerie an (es werden jeweils nur die neuesten Fotos je Spot gezeigt).
-Lade bitte nur **eigene, geeignete** Fotos hoch, an denen du die Rechte besitzt.
-Wir können unpassende Bilder jederzeit entfernen; auf Anfrage löschen wir deine
-hochgeladenen Fotos.
-
-### 3. Öffentliche Sichtbarkeit (Ranking)
-
-Diese App ist eine Community-Bestenliste. Wenn du eine Session speicherst,
-werden **Benutzername, Datum, Surfspot, Board, Segel, die Speed-Werte und die
-Wetterangaben** im Ranking für andere angemeldete Nutzer sichtbar. In privaten
-Gruppen sind die Ergebnisse nur für bestätigte Mitglieder sichtbar. Von dir
-**hochgeladene Spot-Fotos** sind samt deinem **Benutzernamen** öffentlich in der
-Spot-Galerie sichtbar.
-
-### 4. Zwecke und Rechtsgrundlagen
-
-- **Konto & Anmeldung** zur Bereitstellung der App – Art. 6 Abs. 1 lit. b DSGVO
-  (Nutzungsverhältnis).
-- **Veröffentlichung deiner Ergebnisse im Ranking** – Art. 6 Abs. 1 lit. a DSGVO
-  (deine Einwilligung, die du bei der Registrierung erteilst und jederzeit mit
-  Wirkung für die Zukunft widerrufen kannst).
-
-### 5. Cookies
-
-Setzt du beim Login „Angemeldet bleiben", speichern wir ein funktional
-notwendiges Cookie (`surf_auth`) mit einem zufälligen Anmelde-Token, damit du
-nicht bei jedem Besuch neu eingeben musst. Ohne diese Option werden keine
-Cookies gesetzt. Es findet kein Tracking und keine Werbung statt.
-
-### 6. Hosting
-
-Die App wird auf **Streamlit Community Cloud** (Snowflake Inc., USA) betrieben.
-Dabei können technisch bedingt Verbindungsdaten (z. B. IP-Adresse) in den USA
-verarbeitet werden. Grundlage für die Übermittlung sind die
-Standardvertragsklauseln der EU bzw. das EU-US Data Privacy Framework.
-
-### 7. Externe Dienste (Wetter)
-
-Zur Anzeige von Wetter und Vorhersage rufen wir die Schnittstellen von
-**Open-Meteo** ab. Dabei werden die **Koordinaten des ausgewählten Spots** sowie
-technische Verbindungsdaten an Open-Meteo übermittelt. Es werden keine Konto-
-oder Session-Daten von dir übertragen.
-
-### 8. Speicherdauer
-
-Konto-, Session- und Gruppendaten speichern wir, bis du dein Konto bzw. die
-jeweiligen Einträge löschst oder die Löschung verlangst.
-
-### 9. Deine Rechte
-
-Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der
-Verarbeitung, Datenübertragbarkeit sowie auf Widerruf erteilter Einwilligungen
-mit Wirkung für die Zukunft. Außerdem steht dir ein Beschwerderecht bei einer
-Datenschutz-Aufsichtsbehörde zu.
-
-Zur Ausübung deiner Rechte oder zur Löschung deines Kontos genügt eine formlose
-Nachricht an: {op.get('email', '')}
-
----
-
-*Stand: {LEGAL_STAND}. Diese Erklärung wird angepasst, wenn sich die
-Datenverarbeitung ändert.*
-""",
-        unsafe_allow_html=True,
-    )
-
+    st.markdown("## Datenschutzerklaerung")
+    st.markdown(_LEGAL_CSS + f"<div class='wslegal'>{datenschutz_html()}</div>",
+                unsafe_allow_html=True)
     _legal_back_button("back_datenschutz")
 
 
