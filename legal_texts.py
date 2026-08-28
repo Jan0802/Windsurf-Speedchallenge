@@ -245,9 +245,13 @@ in der Regel deine IP-Adresse, teils Koordinaten:</p>
       Kontobezug.</li>
   <li><strong>Anthropic</strong> – Erstellen von Spot-Beschreibungen aus
       Spot- und Wetterangaben; es werden keine Kontodaten übermittelt.</li>
-  <li><strong>Brevo</strong> (Sendinblue GmbH / Brevo SAS) – Versand unserer
-      E-Mails (Bestätigung der Registrierung, Hinweise, Sicherheits-Check-in);
-      übermittelt werden Empfängeradresse und Nachrichteninhalt.</li>
+  <li><strong>Resend</strong> (Resend, Inc., USA) – Versand der Konto-E-Mails:
+      Bestätigung der Registrierung sowie bei einer Änderung deiner E-Mail-Adresse
+      die Bestätigung an die neue und der Sicherheitshinweis an die alte Adresse.
+      Übermittelt werden Empfängeradresse und Nachrichteninhalt.</li>
+  <li><strong>Brevo</strong> (Brevo SAS, Frankreich) – Versand der Mails des
+      Sicherheits-Check-ins. Übermittelt werden die von dir angegebene
+      Notfall-Adresse und der Nachrichteninhalt.</li>
   <li><strong>Polar</strong> – nur wenn du dein Polar-Konto ausdrücklich
       verbindest: Austausch von Zugriffstoken und Import deiner Aktivitäten.</li>
   <li><strong>Webcams</strong> – auf einzelnen Spot-Seiten binden wir die Livebilder
@@ -392,9 +396,13 @@ providers – usually your IP address, in some cases coordinates:</p>
       reference.</li>
   <li><strong>Anthropic</strong> – generating spot descriptions from spot and
       weather information; no account data is transmitted.</li>
-  <li><strong>Brevo</strong> (Brevo SAS / Sendinblue GmbH) – sending our e-mails
-      (registration confirmation, notices, safety check-in); recipient address and
-      message content are transmitted.</li>
+  <li><strong>Resend</strong> (Resend, Inc., USA) – sending the account e-mails:
+      the registration confirmation and, when you change your e-mail address, the
+      confirmation to the new address and the security notice to the old one.
+      Recipient address and message content are transmitted.</li>
+  <li><strong>Brevo</strong> (Brevo SAS, France) – sending the safety check-in
+      e-mails. The emergency address you entered and the message content are
+      transmitted.</li>
   <li><strong>Polar</strong> – only if you explicitly connect your Polar account:
       exchange of access tokens and import of your activities.</li>
   <li><strong>Webcams</strong> – on some spot pages we embed the live image of the
