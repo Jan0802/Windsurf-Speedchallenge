@@ -7222,6 +7222,14 @@ def best_alpha_500(df, meters=500.0, max_gap_m=50.0, slack=1.35):
         if ok.size == 0:
             continue
         k = j + int(ok[0])
+        # DICHTE-RIEGEL: die 50-m-Pruefung ist nur sinnvoll, wenn die Messpunkte
+        # dichter liegen als die Toleranz, die sie prueft. Liegt der mittlere
+        # Punktabstand im Fenster darueber - bei 40 s je Punkt sind das hunderte
+        # Meter -, dann trifft "Start und Ende unter 50 m" zufaellig und der Wert
+        # misst keine Halse mehr. Lieber kein Alpha als ein erfundenes: die Zahl
+        # ist gewertet und landet in der Rangliste.
+        if (dist[k] - dist[i]) / max(k - i, 1) > max_gap_m:
+            continue
         span = t[k] - t[i]
         if span > 0:
             v = (dist[k] - dist[i]) / span * 3.6
@@ -10390,7 +10398,7 @@ def render_desc_cleanup():
             st.rerun()
 
 
-def _backfill_track_metrics(limit=400):
+def _backfill_track_metrics(limit=400, recheck_alpha=False):
     """avg 5x10 UND Alpha 500 nachtragen fuer Sessions mit Track aber ohne Wert.
 
     Beide in EINEM Lauf, weil beide aus demselben Track kommen - die Tracks
@@ -10398,16 +10406,22 @@ def _backfill_track_metrics(limit=400):
     Gerechnet wird mit denselben Funktionen wie beim Upload, damit nachgetragene
     und neue Sessions in der Rangliste vergleichbar sind.
 
-    Gibt (5x10_neu, alpha_neu, ohne_ergebnis, ohne_track) zurueck. Surf bleibt
-    aussen vor - dort sind beide nicht gewertet (wie 500 m und Seemeile).
+    `recheck_alpha=True` rechnet Alpha 500 fuer ALLE Sessions neu und setzt es
+    auf NULL, wenn der Dichte-Riegel es jetzt ablehnt. Das braucht es, weil vor
+    dem Riegel bei grobem Track Zufallswerte gespeichert wurden - ein normaler
+    Backfill fuellt nur Leerstellen und wuerde sie nie anfassen.
+
+    Gibt (5x10_neu, alpha_neu, alpha_geloescht, ohne_ergebnis, ohne_track)
+    zurueck. Surf bleibt aussen vor - dort sind beide nicht gewertet.
     """
-    w510 = walpha = none_val = no_track = 0
+    w510 = walpha = wcleared = none_val = no_track = 0
+    _where = ("WHERE track IS NOT NULL AND lower(coalesce(sport,'')) <> 'surf' "
+              + ("" if recheck_alpha
+                 else "AND (speed_5x10_kmh IS NULL OR speed_alpha500_kmh IS NULL) "))
     with get_engine().begin() as conn:
         rows = conn.execute(text(
             "SELECT id, duration_s, speed_5x10_kmh, speed_alpha500_kmh "
-            "FROM sessions "
-            "WHERE track IS NOT NULL AND lower(coalesce(sport,'')) <> 'surf' "
-            "AND (speed_5x10_kmh IS NULL OR speed_alpha500_kmh IS NULL) "
+            f"FROM sessions {_where}"
             "ORDER BY id DESC LIMIT :lim"
         ), {"lim": int(limit)}).fetchall()
         for r in rows:
@@ -10427,20 +10441,25 @@ def _backfill_track_metrics(limit=400):
                     sets.append("speed_5x10_kmh = :a")
                     params["a"] = round(float(v), 2)
                     w510 += 1
-            if havealpha is None:
+            if recheck_alpha or havealpha is None:
                 v = best_alpha_500(df)
                 if v is not None:
                     sets.append("speed_alpha500_kmh = :b")
                     params["b"] = round(float(v), 2)
-                    walpha += 1
+                    if havealpha is None:
+                        walpha += 1
+                elif recheck_alpha and havealpha is not None:
+                    # Riegel lehnt ab, es steht aber ein Wert drin -> loeschen.
+                    sets.append("speed_alpha500_kmh = NULL")
+                    wcleared += 1
             if not sets:
                 none_val += 1
                 continue
             conn.execute(text(f"UPDATE sessions SET {', '.join(sets)} WHERE id = :i"),
                          params)
-    if w510 or walpha:
+    if w510 or walpha or wcleared:
         clear_data_caches()
-    return w510, walpha, none_val, no_track
+    return w510, walpha, wcleared, none_val, no_track
 
 
 def render_5x10_backfill():
@@ -10454,27 +10473,39 @@ def render_5x10_backfill():
         )
         _lim = st.number_input("Sessions pro Durchgang", 50, 2000, 400, step=50,
                                key="bf510_lim")
+        _recheck = st.checkbox(
+            "Alpha 500 neu prüfen und unplausible Werte zurücksetzen",
+            key="bf510_recheck",
+            help="Vor dem Dichte-Riegel wurden bei groben Tracks Zufallswerte "
+                 "gespeichert (z. B. 7 km/h bei 43 km/h Top-Speed). Ein normaler "
+                 "Lauf füllt nur leere Felder und fasst die nie an. Mit dieser "
+                 "Option wird Alpha für ALLE Sessions neu gerechnet und auf leer "
+                 "gesetzt, wenn der Track zu grob ist.")
         if st.button("🎯 Jetzt nachtragen", key="bf510_run",
                      use_container_width=True):
             with st.spinner("Rechne aus den Tracks…"):
                 try:
-                    w5, wa, nv, nt = _backfill_track_metrics(int(_lim))
+                    w5, wa, wc, nv, nt = _backfill_track_metrics(
+                        int(_lim), recheck_alpha=bool(_recheck))
                 except Exception as exc:  # noqa: BLE001
                     st.error(f"Fehlgeschlagen: {exc}")
                     return
-            st.success(f"Avg 5×10: {w5} · Alpha 500: {wa} nachgetragen.")
+            st.success(f"Avg 5×10: {w5} · Alpha 500: {wa} nachgetragen"
+                       + (f" · {wc} unplausible Alpha-Werte zurückgesetzt."
+                          if wc else "."))
             if nv:
                 st.caption(
                     f"{nv} ohne Ergebnis – 5×10 braucht ~50 s Fahrtzeit, Alpha 500 "
                     "eine Halse innerhalb von 500 m mit Start und Ende unter 50 m "
-                    "Abstand. Bei grob ausgedünnten Tracks fällt Alpha oft aus."
+                    "Abstand UND einen Track, dessen Punkte enger als diese 50 m "
+                    "liegen. Bei grob ausgedünnten Tracks fällt Alpha darum aus."
                 )
             if nt:
                 st.caption(f"{nt} mit unlesbarem oder zu kurzem Track.")
-            if (w5 + wa + nv + nt) >= int(_lim):
+            if (w5 + wa + wc + nv + nt) >= int(_lim):
                 st.info("Der Block war voll – nochmal laufen lassen, es sind "
                         "vermutlich noch mehr offen.")
-            if w5 or wa:
+            if w5 or wa or wc:
                 st.rerun()
 
 
