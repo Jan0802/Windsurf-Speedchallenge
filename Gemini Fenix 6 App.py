@@ -12449,19 +12449,43 @@ def render_history_overview(record):
             if _d510 is not None and not _d510.empty:
                 _avg510 = best_5x10_avg(_d510)
 
-        # Hoechstens vier Werte in die Zeile - fuenf passen auf dem Handy nicht.
-        # Reihenfolge = Wichtigkeit, gefuellt wird mit dem was vorliegt.
+        # Hoechstens VIER Werte in die Zeile - fuenf passen auf dem Handy nicht.
+        # Welche vier, entscheidet die SPORTART: beim Wakeboard fuehrt der Sprung
+        # (dort gibt es keine 500 m/Seemeile-Wertung), beim Kite steht er direkt
+        # hinter dem 5x10, beim Windsurfen kommen erst die Speed-Wertungen. Was
+        # keinen Wert hat, faellt raus - lieber drei Kacheln als eine leere.
+        _STRIP_META = {
+            "_5x10": ("AVG 5×10", "km/h", 2),
+            "speed_alpha500_kmh": ("Alpha 500", "km/h", 2),
+            "speed_30s_kmh": ("30 s", "km/h", 2),
+            "speed_500m_kmh": ("500 m", "km/h", 2),
+            "speed_nm_kmh": ("1 nm", "km/h", 2),
+            "longest_run_km": ("Longest run", "km", 2),
+            "total_distance_km": ("Distance", "km", 2),
+            "max_jump_m": ("Highest jump", "m", 1),
+            "max_airtime_s": ("Airtime", "s", 1),
+        }
+        _STRIP_ORDER = {
+            "wakeboard": ("max_jump_m", "max_airtime_s", "longest_run_km",
+                          "total_distance_km"),
+            "kitesurf": ("_5x10", "max_jump_m", "speed_alpha500_kmh",
+                         "speed_30s_kmh", "speed_500m_kmh"),
+            "sup": ("_5x10", "speed_30s_kmh", "longest_run_km",
+                    "total_distance_km"),
+            "surf": ("_5x10", "longest_run_km", "speed_30s_kmh",
+                     "total_distance_km"),
+        }
+        # Windsurf und Wingsurf: Speed zuerst, der Sprung auf Platz vier. Der
+        # laengste Run steht ohnehin schon in den Kacheln ueber der Kurve.
+        _order = _STRIP_ORDER.get(active_sport(),
+                                  ("_5x10", "speed_alpha500_kmh", "speed_30s_kmh",
+                                   "max_jump_m", "longest_run_km", "speed_nm_kmh"))
         _cands = []
-        if _avg510:
-            _cands.append(("AVG 5×10", f"{_avg510:.2f}", "km/h"))
-        for _k, _lb, _un, _dc in (("speed_alpha500_kmh", "Alpha 500", "km/h", 2),
-                                  ("speed_30s_kmh", "30 s", "km/h", 2),
-                                  ("speed_500m_kmh", "500 m", "km/h", 2),
-                                  ("longest_run_km", "Longest run", "km", 2),
-                                  ("speed_nm_kmh", "1 nm", "km/h", 2)):
-            _val = num(_k)
+        for _k in _order:
+            _lb, _un, _dc = _STRIP_META[_k]
+            _val = _avg510 if _k == "_5x10" else num(_k)
             if _val:
-                _cands.append((_lb, f"{_val:.{_dc}f}", _un))
+                _cands.append((_lb, f"{float(_val):.{_dc}f}", _un))
         _mstats = [{"label": a, "value": b, "unit": c} for a, b, c in _cands[:4]]
         _mhtml, _mh = _track_map_html(_mpts, _mdur, headline=_hl, stats=_mstats)
         if _mhtml:
