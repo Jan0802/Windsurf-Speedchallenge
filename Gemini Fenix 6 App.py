@@ -7089,7 +7089,7 @@ def best_average_speed(df, seconds):
     return float(best)
 
 
-def best_5x10_avg(df, count=5, seconds=10):
+def best_5x10_avg(df, count=5, seconds=10, max_step_s=5.0):
     """GPS-Speedsurf-Klassiker „avg 5x10": Mittel der fuenf besten
     10-Sekunden-Fahrten, die sich zeitlich NICHT ueberlappen.
 
@@ -7118,6 +7118,14 @@ def best_5x10_avg(df, count=5, seconds=10):
     if len(d) < 2:
         return None
     d = d.sort_values("timestamp").set_index("timestamp")
+    # DICHTE-RIEGEL, wie bei Alpha 500: ein 10-Sekunden-Fenster muss aus MEHREREN
+    # Messpunkten bestehen. Bei 40 s je Punkt enthaelt es genau einen - der Wert
+    # waere dann das Mittel aus fuenf 40-Sekunden-Schnitten und truege trotzdem
+    # das Etikett "5x10". Ab etwa 5 s je Punkt sind es zwei, das ist die Grenze.
+    # Die Zahl ist gewertet, darum lieber leer als falsch beschriftet.
+    _steps = np.diff(d.index.values) / np.timedelta64(1, "s")
+    if _steps.size and float(np.median(_steps)) > max_step_s:
+        return None
     roll = d["speed_kmh"].rolling(f"{seconds}s").mean().dropna()
     if roll.empty:
         return None
@@ -10435,12 +10443,17 @@ def _backfill_track_metrics(limit=400, recheck_alpha=False):
                 no_track += 1
                 continue
             sets, params = [], {"i": sid}
-            if have510 is None:
+            if recheck_alpha or have510 is None:
                 v = best_5x10_avg(df)
                 if v is not None:
                     sets.append("speed_5x10_kmh = :a")
                     params["a"] = round(float(v), 2)
-                    w510 += 1
+                    if have510 is None:
+                        w510 += 1
+                elif recheck_alpha and have510 is not None:
+                    # Riegel lehnt ab, es steht aber ein Wert drin -> loeschen.
+                    sets.append("speed_5x10_kmh = NULL")
+                    wcleared += 1
             if recheck_alpha or havealpha is None:
                 v = best_alpha_500(df)
                 if v is not None:
@@ -10449,7 +10462,6 @@ def _backfill_track_metrics(limit=400, recheck_alpha=False):
                     if havealpha is None:
                         walpha += 1
                 elif recheck_alpha and havealpha is not None:
-                    # Riegel lehnt ab, es steht aber ein Wert drin -> loeschen.
                     sets.append("speed_alpha500_kmh = NULL")
                     wcleared += 1
             if not sets:
@@ -10474,13 +10486,15 @@ def render_5x10_backfill():
         _lim = st.number_input("Sessions pro Durchgang", 50, 2000, 400, step=50,
                                key="bf510_lim")
         _recheck = st.checkbox(
-            "Alpha 500 neu prüfen und unplausible Werte zurücksetzen",
+            "Beide Werte neu prüfen und unplausible zurücksetzen",
             key="bf510_recheck",
-            help="Vor dem Dichte-Riegel wurden bei groben Tracks Zufallswerte "
-                 "gespeichert (z. B. 7 km/h bei 43 km/h Top-Speed). Ein normaler "
-                 "Lauf füllt nur leere Felder und fasst die nie an. Mit dieser "
-                 "Option wird Alpha für ALLE Sessions neu gerechnet und auf leer "
-                 "gesetzt, wenn der Track zu grob ist.")
+            help="Beide Kennzahlen kommen aus dem GPS-Track und brauchen einen "
+                 "Track von höchstens ~5 s je Punkt. Vor dem Dichte-Riegel wurden "
+                 "bei groben Tracks Zufallswerte gespeichert – Alpha z. B. 7 km/h "
+                 "bei 43 km/h Top-Speed, und ein „5×10\" aus 40-Sekunden-Fenstern. "
+                 "Ein normaler Lauf füllt nur leere Felder und fasst die nie an. "
+                 "Mit dieser Option werden beide für ALLE Sessions neu gerechnet "
+                 "und auf leer gesetzt, wenn der Track zu grob ist.")
         if st.button("🎯 Jetzt nachtragen", key="bf510_run",
                      use_container_width=True):
             with st.spinner("Rechne aus den Tracks…"):
