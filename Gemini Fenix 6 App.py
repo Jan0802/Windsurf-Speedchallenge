@@ -426,6 +426,30 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# --- Diese App gehoert NICHT in den Suchindex -----------------------------
+# app.mywatersessions.com ist eine Streamlit-Oberflaeche. Landet sie im Index,
+# konkurriert sie bei Marken-Suchen mit der eigentlichen Website - und was
+# Google dort zu sehen bekommt, ist eine JavaScript-Huelle statt Inhalt.
+#
+# Der saubere Weg ist ein "X-Robots-Tag: noindex" am Rand (Cloudflare). Gemessen
+# am 29.08.2026: der Header fehlt. Bis er gesetzt ist, schreiben wir das
+# Meta-Tag selbst in den Kopf des Eltern-Dokuments; Google rendert JavaScript
+# und liest es nach dem Rendern. Beides zusammen stoert sich nicht - kommt der
+# Header, gewinnt er, und dieses Tag ist dann nur noch Guertel zum Hosentraeger.
+#
+# Seit Impressum und Datenschutz als statische Seiten auf der Website liegen,
+# geht dabei auch keine Pflichtseite mehr verloren.
+if not st.session_state.get("_noindex_meta"):
+    st.session_state["_noindex_meta"] = True
+    components.html(
+        "<script>(function(){try{var d=window.parent.document;"
+        "if(!d.querySelector('meta[name=\"robots\"]')){"
+        "var m=d.createElement('meta');m.name='robots';"
+        "m.content='noindex,nofollow';d.head.appendChild(m);}"
+        "}catch(e){}})();</script>",
+        height=0,
+    )
+
 
 # --- "Online jetzt"-Zähler (grobe Näherung) -------------------------------
 # Jede Browser-Session bekommt eine ID; bei jedem (vollen) Rerun wird ein
