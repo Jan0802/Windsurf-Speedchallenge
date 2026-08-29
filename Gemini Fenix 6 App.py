@@ -11335,6 +11335,33 @@ def _watch_gybes_to_markers(wg, t_min, v_kn):
     return out
 
 
+def _coarse_track_hint(dt, man_name="gybe"):
+    """Einheitlicher Hinweis, wenn der Track zu grob fuer die Feinanalyse ist.
+
+    Steht an ZWEI Stellen (Zusammenfassung und Einzeldiagnose) - darum ein Text
+    an einer Stelle. Nennt die Handlung, nicht nur das Problem, und den Haken
+    dabei: der Datei-Upload legt eine ZWEITE Session an, weil die
+    Dubletten-Pruefung ueber den Dateinamen geht.
+
+    Die Zahlen sind gerechnet, nicht geraten: die Uhr startet bei 5 s je Punkt
+    und halbiert die Rate, sobald ihr Punkte-Budget voll ist. Das Budget haengt
+    am freien Speicher - eine fenix 6 hat 128 KB und haelt damit rund eine
+    Stunde durch, fenix 6 Pro, fenix 7/8, epix 2 und die Forerunner haben 768 KB
+    bis 1,25 MB und schaffen etwa 3,6 Stunden.
+    """
+    return (
+        f"**This session's track has ~{dt:.0f} s between points** – too coarse to "
+        f"break a {man_name} into phases. Your watch thins the track on long "
+        "sessions: a fenix 6 keeps about an hour at 5 s per point, a fenix 6 Pro, "
+        "fenix 7/8, epix 2 or Forerunner about 3.6 hours.\n\n"
+        "**To analyse this session in detail, upload its FIT file** from Garmin "
+        "Connect under *Add session* – that keeps roughly one point every 2 s, "
+        "which is enough for the phase-by-phase diagnosis, avg 5×10 and "
+        "Alpha 500. Note it arrives as a **separate** session, so delete this one "
+        "afterwards if you do not want the ride twice."
+    )
+
+
 def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
     """Gemeinsame ereignisbasierte Halsen-Diagnose (Modell aus halsen-diagnose.md).
     speeds/times_sec = np-Arrays (Speed kn / Sekunden relativ zum Apex), apex_i =
@@ -11382,10 +11409,7 @@ def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
         if kept is not None:
             _head += f" You kept about **{kept:.0f}%** of your approach speed."
         st.markdown(_head)
-        st.info(f"This session's GPS is only ~{dt:.0f}s per point — too coarse to split a "
-                f"7–10 s {_m['name']} into phases (that's why the numbers look rough and there's "
-                "no detailed curve). Your watch, once the update is live, records **per second**, "
-                "which powers the full phase-by-phase breakdown.")
+        st.info(_coarse_track_hint(dt, _m["name"]))
         return
 
     c = st.columns(5)
@@ -11905,9 +11929,9 @@ def _render_speed_curve(track_pts, duration_s, record):
                 f"At ~{dt:.0f} s per GPS point the **speed kept cannot be "
                 f"measured**: entry and exit are up to {dt:.0f} s apart, so a stop "
                 f"long after the {_man['name']} falls into the same sample. Treat "
-                "the percentages below as a rough hint, not as your technique – "
-                "a per-second recording is what makes them meaningful."
+                "the percentages below as a rough hint, not as your technique."
             )
+            st.info(_coarse_track_hint(dt, _man["name"]))
         else:
             st.markdown(f"**🔄 {_man['name'].capitalize()} analysis (beta):** "
                         f"{len(gybes)} detected · **{planing} carried through** "
