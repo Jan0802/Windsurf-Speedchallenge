@@ -6437,6 +6437,39 @@ def _rank_switch(avail, keys, selected, sport):
     else:
         start = next((k for k in selected if k in options), options[0])
 
+    # Stil VOR den Chips ausgeben, sonst blitzen sie einen Moment unformatiert auf.
+    st.markdown(
+        "<style>"
+        ".st-key-rankchips [data-testid='stPills'] button,"
+        ".st-key-rankchips button{border-radius:999px!important;"
+        "font-size:16px!important;padding:9px 18px!important;}"
+        # --- Handy: EINE Reihe zum Wischen statt fuenf umgebrochener Zeilen ---
+        # Elf Disziplinen brauchten umgebrochen fast die halbe Bildhoehe, bevor
+        # die Rangliste anfing. Ein gleich breites Raster waere ordentlicher,
+        # aber noch hoeher (sechs Reihen) - also seitlich statt untereinander.
+        "@media (max-width:640px){"
+        ".st-key-rankchips button{font-size:14px!important;"
+        "padding:8px 14px!important;}"
+        # Der Container scrollt, die Knopfreihe darin wird breiter als das
+        # Display (max-content) und bricht nicht um. Mehrere Selektoren, weil
+        # die Streamlit-Kennung der Gruppe je Version wechselt.
+        ".st-key-rankchips{overflow-x:auto!important;"
+        "-webkit-overflow-scrolling:touch;"
+        # Verlauf am rechten Rand: zeigt, dass es weitergeht.
+        "mask-image:linear-gradient(to right,#000 calc(100% - 22px),transparent);"
+        "-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 22px),transparent);}"
+        ".st-key-rankchips::-webkit-scrollbar{height:0;}"
+        ".st-key-rankchips [data-testid='stButtonGroup'],"
+        ".st-key-rankchips [data-baseweb='button-group'],"
+        ".st-key-rankchips [data-testid='stPills']>div,"
+        ".st-key-rankchips>div>div{flex-wrap:nowrap!important;"
+        "width:max-content!important;}"
+        ".st-key-rankchips button{flex:0 0 auto!important;}"
+        "}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+
     # Schluessel traegt die Sportart: sonst behaelt das Widget beim Wechsel eine
     # Auswahl, die es in der neuen Sportart nicht gibt (dieselbe Falle wie bei
     # den Filtern, siehe rank_spot_<sport>).
@@ -6451,15 +6484,21 @@ def _rank_switch(avail, keys, selected, sport):
     if pick is None:
         pick = start
 
-    st.markdown(
-        "<style>"
-        ".st-key-rankchips [data-testid='stPills'] button,"
-        ".st-key-rankchips button{border-radius:999px!important;"
-        "font-size:16px!important;padding:9px 18px!important;}"
-        "@media (max-width:640px){.st-key-rankchips button{"
-        "font-size:14px!important;padding:8px 14px!important;}}"
-        "</style>",
-        unsafe_allow_html=True,
+    # Nach jedem Wechsel baut Streamlit die Reihe neu auf, die Wischposition
+    # springt also auf 0 zurueck. Waehlt man "Most airs" (ganz rechts), waere
+    # der aktive Chip danach ausserhalb des Bildes. Darum ihn einmal in den
+    # sichtbaren Bereich holen. block:'nearest' verhindert, dass die Seite
+    # dabei auch senkrecht springt.
+    components.html(
+        "<script>(function(){try{"
+        "var d=window.parent.document;"
+        "var b=d.querySelector('.st-key-rankchips button[aria-checked=\"true\"]')"
+        "||d.querySelector('.st-key-rankchips button[kind=\"pillsActive\"]')"
+        "||d.querySelector('.st-key-rankchips button[aria-pressed=\"true\"]');"
+        "if(b&&b.scrollIntoView){b.scrollIntoView({block:'nearest',"
+        "inline:'center',behavior:'smooth'});}"
+        "}catch(e){}})();</script>",
+        height=0,
     )
 
     dict(avail)[pick](st.container())
