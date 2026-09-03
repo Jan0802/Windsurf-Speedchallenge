@@ -6307,26 +6307,30 @@ def _render_champion(ranking, is_wind):
             f"<div class='champ2-pts'>{total_pts} pts · top 2 s</div>"
             "</div></div>"
             "<style>"
+            # Muss groesser bleiben als die Ranglisten-Zeilen darunter (dort 19 px
+            # Name, 26 px Zahl), sonst kippt die Hierarchie und der Sieger wirkt
+            # nebensaechlicher als Platz 7.
             ".champ2{display:flex;align-items:center;justify-content:space-between;"
-            "gap:18px;background:rgba(255,255,255,.07);"
-            "border:1px solid rgba(255,255,255,.10);border-left:3px solid #f5b942;"
-            "border-radius:10px;padding:14px 18px;margin:2px 0 16px;"
+            "gap:20px;background:rgba(255,255,255,.07);"
+            "border:1px solid rgba(255,255,255,.10);border-left:4px solid #f5b942;"
+            "border-radius:12px;padding:18px 22px;margin:2px 0 18px;"
             "backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}"
             ".champ2-l{min-width:0;}"
-            ".champ2-kicker{font-size:11px;font-weight:700;letter-spacing:2.5px;"
+            ".champ2-kicker{font-size:12px;font-weight:700;letter-spacing:2.5px;"
             "color:#f5b942;}"
-            ".champ2-name{font-size:21px;font-weight:500;color:#f2f6fa;"
-            "line-height:1.25;white-space:nowrap;overflow:hidden;"
+            ".champ2-name{font-size:27px;font-weight:500;color:#f2f6fa;"
+            "line-height:1.2;white-space:nowrap;overflow:hidden;"
             "text-overflow:ellipsis;}"
-            ".champ2-gear{font-size:12.5px;color:#8fa9c2;margin-top:1px;"
+            ".champ2-gear{font-size:14px;color:#8fa9c2;margin-top:2px;"
             "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
-            ".champ2-r{text-align:right;flex:0 0 auto;}"
+            ".champ2-r{text-align:right;flex:0 0 auto;white-space:nowrap;}"
             # tabular-nums: sonst tanzt die Zahl, wenn der Champion wechselt.
-            ".champ2-perf{font-size:21px;font-weight:500;color:#f2f6fa;"
-            "line-height:1.25;font-variant-numeric:tabular-nums;}"
-            ".champ2-pts{font-size:11.5px;color:#8fa9c2;margin-top:1px;}"
-            "@media (max-width:480px){.champ2{padding:12px 14px;gap:10px;}"
-            ".champ2-name,.champ2-perf{font-size:18px;}}"
+            ".champ2-perf{font-size:31px;font-weight:500;color:#f2f6fa;"
+            "line-height:1.15;font-variant-numeric:tabular-nums;}"
+            ".champ2-pts{font-size:13px;color:#8fa9c2;margin-top:2px;}"
+            "@media (max-width:640px){.champ2{padding:14px 16px;gap:12px;}"
+            ".champ2-name{font-size:21px;}.champ2-perf{font-size:24px;}"
+            ".champ2-gear{font-size:12.5px;}.champ2-kicker{font-size:11px;}}"
             "</style>",
             unsafe_allow_html=True,
         )
@@ -6556,9 +6560,10 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         st.markdown(
             "<div class='ctxline'>" + " · ".join(_ctx) + "</div>"
             "<style>"
-            ".ctxline{font-size:14px;color:#8fa9c2;margin:-4px 0 12px;"
+            ".ctxline{font-size:16px;color:#8fa9c2;margin:-2px 0 14px;"
             "line-height:1.4;}"
             ".ctxline b{color:#f2f6fa;font-weight:600;}"
+            "@media (max-width:640px){.ctxline{font-size:14px;}}"
             "</style>",
             unsafe_allow_html=True,
         )
@@ -6929,15 +6934,20 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         st.markdown(
             "<div class='chiprow'>" + "".join(_chip(k) for k in _chips) + "</div>"
             "<style>"
-            ".chiprow{display:flex;flex-wrap:wrap;gap:7px;margin:2px 0 10px;}"
-            ".chiprow .chip{display:inline-block;padding:5px 13px;border-radius:999px;"
-            "font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;"
+            ".chiprow{display:flex;flex-wrap:wrap;gap:9px;margin:4px 0 14px;}"
+            ".chiprow .chip{display:inline-block;padding:9px 18px;border-radius:999px;"
+            "font-size:16px;font-weight:600;text-decoration:none;white-space:nowrap;"
+            "line-height:1.25;"
             "border:1px solid rgba(255,255,255,.16);color:#cfe6ec;"
             "background:rgba(255,255,255,.05);"
             "backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}"
             ".chiprow .chip:hover{border-color:rgba(43,212,217,.55);color:#fff;}"
             ".chiprow .chip-on{background:#2bd4d9;border-color:#2bd4d9;color:#04222c;"
             "font-weight:800;}"
+            # Auf dem Handy bleiben sie tippbar (mind. 40 px hoch), werden aber
+            # schmaler, damit nicht jede Disziplin eine eigene Zeile bekommt.
+            "@media (max-width:640px){.chiprow{gap:7px;}"
+            ".chiprow .chip{padding:8px 14px;font-size:14px;}}"
             "</style>",
             unsafe_allow_html=True,
         )
@@ -8462,24 +8472,32 @@ def _rank_rows(df, gear_label):
         # Kein Kartenrahmen: Haarlinien zwischen den Zeilen reichen. Wenn alles
         # erhoben ist, ist nichts erhoben.
         ".rk{margin:2px 0 6px;}"
-        ".rk-row{display:flex;align-items:center;gap:12px;padding:9px 2px;"
+        # space-between zusaetzlich zum flex:1 der Mitte: die Zahl sitzt damit
+        # auch dann am rechten Rand, wenn eine Streamlit-Regel dem mittleren
+        # Block sein Wachsen nimmt. Sie darf unter keinen Umstaenden
+        # herausgedraengt werden - sie ist der Grund, warum man die Zeile liest.
+        ".rk-row{display:flex;align-items:center;justify-content:space-between;"
+        "gap:16px;padding:13px 2px;"
         "border-top:1px solid rgba(255,255,255,.08);}"
         ".rk-row:first-child{border-top:none;}"
-        ".rk-n{flex:0 0 22px;text-align:right;font-size:13px;color:#7791ab;"
+        ".rk-n{flex:0 0 26px;text-align:right;font-size:15px;color:#7791ab;"
         "font-variant-numeric:tabular-nums;}"
         ".rk-m{flex:1 1 auto;min-width:0;}"
-        ".rk-name{font-size:15px;color:#f2f6fa;line-height:1.3;"
+        ".rk-name{font-size:19px;color:#f2f6fa;line-height:1.3;"
         "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
-        ".rk-sub{font-size:12.5px;color:#7791ab;line-height:1.35;margin-top:1px;"
+        ".rk-sub{font-size:14px;color:#7791ab;line-height:1.4;margin-top:2px;"
         "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
-        ".rk-t{flex:0 0 auto;font-size:12px;cursor:help;}"
-        ".rk-v{flex:0 0 auto;text-align:right;}"
-        ".rk-big{font-size:19px;color:#f2f6fa;line-height:1.2;"
+        ".rk-t{flex:0 0 auto;font-size:15px;cursor:help;}"
+        # Nie schrumpfen und nie umbrechen: sonst wandert die Zahl bei langen
+        # Namen in die zweite Zeile oder verschwindet.
+        ".rk-v{flex:0 0 auto;text-align:right;white-space:nowrap;}"
+        ".rk-big{font-size:26px;color:#f2f6fa;line-height:1.15;font-weight:500;"
         "font-variant-numeric:tabular-nums;}"
-        ".rk-small{font-size:11px;color:#7791ab;letter-spacing:.3px;}"
-        "@media (max-width:480px){.rk-row{gap:8px;}"
-        ".rk-name{font-size:14px;}.rk-big{font-size:17px;}"
-        ".rk-sub{font-size:11.5px;}}"
+        ".rk-small{font-size:12.5px;color:#7791ab;letter-spacing:.3px;}"
+        "@media (max-width:640px){.rk-row{gap:10px;padding:11px 2px;}"
+        ".rk-n{flex:0 0 20px;font-size:13px;}"
+        ".rk-name{font-size:16px;}.rk-big{font-size:21px;}"
+        ".rk-sub{font-size:12.5px;}.rk-small{font-size:11px;}}"
         "</style>",
         unsafe_allow_html=True,
     )
@@ -19333,15 +19351,17 @@ def render_public_live_page():
                         "home stay private — visible to you alone.</span>"
                         "</div>"
                         "<style>"
-                        ".privnote{display:flex;gap:11px;align-items:flex-start;"
+                        ".privnote{display:flex;gap:13px;align-items:flex-start;"
                         "background:rgba(43,212,217,.09);"
                         "border:1px solid rgba(43,212,217,.28);"
-                        "border-radius:10px;padding:11px 14px;margin:8px 0 4px;"
-                        "font-size:13.5px;line-height:1.45;color:#dbeff2;"
+                        "border-radius:12px;padding:14px 18px;margin:10px 0 4px;"
+                        "font-size:15.5px;line-height:1.5;color:#dbeff2;"
                         "backdrop-filter:blur(4px);"
                         "-webkit-backdrop-filter:blur(4px);}"
-                        ".privnote-i{font-size:17px;line-height:1.25;}"
+                        ".privnote-i{font-size:20px;line-height:1.25;}"
                         ".privnote b{color:#7fe6ea;font-weight:700;}"
+                        "@media (max-width:640px){.privnote{padding:12px 14px;"
+                        "font-size:14px;gap:10px;}}"
                         "</style>",
                         unsafe_allow_html=True,
                     )
