@@ -15,7 +15,7 @@ import secrets
 import tempfile
 import time
 from datetime import datetime, timedelta
-from html import unescape
+from html import escape, unescape
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
@@ -6522,7 +6522,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     # erscheinen; der Rest laedt auf Klick. Dynamisches 2-pro-Reihe-Layout.
     def _r_30s(c):
         with c:
-            st.markdown("### 🏆 Best 30 seconds")
+            _rank_head("🏆 Best 30 seconds")
             r30 = ranking[fin_cols + [
                 "date", "name", "speed_30s_kmh", "speed_30s_kn",
                 "surfspot", "board", "sail", "Weather", "Trust",
@@ -6545,12 +6545,11 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "board": "Board", "sail": gear_label,
                 "speed_30s_kmh": "30s km/h", "speed_30s_kn": "30s kn",
             })
-            st.dataframe(_order_table_cols(_mobile_slim(r30), extra.get("columns"), gear_label),
-                         width="stretch", hide_index=True, height=df_height(len(r30)))
+            _show_rank(r30, extra.get("columns"), gear_label)
 
     def _r_2s(c):
         with c:
-            st.markdown("### ⚡ Top speed 2 seconds")
+            _rank_head("⚡ Top speed 2 seconds")
             r1 = ranking[fin_cols + [
                 "date", "name", "speed_1s_kmh", "speed_1s_kn",
                 "surfspot", "board", "sail", "Weather", "Trust",
@@ -6570,12 +6569,11 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "board": "Board", "sail": gear_label,
                 "speed_1s_kmh": "2s km/h", "speed_1s_kn": "2s kn",
             })
-            st.dataframe(_order_table_cols(_mobile_slim(r1), extra.get("columns"), gear_label),
-                         width="stretch", hide_index=True, height=df_height(len(r1)))
+            _show_rank(r1, extra.get("columns"), gear_label)
 
     def _dist_body(c, col, title, unit_label, dist_m):
         with c:
-            st.markdown(f"### {title}")
+            _rank_head(title)
             tab = ranking[fin_cols + [
                 "date", "name", col, "surfspot", "board", "sail", "Weather", "Trust",
             ]].copy()
@@ -6598,8 +6596,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "date": "Date", "name": "Name", "surfspot": "Surf spot",
                 "board": "Board", "sail": gear_label, col: f"{unit_label} km/h",
             })
-            st.dataframe(_order_table_cols(_mobile_slim(tab), extra.get("columns"), gear_label),
-                         width="stretch", hide_index=True, height=df_height(len(tab)))
+            _show_rank(tab, extra.get("columns"), gear_label)
 
     def _r_500m(c):
         _dist_body(c, "speed_500m_kmh", "📏 Best 500 m", "500m", 500)
@@ -6611,7 +6608,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         """Avg 5x10: Mittel der fuenf besten 10-Sekunden-Fahrten einer Session.
         Kein _kn-Feld in der Datenbank - die Knoten werden hier gerechnet."""
         with c:
-            st.markdown("### 🎯 Avg 5×10")
+            _rank_head("🎯 Avg 5×10")
             st.caption("Average of the five best 10-second runs of a session that "
                        "do not overlap in time. Rewards a whole session held at "
                        "speed, not one lucky gust.")
@@ -6638,14 +6635,12 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "board": "Board", "sail": gear_label,
                 "speed_5x10_kmh": "5×10 km/h",
             })
-            st.dataframe(_order_table_cols(_mobile_slim(r5), extra.get("columns"),
-                                           gear_label),
-                         width="stretch", hide_index=True, height=df_height(len(r5)))
+            _show_rank(r5, extra.get("columns"), gear_label)
 
     def _r_alpha(c):
         """Alpha 500: schnellste 500 m MIT Halse (Start/Ende unter 50 m)."""
         with c:
-            st.markdown("### 🔄 Alpha 500")
+            _rank_head("🔄 Alpha 500")
             st.caption("Fastest 500 m whose start and finish are less than 50 m "
                        "apart – so a jibe has to be in it. A straight downwind "
                        "blast does not count here.")
@@ -6671,13 +6666,11 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "board": "Board", "sail": gear_label,
                 "speed_alpha500_kmh": "alpha km/h",
             })
-            st.dataframe(_order_table_cols(_mobile_slim(ra), extra.get("columns"),
-                                           gear_label),
-                         width="stretch", hide_index=True, height=df_height(len(ra)))
+            _show_rank(ra, extra.get("columns"), gear_label)
 
     def _r_run(c):
         with c:
-            st.markdown("### 🚩 Longest run")
+            _rank_head("🚩 Longest run")
             rrun = ranking[fin_cols + [
                 "date", "name", "longest_run_km", "longest_run_m",
                 "surfspot", "board", "sail", "Weather", "Trust",
@@ -6697,12 +6690,11 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "board": "Board", "sail": gear_label,
                 "longest_run_km": "Run km", "longest_run_m": "Run m",
             })
-            st.dataframe(_order_table_cols(_mobile_slim(rrun), extra.get("columns"), gear_label),
-                         width="stretch", hide_index=True, height=df_height(len(rrun)))
+            _show_rank(rrun, extra.get("columns"), gear_label)
 
     def _r_total(c):
         with c:
-            st.markdown("### 👥 Longest total distance per rider")
+            _rank_head("👥 Longest total distance per rider")
             rtotal = (
                 ranking.groupby("name", as_index=False)
                 .agg(total_distance_km=("total_distance_km", "sum"),
@@ -6715,12 +6707,11 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "name": "Name", "total_distance_km": "Total distance km",
                 "last_date": "Last session",
             })
-            st.dataframe(_order_table_cols(_mobile_slim(rtotal), extra.get("columns"), gear_label),
-                         width="stretch", hide_index=True, height=df_height(len(rtotal)))
+            _show_rank(rtotal, extra.get("columns"), gear_label)
 
     def _r_time(c):
         with c:
-            st.markdown("### ⏱️ Most time on the water per rider")
+            _rank_head("⏱️ Most time on the water per rider")
             if "duration_s" not in ranking.columns:
                 st.caption("No session duration recorded yet.")
                 return
@@ -6740,8 +6731,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 lambda s: f"{int(s) // 3600}h {int(s) % 3600 // 60:02d}m")
             rtime = rtime.drop(columns=["secs"]).rename(
                 columns={"name": "Name", "last_date": "Last session"})
-            st.dataframe(_order_table_cols(_mobile_slim(rtime), extra.get("columns"), gear_label),
-                         width="stretch", hide_index=True, height=df_height(len(rtime)))
+            _show_rank(rtime, extra.get("columns"), gear_label)
 
     def _metric_body(c, metric, title, col_label, decimals=1, empty_msg="No data yet."):
         with c:
@@ -6768,8 +6758,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "date": "Date", "name": "Name", "surfspot": "Surf spot",
                 "board": "Board", "sail": gear_label, metric: col_label,
             })
-            st.dataframe(_order_table_cols(_mobile_slim(tbl), extra.get("columns"), gear_label),
-                         width="stretch", hide_index=True, height=df_height(len(tbl)))
+            _show_rank(tbl, extra.get("columns"), gear_label)
 
     def _r_strokes(c):
         _metric_body(c, "strokes", "### 🛶 Most paddle strokes", "Strokes",
@@ -6854,6 +6843,66 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             items[i][1](cols[0])
             if i + 1 < len(items):
                 items[i + 1][1](cols[1])
+
+    if design_v2():
+        # EINE Rangliste, Disziplin ueber Chips. Vorher standen zwei Tabellen mit
+        # je neun Spalten nebeneinander, sechs davon in beiden identisch (Datum,
+        # Spot, Board, Segel, Wetter, Trust) - das liest sich wie eine
+        # Tabellenkalkulation.
+        #
+        # Die Chips MUESSEN Links sein, keine Widgets: diese Funktion laeuft in
+        # einem Fragment, das in einen externen Container schreibt, und dort
+        # verbietet Streamlit Widgets (StreamlitFragmentWidgetsNotAllowed).
+        # st.pills oder eine Radio-Gruppe wuerden hier also abstuerzen. Der
+        # bestehende "Show more rankings"-Link zeigt, dass Query-Parameter der
+        # richtige Weg sind - mit dem Nebeneffekt, dass eine einzelne Wertung
+        # verlinkbar wird ("schau dir mal Alpha 500 an").
+        _qp = {k: v for k, v in st.query_params.items()}
+        _all_chips = _qp.get("rank") == "all"
+        # Kraftweltmeister ist ausdruecklich Spassphysik und keine Disziplin -
+        # bleibt hinter "more", damit die Chip-Reihe kurz bleibt.
+        _fun = {"kw_ppf", "kw_force", "kw_power"}
+        _chips = [k for k in _keys if _all_chips or k not in _fun]
+        _pick = _qp.get("metric")
+        if _pick not in _chips:
+            _pick = next((k for k in _selected if k in _chips), _chips[0] if _chips else None)
+        if _pick is None:
+            st.info("No ranking available for this sport yet.")
+            return
+
+        def _chip(key):
+            _lab = RANKING_TABLE_LABELS.get(key, key)
+            _cls = "chip chip-on" if key == _pick else "chip"
+            _href = "?" + urlencode({**_qp, "metric": key})
+            return (f"<a class='{_cls}' target='_self' href='{escape(_href, quote=True)}'>"
+                    f"{escape(_lab)}</a>")
+
+        st.markdown(
+            "<div class='chiprow'>" + "".join(_chip(k) for k in _chips) + "</div>"
+            "<style>"
+            ".chiprow{display:flex;flex-wrap:wrap;gap:7px;margin:2px 0 10px;}"
+            ".chiprow .chip{display:inline-block;padding:5px 13px;border-radius:999px;"
+            "font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;"
+            "border:1px solid rgba(255,255,255,.16);color:#cfe6ec;"
+            "background:rgba(255,255,255,.05);"
+            "backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}"
+            ".chiprow .chip:hover{border-color:rgba(43,212,217,.55);color:#fff;}"
+            ".chiprow .chip-on{background:#2bd4d9;border-color:#2bd4d9;color:#04222c;"
+            "font-weight:800;}"
+            "</style>",
+            unsafe_allow_html=True,
+        )
+        # Nur die gewaehlte Wertung, ueber die ganze Breite. Der Container-Trick
+        # der Paar-Ansicht entfaellt - st.container() ist hier der "c"-Parameter.
+        dict(_avail)[_pick](st.container())
+        if not _all_chips and any(k in _fun for k in _keys):
+            _href = "?" + urlencode({**_qp, "rank": "all"})
+            st.markdown(
+                f"<a href='{escape(_href, quote=True)}' target='_self' "
+                "style='display:inline-block;margin-top:6px;font-size:13px;"
+                "color:#8fa9c2;text-decoration:none;'>+ more rankings</a>",
+                unsafe_allow_html=True)
+        return
 
     _render_pairs([t for t in _avail if t[0] in _selected])
 
@@ -8254,6 +8303,152 @@ def _all_optional_cols(gear_label):
 def _default_cols(gear_label):
     """Standard-Auswahl (ohne Finnen-Details), vom Nutzer anpassbar."""
     return ["Date", "Surf spot", "Board", gear_label, "Weather", "Trust"]
+
+
+def _rank_head(text):
+    """Ueberschrift einer einzelnen Rangliste.
+
+    Mit Chips ist sie doppelt - der hervorgehobene Chip sagt schon, welche
+    Wertung man sieht -, also entfaellt sie dort. Im alten Weg stehen mehrere
+    Tabellen nebeneinander, dort ist sie unverzichtbar.
+    """
+    if not design_v2():
+        st.markdown(f"### {text}")
+
+
+def _rank_rows(df, gear_label):
+    """Rangliste als zweizeilige Zeilen statt als Tabellenraster.
+
+    Warum eigenes HTML sein muss: st.dataframe zeichnet auf ein Canvas. Dort
+    kommt kein CSS hinein, es gibt keine zweite Zeile je Datensatz und keinen
+    Tooltip je Zelle. Genau das braucht dieses Layout aber - Name und Leistung
+    gross, alles Uebrige klein darunter. Sechs Spalten verschwinden damit aus
+    dem Blickfeld, ohne dass ein einziger Wert verloren geht.
+
+    Was der Umbau kostet: Sortieren per Spaltenklick (dafuer sind jetzt die
+    Chips da) und die Virtualisierung langer Listen - bei RANKING_TOP_N = 15
+    Zeilen ohne Bedeutung.
+
+    Was er gewinnt: einen Tooltip am Trust-Symbol. Im Canvas-Raster war der
+    nicht moeglich, deshalb stand dort "🟢 90" - eine Zahl, die niemand deuten
+    kann. Jetzt reicht das Symbol, die Zahl liegt darunter.
+
+    Die Spaltenauswahl des Nutzers bleibt wirksam: sie bestimmt, WAS in der
+    Nebenzeile steht und in welcher Reihenfolge.
+    """
+    if df is None or df.empty:
+        st.caption("No entries yet.")
+        return
+
+    def _e(v):
+        return escape("" if v is None else str(v), quote=True)
+
+    def _num(v, col):
+        """Zahl fuer die Anzeige. Geschwindigkeiten immer mit zwei Stellen -
+        sonst steht 24.1 neben 21.67 und die Spalte wirkt schief. Alles andere
+        bleibt, wie es ist: eine Sprungzahl ist 12 und nicht 12,00."""
+        if pd.isna(v):
+            return "–"
+        if _SPEED_COL_RE.search(str(col)):
+            try:
+                return f"{float(v):.2f}"
+            except (TypeError, ValueError):
+                return str(v)
+        if isinstance(v, float) and v.is_integer():
+            return str(int(v))
+        return str(v)
+
+    optional = set(_all_optional_cols(gear_label))
+    # Nach _order_table_cols stehen vorn die festen Spalten (Rank, Name, Werte),
+    # dahinter die gewaehlten optionalen. Alles, was weder Rank/Name noch
+    # optional ist, ist ein Messwert - der erste davon ist die Hauptzahl.
+    value_cols = [c for c in df.columns
+                  if c not in ("Rank", "Name") and c not in optional]
+    if not value_cols:
+        st.caption("No entries yet.")
+        return
+    primary = value_cols[0]
+    # Zweitwert (z.B. "2s kn" neben "2s km/h") wandert klein unter die Zahl,
+    # statt eine eigene Spalte zu belegen.
+    secondary = value_cols[1] if len(value_cols) > 1 else None
+    # Nebenzeile: die gewaehlten Spalten in ihrer Reihenfolge, ohne Trust
+    # (das wird zum Symbol) und ohne den Namen (steht schon darueber).
+    sub_cols = [c for c in df.columns if c in optional and c != "Trust"]
+
+    rows = []
+    for _, r in df.iterrows():
+        sub = " · ".join(
+            _e(r[c]) for c in sub_cols
+            if str(r.get(c) or "").strip() not in ("", "–", "nan", "None")
+        )
+        trust_raw = str(r.get("Trust") or "").strip()
+        # "🟢 90" -> Symbol sichtbar, Zahl in den Tooltip.
+        trust_html = ""
+        if trust_raw and trust_raw != "–":
+            dot, _, num = trust_raw.partition(" ")
+            tip = f"Trust {num}" if num else "Trust"
+            trust_html = f"<span class='rk-t' title='{_e(tip)}'>{_e(dot)}</span>"
+        small = _e(primary)
+        if secondary and str(r.get(secondary) or "").strip() not in ("", "nan", "None"):
+            # Von "2s kn" bleibt als Einheit "kn" uebrig.
+            small = (f"{_e(primary)} · {_e(_num(r[secondary], secondary))} "
+                     f"{_e(str(secondary).split()[-1])}")
+        rows.append(
+            "<div class='rk-row'>"
+            f"<div class='rk-n'>{_e(r.get('Rank', ''))}</div>"
+            "<div class='rk-m'>"
+            f"<div class='rk-name'>{_e(r.get('Name', ''))}</div>"
+            + (f"<div class='rk-sub'>{sub}</div>" if sub else "")
+            + "</div>"
+            + trust_html
+            + "<div class='rk-v'>"
+              f"<div class='rk-big'>{_e(_num(r[primary], primary))}</div>"
+              f"<div class='rk-small'>{small}</div>"
+              "</div></div>"
+        )
+
+    st.markdown(
+        "<div class='rk'>" + "".join(rows) + "</div>"
+        "<style>"
+        # Kein Kartenrahmen: Haarlinien zwischen den Zeilen reichen. Wenn alles
+        # erhoben ist, ist nichts erhoben.
+        ".rk{margin:2px 0 6px;}"
+        ".rk-row{display:flex;align-items:center;gap:12px;padding:9px 2px;"
+        "border-top:1px solid rgba(255,255,255,.08);}"
+        ".rk-row:first-child{border-top:none;}"
+        ".rk-n{flex:0 0 22px;text-align:right;font-size:13px;color:#7791ab;"
+        "font-variant-numeric:tabular-nums;}"
+        ".rk-m{flex:1 1 auto;min-width:0;}"
+        ".rk-name{font-size:15px;color:#f2f6fa;line-height:1.3;"
+        "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
+        ".rk-sub{font-size:12.5px;color:#7791ab;line-height:1.35;margin-top:1px;"
+        "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
+        ".rk-t{flex:0 0 auto;font-size:12px;cursor:help;}"
+        ".rk-v{flex:0 0 auto;text-align:right;}"
+        ".rk-big{font-size:19px;color:#f2f6fa;line-height:1.2;"
+        "font-variant-numeric:tabular-nums;}"
+        ".rk-small{font-size:11px;color:#7791ab;letter-spacing:.3px;}"
+        "@media (max-width:480px){.rk-row{gap:8px;}"
+        ".rk-name{font-size:14px;}.rk-big{font-size:17px;}"
+        ".rk-sub{font-size:11.5px;}}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+
+
+def _show_rank(df, chosen, gear_label):
+    """Der eine Ort, an dem eine Rangliste sichtbar wird.
+
+    Ohne ?design=2 genau wie bisher als st.dataframe, mit dem Schalter als
+    zweizeilige Zeilen. Beide bekommen dieselben Daten durch denselben Trichter
+    (_order_table_cols), damit sich Inhalt und Rundung nicht auseinanderlaufen.
+    """
+    shown = _order_table_cols(_mobile_slim(df), chosen, gear_label)
+    if design_v2():
+        _rank_rows(shown, gear_label)
+    else:
+        st.dataframe(shown, width="stretch", hide_index=True,
+                     height=df_height(len(shown)))
 
 
 def _order_table_cols(df, chosen, gear_label):
