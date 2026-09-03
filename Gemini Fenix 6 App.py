@@ -286,6 +286,23 @@ def active_sport():
     return s if s in SPORTS else "windsurf"
 
 
+def design_v2():
+    """True, wenn die Seite mit ?design=2 aufgerufen wurde.
+
+    Schalter fuer die Design-Ueberarbeitung: JEDE Aenderung daran haengt hier
+    dran, damit die Seite ohne den Parameter genau so aussieht wie vorher. So
+    laesst sich beides am echten Datenbestand vergleichen - dasselbe Handy,
+    dasselbe iPad, nur ein anderer Link - ohne Branch und ohne zweiten Deploy.
+
+    Gefaellt es nicht, fallen die Bloecke wieder heraus; gefaellt es, wird die
+    Abfrage zu 'return True' und danach ganz entfernt.
+    """
+    try:
+        return str(st.query_params.get("design", "")).strip() == "2"
+    except Exception:  # noqa: BLE001 - ohne Query-Kontext (Tests) einfach aus
+        return False
+
+
 def render_sport_switch(box=None, label="Sport"):
     """Sportart mitten auf der Seite wechseln.
 
@@ -6169,6 +6186,11 @@ def _fmt_mmss(seconds):
     return f"{s // 60}:{s % 60:02d}"
 
 
+# Untergrenzen, ab denen ein Wert ueberhaupt eine Leistung ist. Darunter zeigt
+# die Champion-Karte die Kachel nicht mehr an (nur bei design_v2()).
+_MIN_PLAUSIBLE = {"max_jump_m": 0.5, "max_airtime_s": 0.5}
+
+
 def _render_champion(ranking, is_wind):
     """Glas-Karte mit der #1: kombinierter Score aus normalisiertem 2s/30s/
     längstem Run (bei Windsport zusätzlich Sprunghöhe + Airtime). Zeigt deren
@@ -6217,10 +6239,22 @@ def _render_champion(ranking, is_wind):
     champ_board = str(crows.iloc[0].get("board") or "").strip() if not crows.empty else ""
     if champ_board.lower() in ("none", "nan", "null"):
         champ_board = ""
+    champ_sail = str(crows.iloc[0].get("sail") or "").strip() if not crows.empty else ""
+    if champ_sail.lower() in ("none", "nan", "null", "guest"):
+        champ_sail = ""
 
     tiles = []
     for key, label, unit, dec in metrics:
         v = vals.get(key)
+        # Messrauschen nicht als Leistung ausgeben: 0,2 m Sprunghoehe und 0,4 s
+        # Airtime sind GPS-Zittern, kein Sprung. Eine unglaubwuerdige Zahl zieht
+        # die echten Zahlen daneben mit runter, also Kachel weglassen statt eine
+        # Null zeigen. Betrifft nur die Anzeige - die Punktevergabe bleibt
+        # unveraendert, sonst wuerde sich hinter einem Design-Schalter still die
+        # Rangfolge aendern.
+        _floor = _MIN_PLAUSIBLE.get(key) if design_v2() else None
+        if _floor is not None and (pd.isna(v) or float(v) < _floor):
+            continue
         tiles.append((label, "–" if pd.isna(v) else f"{float(v):.{dec}f} {unit}"))
     tiles.append(("🌤 Weather", weather))
     tiles.append(("🛡 Trust", trust))
@@ -6232,7 +6266,55 @@ def _render_champion(ranking, is_wind):
     champ_safe = _esc(champ)
     board_html = (f"<div class='champ-board'>🏄 {_esc(champ_board)}</div>"
                   if champ_board else "<div class='champ-board'></div>")
-    st.markdown(
+    if design_v2():
+        # Hierarchie umgedreht. Vorher war "Starboard Isonic 107L" das groesste
+        # und hellste Element der ganzen Seite - also das Board, die
+        # uninteressanteste Tatsache dieser Zeile. Der Name war kleiner, und die
+        # Punkte, die den Platz ueberhaupt begruenden, standen klein in der Ecke.
+        # Jetzt: links Platz und Name, rechts die Leistung, Material als graue
+        # Nebenzeile. Das Gold schrumpft vom Rahmen um alles auf einen Balken.
+        # Die Flaeche bleibt glaesern (backdrop-filter) - geaendert wird die
+        # Rangordnung der Schrift, nicht der Werkstoff.
+        _gear = " · ".join(x for x in (champ_board, champ_sail) if x)
+        _perf = vals.get("speed_1s_kmh")
+        _perf_txt = "–" if pd.isna(_perf) else f"{float(_perf):.2f} km/h"
+        st.markdown(
+            "<div class='champ2' translate='no'>"
+            "<div class='champ2-l'>"
+            "<div class='champ2-kicker'>#1 OVERALL</div>"
+            f"<div class='champ2-name'>{champ_safe}</div>"
+            + (f"<div class='champ2-gear'>{_esc(_gear)}</div>" if _gear else "")
+            + "</div>"
+            "<div class='champ2-r'>"
+            f"<div class='champ2-perf'>{_perf_txt}</div>"
+            f"<div class='champ2-pts'>{total_pts} pts · top 2 s</div>"
+            "</div></div>"
+            "<style>"
+            ".champ2{display:flex;align-items:center;justify-content:space-between;"
+            "gap:18px;background:rgba(255,255,255,.07);"
+            "border:1px solid rgba(255,255,255,.10);border-left:3px solid #f5b942;"
+            "border-radius:10px;padding:14px 18px;margin:2px 0 16px;"
+            "backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}"
+            ".champ2-l{min-width:0;}"
+            ".champ2-kicker{font-size:11px;font-weight:700;letter-spacing:2.5px;"
+            "color:#f5b942;}"
+            ".champ2-name{font-size:21px;font-weight:500;color:#f2f6fa;"
+            "line-height:1.25;white-space:nowrap;overflow:hidden;"
+            "text-overflow:ellipsis;}"
+            ".champ2-gear{font-size:12.5px;color:#8fa9c2;margin-top:1px;"
+            "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
+            ".champ2-r{text-align:right;flex:0 0 auto;}"
+            # tabular-nums: sonst tanzt die Zahl, wenn der Champion wechselt.
+            ".champ2-perf{font-size:21px;font-weight:500;color:#f2f6fa;"
+            "line-height:1.25;font-variant-numeric:tabular-nums;}"
+            ".champ2-pts{font-size:11.5px;color:#8fa9c2;margin-top:1px;}"
+            "@media (max-width:480px){.champ2{padding:12px 14px;gap:10px;}"
+            ".champ2-name,.champ2-perf{font-size:18px;}}"
+            "</style>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
         "<div class='champ-banner' translate='no'>"
         "<div class='champ-crown'>🥇</div>"
         "<div class='champ-main'>"
@@ -15678,8 +15760,20 @@ bg_uri = background_data_uri(sport)
 # grosse base64-Bild bei JEDEM Rerun via st.markdown erneut uebertragen -> traege.
 # Jetzt schreiben wir es per JS einmalig in einen <style> im Eltern-Dokument;
 # bei normalen Reruns wird nichts erneut gesendet (Bremse weg).
-if bg_uri and st.session_state.get("_bg_sport") != sport:
-    st.session_state["_bg_sport"] = sport
+# Der Schleier ueber dem Foto ist die wichtigste Stellschraube der Seite: Die
+# glaesernen Kacheln sind halbtransparent, also uebernehmen sie, was hinter ihnen
+# liegt. Bei .45 oben heisst das, dass dieselbe Kachel ueber Himmel hell und ueber
+# einem Segel dunkel wirkt - der Kontrast wird zur Glueckssache ("Airtime" und
+# "Trust" sehen unterschiedlich aus, obwohl es dieselbe Komponente ist).
+# Ein tieferer Schleier gibt dem Glas einen berechenbaren Untergrund. Das Glas
+# bleibt damit erhalten; nur der Grund wird ruhig. Siehe design_v2().
+_SCRIM = ("rgba(2,22,43,.60), rgba(2,22,43,.82)" if design_v2()
+          else "rgba(2,22,43,.45), rgba(2,22,43,.62)")
+# Der Schalter muss mit in den Schluessel: sonst bliebe beim Umschalten von
+# ?design=2 der alte <style> stehen, weil der Sport sich nicht geaendert hat.
+_bg_key = (sport, design_v2())
+if bg_uri and st.session_state.get("_bg_sport") != _bg_key:
+    st.session_state["_bg_sport"] = _bg_key
     components.html(
         """
         <script>
@@ -15689,14 +15783,14 @@ if bg_uri and st.session_state.get("_bg_sport") != sport:
             var el = d.getElementById("ws-bg");
             if (!el) { el = d.createElement("style"); el.id = "ws-bg"; d.head.appendChild(el); }
             el.textContent = '.stApp { background-color:#02162b;'
-              + ' background-image: linear-gradient(rgba(2,22,43,.45), rgba(2,22,43,.62)),'
+              + ' background-image: linear-gradient(__SCRIM__),'
               + ' url("__BG__");'
               + ' background-position:center center; background-size:cover;'
               + ' background-repeat:no-repeat; background-attachment:fixed; }';
           } catch (e) {}
         })();
         </script>
-        """.replace("__BG__", bg_uri),
+        """.replace("__SCRIM__", _SCRIM).replace("__BG__", bg_uri),
         height=0,
     )
 
@@ -18972,9 +19066,36 @@ def render_public_live_page():
                 components.html(html, height=height)
                 st.caption(
                     f"Fastest stretch of this session: **{dist_m:.0f} m** in "
-                    f"**{secs:.0f} s** = **{v_kmh:.1f} km/h** average. Only this "
-                    "section is shown publicly, never the whole track."
+                    f"**{secs:.0f} s** = **{v_kmh:.1f} km/h** average."
+                    + ("" if design_v2() else " Only this section is shown "
+                       "publicly, never the whole track.")
                 )
+                if design_v2():
+                    # Das war ein Verkaufsargument in 11 Pixel Grau unter einer
+                    # Karte. Wettbewerber vermarkten sich ueber Datenschutz,
+                    # waehrend hier die technisch sauberere Loesung steht und
+                    # sich versteckt: oeffentlich wird nur der schnellste
+                    # Abschnitt, nicht der Weg zum Parkplatz und nach Hause.
+                    st.markdown(
+                        "<div class='privnote'>"
+                        "<span class='privnote-i'>🛡</span>"
+                        "<span><b>Only your fastest stretch goes public.</b> "
+                        "Your full track, your launch spot and where you drove "
+                        "home stay private — visible to you alone.</span>"
+                        "</div>"
+                        "<style>"
+                        ".privnote{display:flex;gap:11px;align-items:flex-start;"
+                        "background:rgba(43,212,217,.09);"
+                        "border:1px solid rgba(43,212,217,.28);"
+                        "border-radius:10px;padding:11px 14px;margin:8px 0 4px;"
+                        "font-size:13.5px;line-height:1.45;color:#dbeff2;"
+                        "backdrop-filter:blur(4px);"
+                        "-webkit-backdrop-filter:blur(4px);}"
+                        ".privnote-i{font-size:17px;line-height:1.25;}"
+                        ".privnote b{color:#7fe6ea;font-weight:700;}"
+                        "</style>",
+                        unsafe_allow_html=True,
+                    )
             else:
                 st.info("Track too short to draw.")
         elif track:
