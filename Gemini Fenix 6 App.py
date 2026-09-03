@@ -6514,6 +6514,38 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         for _kc in ("kw_force_kg", "kw_power_w", "kw_ppf"):
             ranking.loc[_kw_bad, _kc] = np.nan
 
+    if design_v2():
+        # Eine Zeile, die sagt, WAS man gerade ansieht. Ohne sie steht ueber der
+        # Seite nur "Online rankings", und welcher Spot, welche Sportart und
+        # welcher Zeitraum gemeint sind, muss man aus den Filtern rekonstruieren.
+        #
+        # Die Fahrerzahl bewusst offen: bei drei Fahrern ist "3 riders" ehrlich
+        # und wirkt einladender als eine Zahl, die sich versteckt.
+        #
+        # Steht hier und nicht bei der Ueberschrift, weil erst ab dieser Stelle
+        # ALLE Filter angewandt sind - die Zahlen beschreiben also wirklich, was
+        # darunter zu sehen ist.
+        _ctx = []
+        if spot_filter and spot_filter != "Overall":
+            _ctx.append(f"<b>{escape(str(spot_filter))}</b>")
+        else:
+            _ctx.append("<b>All spots</b>")
+        _ctx.append(escape(SPORT_META[active_sport()]["name"]))
+        _riders = int(ranking["name"].nunique()) if "name" in ranking.columns else 0
+        _ctx.append(f"{_riders} rider" + ("s" if _riders != 1 else ""))
+        _last = ranking["_date"].max() if "_date" in ranking.columns else None
+        if pd.notna(_last):
+            _ctx.append("updated " + escape(_last.strftime("%d %b")))
+        st.markdown(
+            "<div class='ctxline'>" + " · ".join(_ctx) + "</div>"
+            "<style>"
+            ".ctxline{font-size:14px;color:#8fa9c2;margin:-4px 0 12px;"
+            "line-height:1.4;}"
+            ".ctxline b{color:#f2f6fa;font-weight:600;}"
+            "</style>",
+            unsafe_allow_html=True,
+        )
+
     # #1-Glaskarte oben (kombinierter Score) – direkt unter der Überschrift.
     _render_champion(ranking, active_sport() in ("windsurf", "kitesurf", "wingsurf", "wakeboard"))
 
