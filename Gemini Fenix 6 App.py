@@ -6388,6 +6388,89 @@ def _render_champion(ranking, is_wind):
     st.markdown("")
 
 
+# Kraftweltmeister ist ausdruecklich Spassphysik und keine Disziplin. Bleibt
+# darum aus der Chip-Reihe heraus, damit die kurz bleibt.
+_FUN_RANKINGS = {"kw_ppf", "kw_force", "kw_power"}
+
+
+@st.fragment
+def _rank_switch(avail, keys, selected, sport):
+    """Chips + genau EINE Rangliste - als eigenes Fragment.
+
+    Warum ein eigenes Fragment: Ein Fragment darf Widgets nur an seinem EIGENEN
+    Anker erzeugen. render_rankings haengt in der Sidebar (dort stehen seine
+    Filter) und schreibt seine Anzeige in einen fremden Haupt-Container - ein
+    Widget waere dort verboten (StreamlitFragmentWidgetsNotAllowed). Wird dieses
+    Fragment aber INNERHALB jenes Containers aufgerufen, ist der Container sein
+    eigener Anker und das Widget ist erlaubt.
+
+    Nachgewiesen mit streamlit.testing.v1.AppTest an einem Nachbau der Struktur,
+    inklusive der Gegenprobe, dass ein Filterwechsel die Tabelle weiterhin
+    erneuert - sonst haette man das kleinere Problem gegen ein groesseres
+    getauscht.
+
+    Folge: Ein Chip-Klick laedt nur diesen Block neu. Vorher waren die Chips
+    <a>-Links, und ein Link ist in Streamlit immer ein vollstaendiger
+    Seitenaufbau samt Websocket-Neuverbindung.
+
+    `avail` traegt die Renderfunktionen der Ranglisten. Sie sind Closures ueber
+    das gefilterte Ranking; bei einem Rerun nur dieses Fragments ruft Streamlit
+    es mit denselben Argumenten auf, es wird also nichts neu gerechnet.
+    """
+    disciplines = [k for k in keys if k not in _FUN_RANKINGS]
+    has_fun = len(disciplines) < len(keys)
+    # Der Haken steht UNTEN (dort, wo vorher "+ more rankings" stand). Sein Wert
+    # wird hier nur gelesen; beim ersten Lauf gibt es ihn noch nicht.
+    show_fun = bool(st.session_state.get(f"rank_fun_{sport}", False))
+    options = keys if show_fun else disciplines
+    if not options:
+        st.info("No ranking available for this sport yet.")
+        return
+
+    # Erstauswahl aus ?metric=, damit ein geteilter Link weiter auf die richtige
+    # Wertung zeigt. Danach fuehrt das Widget. Die URL wird bewusst NICHT
+    # mitgeschrieben: das waere ein Rerun je Klick und damit genau der
+    # Seitenaufbau, den wir loswerden wollen.
+    want = str(st.query_params.get("metric", "")).strip()
+    if want in options:
+        start = want
+    else:
+        start = next((k for k in selected if k in options), options[0])
+
+    # Schluessel traegt die Sportart: sonst behaelt das Widget beim Wechsel eine
+    # Auswahl, die es in der neuen Sportart nicht gibt (dieselbe Falle wie bei
+    # den Filtern, siehe rank_spot_<sport>).
+    with st.container(key="rankchips"):
+        pick = st.pills(
+            "Ranking", options, default=start, key=f"rank_metric_{sport}",
+            format_func=lambda k: RANKING_TABLE_LABELS.get(k, k),
+            label_visibility="collapsed",
+        )
+    # st.pills laesst sich abwaehlen (Klick auf den aktiven Chip) und liefert
+    # dann None. Ohne Rueckfall stuende die Seite dann ohne Rangliste da.
+    if pick is None:
+        pick = start
+
+    st.markdown(
+        "<style>"
+        ".st-key-rankchips [data-testid='stPills'] button,"
+        ".st-key-rankchips button{border-radius:999px!important;"
+        "font-size:16px!important;padding:9px 18px!important;}"
+        "@media (max-width:640px){.st-key-rankchips button{"
+        "font-size:14px!important;padding:8px 14px!important;}}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+
+    dict(avail)[pick](st.container())
+
+    if has_fun:
+        # Jetzt ein echtes Widget statt eines Links - schaltet also ebenfalls
+        # ohne Seitenaufbau um.
+        st.checkbox("Include fun rankings (sail force, power)",
+                    key=f"rank_fun_{sport}")
+
+
 def _render_ranking_tables(ranking, group_choice, member_groups, months,
                            spot_filter, year_filter, month_filter, day_filter,
                            gear_filter="All", extra=None):
@@ -6899,68 +6982,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 items[i + 1][1](cols[1])
 
     if design_v2():
-        # EINE Rangliste, Disziplin ueber Chips. Vorher standen zwei Tabellen mit
-        # je neun Spalten nebeneinander, sechs davon in beiden identisch (Datum,
-        # Spot, Board, Segel, Wetter, Trust) - das liest sich wie eine
-        # Tabellenkalkulation.
-        #
-        # Die Chips MUESSEN Links sein, keine Widgets: diese Funktion laeuft in
-        # einem Fragment, das in einen externen Container schreibt, und dort
-        # verbietet Streamlit Widgets (StreamlitFragmentWidgetsNotAllowed).
-        # st.pills oder eine Radio-Gruppe wuerden hier also abstuerzen. Der
-        # bestehende "Show more rankings"-Link zeigt, dass Query-Parameter der
-        # richtige Weg sind - mit dem Nebeneffekt, dass eine einzelne Wertung
-        # verlinkbar wird ("schau dir mal Alpha 500 an").
-        _qp = {k: v for k, v in st.query_params.items()}
-        _all_chips = _qp.get("rank") == "all"
-        # Kraftweltmeister ist ausdruecklich Spassphysik und keine Disziplin -
-        # bleibt hinter "more", damit die Chip-Reihe kurz bleibt.
-        _fun = {"kw_ppf", "kw_force", "kw_power"}
-        _chips = [k for k in _keys if _all_chips or k not in _fun]
-        _pick = _qp.get("metric")
-        if _pick not in _chips:
-            _pick = next((k for k in _selected if k in _chips), _chips[0] if _chips else None)
-        if _pick is None:
-            st.info("No ranking available for this sport yet.")
-            return
-
-        def _chip(key):
-            _lab = RANKING_TABLE_LABELS.get(key, key)
-            _cls = "chip chip-on" if key == _pick else "chip"
-            _href = "?" + urlencode({**_qp, "metric": key})
-            return (f"<a class='{_cls}' target='_self' href='{escape(_href, quote=True)}'>"
-                    f"{escape(_lab)}</a>")
-
-        st.markdown(
-            "<div class='chiprow'>" + "".join(_chip(k) for k in _chips) + "</div>"
-            "<style>"
-            ".chiprow{display:flex;flex-wrap:wrap;gap:9px;margin:4px 0 14px;}"
-            ".chiprow .chip{display:inline-block;padding:9px 18px;border-radius:999px;"
-            "font-size:16px;font-weight:600;text-decoration:none;white-space:nowrap;"
-            "line-height:1.25;"
-            "border:1px solid rgba(255,255,255,.16);color:#cfe6ec;"
-            "background:rgba(255,255,255,.05);"
-            "backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}"
-            ".chiprow .chip:hover{border-color:rgba(43,212,217,.55);color:#fff;}"
-            ".chiprow .chip-on{background:#2bd4d9;border-color:#2bd4d9;color:#04222c;"
-            "font-weight:800;}"
-            # Auf dem Handy bleiben sie tippbar (mind. 40 px hoch), werden aber
-            # schmaler, damit nicht jede Disziplin eine eigene Zeile bekommt.
-            "@media (max-width:640px){.chiprow{gap:7px;}"
-            ".chiprow .chip{padding:8px 14px;font-size:14px;}}"
-            "</style>",
-            unsafe_allow_html=True,
-        )
-        # Nur die gewaehlte Wertung, ueber die ganze Breite. Der Container-Trick
-        # der Paar-Ansicht entfaellt - st.container() ist hier der "c"-Parameter.
-        dict(_avail)[_pick](st.container())
-        if not _all_chips and any(k in _fun for k in _keys):
-            _href = "?" + urlencode({**_qp, "rank": "all"})
-            st.markdown(
-                f"<a href='{escape(_href, quote=True)}' target='_self' "
-                "style='display:inline-block;margin-top:6px;font-size:13px;"
-                "color:#8fa9c2;text-decoration:none;'>+ more rankings</a>",
-                unsafe_allow_html=True)
+        _rank_switch(_avail, _keys, _selected, _sp)
         return
 
     _render_pairs([t for t in _avail if t[0] in _selected])
