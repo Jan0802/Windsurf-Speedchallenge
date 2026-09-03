@@ -303,6 +303,23 @@ def design_v2():
         return False
 
 
+def plain_page():
+    """True bei ?plain=1: Seite ohne Hintergrundfoto, nur ruhige Flaeche.
+
+    Bewusst UNABHAENGIG von design_v2(). So lassen sich vier Kombinationen
+    vergleichen und die Frage "wie viel traegt das Foto eigentlich bei?" laesst
+    sich getrennt von der Frage "gefaellt mir das neue Layout?" beantworten.
+
+    Zweiter Zweck: Bildschirmfotos. Ohne Foto ist jede Aufnahme auf Anhieb
+    lesbar - fuer den Connect-IQ-Store, die Vereinsansprache oder eine
+    Pressemail -, ohne dass jemand ein Bild nachbearbeiten muss.
+    """
+    try:
+        return str(st.query_params.get("plain", "")).strip() == "1"
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def render_sport_switch(box=None, label="Sport"):
     """Sportart mitten auf der Seite wechseln.
 
@@ -15996,28 +16013,33 @@ bg_uri = background_data_uri(sport)
 # bleibt damit erhalten; nur der Grund wird ruhig. Siehe design_v2().
 _SCRIM = ("rgba(2,22,43,.60), rgba(2,22,43,.82)" if design_v2()
           else "rgba(2,22,43,.45), rgba(2,22,43,.62)")
-# Der Schalter muss mit in den Schluessel: sonst bliebe beim Umschalten von
-# ?design=2 der alte <style> stehen, weil der Sport sich nicht geaendert hat.
-_bg_key = (sport, design_v2())
+# ?plain=1 laesst das Foto ganz weg. Wichtig: background-image MUSS ausdruecklich
+# auf none gesetzt werden, nicht bloss weggelassen - der <style> von einem
+# frueheren Aufruf ohne den Parameter steht sonst noch da und das Bild bliebe.
+if plain_page():
+    _bg_css = ".stApp { background-color:#02162b; background-image:none; }"
+else:
+    _bg_css = (".stApp { background-color:#02162b;"
+               f" background-image: linear-gradient({_SCRIM}), url(\"{bg_uri}\");"
+               " background-position:center center; background-size:cover;"
+               " background-repeat:no-repeat; background-attachment:fixed; }")
+# Beide Schalter muessen mit in den Schluessel: sonst bliebe beim Umschalten von
+# ?design=2 oder ?plain=1 der alte <style> stehen, weil sich der Sport nicht
+# geaendert hat.
+_bg_key = (sport, design_v2(), plain_page())
 if bg_uri and st.session_state.get("_bg_sport") != _bg_key:
     st.session_state["_bg_sport"] = _bg_key
     components.html(
-        """
-        <script>
-        (function () {
-          try {
-            var d = window.parent.document;
-            var el = d.getElementById("ws-bg");
-            if (!el) { el = d.createElement("style"); el.id = "ws-bg"; d.head.appendChild(el); }
-            el.textContent = '.stApp { background-color:#02162b;'
-              + ' background-image: linear-gradient(__SCRIM__),'
-              + ' url("__BG__");'
-              + ' background-position:center center; background-size:cover;'
-              + ' background-repeat:no-repeat; background-attachment:fixed; }';
-          } catch (e) {}
-        })();
-        </script>
-        """.replace("__SCRIM__", _SCRIM).replace("__BG__", bg_uri),
+        "<script>(function(){try{"
+        "var d = window.parent.document;"
+        "var el = d.getElementById('ws-bg');"
+        "if (!el) { el = d.createElement('style'); el.id = 'ws-bg';"
+        " d.head.appendChild(el); }"
+        # json.dumps liefert ein gueltiges JS-String-Literal und escaped alles,
+        # was im Datensatz stehen koennte - sicherer als Platzhalter-Ersetzen in
+        # einer JS-Zeichenkette, in die eine ~200 KB lange Data-URI eingesetzt wird.
+        "el.textContent = " + json.dumps(_bg_css) + ";"
+        "}catch(e){}})();</script>",
         height=0,
     )
 
