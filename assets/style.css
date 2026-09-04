@@ -27,8 +27,16 @@
 
 /* Den Blockabstand auch wirklich setzen, sonst gilt Streamlits Vorgabe und der
    negative Rand von .hero passt nicht dazu. Nur im Hauptbereich – die Sidebar
-   behält ihre eigene Dichte. */
-[data-testid="stMain"] [data-testid="stVerticalBlock"] {
+   behält ihre eigene Dichte.
+
+   Verankert an .block-container UND [data-testid="stMainBlockContainer"]: Die
+   erste Fassung hing allein an [data-testid="stMain"] und blieb wirkungslos –
+   im Aufbau heißt der Kasten um den Inhalt stMainBlockContainer. Dass
+   .block-container trifft, ist belegt: darüber sitzt die Kopfleiste oben
+   (padding-top). Zwei Anker, weil Streamlit die Kennungen zwischen Versionen
+   umbenennt und ein einzelner lautlos ausfällt. */
+.block-container [data-testid="stVerticalBlock"],
+[data-testid="stMainBlockContainer"] [data-testid="stVerticalBlock"] {
     gap: var(--blockgap);
 }
 
@@ -50,7 +58,8 @@
    deren Skripte müssen laufen. position:absolute nimmt sie aus dem Fluss – ein
    absolut positioniertes Kind ist kein Flex-Element mehr und zählt beim gap
    nicht mit –, lässt sie aber rendern und ausführen. */
-[data-testid="stMain"] [data-testid="stElementContainer"][height="0px"] {
+.block-container [data-testid="stElementContainer"][height="0px"],
+[data-testid="stMainBlockContainer"] [data-testid="stElementContainer"][height="0px"] {
     position: absolute;
     width: 0;
     height: 0;
