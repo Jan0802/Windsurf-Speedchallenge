@@ -7,6 +7,21 @@
    und Fensterbreite ab. */
 :root {
     --pad: 1.5rem;
+    /* Streamlits Abstand zwischen zwei Blöcken. Hier selbst gesetzt, damit
+       .hero ihn mit einem negativen Rand genau aufheben kann – sonst müsste man
+       den Wert raten. */
+    --blockgap: 0.75rem;
+    /* Wie weit der Sidebar-Pfeil nach unten rutscht, damit er auf Höhe der
+       Wortmarke sitzt. Ein Wert an einer Stelle: wird die Kopfleiste höher oder
+       flacher, ändert man nur diese Zahl. */
+    --arrow-drop: 22px;
+}
+
+/* Den Blockabstand auch wirklich setzen, sonst gilt Streamlits Vorgabe und der
+   negative Rand von .hero passt nicht dazu. Nur im Hauptbereich – die Sidebar
+   behält ihre eigene Dichte. */
+[data-testid="stMain"] [data-testid="stVerticalBlock"] {
+    gap: var(--blockgap);
 }
 
 .block-container {
@@ -57,6 +72,23 @@
     opacity: 1 !important;
     z-index: 1000 !important;
     pointer-events: auto !important;   /* trotz pointer-events:none am Header klickbar */
+    /* Auf Höhe der Wortmarke. Der Pfeil sitzt im (unsichtbaren) Header-Band
+       ganz oben und stand dadurch deutlich über der Kopfleiste – seit die
+       Leiste nach oben gerückt ist, sah das aus wie zwei Zeilen.
+       transform statt margin/top: verschiebt auch die Klickfläche mit und
+       greift unabhängig davon, wie Streamlit den Pfeil positioniert
+       (fixed/absolute wechselt zwischen Versionen). */
+    transform: translateY(var(--arrow-drop));
+}
+
+/* Auf dem Handy stapeln die Spalten, die Wortmarke steht also ganz oben und der
+   Pfeil bleibt dort, wo er hingehört. */
+@media (max-width: 640px) {
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="collapsedControl"],
+    [data-testid="stExpandSidebarButton"] {
+        transform: none;
+    }
 }
 
 /* ---- Kopfleiste (Wortmarke · Sportarten · Ansichten) --------------------
@@ -64,7 +96,12 @@
    Randlos über die volle Breite; links bleibt Platz für den Sidebar-Pfeil, der
    mit z-index 1000 darüber liegt und sonst die Wortmarke überdecken würde. */
 .st-key-navbar {
-    margin: 0 calc(-1 * var(--pad)) 0.9rem;
+    /* Kein eigener Abstand nach unten – das Banner soll direkt anschließen.
+       Die restliche Lücke kommt von Streamlits Abstand ZWISCHEN Blöcken
+       (~1rem, als gap am übergeordneten Block). Den kann man nicht für eine
+       einzelne Fuge abschalten, darum holt .hero sich unten mit einem negativen
+       Rand die Höhe zurück. */
+    margin: 0 calc(-1 * var(--pad)) 0;
     padding: 2px var(--pad) 0 calc(var(--pad) + 42px);
     background: #071d33;
     border-bottom: 1px solid rgba(255, 255, 255, .09);
@@ -143,8 +180,12 @@ h2 {
     /* Randlos über die ganze Inhaltsbreite: hebt das Polster des
        Streamlit-Inhaltsbereichs mit einem negativen Rand auf. Darum MUSS das
        Polster oben in dieser Datei selbst gesetzt sein (--pad) – Streamlits
-       Vorgabe hängt von Version und Fensterbreite ab und wäre geraten. */
-    margin: 0 calc(-1 * var(--pad)) 1.1rem;
+       Vorgabe hängt von Version und Fensterbreite ab und wäre geraten.
+
+       Oben ein negativer Rand: er schluckt Streamlits Abstand zwischen den
+       Blöcken (--blockgap), damit das Banner direkt unter der Kopfleiste
+       ansetzt. Vorher lag dort ein dunkles Band, das mitten im Foto saß. */
+    margin: calc(-1 * var(--blockgap)) calc(-1 * var(--pad)) 1.1rem;
     /* Festes Verhältnis, NICHT min-height: sonst hängt der Zuschnitt an der
        Fensterbreite und das Motiv wird auf breiten Schirmen anders beschnitten
        als auf schmalen. 5:1 ist die Proportion, bei der in allen sechs
