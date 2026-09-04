@@ -6271,6 +6271,13 @@ def _render_champion(ranking, is_wind):
         "-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);"
         "border:1px solid rgba(255,255,255,.25);border-radius:20px;"
         "padding:16px 18px;box-shadow:0 8px 30px rgba(0,0,0,.18);"
+        # 14 px unten - DERSELBE Wert wie bei der Siegerzeile (.champ2), damit
+        # alle drei Fugen gleich sind: Siegerzeile -> Reihe 1 -> Reihe 2.
+        # Vorher hatten die Kacheln keinen Rand; solange die --blockgap-Regel
+        # wegen des falschen Selektors nicht griff, sprang Streamlits groesserer
+        # Vorgabewert ein und es fiel nicht auf. Seit sie greift, standen 26 px
+        # ueber der ersten Reihe und nur 12 px zwischen den Reihen.
+        "margin-bottom:14px;"
         "height:100%;box-sizing:border-box;}"
         ".mt-h{display:flex;align-items:center;gap:8px;font-size:14px;"
         "color:#cfe6ec;line-height:1.2;}"
