@@ -1254,6 +1254,41 @@ def load_session_track(session_id):
     return row[0] if row else None
 
 
+@st.cache_data(ttl=3600, show_spinner=False, max_entries=120)
+def _load_run_curves(ids):
+    """Minikurven fuer eine Menge Sessions: {id: [km/h, ...]}.
+
+    Der Track ist absichtlich aus allen Massen-Ladevorgaengen ausgeschlossen
+    (siehe _SESSION_COLS_NO_TRACK) - er ist gross und wird fast nie gebraucht.
+    Fuer die Ranglisten-Zeilen wird er hier gezielt geholt, EINMAL fuer alle
+    Zeilen zusammen, sofort zu hoechstens 48 Zahlen je Session eingekocht und
+    wieder verworfen. Im Cache liegen damit Zahlen, keine Tracks: rund 400 Byte
+    je Session statt Dutzender Kilobyte.
+
+    Getrennt von load_session_track und mit eigenem max_entries: dort liegen 20
+    ganze Tracks fuer die Detailkarte, und 15 Ranglisten-Zeilen wuerden diesen
+    Cache jedes Mal leerraeumen.
+    """
+    out = {}
+    ids = tuple(sorted({int(i) for i in (ids or ()) if i is not None}))
+    if not ids:
+        return out
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            select(sessions_table.c.id, sessions_table.c.track,
+                   sessions_table.c.duration_s)
+            .where(sessions_table.c.id.in_(ids))
+        ).all()
+    for sid, track, dur in rows:
+        try:
+            out[int(sid)] = _run_curve_kmh(track, dur)
+        except Exception:
+            # Eine kaputte Route darf keine Rangliste kosten - dann eben keine
+            # Kurve in dieser Zeile.
+            out[int(sid)] = []
+    return out
+
+
 def current_username():
     user = st.session_state.get("user")
     return user["username"] if user else None
@@ -6276,6 +6311,101 @@ _VIZ_KIND = {
 }
 
 
+# --- Minikurve der schnellsten Fahrt, fuer die Ranglisten-Zeilen -------------
+# Breiter und flacher als die Kachel-Diagramme: In der Zeile ist Platz in der
+# Breite, und die Form einer Fahrt braucht ihn - in 56 px wird aus jedem Verlauf
+# ein Zacken.
+_RUNC_W, _RUNC_H = 92, 26
+# Unter vier Werten keine Kurve. Das ist hier keine Geschmacksfrage, sondern die
+# Datenlage: Der gespeicherte Track ist eine Liste von Positionen OHNE
+# Zeitstempel. Die Geschwindigkeit entsteht aus Abstand/dt mit dt =
+# Dauer/Punktzahl - jeder Punkt der Kurve ist also ein Segment-MITTEL. Duennt
+# die Uhr den Track aus (10 s und mehr zwischen zwei Punkten), besteht eine
+# halbe Minute Vollgas aus drei Mittelwerten. Drei Mittelwerte sind keine Kurve.
+_RUNC_MIN = 4
+_RUNC_MAX = 48
+# Kleinste Spanne, auf die die Kurve gedehnt wird (km/h). Ohne diesen Boden
+# wuerde eine gleichmaessige Fahrt (40,1 bis 40,5 km/h) auf die volle Hoehe
+# gestreckt und saehe aus wie ein Gebirge - dasselbe Problem wie bei den
+# Zierlinien in den Kacheln, nur umgekehrt: nicht erfundene Daten, sondern eine
+# erfundene Dramatik. Mit dem Boden bleibt eine ruhige Fahrt eine ruhige Linie.
+_RUNC_SPAN_MIN = 8.0
+
+
+def _run_curve_kmh(track_json, duration_s):
+    """Geschwindigkeitsverlauf (km/h) der SCHNELLSTEN Fahrt einer Session.
+
+    Nutzt dieselben Bausteine wie die Detailansicht: _speed_series_from_track
+    fuer die Geschwindigkeit, _track_runs fuer die Fahrten. Gewaehlt wird die
+    Fahrt mit dem hoechsten Schnitt - dieselbe Wahl wie der Kartenmodus
+    "fastest", damit Ranglisten-Zeile und Detailseite dieselbe Fahrt meinen.
+
+    Leere Liste, wenn keine Fahrt erkennbar ist. Der Aufrufer zeichnet dann
+    nichts; eine Linie "irgendwo aus dem Track" waere eine Behauptung.
+    """
+    pts = _parse_track(track_json)
+    if not pts:
+        return []
+    series = _speed_series_from_track(pts, duration_s)
+    if series is None:
+        return []
+    _t, v_kn, _dt = series
+    runs, _dt2 = _track_runs(pts, duration_s)
+    if not runs:
+        return []
+    a, b, _dist, _avg = max(runs, key=lambda r: r[3])
+    v = [float(x) * 1.852 for x in v_kn[a:b + 1]]
+    # _track_runs schliesst eine Fahrt MIT dem Segment, das unter die
+    # Endschwelle gefallen ist (5 km/h) - fuer die Distanz voellig richtig, in
+    # einer Kurve aber ein Sturz auf den Nullpunkt am rechten Rand. Der zieht
+    # ausserdem die Skala nach unten und drueckt die ganze Fahrt in die obere
+    # Haelfte. Also hinten abschneiden, solange dort das Ausrollen steht.
+    while v and v[-1] < 5.0:
+        v.pop()
+    if len(v) < _RUNC_MIN:
+        return []
+    if len(v) > _RUNC_MAX:
+        # Gleichmaessig ausduennen, NICHT mitteln: ein Mittel ueber je zwei
+        # Punkte glaettet genau die Spitze weg, um die es in einer Speedfahrt
+        # geht.
+        schritt = len(v) / float(_RUNC_MAX)
+        v = [v[min(len(v) - 1, int(i * schritt))] for i in range(_RUNC_MAX)]
+    return v
+
+
+def _run_curve_svg(werte):
+    """Die Kurve als SVG - Linie plus zarte Flaeche darunter.
+
+    Keine Achsen, keine Zahlen: In 92x26 px ist beides unlesbar. Was die Kurve
+    zeigt, ist die FORM einer Fahrt - anliegen, beschleunigen, abfallen. Die
+    Zahl dazu steht ohnehin daneben.
+    """
+    v = [float(x) for x in (werte or [])
+         if x is not None and not (isinstance(x, float) and x != x)]
+    if len(v) < _RUNC_MIN:
+        return ""
+    lo, hi = min(v), max(v)
+    spanne = max(hi - lo, _RUNC_SPAN_MIN)
+    n = len(v)
+    pad = 2.0
+    pts = []
+    for i, x in enumerate(v):
+        px = pad + (_RUNC_W - 2 * pad) * i / (n - 1)
+        py = _RUNC_H - pad - (_RUNC_H - 2 * pad) * ((x - lo) / spanne)
+        pts.append(f"{px:.1f},{py:.1f}")
+    linie = " ".join(pts)
+    # Flaeche = dieselbe Linie, unten am Rand geschlossen. Ohne sie sieht die
+    # Kurve in der Zeile wie ein Kratzer aus.
+    flaeche = (f"{pad:.1f},{_RUNC_H - pad:.1f} {linie} "
+               f"{_RUNC_W - pad:.1f},{_RUNC_H - pad:.1f}")
+    return (f"<svg viewBox='0 0 {_RUNC_W} {_RUNC_H}' width='{_RUNC_W}' "
+            f"height='{_RUNC_H}' aria-hidden='true' focusable='false'>"
+            f"<polygon points='{flaeche}' fill='{_VIZ_AQUA}' opacity='.14'/>"
+            f"<polyline points='{linie}' fill='none' stroke='{_VIZ_AQUA}' "
+            "stroke-width='1.6' stroke-linecap='round' "
+            "stroke-linejoin='round'/></svg>")
+
+
 def _render_champion(ranking, is_wind):
     """Glas-Karte mit der #1: kombinierter Score aus normalisiertem 2s/30s/
     längstem Run (bei Windsport zusätzlich Sprunghöhe + Airtime). Zeigt deren
@@ -6862,7 +6992,9 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     def _r_30s(c):
         with c:
             r30 = ranking[fin_cols + [
-                "date", "name", "speed_30s_kmh", "speed_30s_kn",
+                # "id" nur fuer die Minikurve der schnellsten Fahrt;
+                # _show_rank nimmt sie wieder aus der Tabelle.
+                "id", "date", "name", "speed_30s_kmh", "speed_30s_kn",
                 "surfspot", "board", "sail", "Weather", "Trust",
             ]].copy()
             # Nur echte Werte: 0/leer ist keine Leistung. Wichtig, seit die
@@ -6888,7 +7020,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     def _r_2s(c):
         with c:
             r1 = ranking[fin_cols + [
-                "date", "name", "speed_1s_kmh", "speed_1s_kn",
+                "id", "date", "name", "speed_1s_kmh", "speed_1s_kn",
                 "surfspot", "board", "sail", "Weather", "Trust",
             ]].copy()
             r1 = r1[pd.to_numeric(r1["speed_1s_kmh"], errors="coerce") > 0]
@@ -6911,7 +7043,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     def _dist_body(c, col, title, unit_label, dist_m):
         with c:
             tab = ranking[fin_cols + [
-                "date", "name", col, "surfspot", "board", "sail", "Weather", "Trust",
+                "id", "date", "name", col, "surfspot", "board", "sail",
+                "Weather", "Trust",
             ]].copy()
             tab = tab[pd.to_numeric(tab[col], errors="coerce") > 0]
             tab = (
@@ -6948,7 +7081,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                        "do not overlap in time. Rewards a whole session held at "
                        "speed, not one lucky gust.")
             r5 = ranking[fin_cols + [
-                "date", "name", "speed_5x10_kmh",
+                "id", "date", "name", "speed_5x10_kmh",
                 "surfspot", "board", "sail", "Weather", "Trust",
             ]].copy()
             r5 = r5[pd.to_numeric(r5["speed_5x10_kmh"], errors="coerce") > 0]
@@ -6979,7 +7112,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                        "apart – so a jibe has to be in it. A straight downwind "
                        "blast does not count here.")
             ra = ranking[fin_cols + [
-                "date", "name", "speed_alpha500_kmh",
+                "id", "date", "name", "speed_alpha500_kmh",
                 "surfspot", "board", "sail", "Weather", "Trust",
             ]].copy()
             ra = ra[pd.to_numeric(ra["speed_alpha500_kmh"], errors="coerce") > 0]
@@ -7005,7 +7138,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     def _r_run(c):
         with c:
             rrun = ranking[fin_cols + [
-                "date", "name", "longest_run_km", "longest_run_m",
+                "id", "date", "name", "longest_run_km", "longest_run_m",
                 "surfspot", "board", "sail", "Weather", "Trust",
             ]].copy()
             rrun = rrun[pd.to_numeric(rrun["longest_run_m"], errors="coerce") > 0]
@@ -7067,7 +7200,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     def _metric_body(c, metric, title, col_label, decimals=1, empty_msg="No data yet."):
         with c:
             tbl = ranking[fin_cols + [
-                "date", "name", metric, "surfspot", "board", "sail", "Weather", "Trust",
+                "id", "date", "name", metric, "surfspot", "board", "sail",
+                "Weather", "Trust",
             ]].copy()
             tbl[metric] = pd.to_numeric(tbl[metric], errors="coerce")
             tbl = tbl[tbl[metric] > 0].dropna(subset=[metric])
@@ -8555,7 +8689,7 @@ def _default_cols(gear_label):
 # damit nur eine Doppelung und ist ganz weg.
 
 
-def _rank_rows(df, gear_label):
+def _rank_rows(df, gear_label, sids=None):
     """Rangliste als zweizeilige Zeilen statt als Tabellenraster.
 
     Warum eigenes HTML sein muss: st.dataframe zeichnet auf ein Canvas. Dort
@@ -8574,6 +8708,10 @@ def _rank_rows(df, gear_label):
 
     Die Spaltenauswahl des Nutzers bleibt wirksam: sie bestimmt, WAS in der
     Nebenzeile steht und in welcher Reihenfolge.
+
+    sids: Session-IDs in der Reihenfolge der Zeilen (oder None). Nur damit gibt
+    es die Minikurve der schnellsten Fahrt - ohne IDs bleiben die Zeilen genau
+    so, wie sie vorher waren.
     """
     if df is None or df.empty:
         st.caption("No entries yet.")
@@ -8614,8 +8752,22 @@ def _rank_rows(df, gear_label):
     # (das wird zum Symbol) und ohne den Namen (steht schon darueber).
     sub_cols = [c for c in df.columns if c in optional and c != "Trust"]
 
+    # Minikurven: EINE Abfrage fuer alle Zeilen. Auf dem Handy gar nicht - dort
+    # ist die Zeile schon knapp (Name und Nebenzeile werden mit Auslassung
+    # gekuerzt), und eine 92 px breite Grafik waere das Erste, was den Namen
+    # abschneidet. Also auch keine Abfrage: die Daten, die man nicht zeigt,
+    # holt man nicht.
+    kurven = {}
+    if sids and not _is_mobile():
+        try:
+            kurven = _load_run_curves(tuple(s for s in sids if s))
+        except Exception:
+            # Kein Grund, die Rangliste zu verlieren, wenn die Tracks nicht
+            # erreichbar sind (z.B. Neon im Kaltstart).
+            kurven = {}
+
     rows = []
-    for _, r in df.iterrows():
+    for i, (_, r) in enumerate(df.iterrows()):
         sub = " · ".join(
             _e(r[c]) for c in sub_cols
             if str(r.get(c) or "").strip() not in ("", "–", "nan", "None")
@@ -8632,6 +8784,13 @@ def _rank_rows(df, gear_label):
             # Von "2s kn" bleibt als Einheit "kn" uebrig.
             small = (f"{_e(primary)} · {_e(_num(r[secondary], secondary))} "
                      f"{_e(str(secondary).split()[-1])}")
+        # Kurve der schnellsten Fahrt dieser Session. Fehlt sie (kein Track,
+        # keine Fahrt erkannt, zu grobe Aufzeichnung), bleibt die Stelle leer -
+        # kein Platzhalter, der eine fehlende Messung wie eine flache Fahrt
+        # aussehen laesst.
+        kurve = _run_curve_svg(kurven.get(sids[i] if sids and i < len(sids) else None))
+        kurve_html = (f"<div class='rk-c' title='Speed curve of the fastest run "
+                      f"in this session'>{kurve}</div>" if kurve else "")
         rows.append(
             "<div class='rk-row'>"
             f"<div class='rk-n'>{_e(r.get('Rank', ''))}</div>"
@@ -8639,6 +8798,7 @@ def _rank_rows(df, gear_label):
             f"<div class='rk-name'>{_e(r.get('Name', ''))}</div>"
             + (f"<div class='rk-sub'>{sub}</div>" if sub else "")
             + "</div>"
+            + kurve_html
             + trust_html
             + "<div class='rk-v'>"
               f"<div class='rk-big'>{_e(_num(r[primary], primary))}</div>"
@@ -8668,13 +8828,22 @@ def _rank_rows(df, gear_label):
         ".rk-sub{font-size:14px;color:#7791ab;line-height:1.4;margin-top:2px;"
         "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
         ".rk-t{flex:0 0 auto;font-size:15px;cursor:help;}"
+        # line-height:0 an der Huelle: ein inline-SVG sitzt sonst auf der
+        # Grundlinie und bringt darunter Leerraum mit, der die Zeile hoeher
+        # macht als die Zeilen ohne Kurve.
+        ".rk-c{flex:0 0 auto;line-height:0;cursor:help;}"
         # Nie schrumpfen und nie umbrechen: sonst wandert die Zahl bei langen
         # Namen in die zweite Zeile oder verschwindet.
         ".rk-v{flex:0 0 auto;text-align:right;white-space:nowrap;}"
         ".rk-big{font-size:26px;color:#f2f6fa;line-height:1.15;font-weight:500;"
         "font-variant-numeric:tabular-nums;}"
         ".rk-small{font-size:12.5px;color:#7791ab;letter-spacing:.3px;}"
+        # Die Kurve wird auf dem Handy schon serverseitig nicht gebaut
+        # (_is_mobile). Diese Regel ist fuer den anderen Fall: ein schmales
+        # Fenster auf dem Desktop. Dort ist _is_mobile falsch, die Kurve waere
+        # gebaut - und wuerde dem Namen den Platz nehmen.
         "@media (max-width:640px){.rk-row{gap:10px;padding:11px 2px;}"
+        ".rk-c{display:none;}"
         ".rk-n{flex:0 0 20px;font-size:13px;}"
         ".rk-name{font-size:16px;}.rk-big{font-size:21px;}"
         ".rk-sub{font-size:12.5px;}.rk-small{font-size:11px;}}"
@@ -8690,8 +8859,21 @@ def _show_rank(df, chosen, gear_label):
     Funktion bleibt trotzdem als eigener Trichter bestehen: alle neun Ranglisten
     laufen durch sie, sie ist also der eine Ort, an dem sich Darstellung oder
     Rundung aendern lassen, ohne neun Stellen anzufassen.
+
+    Hier wird auch die Session-ID aus der Tabelle genommen und getrennt
+    weitergegeben. Sie MUSS raus, bevor die Spalten sortiert werden: _rank_rows
+    haelt alles fuer einen Messwert, was nicht Rank, Name oder eine gewaehlte
+    Spalte ist - eine Spalte "id" waere damit ein Kandidat fuer die grosse Zahl
+    am rechten Rand. Die Zeilenreihenfolge aendert sich weder in _mobile_slim
+    noch in _order_table_cols (beide waehlen nur Spalten aus), die Liste bleibt
+    also zu den Zeilen passend.
     """
-    _rank_rows(_order_table_cols(_mobile_slim(df), chosen, gear_label), gear_label)
+    sids = None
+    if "id" in df.columns:
+        sids = [None if pd.isna(v) else int(v) for v in df["id"]]
+        df = df.drop(columns=["id"])
+    _rank_rows(_order_table_cols(_mobile_slim(df), chosen, gear_label),
+               gear_label, sids)
 
 
 def _order_table_cols(df, chosen, gear_label):
