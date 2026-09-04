@@ -10,6 +10,7 @@ import os
 # faulthandler schreibt beim Crash den C- + Python-Stack nach stderr (Render-Logs)
 # -> beim naechsten 139 sehen wir, welche native Lib (pyarrow/Pillow/pydeck …) es war.
 faulthandler.enable()
+import math
 import re
 import secrets
 import tempfile
@@ -6135,9 +6136,144 @@ def _fmt_mmss(seconds):
     return f"{s // 60}:{s % 60:02d}"
 
 
+# =====================================================================
+#  Kleine Diagramme in den Kennzahl-Kacheln
+#
+#  Inline-SVG von Hand, kein Diagramm-Werkzeug: die Grafiken sind 24 px hoch,
+#  dafuer braucht es kein Altair und keinen zweiten Renderer im Dokument.
+#
+#  GRUNDSATZ: Jede Grafik muss etwas bedeuten. Eine Zierlinie, die nichts
+#  darstellt, macht die Zahl daneben unglaubwuerdig - der Betrachter nimmt an,
+#  sie zeige einen Verlauf, und liest etwas hinein. Darum gibt jede Funktion
+#  hier "" zurueck, wenn die Datenlage keine Aussage traegt.
+# =====================================================================
+_VIZ_W, _VIZ_H = 56, 24
+_VIZ_AQUA = "#2bd4d9"
+
+
+def _viz_hull(inner, w=_VIZ_W, h=_VIZ_H):
+    """Rahmen fuer die kleinen Grafiken. aria-hidden: die Zahl daneben sagt
+    dasselbe, ein Screenreader soll sie nicht zweimal vorlesen."""
+    return (f"<svg class='mt-svg' viewBox='0 0 {w} {h}' width='{w}' height='{h}' "
+            f"aria-hidden='true' focusable='false'>{inner}</svg>")
+
+
+def _viz_reihe(werte):
+    """Zahlenreihe fuer ein Diagramm: nur echte Werte, hoechstens die letzten 7.
+
+    Null und fehlende Werte fliegen raus - eine Session ohne gemessenen Wert ist
+    kein Balken der Hoehe null, sondern gar kein Datenpunkt.
+    """
+    out = []
+    for x in werte or []:
+        try:
+            if x is None or pd.isna(x):
+                continue
+            f = float(x)
+        except (TypeError, ValueError):
+            continue
+        if f > 0:
+            out.append(f)
+    return out[-7:]
+
+
+def _viz_bars(werte):
+    """Balken je Session: die letzten Messwerte dieses Fahrers in dieser
+    Kategorie, aelteste links. Zeigt die Entwicklung.
+
+    Unter DREI Werten gibt es keine Entwicklung - dann kein Diagramm. Zwei
+    Balken sehen wie ein Trend aus und sind keiner.
+    """
+    v = _viz_reihe(werte)
+    if len(v) < 3:
+        return ""
+    lo, hi = min(v), max(v)
+    spanne = (hi - lo) or hi or 1.0
+    n = len(v)
+    bw = _VIZ_W / (n * 1.75)
+    luecke = bw * 0.75
+    teile = []
+    for i, x in enumerate(v):
+        # Mindesthoehe 18 %: der schwaechste Balken bleibt sichtbar, sonst sieht
+        # es nach einer fehlenden Session aus.
+        anteil = 0.18 + 0.82 * ((x - lo) / spanne)
+        bh = _VIZ_H * anteil
+        bx = i * (bw + luecke)
+        # Die juengste Session am kraeftigsten - so liest man die Richtung.
+        deck = 0.42 + 0.58 * i / (n - 1)
+        teile.append(
+            f"<rect x='{bx:.1f}' y='{_VIZ_H - bh:.1f}' width='{bw:.1f}' "
+            f"height='{bh:.1f}' rx='{min(bw / 2, 1.5):.1f}' "
+            f"fill='{_VIZ_AQUA}' opacity='{deck:.2f}'/>")
+    return _viz_hull("".join(teile))
+
+
+def _viz_line(werte):
+    """Verlaufslinie fuer Werte, bei denen die Form mehr sagt als die Hoehe
+    (laengster Run). Wie bei den Balken: unter drei Punkten keine Linie."""
+    v = _viz_reihe(werte)
+    if len(v) < 3:
+        return ""
+    lo, hi = min(v), max(v)
+    spanne = (hi - lo) or hi or 1.0
+    n = len(v)
+    pad = 2.0
+    pts = []
+    for i, x in enumerate(v):
+        px = pad + (_VIZ_W - 2 * pad) * i / (n - 1)
+        py = _VIZ_H - pad - (_VIZ_H - 2 * pad) * ((x - lo) / spanne)
+        pts.append(f"{px:.1f},{py:.1f}")
+    letzte = pts[-1].split(",")
+    return _viz_hull(
+        f"<polyline points='{' '.join(pts)}' fill='none' stroke='{_VIZ_AQUA}' "
+        "stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/>"
+        # Der juengste Punkt betont: dort steht man heute.
+        f"<circle cx='{letzte[0]}' cy='{letzte[1]}' r='2.1' fill='{_VIZ_AQUA}'/>")
+
+
+def _viz_ring(anteil, farbe=_VIZ_AQUA):
+    """Ring, der zu <anteil> gefuellt ist. Fuer Werte MIT bekannter Obergrenze -
+    Trust (0-100) und den Punkteanteil. Ohne Obergrenze waere der Fuellstand
+    erfunden, darum gibt es hier keinen Rueckfall auf "irgendwas"."""
+    try:
+        a = float(anteil)
+    except (TypeError, ValueError):
+        return ""
+    if not 0.0 <= a <= 1.0001:
+        return ""
+    r, cx, cy = 9.0, _VIZ_H / 2 + 4, _VIZ_H / 2
+    umfang = 2 * math.pi * r
+    return _viz_hull(
+        f"<circle cx='{cx:.1f}' cy='{cy:.1f}' r='{r}' fill='none' "
+        "stroke='rgba(255,255,255,.16)' stroke-width='2.6'/>"
+        f"<circle cx='{cx:.1f}' cy='{cy:.1f}' r='{r}' fill='none' "
+        f"stroke='{farbe}' stroke-width='2.6' stroke-linecap='round' "
+        f"stroke-dasharray='{umfang * min(a, 1.0):.2f} {umfang:.2f}' "
+        f"transform='rotate(-90 {cx:.1f} {cy:.1f})'/>")
+
+
+def _viz_trust_anteil(text):
+    """Trust kommt als "🟢 90" aus _trust_badge. Die Zahl heraus, 0-100 -> 0-1.
+    Ohne Zahl kein Ring (statt eines leeren oder vollen, der etwas behauptet)."""
+    m = re.search(r"(\d{1,3})", str(text or ""))
+    if not m:
+        return None
+    return max(0.0, min(1.0, int(m.group(1)) / 100.0))
+
+
 # Untergrenzen, ab denen ein Wert ueberhaupt eine Leistung ist. Darunter zeigt
 # die Champion-Karte die Kachel gar nicht an, statt eine Null auszugeben.
 _MIN_PLAUSIBLE = {"max_jump_m": 0.5, "max_airtime_s": 0.5}
+
+# Welches Diagramm gehoert zu welcher Kennzahl. "bars" = Entwicklung ueber die
+# letzten Sessions, "line" = Verlauf (die Form sagt mehr als die Hoehe).
+_VIZ_KIND = {
+    "speed_1s_kmh": "bars",
+    "speed_30s_kmh": "bars",
+    "longest_run_km": "line",
+    "max_jump_m": "bars",
+    "max_airtime_s": "bars",
+}
 
 
 def _render_champion(ranking, is_wind):
@@ -6195,8 +6331,16 @@ def _render_champion(ranking, is_wind):
     if champ_sail.lower() in ("none", "nan", "null", "guest"):
         champ_sail = ""
 
-    # (Beschriftung, Wert, Icon-Schluessel oder None, Emoji oder None). Wetter
-    # und Trust haben kein eigenes Piktogramm und behalten ihr Emoji.
+    # Die letzten Sessions DIESES Fahrers, aelteste zuerst - Grundlage der
+    # kleinen Diagramme in den Kacheln. crows ist nach Speed sortiert und taugt
+    # dafuer nicht; hier zaehlt die Zeit.
+    _hist = df[df["name"].astype(str) == str(champ)]
+    if "_date" in _hist.columns:
+        _hist = _hist.sort_values("_date")
+
+    # (Beschriftung, Wert, Icon-Schluessel oder None, Emoji oder None,
+    #  Diagramm-SVG oder ""). Wetter und Trust haben kein eigenes Piktogramm und
+    # behalten ihr Emoji.
     tiles = []
     for key, label, unit, dec, mkey in metrics:
         v = vals.get(key)
@@ -6208,10 +6352,24 @@ def _render_champion(ranking, is_wind):
         _floor = _MIN_PLAUSIBLE.get(key)
         if _floor is not None and (pd.isna(v) or float(v) < _floor):
             continue
+        # Diagramm aus der eigenen Verlaufsreihe. Traegt die Datenlage keine
+        # Aussage (unter drei Sessions mit Wert), bleibt die Kachel ohne Grafik.
+        _reihe = _hist[key].tolist() if key in _hist.columns else []
+        _art = _VIZ_KIND.get(key)
+        _viz = (_viz_line(_reihe) if _art == "line"
+                else _viz_bars(_reihe) if _art == "bars" else "")
         tiles.append((label, "–" if pd.isna(v) else f"{float(v):.{dec}f} {unit}",
-                      mkey, None))
-    tiles.append(("Weather", weather, None, "🌤"))
-    tiles.append(("Trust", trust, None, "🛡"))
+                      mkey, None, _viz))
+    # Wetter: eine Momentaufnahme, kein Verlauf - hier waere jedes Diagramm
+    # erfunden.
+    tiles.append(("Weather", weather, None, "🌤", ""))
+    # Trust hat eine bekannte Obergrenze (100), darum ein Ring mit echtem
+    # Fuellstand. Die Farbe folgt der Ampel aus _trust_badge.
+    _tf = _viz_trust_anteil(trust)
+    _tcol = ("#4fbf8b" if (_tf or 0) >= 0.80
+             else "#e8c33a" if (_tf or 0) >= 0.55 else "#e06565")
+    tiles.append(("Trust", trust, None, "🛡",
+                  _viz_ring(_tf, _tcol) if _tf is not None else ""))
 
     def _esc(s):
         return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -6219,6 +6377,12 @@ def _render_champion(ranking, is_wind):
     _gear = " · ".join(x for x in (champ_board, champ_sail) if x)
     _perf = vals.get("speed_1s_kmh")
     _perf_txt = "–" if pd.isna(_perf) else f"{float(_perf):.2f} km/h"
+    # Ring an die PUNKTE gekoppelt, nicht an die Geschwindigkeit: Das Maximum
+    # ist bekannt (10 Punkte je Kategorie), der Fuellstand also echt. Ein Ring
+    # am Speed haette keine Obergrenze - man muesste sie erfinden, und der
+    # Betrachter wuerde sie fuer eine Aussage halten.
+    _pts_max = 10 * len(metrics)
+    _pts_ring = _viz_ring(total_pts / _pts_max, "#f5b942") if _pts_max else ""
     st.markdown(
         "<div class='champ2' translate='no'>"
         "<div class='champ2-l'>"
@@ -6226,7 +6390,8 @@ def _render_champion(ranking, is_wind):
         f"<div class='champ2-name'>{champ_safe}</div>"
         + (f"<div class='champ2-gear'>{_esc(_gear)}</div>" if _gear else "")
         + "</div>"
-        "<div class='champ2-r'>"
+        + (f"<div class='champ2-ring'>{_pts_ring}</div>" if _pts_ring else "")
+        + "<div class='champ2-r'>"
         f"<div class='champ2-perf'>{_perf_txt}</div>"
         f"<div class='champ2-pts'>{total_pts} pts · top 2 s</div>"
         "</div></div>"
@@ -6254,6 +6419,12 @@ def _render_champion(ranking, is_wind):
         ".champ2-gear{font-size:14px;color:#8fa9c2;margin-top:2px;"
         "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
         ".champ2-r{text-align:right;flex:0 0 auto;white-space:nowrap;}"
+        # Punktering zwischen Name und Leistung. margin-left:auto schiebt ihn
+        # von der Namensseite weg, damit er neben der Zahl steht und nicht am
+        # Material klebt.
+        ".champ2-ring{flex:0 0 auto;margin-left:auto;display:flex;"
+        "align-items:center;}"
+        "@media (max-width:640px){.champ2-ring{display:none;}}"
         # tabular-nums: sonst tanzt die Zahl, wenn der Champion wechselt.
         ".champ2-perf{font-size:31px;font-weight:500;color:#f2f6fa;"
         "line-height:1.15;font-variant-numeric:tabular-nums;}"
@@ -6267,7 +6438,10 @@ def _render_champion(ranking, is_wind):
         # wirkten die Kacheln nach dem Umbau anders als der Rest der Seite.
         # Steht bewusst in DIESEM Block und nicht als eigenes st.markdown -
         # ein zusaetzlicher Aufruf waere ein weiterer Element-Container.
-        ".mt{background:rgba(255,255,255,.12);"
+        # Grafik rechts, Text links. min-width:0 an der Textspalte, damit lange
+        # Werte ("16 km/h NNW · 19°C") die Grafik nicht hinausschieben.
+        ".mt{display:flex;align-items:center;justify-content:space-between;"
+        "gap:10px;background:rgba(255,255,255,.12);"
         "-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);"
         "border:1px solid rgba(255,255,255,.25);border-radius:20px;"
         "padding:16px 18px;box-shadow:0 8px 30px rgba(0,0,0,.18);"
@@ -6279,6 +6453,9 @@ def _render_champion(ranking, is_wind):
         # ueber der ersten Reihe und nur 12 px zwischen den Reihen.
         "margin-bottom:14px;"
         "height:100%;box-sizing:border-box;}"
+        ".mt-l{min-width:0;}"
+        ".mt-g{flex:0 0 auto;display:flex;align-items:center;opacity:.95;}"
+        ".mt-svg{display:block;}"
         ".mt-h{display:flex;align-items:center;gap:8px;font-size:14px;"
         "color:#cfe6ec;line-height:1.2;}"
         # Das Piktogramm als Maske: nimmt die Textfarbe an (currentColor).
@@ -6296,7 +6473,7 @@ def _render_champion(ranking, is_wind):
         "</style>",
         unsafe_allow_html=True,
     )
-    def _mtile(label, val, mkey, emo):
+    def _mtile(label, val, mkey, emo, viz=""):
         """Kennzahl-Kachel mit eigenem Markup statt st.metric.
 
         st.metric nimmt als Beschriftung nur Text - ein Piktogramm laesst sich
@@ -6317,10 +6494,16 @@ def _render_champion(ranking, is_wind):
                        f"base64,{_b}')\"></span>")
         if not ico and emo:
             ico = f"<span class='mt-e'>{emo}</span>"
+        # Die Grafik rechts, Beschriftung und Zahl links. viz ist bereits
+        # fertiges SVG aus _viz_* - NICHT escapen, aber es enthaelt auch keine
+        # Fremddaten: nur Zahlen, die dort selbst formatiert wurden.
         return ("<div class='mt'>"
+                "<div class='mt-l'>"
                 f"<div class='mt-h'>{ico}<span>{_esc(label)}</span></div>"
                 f"<div class='mt-v'>{_esc(val)}</div>"
-                "</div>")
+                "</div>"
+                + (f"<div class='mt-g'>{viz}</div>" if viz else "")
+                + "</div>")
 
     n = len(tiles)
     per_row = n if n <= 4 else (n + 1) // 2   # >4 -> zwei gleichmäßige Reihen
