@@ -6231,7 +6231,11 @@ def _render_champion(ranking, is_wind):
         ".champ2{display:flex;align-items:center;justify-content:space-between;"
         "gap:20px;background:rgba(255,255,255,.07);"
         "border:1px solid rgba(255,255,255,.10);border-left:4px solid #f5b942;"
-        "border-radius:12px;padding:18px 22px;margin:2px 0 18px;"
+        # Kein eigener Rand: zwischen Siegerzeile und Kennzahl-Kacheln liegt
+        # schon Streamlits Abstand zwischen Bloecken. Die 18 px unten kamen
+        # zusaetzlich dazu, und mit dem Rand des Kopfbereichs darueber ergab das
+        # gut 50 px Leere.
+        "border-radius:12px;padding:18px 22px;margin:0;"
         "backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}"
         ".champ2-l{min-width:0;}"
         ".champ2-kicker{font-size:12px;font-weight:700;letter-spacing:2.5px;"
@@ -6266,7 +6270,10 @@ def _render_champion(ranking, is_wind):
           "summed across categories — rewards the best all-rounder, not just the "
           "fastest single run."
     )
-    st.markdown("")
+    # Hier stand ein st.markdown("") als Abstandhalter. Ein leerer Block ist in
+    # Streamlit kein Nichts: er bekommt seinen eigenen Platz in der Spalte und
+    # dazu den Abstand ZU seinen Nachbarn - hier also gut 30 px Leere zwischen
+    # Kennzahlen und Chip-Reihe. Abstand gehoert ins CSS, nicht in ein Element.
 
 
 # Kraftweltmeister ist ausdruecklich Spassphysik und keine Disziplin. Bleibt

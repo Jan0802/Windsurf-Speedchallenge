@@ -209,8 +209,12 @@ h2 {
        Blöcken (--blockgap) PLUS einen Zuschlag (--hero-pull) für den Rest, der
        aus Container-Innenabständen kommt. Bewusst etwas zu viel – siehe
        --hero-pull. Vorher lag dort ein dunkles Band mitten im Foto. */
+    /* Unten nur ein kleiner Abstand: darunter folgt die Siegerzeile, und
+       zwischen beiden liegt ohnehin schon Streamlits --blockgap. 1,1rem plus
+       blockgap plus der eigene Rand der Siegerzeile ergaben zusammen gut 50 px
+       Leere - der Kopfbereich schien vom Inhalt abgetrennt. */
     margin: calc(-1 * (var(--blockgap) + var(--hero-pull)))
-            calc(-1 * var(--pad)) 1.1rem;
+            calc(-1 * var(--pad)) 0.25rem;
     /* Festes Verhältnis, NICHT min-height: sonst hängt der Zuschnitt an der
        Fensterbreite und das Motiv wird auf breiten Schirmen anders beschnitten
        als auf schmalen. 5:1 ist die Proportion, bei der in allen sechs
