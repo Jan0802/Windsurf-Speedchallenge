@@ -8846,7 +8846,22 @@ def _rank_rows(df, gear_label, sids=None):
         ".rk-c{display:none;}"
         ".rk-n{flex:0 0 20px;font-size:13px;}"
         ".rk-name{font-size:16px;}.rk-big{font-size:21px;}"
-        ".rk-sub{font-size:12.5px;}.rk-small{font-size:11px;}}"
+        # Nebenzeile auf dem Handy UMBRECHEN statt abschneiden. Vorher endete
+        # sie mit Auslassungspunkten irgendwo im Brettnamen - Segel, Wetter und
+        # Spot waren damit unerreichbar, denn es gab auch nichts zum
+        # Wegschieben: eine Zeile mit text-overflow:ellipsis laesst sich nicht
+        # scrollen.
+        #
+        # Bewusst Umbruch und kein seitliches Scrollen: Ein waagerechter
+        # Scrollbereich INNERHALB einer Zeile hat auf dem Touchscreen keinen
+        # sichtbaren Hinweis, und die Wischbewegung ringt mit dem senkrechten
+        # Scrollen der Seite. Der Umbruch zeigt alles ohne eine Geste, die
+        # niemand erraet.
+        ".rk-sub{font-size:12.5px;white-space:normal;overflow:visible;"
+        "text-overflow:clip;line-height:1.45;}"
+        # Der Name bleibt einzeilig mit Auslassung: er steht als Erstes und ist
+        # in der Rangliste kein Wert, der vollstaendig sein MUSS.
+        ".rk-small{font-size:11px;}}"
         "</style>",
         unsafe_allow_html=True,
     )
