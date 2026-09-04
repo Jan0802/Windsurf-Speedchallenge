@@ -193,7 +193,11 @@ h2 {
    machte den Kontrast der gläsernen Kacheln zur Glückssache. Hier liegt kein
    Bedienelement darüber, nur Text – und der bekommt seinen dunklen Grund vom
    Schleier unten. */
-.hero {
+/* Der Kopfbereich ist ein Streamlit-Container und nicht nur ein HTML-Block:
+   nur so kann die Ranglisten-Überschrift später hineingeschrieben werden (sie
+   entsteht erst, wenn alle Filter angewandt sind). Darum trägt .st-key-herobox
+   das Foto – .hero darin ist nur noch der Textblock. */
+.st-key-herobox {
     position: relative;
     overflow: hidden;
     /* Randlos über die ganze Inhaltsbreite: hebt das Polster des
@@ -211,10 +215,17 @@ h2 {
        Fensterbreite und das Motiv wird auf breiten Schirmen anders beschnitten
        als auf schmalen. 5:1 ist die Proportion, bei der in allen sechs
        Vorlagen das Motiv vollständig bleibt (geprüft, nicht geschätzt). */
+    /* aspect-ratio ist keine harte Obergrenze: wird der Inhalt höher (Wortmarke
+       + Update-Zeile + Ranglisten-Überschrift), wächst der Kasten mit. Nichts
+       wird abgeschnitten. */
     aspect-ratio: 5 / 1;
     min-height: 150px;               /* Boden für schmale Fenster */
+    /* Spalte, nicht Reihe: der Container enthält jetzt einen senkrechten Stapel
+       (Textblock, Update-Zeile, Platzhalter). Mit align-items:center einer
+       Reihe würde der Stapel auf Inhaltsbreite schrumpfen. */
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    justify-content: center;
     padding: 18px calc(var(--pad) + 8px);
 
     /* Foto UND Schleier in einer Eigenschaft. Der erste Anlauf hatte das Foto
@@ -247,12 +258,41 @@ h2 {
     min-width: 0;                    /* damit der Text auf dem Handy umbricht */
 }
 
+/* Ranglisten-Überschrift IM Bild. Wird von _rank_head_into_hero() in den
+   Platzhalter geschrieben, den _hero_box() am Ende des Kopfbereichs hinterlässt.
+   Auf allen Seiten ohne Rangliste bleibt der Platzhalter leer. */
+.hero-rank {
+    margin-top: 12px;
+}
+
+.hero-rank-h {
+    font-size: clamp(21px, 2.2vw, 30px);
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.15;
+    letter-spacing: -0.4px;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, .5);
+}
+
+/* Im Kopfbereich enger und ohne den Abstand nach unten, den sie unter der
+   Überschrift in der Seitenmitte brauchte. */
+.st-key-herobox .ctxline {
+    font-size: 14px;
+    margin: 3px 0 0;
+}
+
+/* Die Update-Zeile (st.caption) sitzt mit im Kasten – ohne das hier hätte sie
+   den vollen Streamlit-Abstand und würde den Kopfbereich auseinanderziehen. */
+.st-key-herobox [data-testid="stCaptionContainer"] {
+    margin: 6px 0 0;
+}
+
 /* Auf dem Handy ist das 3:1-Bild so schmal beschnitten, dass Motiv UND Text um
    dieselbe Fläche konkurrieren. Darum das Motiv etwas ins Bild holen und den
    Schleier flächig verstärken: das Foto wird zur Textur hinter den Worten,
    statt mit ihnen zu ringen. */
 @media (max-width: 640px) {
-    .hero {
+    .st-key-herobox {
         padding: 14px calc(var(--pad) + 4px);
         /* 5:1 wären bei 390 px Displaybreite 78 px – ein Streifen. Auf dem
            Handy also deutlich höher, damit Motiv UND Text Platz haben. */

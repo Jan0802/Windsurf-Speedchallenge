@@ -6391,13 +6391,44 @@ def _rank_switch(avail, keys, selected, sport):
                     key=f"rank_fun_{sport}")
 
 
+def _rank_head_into_hero(ctx_html=""):
+    """Ueberschrift "Online rankings" (+ Kontextzeile) in den Kopfbereich.
+
+    Beides entsteht erst weit unten in _render_ranking_tables, der Kopfbereich
+    ist da lange gerendert. Darum schreibt diese Funktion in den Platzhalter,
+    den _hero_box() dort hinterlassen hat.
+
+    Zweimal aufrufbar: st.empty() ERSETZT seinen Inhalt. Der erste Aufruf setzt
+    nur die Ueberschrift (damit sie auch dann steht, wenn die Wertung leer ist
+    und die Funktion frueh aussteigt), der zweite ergaenzt die Kontextzeile.
+
+    Reine Anzeige, kein Widget - nur so darf das Ranglisten-Fragment in einen
+    fremden Container schreiben. Gibt False zurueck, wenn es keinen Platzhalter
+    gibt (dann setzt der Aufrufer die Ueberschrift wie bisher an ihre Stelle).
+    """
+    slot = globals().get("HERO_RANK_SLOT")
+    if slot is None:
+        return False
+    slot.markdown(
+        "<div class='hero-rank'>"
+        "<div class='hero-rank-h'>🏆 Online rankings</div>"
+        + (ctx_html or "")
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+    return True
+
+
 def _render_ranking_tables(ranking, group_choice, member_groups, months,
                            spot_filter, year_filter, month_filter, day_filter,
                            gear_filter="All", extra=None):
     """Rendert die vier Ranking-Tabellen – reine Anzeige (keine Widgets)."""
     extra = extra or {}
     gear_label = SPORT_META[active_sport()]["gear_label"]  # "Sail" / "Kite"
-    st.markdown("## 🏆 Online rankings")
+    # Ueberschrift in den Kopfbereich, ins Bild. Ohne Platzhalter (z.B. weil der
+    # Kopfbereich nicht gerendert wurde) bleibt sie hier stehen.
+    if not _rank_head_into_hero():
+        st.markdown("## 🏆 Online rankings")
 
     flash = st.session_state.pop("ranking_flash", None)
 
@@ -6560,16 +6591,11 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     _last = ranking["_date"].max() if "_date" in ranking.columns else None
     if pd.notna(_last):
         _ctx.append("updated " + escape(_last.strftime("%d %b")))
-    st.markdown(
-        "<div class='ctxline'>" + " · ".join(_ctx) + "</div>"
-        "<style>"
-        ".ctxline{font-size:16px;color:#8fa9c2;margin:-2px 0 14px;"
-        "line-height:1.4;}"
-        ".ctxline b{color:#f2f6fa;font-weight:600;}"
-        "@media (max-width:640px){.ctxline{font-size:14px;}}"
-        "</style>",
-        unsafe_allow_html=True,
-    )
+    _ctx_html = "<div class='ctxline'>" + " · ".join(_ctx) + "</div>"
+    # Jetzt sind die Zahlen bekannt: Ueberschrift UND Kontextzeile zusammen in
+    # den Kopfbereich. Der zweite Aufruf ersetzt den ersten (st.empty()).
+    if not _rank_head_into_hero(_ctx_html):
+        st.markdown(_ctx_html, unsafe_allow_html=True)
 
     # #1-Glaskarte oben (kombinierter Score) – direkt unter der Überschrift.
     _render_champion(ranking, active_sport() in ("windsurf", "kitesurf", "wingsurf", "wakeboard"))
@@ -16369,15 +16395,31 @@ if _is_spots_view:
     if _hspot:
         _hero_banner = _hero_banner_html(load_webcam_ads(_hspot) or {}, height=210)
 
+def _hero_box(ziel=None):
+    """Kopfbereich als echter Container - und mit einem Platzhalter am Ende.
+
+    Der Container (nicht der HTML-Block) traegt das Foto, denn in eine
+    HTML-Zeichenkette laesst sich nachtraeglich nichts einfuegen. Genau das
+    braucht es aber: Die Ranglisten-Ueberschrift und ihre Kontextzeile entstehen
+    rund 3000 Zeilen weiter unten, erst nachdem ALLE Filter angewandt sind. Der
+    Platzhalter bleibt so lange leer und wird dann von dort gefuellt.
+
+    Auf allen anderen Seiten (Spots, Live, Beat the Beach, My Results) bleibt er
+    leer und faellt auf null zusammen - kein Loch im Kopfbereich.
+    """
+    with (ziel or st).container(key="herobox"):
+        st.markdown(_hero_html, unsafe_allow_html=True)
+        render_last_update()
+        return st.empty()
+
+
 if _hero_banner:
     # Breitere Banner-Spalte, vertikal zentriert -> Banner fuellt die Hero-Hoehe.
     _hcl, _hcr = st.columns([3, 1.5], vertical_alignment="center")
-    _hcl.markdown(_hero_html, unsafe_allow_html=True)
+    HERO_RANK_SLOT = _hero_box(_hcl)
     _hcr.markdown(_hero_banner, unsafe_allow_html=True)
 else:
-    st.markdown(_hero_html, unsafe_allow_html=True)
-
-render_last_update()
+    HERO_RANK_SLOT = _hero_box()
 
 
 # Rechtsseiten (Impressum/Datenschutz) zuerst behandeln – ohne Login erreichbar.
