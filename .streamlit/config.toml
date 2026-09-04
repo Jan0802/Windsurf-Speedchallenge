@@ -3,7 +3,11 @@
 [theme]
 base = "dark"
 primaryColor = "#2bd4d9"            # türkiser Akzent (Buttons, Links)
-backgroundColor = "#0a2540"         # tiefes Meerblau (Fallback hinter dem Bild)
+# Seitenfläche. Früher lag hier ein Foto darüber und dieser Wert war nur der
+# Fallback dahinter; seit das Foto weg ist, IST das die Fläche der Seite.
+# #02162b statt vorher #0a2540, weil die gläsernen Kacheln halbtransparent sind
+# und einen dunklen, ruhigen Grund brauchen, um überall gleich zu wirken.
+backgroundColor = "#02162b"
 secondaryBackgroundColor = "#11385c"
 textColor = "#eaf4ff"
 

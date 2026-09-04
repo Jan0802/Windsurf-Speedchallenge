@@ -150,13 +150,22 @@ NEW_ENTRY = "➕ Add new..."
 # Windsurf. So bleiben Caching & Performance unverändert – nur ein WHERE mehr.
 SPORTS = ("windsurf", "kitesurf", "wingsurf", "sup", "wakeboard", "surf")
 
-# Beta-Hinweis neben dem Logo: verirrte Besucher sollen wissen, dass die Seite
-# noch im Aufbau ist (volle Geschwindigkeit erst nach Umzug auf einen Pay-Server).
-# em-basiert -> bleibt relativ zum jeweiligen Logo klein, weiss, dezent.
-BETA_BADGE = (
-    "<span style=\"font-size:.34em;font-weight:700;color:#fff;opacity:.85;"
+# Version der Web-App. Bis 0.9.7 stand hier "Beta 0.9.7", und zwar an der
+# Wortmarke, im Anmeldekopf und auf dem Spot-TV.
+#
+# Warum das weg ist: Ein Besucher, der zwischen dieser Seite und einem
+# Wettbewerber mit sechsstelligen Downloadzahlen waehlt, liest "Beta" als "noch
+# nicht fertig" - und die Funktionen sind es laengst. Das Wort stand an drei
+# prominenten Stellen und hat dreimal denselben Zweifel gesaet.
+#
+# Die Version selbst bleibt, aber nur noch leise im Fuss: fuer Rueckfragen
+# ("welche Version hast du?") ist sie nuetzlich, im Kopf hat sie nichts verloren.
+# Die Uhr im Connect-IQ-Store zaehlt getrennt weiter.
+APP_VERSION = "1.0"
+VERSION_BADGE = (
+    "<span style=\"font-size:.34em;font-weight:600;color:#fff;opacity:.55;"
     "vertical-align:super;margin-left:.45em;letter-spacing:0;white-space:nowrap;\">"
-    "Beta 0.9.7</span>"
+    f"v{APP_VERSION}</span>"
 )
 
 # Datum des letzten Deploys: automatisch aus der Aenderungszeit dieser Datei
@@ -174,13 +183,13 @@ def _last_update_str():
 LAST_UPDATE = _last_update_str()
 
 
-def render_beta_note():
+def render_last_update():
     """Datum des letzten Deploys, daneben der Changelog.
 
-    Hier stand ein '❓ Why Beta?'-Popover mit Erklaertext. Das sagt jetzt das
-    Abzeichen an der Wortmarke ("Beta 0.9.6") - eine Stelle genuegt. Der
-    Changelog-Link lag mit im Popover und bleibt darum hier stehen, sonst waere
-    er beim Aufraeumen still verschwunden.
+    Hiess bis zur Beta-Abschaffung render_beta_note(). Davor stand hier ein
+    '❓ Why Beta?'-Popover; der Changelog-Link lag mit darin und bleibt deshalb
+    stehen, sonst waere er beim Aufraeumen still verschwunden. Das Datum selbst
+    ist kein Beta-Hinweis, sondern ein Lebenszeichen - und bleibt.
     """
     st.caption(f"🔧 Last update: {LAST_UPDATE} · "
                "[📋 What's new](https://mywatersessions.com/changelog.html)")
@@ -286,38 +295,10 @@ def active_sport():
     return s if s in SPORTS else "windsurf"
 
 
-def design_v2():
-    """True, wenn die Seite mit ?design=2 aufgerufen wurde.
-
-    Schalter fuer die Design-Ueberarbeitung: JEDE Aenderung daran haengt hier
-    dran, damit die Seite ohne den Parameter genau so aussieht wie vorher. So
-    laesst sich beides am echten Datenbestand vergleichen - dasselbe Handy,
-    dasselbe iPad, nur ein anderer Link - ohne Branch und ohne zweiten Deploy.
-
-    Gefaellt es nicht, fallen die Bloecke wieder heraus; gefaellt es, wird die
-    Abfrage zu 'return True' und danach ganz entfernt.
-    """
-    try:
-        return str(st.query_params.get("design", "")).strip() == "2"
-    except Exception:  # noqa: BLE001 - ohne Query-Kontext (Tests) einfach aus
-        return False
-
-
-def plain_page():
-    """True bei ?plain=1: Seite ohne Hintergrundfoto, nur ruhige Flaeche.
-
-    Bewusst UNABHAENGIG von design_v2(). So lassen sich vier Kombinationen
-    vergleichen und die Frage "wie viel traegt das Foto eigentlich bei?" laesst
-    sich getrennt von der Frage "gefaellt mir das neue Layout?" beantworten.
-
-    Zweiter Zweck: Bildschirmfotos. Ohne Foto ist jede Aufnahme auf Anhieb
-    lesbar - fuer den Connect-IQ-Store, die Vereinsansprache oder eine
-    Pressemail -, ohne dass jemand ein Bild nachbearbeiten muss.
-    """
-    try:
-        return str(st.query_params.get("plain", "")).strip() == "1"
-    except Exception:  # noqa: BLE001
-        return False
+# Hier standen design_v2() und plain_page(): die Schalter ?design=2 und ?plain=1,
+# unter denen die Design-Ueberarbeitung als Vorschau lief. Sie ist jetzt der
+# Normalzustand, also fuehren beide Zweige nicht mehr auseinander und die
+# Schalter sind weg. Der alte Zustand steht in der Git-Historie.
 
 
 def render_sport_switch(box=None, label="Sport"):
@@ -529,71 +510,15 @@ def image_to_base64(path):
         return base64.b64encode(f.read()).decode()
 
 
-# Endung -> MIME-Typ für base64-Data-URIs (CSS/HTML).
-_IMAGE_MIME = {
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".webp": "image/webp",
-    ".gif": "image/gif",
-}
-
-
-def image_data_uri(path):
-    """base64-Data-URI eines Bildes inkl. passendem MIME-Typ (oder None).
-
-    Anders als image_to_base64 setzt diese Funktion den MIME-Typ anhand der
-    Dateiendung – damit funktionieren JPEG, PNG, WebP usw. gleichermaßen.
-    """
-    if not path or not os.path.exists(path):
-        return None
-
-    ext = os.path.splitext(path)[1].lower()
-    mime = _IMAGE_MIME.get(ext, "application/octet-stream")
-
-    with open(path, "rb") as f:
-        b64 = base64.b64encode(f.read()).decode()
-
-    return f"data:{mime};base64,{b64}"
-
-
-@st.cache_data(show_spinner=False)
-def _bg_uri_cached(path, _mtime):
-    """base64-Kodierung des Hintergrundbilds, gecacht je (Pfad, mtime).
-
-    Die mtime ist Teil des Cache-Keys: Tauscht/aktualisierst du die Bilddatei,
-    ändert sich die mtime → der Cache lädt automatisch neu. So bleibt das teure
-    base64-Kodieren gecacht, ohne bei einem Bildwechsel das alte Bild zu zeigen.
-    """
-    return image_data_uri(path)
-
-
-def background_data_uri(sport="windsurf"):
-    """Findet das Hintergrundbild (je Sport) und liefert die Data-URI.
-
-    Kitesurf nutzt zuerst assets/background_kite.* und fällt – falls (noch) nicht
-    vorhanden – auf das Windsurf-Bild zurück. Du kannst das Bild als .webp ODER
-    .jpg/.jpeg/.png ablegen (letzter Fallback: header.*). Die Existenz-/mtime-
-    Prüfung läuft ungecacht (billig); nur das Kodieren ist gecacht und
-    invalidiert beim Bildwechsel automatisch.
-    """
-    stem = SPORT_META.get(sport, {}).get("bg_stem", "background")
-    stems = [stem] if stem == "background" else [stem, "background"]
-    exts = [".webp", ".jpg", ".jpeg", ".png"]
-
-    candidates = [("assets", f"{stem}{ext}") for stem in stems for ext in exts]
-    candidates += [
-        ("assets", "header.webp"),
-        ("assets", "header.jpg"),
-        ("assets", "header.jpeg"),
-    ]
-
-    for parts in candidates:
-        path = app_path(*parts)
-        if os.path.exists(path):
-            return _bg_uri_cached(path, os.path.getmtime(path))
-
-    return None
+# Hier lagen drei Funktionen fuer das Hintergrundfoto samt der Tabelle
+# _IMAGE_MIME (Endung -> MIME-Typ): image_data_uri() erzeugte eine Data-URI mit
+# passendem MIME-Typ, _bg_uri_cached() hielt die Kodierung im Cache,
+# background_data_uri() suchte die Datei je Sportart. Seit die Seite ohne Foto
+# laeuft, hatte keine davon noch einen Aufrufer.
+#
+# Die Bilder liegen weiter unter assets/, der Code steht in der Git-Historie.
+# image_to_base64() (nur base64, ohne MIME-Typ) bleibt - die Sport-Piktogramme
+# in der Kopfzeile brauchen es.
 
 
 # =====================================================================
@@ -6092,10 +6017,17 @@ def render_rankings(results_container):
                 st.session_state[_tk] = ([t for t in _tinit if t in _tbl_opts]
                                          or [t for t in _rank_default_tables(sport)
                                              if t in _tbl_opts])
-            st.multiselect("Rankings shown by default", _tbl_opts, key=_tk,
+            # Die Auswahl hiess "Rankings shown by default", als mehrere
+            # Tabellen gleichzeitig standen. Jetzt zeigt die Seite eine
+            # Rangliste, und diese Liste bestimmt die Reihenfolge der
+            # Vorauswahl: der erste verfuegbare Eintrag ist der Chip, der beim
+            # Aufruf offen ist. Das Feld bleibt eine Mehrfachauswahl, damit
+            # gespeicherte Voreinstellungen weiter passen und ein Ausweichen
+            # moeglich ist, falls die erste Wertung in einer Sportart fehlt.
+            st.multiselect("Preferred ranking (first one opens)", _tbl_opts, key=_tk,
                            format_func=lambda k: RANKING_TABLE_LABELS.get(k, k))
-            st.caption("On the page, use the “➕ Show more rankings” link under the tables "
-                       "to load the rest on demand.")
+            st.caption("On the page you switch discipline with the chips above the "
+                       "ranking. The first entry here decides which one opens.")
 
         # --- Anpassbare Tabellen-Spalten (Sichtbarkeit + Reihenfolge) ---
         with st.expander("🧩 Table columns (show & order)", expanded=False):
@@ -6204,7 +6136,7 @@ def _fmt_mmss(seconds):
 
 
 # Untergrenzen, ab denen ein Wert ueberhaupt eine Leistung ist. Darunter zeigt
-# die Champion-Karte die Kachel nicht mehr an (nur bei design_v2()).
+# die Champion-Karte die Kachel gar nicht an, statt eine Null auszugeben.
 _MIN_PLAUSIBLE = {"max_jump_m": 0.5, "max_airtime_s": 0.5}
 
 
@@ -6266,108 +6198,57 @@ def _render_champion(ranking, is_wind):
         # Messrauschen nicht als Leistung ausgeben: 0,2 m Sprunghoehe und 0,4 s
         # Airtime sind GPS-Zittern, kein Sprung. Eine unglaubwuerdige Zahl zieht
         # die echten Zahlen daneben mit runter, also Kachel weglassen statt eine
-        # Null zeigen. Betrifft nur die Anzeige - die Punktevergabe bleibt
-        # unveraendert, sonst wuerde sich hinter einem Design-Schalter still die
-        # Rangfolge aendern.
-        _floor = _MIN_PLAUSIBLE.get(key) if design_v2() else None
+        # Null zeigen. Betrifft AUSDRUECKLICH nur die Anzeige - die Punktevergabe
+        # bleibt unveraendert, sonst wuerde sich die Rangfolge mitaendern.
+        _floor = _MIN_PLAUSIBLE.get(key)
         if _floor is not None and (pd.isna(v) or float(v) < _floor):
             continue
         tiles.append((label, "–" if pd.isna(v) else f"{float(v):.{dec}f} {unit}"))
     tiles.append(("🌤 Weather", weather))
     tiles.append(("🛡 Trust", trust))
 
-    # Auffälliges Gold-Banner für die #1 – hebt den Führenden klar hervor,
-    # statt ihn als kleine Zeile zwischen den Kacheln untergehen zu lassen.
     def _esc(s):
         return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     champ_safe = _esc(champ)
-    board_html = (f"<div class='champ-board'>🏄 {_esc(champ_board)}</div>"
-                  if champ_board else "<div class='champ-board'></div>")
-    if design_v2():
-        # Hierarchie umgedreht. Vorher war "Starboard Isonic 107L" das groesste
-        # und hellste Element der ganzen Seite - also das Board, die
-        # uninteressanteste Tatsache dieser Zeile. Der Name war kleiner, und die
-        # Punkte, die den Platz ueberhaupt begruenden, standen klein in der Ecke.
-        # Jetzt: links Platz und Name, rechts die Leistung, Material als graue
-        # Nebenzeile. Das Gold schrumpft vom Rahmen um alles auf einen Balken.
-        # Die Flaeche bleibt glaesern (backdrop-filter) - geaendert wird die
-        # Rangordnung der Schrift, nicht der Werkstoff.
-        _gear = " · ".join(x for x in (champ_board, champ_sail) if x)
-        _perf = vals.get("speed_1s_kmh")
-        _perf_txt = "–" if pd.isna(_perf) else f"{float(_perf):.2f} km/h"
-        st.markdown(
-            "<div class='champ2' translate='no'>"
-            "<div class='champ2-l'>"
-            "<div class='champ2-kicker'>#1 OVERALL</div>"
-            f"<div class='champ2-name'>{champ_safe}</div>"
-            + (f"<div class='champ2-gear'>{_esc(_gear)}</div>" if _gear else "")
-            + "</div>"
-            "<div class='champ2-r'>"
-            f"<div class='champ2-perf'>{_perf_txt}</div>"
-            f"<div class='champ2-pts'>{total_pts} pts · top 2 s</div>"
-            "</div></div>"
-            "<style>"
-            # Muss groesser bleiben als die Ranglisten-Zeilen darunter (dort 19 px
-            # Name, 26 px Zahl), sonst kippt die Hierarchie und der Sieger wirkt
-            # nebensaechlicher als Platz 7.
-            ".champ2{display:flex;align-items:center;justify-content:space-between;"
-            "gap:20px;background:rgba(255,255,255,.07);"
-            "border:1px solid rgba(255,255,255,.10);border-left:4px solid #f5b942;"
-            "border-radius:12px;padding:18px 22px;margin:2px 0 18px;"
-            "backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}"
-            ".champ2-l{min-width:0;}"
-            ".champ2-kicker{font-size:12px;font-weight:700;letter-spacing:2.5px;"
-            "color:#f5b942;}"
-            ".champ2-name{font-size:27px;font-weight:500;color:#f2f6fa;"
-            "line-height:1.2;white-space:nowrap;overflow:hidden;"
-            "text-overflow:ellipsis;}"
-            ".champ2-gear{font-size:14px;color:#8fa9c2;margin-top:2px;"
-            "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
-            ".champ2-r{text-align:right;flex:0 0 auto;white-space:nowrap;}"
-            # tabular-nums: sonst tanzt die Zahl, wenn der Champion wechselt.
-            ".champ2-perf{font-size:31px;font-weight:500;color:#f2f6fa;"
-            "line-height:1.15;font-variant-numeric:tabular-nums;}"
-            ".champ2-pts{font-size:13px;color:#8fa9c2;margin-top:2px;}"
-            "@media (max-width:640px){.champ2{padding:14px 16px;gap:12px;}"
-            ".champ2-name{font-size:21px;}.champ2-perf{font-size:24px;}"
-            ".champ2-gear{font-size:12.5px;}.champ2-kicker{font-size:11px;}}"
-            "</style>",
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-        "<div class='champ-banner' translate='no'>"
-        "<div class='champ-crown'>🥇</div>"
-        "<div class='champ-main'>"
-        "<div class='champ-kicker'>#1 OVERALL</div>"
-        f"<div class='champ-name'>{champ_safe}</div>"
-        "</div>"
-        f"{board_html}"
-        f"<div class='champ-pts'><span class='n'>{total_pts}</span>"
-        "<span class='u'>pts</span></div>"
-        "</div>"
+    _gear = " · ".join(x for x in (champ_board, champ_sail) if x)
+    _perf = vals.get("speed_1s_kmh")
+    _perf_txt = "–" if pd.isna(_perf) else f"{float(_perf):.2f} km/h"
+    st.markdown(
+        "<div class='champ2' translate='no'>"
+        "<div class='champ2-l'>"
+        "<div class='champ2-kicker'>#1 OVERALL</div>"
+        f"<div class='champ2-name'>{champ_safe}</div>"
+        + (f"<div class='champ2-gear'>{_esc(_gear)}</div>" if _gear else "")
+        + "</div>"
+        "<div class='champ2-r'>"
+        f"<div class='champ2-perf'>{_perf_txt}</div>"
+        f"<div class='champ2-pts'>{total_pts} pts · top 2 s</div>"
+        "</div></div>"
         "<style>"
-        ".champ-banner{display:flex;align-items:center;gap:18px;"
-        "background:linear-gradient(100deg,rgba(255,196,60,.22),"
-        "rgba(255,150,0,.06) 60%,rgba(255,255,255,.02));"
-        "border:1px solid rgba(255,196,60,.45);border-left:6px solid #ffb400;"
-        "border-radius:16px;padding:14px 22px;margin:2px 0 16px;}"
-        ".champ-crown{font-size:46px;line-height:1;"
-        "filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));}"
-        ".champ-main{min-width:0;flex:0 0 auto;}"
-        ".champ-kicker{font-size:14px;font-weight:800;letter-spacing:3px;"
-        "color:#ffcf6b;opacity:.9;}"
-        ".champ-name{font-size:38px;font-weight:900;line-height:1.1;color:#fff;"
+        # Muss groesser bleiben als die Ranglisten-Zeilen darunter (dort 19 px
+        # Name, 26 px Zahl), sonst kippt die Hierarchie und der Sieger wirkt
+        # nebensaechlicher als Platz 7.
+        ".champ2{display:flex;align-items:center;justify-content:space-between;"
+        "gap:20px;background:rgba(255,255,255,.07);"
+        "border:1px solid rgba(255,255,255,.10);border-left:4px solid #f5b942;"
+        "border-radius:12px;padding:18px 22px;margin:2px 0 18px;"
+        "backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}"
+        ".champ2-l{min-width:0;}"
+        ".champ2-kicker{font-size:12px;font-weight:700;letter-spacing:2.5px;"
+        "color:#f5b942;}"
+        ".champ2-name{font-size:27px;font-weight:500;color:#f2f6fa;"
+        "line-height:1.2;white-space:nowrap;overflow:hidden;"
+        "text-overflow:ellipsis;}"
+        ".champ2-gear{font-size:14px;color:#8fa9c2;margin-top:2px;"
         "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
-        ".champ-board{flex:1;min-width:0;text-align:center;font-size:38px;"
-        "font-weight:800;color:#ffe6b0;line-height:1.1;padding:0 16px;"
-        "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
-        ".champ-pts{text-align:center;background:rgba(255,180,0,.18);"
-        "border:1px solid rgba(255,196,60,.5);border-radius:14px;padding:8px 16px;}"
-        ".champ-pts .n{display:block;font-size:30px;font-weight:900;"
-        "color:#ffd77a;line-height:1;}"
-        ".champ-pts .u{font-size:12px;letter-spacing:2px;"
-        "text-transform:uppercase;opacity:.8;}"
+        ".champ2-r{text-align:right;flex:0 0 auto;white-space:nowrap;}"
+        # tabular-nums: sonst tanzt die Zahl, wenn der Champion wechselt.
+        ".champ2-perf{font-size:31px;font-weight:500;color:#f2f6fa;"
+        "line-height:1.15;font-variant-numeric:tabular-nums;}"
+        ".champ2-pts{font-size:13px;color:#8fa9c2;margin-top:2px;}"
+        "@media (max-width:640px){.champ2{padding:14px 16px;gap:12px;}"
+        ".champ2-name{font-size:21px;}.champ2-perf{font-size:24px;}"
+        ".champ2-gear{font-size:12.5px;}.champ2-kicker{font-size:11px;}}"
         "</style>",
         unsafe_allow_html=True,
     )
@@ -6657,38 +6538,38 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         for _kc in ("kw_force_kg", "kw_power_w", "kw_ppf"):
             ranking.loc[_kw_bad, _kc] = np.nan
 
-    if design_v2():
-        # Eine Zeile, die sagt, WAS man gerade ansieht. Ohne sie steht ueber der
-        # Seite nur "Online rankings", und welcher Spot, welche Sportart und
-        # welcher Zeitraum gemeint sind, muss man aus den Filtern rekonstruieren.
-        #
-        # Die Fahrerzahl bewusst offen: bei drei Fahrern ist "3 riders" ehrlich
-        # und wirkt einladender als eine Zahl, die sich versteckt.
-        #
-        # Steht hier und nicht bei der Ueberschrift, weil erst ab dieser Stelle
-        # ALLE Filter angewandt sind - die Zahlen beschreiben also wirklich, was
-        # darunter zu sehen ist.
-        _ctx = []
-        if spot_filter and spot_filter != "Overall":
-            _ctx.append(f"<b>{escape(str(spot_filter))}</b>")
-        else:
-            _ctx.append("<b>All spots</b>")
-        _ctx.append(escape(SPORT_META[active_sport()]["name"]))
-        _riders = int(ranking["name"].nunique()) if "name" in ranking.columns else 0
-        _ctx.append(f"{_riders} rider" + ("s" if _riders != 1 else ""))
-        _last = ranking["_date"].max() if "_date" in ranking.columns else None
-        if pd.notna(_last):
-            _ctx.append("updated " + escape(_last.strftime("%d %b")))
-        st.markdown(
-            "<div class='ctxline'>" + " · ".join(_ctx) + "</div>"
-            "<style>"
-            ".ctxline{font-size:16px;color:#8fa9c2;margin:-2px 0 14px;"
-            "line-height:1.4;}"
-            ".ctxline b{color:#f2f6fa;font-weight:600;}"
-            "@media (max-width:640px){.ctxline{font-size:14px;}}"
-            "</style>",
-            unsafe_allow_html=True,
-        )
+    # Eine Zeile, die sagt, WAS man gerade ansieht. Ohne sie steht ueber der
+    # Seite nur "Online rankings", und welcher Spot, welche Sportart und welcher
+    # Zeitraum gemeint sind, muss man aus den Filtern rekonstruieren - die auf
+    # dem Handy weit oben ausserhalb des Bildes liegen.
+    #
+    # Die Fahrerzahl bewusst offen: bei drei Fahrern ist "3 riders" ehrlich und
+    # wirkt einladender als eine Zahl, die sich versteckt.
+    #
+    # Steht hier und nicht bei der Ueberschrift, weil erst ab dieser Stelle ALLE
+    # Filter angewandt sind - die Zahlen beschreiben also wirklich, was darunter
+    # zu sehen ist.
+    _ctx = []
+    if spot_filter and spot_filter != "Overall":
+        _ctx.append(f"<b>{escape(str(spot_filter))}</b>")
+    else:
+        _ctx.append("<b>All spots</b>")
+    _ctx.append(escape(SPORT_META[active_sport()]["name"]))
+    _riders = int(ranking["name"].nunique()) if "name" in ranking.columns else 0
+    _ctx.append(f"{_riders} rider" + ("s" if _riders != 1 else ""))
+    _last = ranking["_date"].max() if "_date" in ranking.columns else None
+    if pd.notna(_last):
+        _ctx.append("updated " + escape(_last.strftime("%d %b")))
+    st.markdown(
+        "<div class='ctxline'>" + " · ".join(_ctx) + "</div>"
+        "<style>"
+        ".ctxline{font-size:16px;color:#8fa9c2;margin:-2px 0 14px;"
+        "line-height:1.4;}"
+        ".ctxline b{color:#f2f6fa;font-weight:600;}"
+        "@media (max-width:640px){.ctxline{font-size:14px;}}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
 
     # #1-Glaskarte oben (kombinierter Score) – direkt unter der Überschrift.
     _render_champion(ranking, active_sport() in ("windsurf", "kitesurf", "wingsurf", "wakeboard"))
@@ -6698,7 +6579,6 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     # erscheinen; der Rest laedt auf Klick. Dynamisches 2-pro-Reihe-Layout.
     def _r_30s(c):
         with c:
-            _rank_head("🏆 Best 30 seconds")
             r30 = ranking[fin_cols + [
                 "date", "name", "speed_30s_kmh", "speed_30s_kn",
                 "surfspot", "board", "sail", "Weather", "Trust",
@@ -6725,7 +6605,6 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
 
     def _r_2s(c):
         with c:
-            _rank_head("⚡ Top speed 2 seconds")
             r1 = ranking[fin_cols + [
                 "date", "name", "speed_1s_kmh", "speed_1s_kn",
                 "surfspot", "board", "sail", "Weather", "Trust",
@@ -6749,7 +6628,6 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
 
     def _dist_body(c, col, title, unit_label, dist_m):
         with c:
-            _rank_head(title)
             tab = ranking[fin_cols + [
                 "date", "name", col, "surfspot", "board", "sail", "Weather", "Trust",
             ]].copy()
@@ -6784,7 +6662,6 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         """Avg 5x10: Mittel der fuenf besten 10-Sekunden-Fahrten einer Session.
         Kein _kn-Feld in der Datenbank - die Knoten werden hier gerechnet."""
         with c:
-            _rank_head("🎯 Avg 5×10")
             st.caption("Average of the five best 10-second runs of a session that "
                        "do not overlap in time. Rewards a whole session held at "
                        "speed, not one lucky gust.")
@@ -6816,7 +6693,6 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     def _r_alpha(c):
         """Alpha 500: schnellste 500 m MIT Halse (Start/Ende unter 50 m)."""
         with c:
-            _rank_head("🔄 Alpha 500")
             st.caption("Fastest 500 m whose start and finish are less than 50 m "
                        "apart – so a jibe has to be in it. A straight downwind "
                        "blast does not count here.")
@@ -6846,7 +6722,6 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
 
     def _r_run(c):
         with c:
-            _rank_head("🚩 Longest run")
             rrun = ranking[fin_cols + [
                 "date", "name", "longest_run_km", "longest_run_m",
                 "surfspot", "board", "sail", "Weather", "Trust",
@@ -6870,7 +6745,6 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
 
     def _r_total(c):
         with c:
-            _rank_head("👥 Longest total distance per rider")
             rtotal = (
                 ranking.groupby("name", as_index=False)
                 .agg(total_distance_km=("total_distance_km", "sum"),
@@ -6887,7 +6761,6 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
 
     def _r_time(c):
         with c:
-            _rank_head("⏱️ Most time on the water per rider")
             if "duration_s" not in ranking.columns:
                 st.caption("No session duration recorded yet.")
                 return
@@ -7013,43 +6886,12 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     if not _selected:
         _selected = [k for k in _default if k in _keys] or _keys[:2]
 
-    def _render_pairs(items):
-        for i in range(0, len(items), 2):
-            cols = st.columns(2)
-            items[i][1](cols[0])
-            if i + 1 < len(items):
-                items[i + 1][1](cols[1])
-
-    if design_v2():
-        _rank_switch(_avail, _keys, _selected, _sp)
-        return
-
-    _render_pairs([t for t in _avail if t[0] in _selected])
-
-    # Rest per INLINE-LINK nachladen. Bewusst ein <a>-Link (Anzeige, kein Widget)
-    # statt st.button, denn dieses Fragment schreibt in einen externen Haupt-
-    # Container -> Widgets sind dort verboten (StreamlitFragmentWidgetsNotAllowed).
-    # Der Link setzt ?rank=all in der URL; der Renderer liest das aus.
-    _rest = [t for t in _avail if t[0] not in _selected]
-    if _rest:
-        _qp = {k: v for k, v in st.query_params.items()}
-        if _qp.get("rank") == "all":
-            st.markdown("#### More rankings")
-            _render_pairs(_rest)
-            _q = {k: v for k, v in _qp.items() if k != "rank"}
-            _href = ("?" + urlencode(_q)) if _q else "?"
-            st.markdown(
-                f"<a href='{_href}' target='_self' style='display:inline-block;margin-top:10px;"
-                "color:#2bd4d9;font-weight:700;text-decoration:none;'>➖ Show fewer rankings</a>",
-                unsafe_allow_html=True)
-        else:
-            _href = "?" + urlencode({**_qp, "rank": "all"})
-            st.markdown(
-                f"<a href='{_href}' target='_self' style='display:inline-block;margin-top:10px;"
-                "padding:8px 16px;border-radius:12px;background:rgba(43,212,217,.15);"
-                "color:#2bd4d9;font-weight:800;text-decoration:none;'>"
-                f"➕ Show more rankings ({len(_rest)}) ↓</a>",
-                unsafe_allow_html=True)
+    # Hier stand die Paar-Ansicht: zwei Tabellen je Reihe, dazu ein
+    # "Show more rankings"-Link mit ?rank=all fuer den Rest. _selected bleibt
+    # erhalten und bestimmt jetzt, welcher Chip beim Aufruf vorausgewaehlt ist -
+    # die Auswahl im Filter ("welche Ranglisten sofort?") wirkt also weiter,
+    # nur zeigt sie nicht mehr mehrere Tabellen gleichzeitig.
+    _rank_switch(_avail, _keys, _selected, _sp)
 
 
 def semicircles_to_degrees(value):
@@ -8425,15 +8267,10 @@ def _default_cols(gear_label):
     return ["Date", "Surf spot", "Board", gear_label, "Weather", "Trust"]
 
 
-def _rank_head(text):
-    """Ueberschrift einer einzelnen Rangliste.
-
-    Mit Chips ist sie doppelt - der hervorgehobene Chip sagt schon, welche
-    Wertung man sieht -, also entfaellt sie dort. Im alten Weg stehen mehrere
-    Tabellen nebeneinander, dort ist sie unverzichtbar.
-    """
-    if not design_v2():
-        st.markdown(f"### {text}")
+# Hier stand _rank_head(): die Ueberschrift einer einzelnen Rangliste. Sie war
+# noetig, solange mehrere Tabellen nebeneinander standen. Mit den Chips sagt der
+# hervorgehobene Chip schon, welche Wertung man sieht - die Ueberschrift war
+# damit nur eine Doppelung und ist ganz weg.
 
 
 def _rank_rows(df, gear_label):
@@ -8567,16 +8404,12 @@ def _rank_rows(df, gear_label):
 def _show_rank(df, chosen, gear_label):
     """Der eine Ort, an dem eine Rangliste sichtbar wird.
 
-    Ohne ?design=2 genau wie bisher als st.dataframe, mit dem Schalter als
-    zweizeilige Zeilen. Beide bekommen dieselben Daten durch denselben Trichter
-    (_order_table_cols), damit sich Inhalt und Rundung nicht auseinanderlaufen.
+    Hier stand einmal die Wahl zwischen st.dataframe und den Zeilen. Die
+    Funktion bleibt trotzdem als eigener Trichter bestehen: alle neun Ranglisten
+    laufen durch sie, sie ist also der eine Ort, an dem sich Darstellung oder
+    Rundung aendern lassen, ohne neun Stellen anzufassen.
     """
-    shown = _order_table_cols(_mobile_slim(df), chosen, gear_label)
-    if design_v2():
-        _rank_rows(shown, gear_label)
-    else:
-        st.dataframe(shown, width="stretch", hide_index=True,
-                     height=df_height(len(shown)))
+    _rank_rows(_order_table_cols(_mobile_slim(df), chosen, gear_label), gear_label)
 
 
 def _order_table_cols(df, chosen, gear_label):
@@ -8975,7 +8808,7 @@ def render_spot_tv(cfg):
 
     st.markdown(
         "<div class='tv-header'>"
-        f"<div class='tv-brand'>MyWaterSessions<span class='dot'>.</span>{BETA_BADGE}</div>"
+        "<div class='tv-brand'>MyWaterSessions<span class='dot'>.</span></div>"
         f"<div class='tv-spot'><div class='name'>{title}</div>{sport_chip}{event}</div>"
         f"<div class='sponsor'>{sponsor}</div>"
         "</div>",
@@ -16074,50 +15907,25 @@ if _sw_cols[len(SPORTS) + 3].button(
         st.query_params["view"] = "results"
         st.rerun()
 
-# Vollflächiges Hintergrundbild je Sport. Lege dein Wunschfoto als
-# assets/background.webp (Windsurf) bzw. assets/background_kite.webp (Kite) ab
-# (auch .jpg/.jpeg/.png). MIME-Typ wird automatisch passend gesetzt.
-bg_uri = background_data_uri(sport)
-
-# Hintergrund nur EINMAL pro Session/Sport setzen. Frueher wurde das ~200 KB
-# grosse base64-Bild bei JEDEM Rerun via st.markdown erneut uebertragen -> traege.
-# Jetzt schreiben wir es per JS einmalig in einen <style> im Eltern-Dokument;
-# bei normalen Reruns wird nichts erneut gesendet (Bremse weg).
-# Der Schleier ueber dem Foto ist die wichtigste Stellschraube der Seite: Die
-# glaesernen Kacheln sind halbtransparent, also uebernehmen sie, was hinter ihnen
-# liegt. Bei .45 oben heisst das, dass dieselbe Kachel ueber Himmel hell und ueber
-# einem Segel dunkel wirkt - der Kontrast wird zur Glueckssache ("Airtime" und
-# "Trust" sehen unterschiedlich aus, obwohl es dieselbe Komponente ist).
-# Ein tieferer Schleier gibt dem Glas einen berechenbaren Untergrund. Das Glas
-# bleibt damit erhalten; nur der Grund wird ruhig. Siehe design_v2().
-_SCRIM = ("rgba(2,22,43,.60), rgba(2,22,43,.82)" if design_v2()
-          else "rgba(2,22,43,.45), rgba(2,22,43,.62)")
-# ?plain=1 laesst das Foto ganz weg. Wichtig: background-image MUSS ausdruecklich
-# auf none gesetzt werden, nicht bloss weggelassen - der <style> von einem
-# frueheren Aufruf ohne den Parameter steht sonst noch da und das Bild bliebe.
-if plain_page():
-    _bg_css = ".stApp { background-color:#02162b; background-image:none; }"
-else:
-    _bg_css = (".stApp { background-color:#02162b;"
-               f" background-image: linear-gradient({_SCRIM}), url(\"{bg_uri}\");"
-               " background-position:center center; background-size:cover;"
-               " background-repeat:no-repeat; background-attachment:fixed; }")
-# Beide Schalter muessen mit in den Schluessel: sonst bliebe beim Umschalten von
-# ?design=2 oder ?plain=1 der alte <style> stehen, weil sich der Sport nicht
-# geaendert hat.
-_bg_key = (sport, design_v2(), plain_page())
-if bg_uri and st.session_state.get("_bg_sport") != _bg_key:
-    st.session_state["_bg_sport"] = _bg_key
+# Kein Hintergrundfoto mehr. Es lief mit einem Schleier hinter der ganzen Seite
+# durch, und weil die Kacheln halbtransparent sind, uebernahmen sie, was dahinter
+# lag: dieselbe Komponente wirkte ueber Himmel hell und ueber einem Segel dunkel.
+# Statt den Schleier immer weiter zu vertiefen, ist die Flaeche jetzt einfach ruhig
+# - die Seitenfarbe steht in .streamlit/config.toml (backgroundColor #02162b).
+#
+# Nebeneffekt, der nicht klein ist: Damit entfaellt das ~200 KB grosse base64-Bild
+# je Sportart samt Kodierung und JS-Einschub. Die Fotos liegen weiter unter
+# assets/; wer sie zurueckholen will, findet den Weg in der Git-Historie.
+#
+# Ein Rest muss bleiben: Wer die Seite schon offen hatte, traegt den alten
+# <style id="ws-bg"> mit dem Foto noch im Dokument. Der wird hier einmal je
+# Sitzung geleert - ohne das saehe genau dieser Nutzer weiter das Bild.
+if not st.session_state.get("_bg_cleared"):
+    st.session_state["_bg_cleared"] = True
     components.html(
         "<script>(function(){try{"
-        "var d = window.parent.document;"
-        "var el = d.getElementById('ws-bg');"
-        "if (!el) { el = d.createElement('style'); el.id = 'ws-bg';"
-        " d.head.appendChild(el); }"
-        # json.dumps liefert ein gueltiges JS-String-Literal und escaped alles,
-        # was im Datensatz stehen koennte - sicherer als Platzhalter-Ersetzen in
-        # einer JS-Zeichenkette, in die eine ~200 KB lange Data-URI eingesetzt wird.
-        "el.textContent = " + json.dumps(_bg_css) + ";"
+        "var el=window.parent.document.getElementById('ws-bg');"
+        "if(el){el.textContent='';}"
         "}catch(e){}})();</script>",
         height=0,
     )
@@ -16165,7 +15973,7 @@ _hero_html = f"""
     <div class="hero-row">
         {_hero_icon}
         <div class="hero-content">
-            <div class="logo">MyWaterSessions<span class="logo-dot">.</span>{BETA_BADGE}</div>
+            <div class="logo">MyWaterSessions<span class="logo-dot">.</span></div>
             <div class="logo-rule"></div>
             <div class="title">{SPORT_META[sport]["title"]}</div>
             <p>The home for everyone active on the water</p>
@@ -16190,7 +15998,7 @@ if _hero_banner:
 else:
     st.markdown(_hero_html, unsafe_allow_html=True)
 
-render_beta_note()
+render_last_update()
 
 
 # Rechtsseiten (Impressum/Datenschutz) zuerst behandeln – ohne Login erreichbar.
@@ -16803,7 +16611,7 @@ if st.query_params.get("seite") == "guide":
 
 
 def render_login():
-    st.markdown(f"## 🔐 Sign in {BETA_BADGE}", unsafe_allow_html=True)
+    st.markdown("## 🔐 Sign in")
     st.info(
         "Please log in or register. Afterwards you can join groups or "
         "create your own."
@@ -19395,37 +19203,35 @@ def render_public_live_page():
                 st.caption(
                     f"Fastest stretch of this session: **{dist_m:.0f} m** in "
                     f"**{secs:.0f} s** = **{v_kmh:.1f} km/h** average."
-                    + ("" if design_v2() else " Only this section is shown "
-                       "publicly, never the whole track.")
                 )
-                if design_v2():
-                    # Das war ein Verkaufsargument in 11 Pixel Grau unter einer
-                    # Karte. Wettbewerber vermarkten sich ueber Datenschutz,
-                    # waehrend hier die technisch sauberere Loesung steht und
-                    # sich versteckt: oeffentlich wird nur der schnellste
-                    # Abschnitt, nicht der Weg zum Parkplatz und nach Hause.
-                    st.markdown(
-                        "<div class='privnote'>"
-                        "<span class='privnote-i'>🛡</span>"
-                        "<span><b>Only your fastest stretch goes public.</b> "
-                        "Your full track, your launch spot and where you drove "
-                        "home stay private — visible to you alone.</span>"
-                        "</div>"
-                        "<style>"
-                        ".privnote{display:flex;gap:13px;align-items:flex-start;"
-                        "background:rgba(43,212,217,.09);"
-                        "border:1px solid rgba(43,212,217,.28);"
-                        "border-radius:12px;padding:14px 18px;margin:10px 0 4px;"
-                        "font-size:15.5px;line-height:1.5;color:#dbeff2;"
-                        "backdrop-filter:blur(4px);"
-                        "-webkit-backdrop-filter:blur(4px);}"
-                        ".privnote-i{font-size:20px;line-height:1.25;}"
-                        ".privnote b{color:#7fe6ea;font-weight:700;}"
-                        "@media (max-width:640px){.privnote{padding:12px 14px;"
-                        "font-size:14px;gap:10px;}}"
-                        "</style>",
-                        unsafe_allow_html=True,
-                    )
+                # Der Satz stand als 11-Pixel-Grau am Ende der Bildunterschrift.
+                # Das ist ein Verkaufsargument, kein Kleingedrucktes:
+                # Wettbewerber vermarkten sich ueber Datenschutz, waehrend hier
+                # die technisch sauberere Loesung steht und sich versteckte -
+                # oeffentlich wird nur der schnellste Abschnitt, nicht der Weg
+                # zum Parkplatz und nach Hause.
+                st.markdown(
+                    "<div class='privnote'>"
+                    "<span class='privnote-i'>🛡</span>"
+                    "<span><b>Only your fastest stretch goes public.</b> "
+                    "Your full track, your launch spot and where you drove "
+                    "home stay private — visible to you alone.</span>"
+                    "</div>"
+                    "<style>"
+                    ".privnote{display:flex;gap:13px;align-items:flex-start;"
+                    "background:rgba(43,212,217,.09);"
+                    "border:1px solid rgba(43,212,217,.28);"
+                    "border-radius:12px;padding:14px 18px;margin:10px 0 4px;"
+                    "font-size:15.5px;line-height:1.5;color:#dbeff2;"
+                    "backdrop-filter:blur(4px);"
+                    "-webkit-backdrop-filter:blur(4px);}"
+                    ".privnote-i{font-size:20px;line-height:1.25;}"
+                    ".privnote b{color:#7fe6ea;font-weight:700;}"
+                    "@media (max-width:640px){.privnote{padding:12px 14px;"
+                    "font-size:14px;gap:10px;}}"
+                    "</style>",
+                    unsafe_allow_html=True,
+                )
             else:
                 st.info("Track too short to draw.")
         elif track:
@@ -20216,7 +20022,7 @@ st.markdown("---")
 
 st.markdown(f"""
 <div class="footer">
-    <h3 style="color:white;font-weight:800;letter-spacing:-0.4px;">MyWaterSessions<span style="color:#2bd4d9;">.</span>{BETA_BADGE}</h3>
+    <h3 style="color:white;font-weight:800;letter-spacing:-0.4px;">MyWaterSessions<span style="color:#2bd4d9;">.</span>{VERSION_BADGE}</h3>
     <p style="text-transform:uppercase;letter-spacing:2px;font-size:12px;opacity:.8;">{SPORT_META[sport]["title"]} · The home for everyone active on the water</p>
     <p style="margin-top:.75rem;">
         <a href="?seite=impressum" target="_self" style="color:#2bd4d9;">Impressum</a>
