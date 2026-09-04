@@ -6147,14 +6147,17 @@ def _render_champion(ranking, is_wind):
     if ranking is None or ranking.empty or "name" not in ranking.columns:
         return
     metrics = [
-        ("speed_1s_kmh", "⚡ Top 2 s", "km/h", 1),
-        ("speed_30s_kmh", "🏆 Top 30 s", "km/h", 1),
-        ("longest_run_km", "🚩 Longest run", "km", 2),
+        # (Spalte, Beschriftung, Einheit, Nachkommastellen, Icon in
+        # assets/icons/metrics/). Die Beschriftung traegt KEIN Emoji mehr - das
+        # Bild steht jetzt als eigenes Piktogramm davor.
+        ("speed_1s_kmh", "Top 2 s", "km/h", 1, "2s"),
+        ("speed_30s_kmh", "Top 30 s", "km/h", 1, "30s"),
+        ("longest_run_km", "Longest run", "km", 2, "run"),
     ]
     if is_wind:
         metrics += [
-            ("max_jump_m", "🚀 Highest jump", "m", 1),
-            ("max_airtime_s", "🪂 Airtime", "s", 1),
+            ("max_jump_m", "Highest jump", "m", 1, "jump"),
+            ("max_airtime_s", "Airtime", "s", 1, "airtime"),
         ]
     df = ranking.copy()
     for key, *_ in metrics:
@@ -6192,8 +6195,10 @@ def _render_champion(ranking, is_wind):
     if champ_sail.lower() in ("none", "nan", "null", "guest"):
         champ_sail = ""
 
+    # (Beschriftung, Wert, Icon-Schluessel oder None, Emoji oder None). Wetter
+    # und Trust haben kein eigenes Piktogramm und behalten ihr Emoji.
     tiles = []
-    for key, label, unit, dec in metrics:
+    for key, label, unit, dec, mkey in metrics:
         v = vals.get(key)
         # Messrauschen nicht als Leistung ausgeben: 0,2 m Sprunghoehe und 0,4 s
         # Airtime sind GPS-Zittern, kein Sprung. Eine unglaubwuerdige Zahl zieht
@@ -6203,9 +6208,10 @@ def _render_champion(ranking, is_wind):
         _floor = _MIN_PLAUSIBLE.get(key)
         if _floor is not None and (pd.isna(v) or float(v) < _floor):
             continue
-        tiles.append((label, "–" if pd.isna(v) else f"{float(v):.{dec}f} {unit}"))
-    tiles.append(("🌤 Weather", weather))
-    tiles.append(("🛡 Trust", trust))
+        tiles.append((label, "–" if pd.isna(v) else f"{float(v):.{dec}f} {unit}",
+                      mkey, None))
+    tiles.append(("Weather", weather, None, "🌤"))
+    tiles.append(("Trust", trust, None, "🛡"))
 
     def _esc(s):
         return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -6255,16 +6261,67 @@ def _render_champion(ranking, is_wind):
         "@media (max-width:640px){.champ2{padding:14px 16px;gap:12px;}"
         ".champ2-name{font-size:21px;}.champ2-perf{font-size:24px;}"
         ".champ2-gear{font-size:12.5px;}.champ2-kicker{font-size:11px;}}"
+        # --- Kennzahl-Kacheln (ersetzen st.metric, siehe _mtile) -----------
+        # Die Werte spiegeln div[data-testid="stMetric"] aus style.css: gleiche
+        # Flaeche, gleicher Rahmen, gleicher Radius, gleicher Schatten. Sonst
+        # wirkten die Kacheln nach dem Umbau anders als der Rest der Seite.
+        # Steht bewusst in DIESEM Block und nicht als eigenes st.markdown -
+        # ein zusaetzlicher Aufruf waere ein weiterer Element-Container.
+        ".mt{background:rgba(255,255,255,.12);"
+        "-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);"
+        "border:1px solid rgba(255,255,255,.25);border-radius:20px;"
+        "padding:16px 18px;box-shadow:0 8px 30px rgba(0,0,0,.18);"
+        "height:100%;box-sizing:border-box;}"
+        ".mt-h{display:flex;align-items:center;gap:8px;font-size:14px;"
+        "color:#cfe6ec;line-height:1.2;}"
+        # Das Piktogramm als Maske: nimmt die Textfarbe an (currentColor).
+        ".mt-i{flex:0 0 auto;width:18px;height:18px;display:block;"
+        "background-color:currentColor;"
+        "-webkit-mask:var(--mi) center/contain no-repeat;"
+        "mask:var(--mi) center/contain no-repeat;}"
+        ".mt-e{flex:0 0 auto;font-size:16px;line-height:1;}"
+        # tabular-nums: die Zahlen stehen in einer Reihe untereinander.
+        ".mt-v{font-size:32px;font-weight:900;color:#fff;line-height:1.15;"
+        "margin-top:4px;text-shadow:0 1px 6px rgba(0,0,0,.3);"
+        "font-variant-numeric:tabular-nums;}"
+        "@media (max-width:640px){.mt{padding:13px 14px;border-radius:16px;}"
+        ".mt-v{font-size:26px;}.mt-h{font-size:13px;}}"
         "</style>",
         unsafe_allow_html=True,
     )
+    def _mtile(label, val, mkey, emo):
+        """Kennzahl-Kachel mit eigenem Markup statt st.metric.
+
+        st.metric nimmt als Beschriftung nur Text - ein Piktogramm laesst sich
+        dort nicht unterbringen. Darum eigenes HTML; das Glas-Aussehen ist mit
+        denselben Werten nachgebaut, die div[data-testid="stMetric"] in
+        style.css hat, damit die Kacheln nicht plotzlich anders wirken.
+
+        Das Icon als CSS-Maske ueber background-color:currentColor - wie bei den
+        Sportarten in der Kopfleiste. Damit nimmt es die Textfarbe an, statt in
+        einer festen Farbe gegen das Thema zu stehen.
+        """
+        ico = ""
+        if mkey:
+            _b = image_to_base64(app_path("assets", "icons", "metrics",
+                                          f"{mkey}.svg"))
+            if _b:
+                ico = ("<span class='mt-i' style=\"--mi:url('data:image/svg+xml;"
+                       f"base64,{_b}')\"></span>")
+        if not ico and emo:
+            ico = f"<span class='mt-e'>{emo}</span>"
+        return ("<div class='mt'>"
+                f"<div class='mt-h'>{ico}<span>{_esc(label)}</span></div>"
+                f"<div class='mt-v'>{_esc(val)}</div>"
+                "</div>")
+
     n = len(tiles)
     per_row = n if n <= 4 else (n + 1) // 2   # >4 -> zwei gleichmäßige Reihen
     for start in range(0, n, per_row):
         chunk = tiles[start:start + per_row]
         cols = st.columns(len(chunk))
-        for col, (label, val) in zip(cols, chunk):
-            col.metric(label, val)
+        for col, t in zip(cols, chunk):
+            col.markdown(_mtile(*t), unsafe_allow_html=True)
     st.caption(
         "ℹ️ #1 by points: in each category (top 2 s, top 30 s, longest run"
         + (", highest jump, airtime" if is_wind else "")
