@@ -6231,11 +6231,10 @@ def _render_champion(ranking, is_wind):
         ".champ2{display:flex;align-items:center;justify-content:space-between;"
         "gap:20px;background:rgba(255,255,255,.07);"
         "border:1px solid rgba(255,255,255,.10);border-left:4px solid #f5b942;"
-        # Kein eigener Rand: zwischen Siegerzeile und Kennzahl-Kacheln liegt
-        # schon Streamlits Abstand zwischen Bloecken. Die 18 px unten kamen
-        # zusaetzlich dazu, und mit dem Rand des Kopfbereichs darueber ergab das
-        # gut 50 px Leere.
-        "border-radius:12px;padding:18px 22px;margin:0;"
+        # 18 px unten waren zu viel (sie kamen zum Blockabstand dazu), 0 war zu
+        # wenig - die Kacheln klebten an der Siegerzeile. 8 px plus Blockabstand
+        # ergibt die Fuge, die man sehen soll.
+        "border-radius:12px;padding:18px 22px;margin:0 0 8px;"
         "backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}"
         ".champ2-l{min-width:0;}"
         ".champ2-kicker{font-size:12px;font-weight:700;letter-spacing:2.5px;"
@@ -17211,26 +17210,36 @@ def render_achievements(ach):
         st.info(f"🏅 Rank {e['rank']} in group {e['group_name']} for {e['label']} ({fmt(e)})")
 
 
-def render_group_news_banner(user):
-    """Banner mit ungelesenen Gruppen-Ereignissen (Rekorde/Top-3 anderer)."""
+def render_group_news_banner(user, slot):
+    """Banner mit ungelesenen Gruppen-Ereignissen (Rekorde/Top-3 anderer).
+
+    Bekommt den Platzhalter uebergeben und oeffnet den Container SELBST - und
+    nur, wenn es wirklich etwas zu zeigen gibt. Vorher machte die Aufrufstelle
+    den Container immer auf, und diese Funktion stieg darin ohne Ausgabe aus.
+    Ein leerer Container ist in Streamlit aber nicht nichts: er belegt den
+    Abstand zu seinen Nachbarn. Weil er zwischen Kopfbereich und Siegerzeile
+    liegt, war genau das die Luecke, die sich dort nicht wegbekommen liess.
+    """
     events = unseen_group_events(user["id"], user["username"])
 
     if not events:
-        return
+        return False
 
-    st.markdown("### 📣 News from your groups")
+    with slot.container():
+        st.markdown("### 📣 News from your groups")
 
-    for e in events:
-        if e.get("rank") == 1:
-            st.success(e["message"])
-        else:
-            st.info(e["message"])
+        for e in events:
+            if e.get("rank") == 1:
+                st.success(e["message"])
+            else:
+                st.info(e["message"])
 
-    if st.button("✓ Mark all as read", key="mark_events_seen"):
-        mark_group_events_seen(user["id"])
-        st.rerun()
+        if st.button("✓ Mark all as read", key="mark_events_seen"):
+            mark_group_events_seen(user["id"])
+            st.rerun()
 
-    st.markdown("---")
+        st.markdown("---")
+    return True
 
 
 def _field_set(v):
@@ -19834,8 +19843,10 @@ ranking_results = st.empty()
 with sidebar_tab_filter:
     _perf("rankings", render_rankings, ranking_results)
 
-with news_slot.container():
-    _perf("news", render_group_news_banner, current_user)
+# Kein "with news_slot.container()" mehr: den Container macht die Funktion
+# selbst auf, und nur wenn es Neuigkeiten gibt. Siehe dort - ein leerer
+# Container belegt sonst den Abstand zwischen Kopfbereich und Siegerzeile.
+_perf("news", render_group_news_banner, current_user, news_slot)
 
 render_temp_champions()
 st.markdown(
