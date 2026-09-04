@@ -10385,46 +10385,191 @@ def _desc_img_uris(spot, max_n=6):
     return [u for u in (_spot_thumb_uri(i, max_dim=680) for i in ids[:max_n]) if u]
 
 
+_MD_CSS = (
+    "<style>"
+    # Ueberschriften der Revierfuehrer. Fangen bei h3 an, weil die Seite ihr
+    # h1/h2 schon hat. Aqua wie die Marke, damit sie als Gliederung lesbar sind
+    # und nicht mit dem Fliesstext verschmelzen.
+    ".md-h{color:#7fe6ea;font-weight:600;line-height:1.3;"
+    "margin:26px 0 8px;}"
+    "h3.md-h{font-size:23px;}h4.md-h{font-size:19px;}h5.md-h{font-size:17px;}"
+    # Aufzaehlungen: Einzug, damit die Punkte nicht am Rand kleben.
+    ".md-l{margin:6px 0 12px;padding-left:22px;}"
+    ".md-l li{margin:3px 0;}"
+    # Tabellen scrollen in IHREM Kasten. Ohne das sprengt eine 5-Spalten-Tabelle
+    # (Wind/Segel/Kite/Wing/Board) auf dem Handy die ganze Seite.
+    ".md-tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:10px 0 18px;}"
+    ".md-t{border-collapse:collapse;width:100%;min-width:520px;font-size:15px;}"
+    ".md-t th,.md-t td{text-align:left;vertical-align:top;padding:9px 12px;"
+    "border-bottom:1px solid rgba(255,255,255,.10);}"
+    ".md-t th{color:#8fa9c2;font-weight:600;font-size:13px;"
+    "text-transform:uppercase;letter-spacing:.6px;white-space:nowrap;"
+    "border-bottom:1px solid rgba(255,255,255,.22);}"
+    # Zebra: bei 8 Stationen x 3 Spalten verliert man sonst die Zeile.
+    ".md-t tbody tr:nth-child(odd){background:rgba(255,255,255,.035);}"
+    "@media (max-width:640px){.md-t{font-size:14px;min-width:440px;}"
+    ".md-t th,.md-t td{padding:7px 9px;}"
+    "h3.md-h{font-size:20px;}h4.md-h{font-size:17px;}}"
+    "</style>"
+)
+
+
 def _md_lite(text):
-    """Sichere Mini-Formatierung fuer Spot-Beschreibungen: **fett**,
-    [Text](https-Link), Zeilenumbrueche (einfacher Umbruch) und Absaetze
-    (Leerzeile). Alles andere wird als Text escaped -> kein HTML-Injection.
-    Rueckgabe = fertiges HTML (dieselben Tags, die _lead_split/_desc_with_images
-    ohnehin schon vertragen)."""
-    t = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    """Sichere Mini-Formatierung fuer Spot-Beschreibungen.
+
+    Immer: **fett**, [Text](https-Link), Zeilenumbrueche (einfacher Umbruch) und
+    Absaetze (Leerzeile). Alles andere wird als Text escaped -> kein
+    HTML-Injection.
+
+    Zusaetzlich, aber NUR wenn der Text wirklich Markdown-Struktur enthaelt
+    (## Ueberschrift oder eine Tabellen-Trennzeile): Ueberschriften, Tabellen und
+    Aufzaehlungen. Die langen Revierfuehrer bringen genau das mit; ohne diesen
+    Zweig stuende auf der Seite wortwoertlich "## Wie der Spot funktioniert" und
+    darunter eine Reihe Striche und Balken.
+
+    Warum an die Struktur gebunden und nicht immer: Die kurzen Beschreibungen im
+    Bestand haben weder Ueberschrift noch Tabelle. Fuer sie laeuft unveraendert
+    der alte Weg, sie sehen also Zeichen fuer Zeichen aus wie vorher - eine
+    Formatierungsumstellung auf 47 Spot-Seiten war nicht bestellt.
+
+    Diese Funktion steht IDENTISCH in der Web-App und im Ingest (Spot-SEO-Seiten).
+    Weichen die beiden ab, sieht dieselbe Beschreibung auf zwei Seiten
+    verschieden aus; ein Test vergleicht darum die Quelltexte.
+    """
+    t = ("" if text is None else str(text)).replace("\r\n", "\n").replace("\r", "\n")
+    # Interne Recherchenotizen der Revierfuehrer ("<!-- GAP: ... -->") heraus.
+    # Wichtig: Das Escapen unten macht aus "<!--" ein sichtbares "&lt;!--", der
+    # Hinweis stuende also LESBAR auf der oeffentlichen Seite.
+    t = re.sub(r"<!--.*?-->", "", t, flags=re.S)
     if not t.strip():
         return ""
 
-    def _esc(s):
+    def _md_esc(s):
         return (str(s).replace("&", "&amp;").replace("<", "&lt;")
                 .replace(">", "&gt;").replace('"', "&quot;"))
 
-    # 1) Links (nur echte http(s)) VOR dem Escapen herausziehen -> Platzhalter.
-    links = []
+    def _inline(s):
+        """Fett und echte http(s)-Links; alles Uebrige escaped."""
+        links = []
 
-    def _grab(m):
-        links.append((m.group(1), m.group(2)))
-        return f"\x00L{len(links) - 1}\x00"
+        def _grab(m):
+            links.append((m.group(1), m.group(2)))
+            return "\x00L%d\x00" % (len(links) - 1)
 
-    t = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", _grab, t)
-    # 2) Restlichen Text escapen.
-    t = _esc(t)
-    # 3) **fett**.
-    t = re.sub(r"\*\*([^*\n]+)\*\*", r"<b>\1</b>", t)
-    # 4) Absaetze (Leerzeile) + Zeilenumbrueche.
-    t = re.sub(r"\n{2,}", "<br><br>", t).replace("\n", "<br>")
-    # 5) Links wieder einsetzen (Label + URL sicher escapt).
-    for i, (label, url) in enumerate(links):
-        t = t.replace(
-            f"\x00L{i}\x00",
-            f'<a href="{_esc(url)}" target="_blank" rel="noopener">{_esc(label)}</a>')
-    return t
+        s = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", _grab, s)
+        s = _md_esc(s)
+        s = re.sub(r"\*\*([^*\n]+)\*\*", r"<b>\1</b>", s)
+        for i, (label, url) in enumerate(links):
+            s = s.replace("\x00L%d\x00" % i,
+                          '<a href="%s" target="_blank" rel="noopener">%s</a>'
+                          % (_md_esc(url), _md_esc(label)))
+        return s
+
+    _head_re = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
+    _trenn_re = re.compile(r"^\|[\s:|+-]+\|$")
+    _liste_re = re.compile(r"^[-*]\s+(.*\S)\s*$")
+    lines = t.split("\n")
+
+    # Ohne Struktur: der alte Weg, Ergebnis unveraendert.
+    hat_struktur = any(_head_re.match(l.strip()) for l in lines) or any(
+        _trenn_re.match(l.strip()) for l in lines)
+    if not hat_struktur:
+        return re.sub(r"\n{2,}", "<br><br>", _inline(t)).replace("\n", "<br>")
+
+    def _zellen(zeile):
+        z = zeile.strip()
+        if z.startswith("|"):
+            z = z[1:]
+        if z.endswith("|"):
+            z = z[:-1]
+        return [c.strip() for c in z.split("|")]
+
+    out, absatz = [], []
+
+    def _absatz_raus():
+        if absatz:
+            out.append("<p>" + "<br>".join(_inline(x) for x in absatz) + "</p>")
+            del absatz[:]
+
+    i = 0
+    while i < len(lines):
+        s = lines[i].strip()
+        if not s:
+            _absatz_raus()
+            i += 1
+            continue
+
+        m = _head_re.match(s)
+        if m:
+            _absatz_raus()
+            # Die Seite hat ihr h1/h2 schon - hier beginnt die Gliederung bei h3,
+            # damit die Rangfolge der Ueberschriften nicht durchbrochen wird.
+            stufe = min(3 + max(len(m.group(1)) - 2, 0), 5)
+            out.append(f"<h{stufe} class='md-h'>{_inline(m.group(2))}</h{stufe}>")
+            i += 1
+            continue
+
+        # Tabelle: Kopfzeile, dann eine Trennzeile aus |---|---|
+        if (s.startswith("|") and i + 1 < len(lines)
+                and _trenn_re.match(lines[i + 1].strip())):
+            _absatz_raus()
+            kopf = _zellen(s)
+            i += 2
+            zeilen = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                zeilen.append(_zellen(lines[i]))
+                i += 1
+            th = "".join(f"<th>{_inline(c)}</th>" for c in kopf)
+            trs = []
+            for z in zeilen:
+                # Kurze Zeilen mit leeren Zellen auffuellen, damit die Tabelle
+                # nicht ausfranst, wenn eine Quelle eine Spalte weglaesst.
+                z = (z + [""] * len(kopf))[:len(kopf)]
+                trs.append("<tr>" + "".join(f"<td>{_inline(c)}</td>" for c in z) + "</tr>")
+            # Eigener Rahmen mit overflow-x: eine 5-Spalten-Tabelle sprengt sonst
+            # auf dem Handy die Seite, statt in ihrem Kasten zu scrollen.
+            out.append("<div class='md-tw'><table class='md-t'><thead><tr>"
+                       + th + "</tr></thead><tbody>" + "".join(trs)
+                       + "</tbody></table></div>")
+            continue
+
+        if _liste_re.match(s):
+            _absatz_raus()
+            punkte = []
+            while i < len(lines) and _liste_re.match(lines[i].strip()):
+                punkte.append(_liste_re.match(lines[i].strip()).group(1))
+                i += 1
+            out.append("<ul class='md-l'>"
+                       + "".join(f"<li>{_inline(p)}</li>" for p in punkte)
+                       + "</ul>")
+            continue
+
+        absatz.append(s)
+        i += 1
+
+    _absatz_raus()
+    return "".join(out)
+
+
+# Blockelemente, die _md_lite bei strukturiertem Markdown erzeugt. Die beiden
+# Textteiler unten schneiden eine HTML-Zeichenkette an einer Wortgrenze. Fuer
+# Fliesstext ist das richtig, eine Tabelle wuerde es aber mitten auseinander-
+# reissen: <table> landete im einen Teil, </table> im anderen. Bei strukturierten
+# Texten wird darum NICHT geteilt - ein 15-KB-Revierfuehrer will ohnehin ueber
+# die ganze Breite laufen und nicht in einer schmalen Spalte neben der Webcam.
+_MD_BLOCK_RE = re.compile(r"<(?:h[3-5]|table|ul)\b")
+
+
+def _hat_bloecke(html):
+    return bool(_MD_BLOCK_RE.search(html or ""))
 
 
 def _split_into(text, n):
     """Text in ~n etwa gleich lange Stücke schneiden – an Wortgrenzen und NICHT
     mitten in einem HTML-Tag. Für das Einflechten von Bildern in die Beschreibung."""
     t = text or ""
+    if _hat_bloecke(t):     # Tabellen/Ueberschriften nicht zerschneiden
+        return [t] if t.strip() else []
     if n <= 1 or len(t) < 80:
         return [t] if t.strip() else []
     size = len(t) // n
@@ -10477,6 +10622,8 @@ def _lead_split(text, target=820):
     es fast wie ein Umfliessen. Schneidet an einer Wortgrenze und NICHT mitten in
     einem HTML-Tag. Ist der Text kuerzer als target, bleibt der Rest leer."""
     t = text or ""
+    if _hat_bloecke(t):     # siehe _MD_BLOCK_RE: strukturierten Text nicht teilen
+        return "", t
     if len(t) <= target:
         return t, ""
     cut = t.rfind(" ", int(target * 0.6), target)
@@ -10942,6 +11089,111 @@ def _extra_lang_editor(spot, prefix):
     return out
 
 
+# =====================================================================
+#  .md-Dateien direkt einladen (Backoffice)
+#  Die langen Revierfuehrer kommen als Datei je Sprache (soma-bay-DE.md,
+#  soma-bay-EN.md). Vorher: oeffnen, alles markieren, kopieren, ins richtige
+#  Feld einfuegen - je Sprache einmal.
+# =====================================================================
+
+# Sprachkuerzel im Dateinamen -> nativer Name, so wie ihn der Sprach-Umschalter
+# auf der Spot-Seite anzeigt.
+_MD_LANGS = {
+    "de": "Deutsch", "en": "English", "nl": "Nederlands", "fr": "Français",
+    "es": "Español", "it": "Italiano", "pt": "Português", "da": "Dansk",
+    "sv": "Svenska", "no": "Norsk", "fi": "Suomi", "pl": "Polski",
+    "cs": "Čeština", "hr": "Hrvatski", "tr": "Türkçe", "el": "Ελληνικά",
+    "ar": "العربية",
+}
+
+
+def _md_lang_from_name(filename):
+    """Sprachkuerzel am ENDE des Dateinamens: 'soma-bay-DE.md' -> 'de'.
+
+    Bewusst nur am Ende und nur genau zwei Buchstaben. Ein Spotname wie
+    'el-gouna-EN.md' faengt selbst mit einem gueltigen Kuerzel an - wer
+    irgendwo im Namen sucht, laedt diese Datei als Griechisch ein.
+    """
+    stem = re.sub(r"\.(md|markdown|txt)$", "", str(filename or "").strip(),
+                  flags=re.I)
+    m = re.search(r"[-_. ]([A-Za-z]{2})$", stem)
+    if not m:
+        return None
+    code = m.group(1).lower()
+    return code if code in _MD_LANGS else None
+
+
+def _md_import_clean(raw):
+    """Markdown fuer den Import saeubern.
+
+    Zwei Dinge muessen heraus, bevor der Text in die Datenbank geht:
+
+    Interne Recherchenotizen in HTML-Kommentaren ("<!-- GAP: noch pruefen -->").
+    _md_lite entfernt sie beim Rendern ebenfalls, aber sie sollen gar nicht erst
+    gespeichert werden - sonst liest sie jeder, der die Beschreibung im
+    Backoffice oeffnet, und ein kuenftiger Renderer koennte sie durchlassen.
+
+    Die erste Ueberschrift ("# Soma Bay (Aegypten) - die Rote-Meer-Lagune ...").
+    Die Spot-Seite setzt ihren Titel selbst; sonst steht er zweimal da.
+    """
+    t = ("" if raw is None else str(raw)).replace("\r\n", "\n").replace("\r", "\n")
+    t = t.replace("﻿", "")          # BOM aus Windows-Editoren
+    t = re.sub(r"<!--.*?-->", "", t, flags=re.S)
+    lines = t.split("\n")
+    i = 0
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+    # Nur eine EINZELNE Raute (Dokumenttitel). "## Der Wind" bleibt stehen.
+    if i < len(lines) and re.match(r"^#\s+\S", lines[i].strip()):
+        i += 1
+    return "\n".join(lines[i:]).strip()
+
+
+def _md_apply_targets(ziel, spot):
+    """Verteilt die eingeladenen Dateien auf die Formularfelder.
+
+    Englisch ist die Hauptbeschreibung. Die Landessprache des Spots geht ins
+    zweite Feld. Alles Uebrige wird eine weitere Sprache - Deutsch ist bei einem
+    aegyptischen Spot eine Zusatzsprache, bei einem deutschen die Landessprache.
+
+    Gibt (pending, wohin) zurueck: die Werte werden NICHT hier gesetzt, sondern
+    ueber _ki_pending beim naechsten Lauf VOR der Widget-Erzeugung - Streamlit
+    verbietet das Setzen eines Widget-Keys, nachdem das Widget erzeugt wurde.
+    """
+    ss = st.session_state
+    pending, wohin = {}, []
+    lokal = str(ss.get("admin_spot_lang") or "").strip()
+    ids = list(ss.get(f"adx_ids_{spot}", []))
+    # Vorhandene Zusatzsprachen nach Namen, um dieselbe Sprache zu ERSETZEN
+    # statt sie ein zweites Mal anzulegen.
+    vorhanden = {str(ss.get(f"adx_lg_{spot}_{i}") or "").strip().lower(): i
+                 for i in ids}
+    naechste = int(ss.get(f"adx_nid_{spot}", len(ids)))
+    ids_neu = list(ids)
+    for code in sorted(ziel):
+        fname, text = ziel[code]
+        lname = _MD_LANGS[code]
+        if code == "en":
+            pending["admin_spot_desc"] = text
+            wohin.append(f"{fname} → Beschreibung (English)")
+        elif lokal and lname.lower() == lokal.lower():
+            pending["admin_spot_desc_local"] = text
+            wohin.append(f"{fname} → Beschreibung ({lokal})")
+        else:
+            i = vorhanden.get(lname.lower())
+            if i is None:
+                i = naechste
+                naechste += 1
+                ids_neu.append(i)
+                pending[f"adx_lg_{spot}_{i}"] = lname
+            pending[f"adx_tx_{spot}_{i}"] = text
+            wohin.append(f"{fname} → weitere Sprache ({lname})")
+    if ids_neu != ids:
+        pending[f"adx_ids_{spot}"] = ids_neu
+        pending[f"adx_nid_{spot}"] = naechste
+    return pending, wohin
+
+
 # Ab so vielen Zeichen gilt ein Spot als "voller Guide" (sonst Kurzprofil-Badge).
 _FULL_GUIDE_MIN_CHARS = 400
 
@@ -11178,7 +11430,14 @@ def render_spots_page(user=None):
             "Description language", _labels, horizontal=True, label_visibility="collapsed",
             key=f"spotdesc_lang_{chosen.get('spot') or info.get('spot') or ''}")
         desc = next((t for (l, t) in _lang_opts if l == _pick), _lang_opts[0][1])
-    desc = _md_lite(desc)   # **fett**, [Links], Zeilenumbrueche/Absaetze -> HTML
+    desc = _md_lite(desc)   # **fett**, [Links], Absaetze + (falls vorhanden)
+                            # Ueberschriften/Tabellen/Aufzaehlungen -> HTML
+    # Stil fuer die Blockelemente der langen Revierfuehrer. Einmal je Seite und
+    # nur, wenn wirklich Bloecke vorkommen - kurze Beschreibungen brauchen ihn
+    # nicht. Gleiche Regeln stehen im Ingest fuer die Spot-SEO-Seiten.
+    if _hat_bloecke(desc) and not st.session_state.get("_md_css"):
+        st.session_state["_md_css"] = True
+        st.markdown(_MD_CSS, unsafe_allow_html=True)
     desc_html = (f"<div style='font-size:18px;line-height:1.6;'>{desc}</div>"
                  if desc else "")
 
@@ -14602,6 +14861,57 @@ def render_admin_spots():
                "(Breite, Länge) kopieren und hier eintragen.")
 
     st.markdown("**Für den Revierführer (sonst erscheint der Spot NICHT auf der Spots-Seite):**")
+
+    # --- Markdown-Dateien direkt einladen ---------------------------------
+    # Die langen Revierführer kommen als .md-Dateien (soma-bay-DE.md,
+    # soma-bay-EN.md). Vorher musste man sie öffnen, alles markieren, kopieren
+    # und ins richtige Feld einfügen — bei zwei Sprachen zweimal, und man traf
+    # leicht das falsche Feld.
+    #
+    # WICHTIG: Der Upload füllt nur das Formular. Gespeichert wird erst mit dem
+    # Speichern-Knopf unten, also kann man vorher lesen, was ankommt.
+    with st.expander("📄 Beschreibung aus .md-Datei einladen", expanded=False):
+        _ups = st.file_uploader(
+            "Markdown-Dateien", type=["md", "markdown", "txt"],
+            accept_multiple_files=True, key="admin_md_up",
+            help="Mehrere Dateien gleichzeitig möglich. Die Sprache wird am "
+                 "Dateinamen erkannt: …-DE.md, …-EN.md, …-NL.md usw.")
+        st.caption(
+            "Was beim Einladen automatisch passiert: Die **erste Überschrift** "
+            "(`# Soma Bay …`) fällt weg — die Seite setzt ihren Titel selbst. "
+            "**Interne Notizen** in HTML-Kommentaren (`<!-- GAP: … -->`) werden "
+            "entfernt, die haben auf einer öffentlichen Seite nichts verloren. "
+            "Abschnitte (`##`), Tabellen und Aufzählungen bleiben und werden auf "
+            "der Spot-Seite als solche dargestellt.")
+        if _ups and st.button("⬇️ In die Felder übernehmen", use_container_width=True,
+                              key="admin_md_apply"):
+            _ziel, _fehler = {}, []
+            for _f in _ups:
+                try:
+                    _roh = _f.getvalue().decode("utf-8")
+                except UnicodeDecodeError:
+                    # Word/Notepad speichern gern in der Windows-Codepage.
+                    _roh = _f.getvalue().decode("cp1252", errors="replace")
+                _txt = _md_import_clean(_roh)
+                if not _txt:
+                    _fehler.append(f"{_f.name}: leer")
+                    continue
+                _code = _md_lang_from_name(_f.name)
+                if not _code:
+                    _fehler.append(f"{_f.name}: keine Sprache im Dateinamen "
+                                   "(…-DE.md / …-EN.md)")
+                    continue
+                _ziel[_code] = (_f.name, _txt)
+            if _ziel:
+                _p, _wohin = _md_apply_targets(_ziel, name)
+                st.session_state["_ki_pending"] = _p
+                st.session_state["_ki_flash"] = (
+                    "Eingeladen: " + " · ".join(_wohin)
+                    + ". Bitte prüfen und dann **Speichern**.")
+                st.rerun()
+            for _e in _fehler:
+                st.warning(_e)
+
     desc = st.text_area(
         "Beschreibung", key="admin_spot_desc", height=120,
         help="Ohne Beschreibung wird der Spot auf der Spots-Seite nicht angezeigt. "
