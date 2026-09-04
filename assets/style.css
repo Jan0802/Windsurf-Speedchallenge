@@ -32,6 +32,23 @@
     gap: var(--blockgap);
 }
 
+/* Unbenutzte Platzhalter ausblenden.
+
+   st.empty() legt einen Element-Container an, AUCH wenn nie etwas hineinschreibt.
+   Als Flex-Kind bekommt der trotzdem seinen gap – und weil news_slot zwischen
+   Kopfbereich und Siegerzeile liegt, war das die Lücke, die dort nach zwei
+   Rand-Korrekturen immer noch stand. Den Platzhalter selbst braucht es: die
+   Rangliste läuft im Code VOR dem Neuigkeiten-Banner (ihr Fragment hängt in der
+   Sidebar), soll aber darunter erscheinen – er reserviert die Position.
+
+   :empty ist streng: kein einziger Kindknoten, nicht einmal Text. Ein
+   Container, der irgendetwas anzeigt, wird davon nie getroffen. Zwei
+   Schreibweisen, weil die Streamlit-Kennung je Version wechselt. */
+[data-testid="stMain"] [data-testid="stElementContainer"]:empty,
+[data-testid="stMain"] .element-container:empty {
+    display: none;
+}
+
 .block-container {
     /* Früher 4rem: Die oberste Button-Reihe lag sonst unter dem (transparenten)
        Streamlit-Header (~3.75rem hoch), der die Klicks abfing -> nur der untere
