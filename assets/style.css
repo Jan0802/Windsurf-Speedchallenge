@@ -312,15 +312,25 @@ h2 {
        unten. Der Abstand zur Siegerzeile ist damit allein --blockgap. */
     margin: calc(-1 * (var(--blockgap) + var(--hero-pull)))
             calc(-1 * var(--pad)) 0;
-    /* Festes Verhältnis, NICHT min-height: sonst hängt der Zuschnitt an der
-       Fensterbreite und das Motiv wird auf breiten Schirmen anders beschnitten
-       als auf schmalen. 5:1 ist die Proportion, bei der in allen sechs
-       Vorlagen das Motiv vollständig bleibt (geprüft, nicht geschätzt). */
-    /* aspect-ratio ist keine harte Obergrenze: wird der Inhalt höher (Wortmarke
-       + Update-Zeile + Ranglisten-Überschrift), wächst der Kasten mit. Nichts
-       wird abgeschnitten. */
-    aspect-ratio: 5 / 1;
-    min-height: 150px;               /* Boden für schmale Fenster */
+    /* 5:1 ist die Proportion, bei der in allen sechs Vorlagen das Motiv
+       vollständig bleibt (geprüft, nicht geschätzt) – aber als UNTERGRENZE,
+       nicht als aspect-ratio.
+
+       Hier stand vorher "aspect-ratio: 5/1" mit dem Kommentar, das sei keine
+       harte Obergrenze und der Kasten wachse mit dem Inhalt. Das war falsch:
+       aspect-ratio setzt eine feste Größe: Bei height:auto rechnet der Browser
+       die Höhe aus der Breite und der Inhalt läuft heraus – mit dem
+       overflow:hidden zwei Zeilen darüber wird er abgeschnitten. Genau das hat
+       auf dem Handy die Ranglisten-Überschrift gekappt (nur die Spitze des
+       Pokals war noch zu sehen). "Wächst mit" gilt nur für Flex- und
+       Grid-KINDER, nicht für einen Block wie diesen.
+
+       20vw statt eines Prozentwerts, weil sich Prozente in min-height auf die
+       HÖHE des Elternelements beziehen, nicht auf die eigene Breite – das gibt
+       kein Seitenverhältnis. Bezug ist damit die Fensterbreite, nicht die
+       Kastenbreite: Wird die Seitenleiste aufgeklappt, bleibt das Banner gleich
+       hoch statt zu springen. */
+    min-height: max(150px, 20vw);    /* 150px = Boden für schmale Fenster */
     /* Spalte, nicht Reihe: der Container enthält jetzt einen senkrechten Stapel
        (Textblock, Update-Zeile, Platzhalter). Mit align-items:center einer
        Reihe würde der Stapel auf Inhaltsbreite schrumpfen. */
@@ -396,9 +406,14 @@ h2 {
     .st-key-herobox {
         padding: 14px calc(var(--pad) + 4px);
         /* 5:1 wären bei 390 px Displaybreite 78 px – ein Streifen. Auf dem
-           Handy also deutlich höher, damit Motiv UND Text Platz haben. */
-        aspect-ratio: 2.4 / 1;
-        min-height: 150px;
+           Handy also deutlich höher, damit Motiv UND Text Platz haben:
+           41.7vw = 2,4:1. Wieder als Untergrenze, siehe oben. Der Textstapel
+           (Wortmarke, Linie, Kicker, Claim, Update-Zeile, Ranglisten-
+           Überschrift mit Kontextzeile) braucht auf 390 px rund 240 px – mehr
+           als jedes vernünftige Bildverhältnis hergibt. Der Kasten wächst
+           deshalb über die 2,4:1 hinaus, und das ist richtig so: Ein Banner,
+           das seine eigene Überschrift verschluckt, ist kein Banner. */
+        min-height: max(150px, 41.7vw);
         /* Motiv leicht hereingeholt und der Schleier flächig verstärkt: das Foto
            wird zur Textur hinter den Worten, statt mit ihnen um dieselbe kleine
            Fläche zu ringen. */
