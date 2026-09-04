@@ -15817,36 +15817,61 @@ if not st.session_state.get("_sport_tile_css"):
                 "height:clamp(24px,3.4vw,30px)!important;}"
                 "}")
 
+    def _tile_icon(sel, b64):
+        """Kachel mit freigestelltem Piktogramm.
+
+        Nur ab Tablet-Breite. Auf dem Handy stapeln die Spalten, zehn Kacheln
+        wuerden die halbe Seite fuellen - und weil hier gar nichts greift,
+        behaelt der Knopf dort SEIN eigenes Streamlit-Aussehen, statt dass ich
+        meine Kachel-Werte muehsam zurueckdrehen muss.
+
+        Gemeinsam fuer Sportarten und Ansichten, damit beide Reihen garantiert
+        dieselbe Kachelhoehe und dieselbe Bildzone haben.
+        """
+        return (
+            "@media(min-width:641px){"
+            f"{sel}{_TILE_BOX}"
+            # Bilddaten nur EINMAL: als Variable, sonst stehen sie fuer -webkit-
+            # und ohne Prefix doppelt im Stylesheet (100 KB statt 50).
+            f"{sel}::before{{content:'';display:block;width:38px;height:38px;"
+            f'--i:url("data:image/png;base64,{b64}");'
+            # currentColor: das Bild nimmt die Textfarbe an, faerbt sich also
+            # beim aktiven Knopf mit.
+            "background-color:currentColor;"
+            "-webkit-mask:var(--i) center/contain no-repeat;"
+            "mask:var(--i) center/contain no-repeat;}"
+            f"{sel}{_TILE_WORDS}"
+            f"{sel} p{_TILE_WORDS}"
+            "}"
+            + _tile_narrow(sel)
+        )
+
+    # Ansichten MIT eigenem Piktogramm. Ausdrueckliche Liste und nicht "nimm,
+    # was in assets/icons liegt": sonst wuerde eine dort abgelegte Datei das
+    # Aussehen der Kopfzeile still aendern. Eintragen = umschalten.
+    VIEW_ICONS = {"live", "beat"}
+
     _tiles = []
     for _key in SPORTS:
         _ib = image_to_base64(app_path("assets", "icons", f"{_key}.png"))
         if not _ib:
             continue
-        _sel = f".st-key-switch_sport_{_key} button"
-        # Nur ab Tablet-Breite. Auf dem Handy stapeln die Spalten, sechs Kacheln
-        # wuerden die halbe Seite fuellen - und weil hier gar nichts greift,
-        # behaelt der Knopf dort SEIN eigenes Streamlit-Aussehen, statt dass ich
-        # meine Kachel-Werte muehsam zurueckdrehen muss.
-        _tiles.append(
-            "@media(min-width:641px){"
-            f"{_sel}{_TILE_BOX}"
-            # Bilddaten nur EINMAL: als Variable, sonst stehen sie fuer -webkit-
-            # und ohne Prefix doppelt im Stylesheet (100 KB statt 50).
-            f"{_sel}::before{{content:'';display:block;width:38px;height:38px;"
-            f'--i:url("data:image/png;base64,{_ib}");'
-            "background-color:currentColor;"
-            "-webkit-mask:var(--i) center/contain no-repeat;"
-            "mask:var(--i) center/contain no-repeat;}"
-            f"{_sel}{_TILE_WORDS}"
-            f"{_sel} p{_TILE_WORDS}"
-            "}"
-            + _tile_narrow(_sel)
-        )
-    # Die vier Ansichten: ihr Emoji wandert aus dem Label in die gleiche
-    # Bildzone, damit ihre Kachel exakt so hoch wird wie eine Sportart-Kachel.
+        _tiles.append(_tile_icon(f".st-key-switch_sport_{_key} button", _ib))
+
+    # Die vier Ansichten: entweder Piktogramm (wie die Sportarten) oder Emoji.
+    # In beiden Faellen sitzt es in derselben Bildzone, damit die Kachel exakt
+    # so hoch wird wie eine Sportart-Kachel.
     for _vkey, _emo in (("spots", "🗺️"), ("live", "🌍"),
                         ("beat", "🎯"), ("results", "👤")):
         _sel = f".st-key-switch_view_{_vkey} button"
+        _vb = (image_to_base64(app_path("assets", "icons", f"{_vkey}.png"))
+               if _vkey in VIEW_ICONS else None)
+        if _vb:
+            # Wie eine Sportart. Auf dem Handy also ebenfalls ohne Bild - das
+            # ist der Preis der Einheitlichkeit und dort auch richtig, weil die
+            # Sportarten es genauso halten.
+            _tiles.append(_tile_icon(_sel, _vb))
+            continue
         _tiles.append(
             # Immer vor dem Namen - so stand es vorher im Label, und anders als
             # die Piktogramme bleibt ein Emoji auch klein lesbar.
