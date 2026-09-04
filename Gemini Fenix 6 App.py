@@ -16242,18 +16242,20 @@ if not st.session_state.get("_sport_tile_css"):
                 "}")
 
     def _tile_icon(sel, b64):
-        """Kachel mit freigestelltem Piktogramm.
+        """Kachel mit freigestelltem Piktogramm - fuer ALLE Breiten.
 
-        Nur ab Tablet-Breite. Auf dem Handy stapeln die Spalten, zehn Kacheln
-        wuerden die halbe Seite fuellen - und weil hier gar nichts greift,
-        behaelt der Knopf dort SEIN eigenes Streamlit-Aussehen, statt dass ich
-        meine Kachel-Werte muehsam zurueckdrehen muss.
+        Vorher galt das nur ab 641 px: Auf dem Handy stapelten die Spalten, und
+        zehn Kacheln uebereinander haetten die halbe Seite gefuellt - dort war
+        Streamlits eigenes Knopf-Aussehen das kleinere Uebel. Seit die Leiste
+        auf dem Handy ein Raster ist (3+3 Sportarten, 2+2 Ansichten, siehe
+        style.css), stehen die Kacheln nebeneinander und sind ~120 px breit.
+        Da passt das Piktogramm gut hin, und die Leiste sieht auf dem Handy aus
+        wie auf dem Rechner.
 
         Gemeinsam fuer Sportarten und Ansichten, damit beide Reihen garantiert
         dieselbe Kachelhoehe und dieselbe Bildzone haben.
         """
         return (
-            "@media(min-width:641px){"
             f"{sel}{_TILE_BOX}"
             # Bilddaten nur EINMAL: als Variable, sonst stehen sie fuer -webkit-
             # und ohne Prefix doppelt im Stylesheet (100 KB statt 50).
@@ -16267,7 +16269,6 @@ if not st.session_state.get("_sport_tile_css"):
             "mask:var(--i) center/contain no-repeat;}"
             f"{sel}{_TILE_WORDS}"
             f"{sel} p{_TILE_WORDS}"
-            "}"
             + _tile_narrow(sel)
         )
 

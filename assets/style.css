@@ -195,14 +195,58 @@
     box-shadow: inset 0 -2px 0 0 #2bd4d9 !important;
 }
 
-/* Auf dem Handy stapeln die Spalten – dann ist der Balken kein Balken mehr und
-   das linke Polster für den Sidebar-Pfeil wäre nur eine Einrückung. */
+/* ---- Kopfleiste auf dem Handy: Raster statt Stapel ----------------------
+   Vorher stapelten die zehn Knöpfe untereinander (globale Handy-Regel:
+   flex-basis 100 %) und füllten den ganzen Bildschirm, bevor Inhalt kam.
+
+   Jetzt: Wortmarke über die Breite, die sechs Sportarten zu dritt, die vier
+   Ansichten zu ZWEIT. Nicht auch zu viert – "Beat the Beach" hat in einer
+   Viertelspalte bei 390 px nur ~90 px und bricht auf drei Zeilen. Zu zweit
+   sind es ~185 px, und alle Beschriftungen bleiben einzeilig.
+
+   Aus ~700 px Höhe werden so ~240 px.
+
+   Die Reihenfolge der Spalten ist bekannt (sie entsteht in einem st.columns):
+   1 = Wortmarke, 2–7 = Sportarten, 8 = Lücke, 9–12 = Ansichten. Greift ein
+   nth-child nicht, bleibt es beim Stapel – unschön, aber nichts kaputt. */
 @media (max-width: 640px) {
     .st-key-navbar {
         padding: 4px var(--pad);
         background: transparent;
         border-bottom: none;
         margin-bottom: 0.4rem;
+    }
+
+    .st-key-navbar [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+        row-gap: 6px;
+        column-gap: 6px;
+    }
+
+    /* Höhere Spezifität UND !important: die globale Handy-Regel setzt
+       flex-basis:100%!important auf jede Spalte. */
+    .st-key-navbar [data-testid="stHorizontalBlock"] > div:nth-child(1) {
+        flex: 0 0 100% !important;
+    }
+
+    .st-key-navbar [data-testid="stHorizontalBlock"] > div:nth-child(n+2):nth-child(-n+7) {
+        flex: 0 0 calc(33.333% - 4px) !important;
+    }
+
+    /* Die Lücke zwischen Sportarten und Ansichten ist im Raster sinnlos. */
+    .st-key-navbar [data-testid="stHorizontalBlock"] > div:nth-child(8) {
+        display: none !important;
+    }
+
+    .st-key-navbar [data-testid="stHorizontalBlock"] > div:nth-child(n+9) {
+        flex: 0 0 calc(50% - 3px) !important;
+    }
+
+    /* Auf dem Handy ist der aktive Knopf ohne Fläche schwer zu erkennen – der
+       Unterstrich allein reicht in einem Raster nicht. */
+    .st-key-navbar button[kind="primary"] {
+        background: rgba(43, 212, 217, .13) !important;
+        border-radius: 12px !important;
     }
 }
 
