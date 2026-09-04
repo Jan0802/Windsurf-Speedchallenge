@@ -8,9 +8,17 @@
 :root {
     --pad: 1.5rem;
     /* Streamlits Abstand zwischen zwei Blöcken. Hier selbst gesetzt, damit
-       .hero ihn mit einem negativen Rand genau aufheben kann – sonst müsste man
-       den Wert raten. */
+       .hero ihn mit einem negativen Rand aufheben kann – sonst müsste man den
+       Wert raten. */
     --blockgap: 0.75rem;
+    /* Zusätzlicher Zug nach oben. --blockgap allein reichte nicht: zwischen
+       Leiste und Banner blieb ein Rest von wenigen Pixeln, der noch aus einer
+       anderen Streamlit-Regel kommt (Innenabstand der Container, wechselt mit
+       der Version). Statt weiter zu messen, zieht das Banner bewusst ETWAS ZU
+       WEIT und die Leiste bekommt Vorrang in der Stapelreihenfolge – ein
+       Überschuss schiebt sich dann unter die Leiste und ist unsichtbar, statt
+       ihre untere Linie zu überdecken. Eine Zahl zum Nachjustieren. */
+    --hero-pull: 8px;
     /* Wie weit der Sidebar-Pfeil nach unten rutscht, damit er auf Höhe der
        Wortmarke sitzt. Ein Wert an einer Stelle: wird die Kopfleiste höher oder
        flacher, ändert man nur diese Zahl. */
@@ -105,6 +113,17 @@
     padding: 2px var(--pad) 0 calc(var(--pad) + 42px);
     background: #071d33;
     border-bottom: 1px solid rgba(255, 255, 255, .09);
+    /* Vorrang in der Stapelreihenfolge: Das Banner zieht sich absichtlich etwas
+       zu weit nach oben (--hero-pull). Ohne dieses z-index würde es die untere
+       Linie der Leiste überdecken; so schiebt es sich darunter. */
+    position: relative;
+    z-index: 2;
+}
+
+/* Innenabstand der Container IN der Leiste auf null: sonst addiert Streamlit
+   dort noch eigene Lücken und die Leiste wird höher als ihr Inhalt. */
+.st-key-navbar [data-testid="stVerticalBlock"] {
+    gap: 0;
 }
 
 .nav-brand {
@@ -183,9 +202,11 @@ h2 {
        Vorgabe hängt von Version und Fensterbreite ab und wäre geraten.
 
        Oben ein negativer Rand: er schluckt Streamlits Abstand zwischen den
-       Blöcken (--blockgap), damit das Banner direkt unter der Kopfleiste
-       ansetzt. Vorher lag dort ein dunkles Band, das mitten im Foto saß. */
-    margin: calc(-1 * var(--blockgap)) calc(-1 * var(--pad)) 1.1rem;
+       Blöcken (--blockgap) PLUS einen Zuschlag (--hero-pull) für den Rest, der
+       aus Container-Innenabständen kommt. Bewusst etwas zu viel – siehe
+       --hero-pull. Vorher lag dort ein dunkles Band mitten im Foto. */
+    margin: calc(-1 * (var(--blockgap) + var(--hero-pull)))
+            calc(-1 * var(--pad)) 1.1rem;
     /* Festes Verhältnis, NICHT min-height: sonst hängt der Zuschnitt an der
        Fensterbreite und das Motiv wird auf breiten Schirmen anders beschnitten
        als auf schmalen. 5:1 ist die Proportion, bei der in allen sechs
