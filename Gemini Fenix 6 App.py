@@ -16215,7 +16215,13 @@ if not st.session_state.get("_sport_tile_css"):
     # Ansichten MIT eigenem Piktogramm. Ausdrueckliche Liste und nicht "nimm,
     # was in assets/icons liegt": sonst wuerde eine dort abgelegte Datei das
     # Aussehen der Kopfzeile still aendern. Eintragen = umschalten.
-    VIEW_ICONS = {"live", "beat"}
+    #
+    # Seit 04.09.2026 alle vier. spots.png und results.png lagen schon bereit -
+    # sie stammen aus derselben Vorlage wie live und beat, waren also nur nicht
+    # freigegeben. Damit stehen zehn Piktogramme in der Leiste und kein Emoji
+    # mehr; die Emoji-Variante unten bleibt als Rueckfall fuer den Fall, dass
+    # eine Datei fehlt.
+    VIEW_ICONS = {"live", "beat", "spots", "results"}
 
     _tiles = []
     for _key in SPORTS:
