@@ -19840,16 +19840,33 @@ def _perf(label, fn, *a, **k):
         _PERF.append((label, (time.perf_counter() - _t) * 1000.0))
 
 
-news_slot = st.empty()
+# Platzhalter fuers Neuigkeiten-Banner NUR anlegen, wenn es Neuigkeiten gibt.
+#
+# Warum es ueberhaupt einen Platzhalter gibt: Die Ranglisten sollen zuerst
+# gerendert werden (Hauptinhalt, gefuehlte Geschwindigkeit), das Banner aber
+# DARUEBER stehen. Der Platzhalter reserviert die Position.
+#
+# Warum die Abfrage jetzt vorher laeuft: Ein st.empty() ist auch unbenutzt ein
+# Element-Container und belegt den Blockabstand - genau das war die Luecke
+# zwischen Kopfbereich und Siegerzeile, die sich ueber Raender und ueber eine
+# :empty-Regel nicht wegbekommen liess (Streamlit rendert im Platzhalter offenbar
+# noch ein Kind, damit greift :empty nicht). Ohne Neuigkeiten entsteht jetzt gar
+# kein Platzhalter.
+#
+# Die Abfrage kostet dabei nichts: unseen_group_events ist 60 s gecacht und
+# liefert ohne Gruppenmitgliedschaft sofort eine leere Liste. Die Reihenfolge
+# "Ranglisten zuerst" bleibt also erhalten.
+_news_pending = bool(
+    unseen_group_events(current_user["id"], current_user["username"])
+) if current_user else False
+news_slot = st.empty() if _news_pending else None
 
 ranking_results = st.empty()
 with sidebar_tab_filter:
     _perf("rankings", render_rankings, ranking_results)
 
-# Kein "with news_slot.container()" mehr: den Container macht die Funktion
-# selbst auf, und nur wenn es Neuigkeiten gibt. Siehe dort - ein leerer
-# Container belegt sonst den Abstand zwischen Kopfbereich und Siegerzeile.
-_perf("news", render_group_news_banner, current_user, news_slot)
+if news_slot is not None:
+    _perf("news", render_group_news_banner, current_user, news_slot)
 
 render_temp_champions()
 st.markdown(
