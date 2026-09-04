@@ -217,6 +217,23 @@
         margin-bottom: 0.4rem;
     }
 
+    /* Der Sidebar-Pfeil klebt oben links am Fenster. Die Desktop-Leiste lässt
+       ihm 42 px Einzug – diese Handy-Regel hat das Polster aber überschrieben,
+       und damit lagen Pfeil, Wortmarke und die erste Sportart-Kachel
+       übereinander.
+
+       Den Einzug bekommt hier nur die WORTMARKE, nicht die ganze Leiste: das
+       Raster soll die volle Breite behalten, sonst verliert jede Kachel 14 px.
+       Dazu eine Mindesthöhe, damit die erste Kachelreihe nicht direkt an der
+       Wortmarke klebt – ihre Zeile war fast ohne Höhe. */
+    .st-key-navbar .nav-brand {
+        display: flex;
+        align-items: center;
+        min-height: 34px;
+        padding-left: 42px;
+        padding-bottom: 4px;
+    }
+
     .st-key-navbar [data-testid="stHorizontalBlock"] {
         flex-wrap: wrap !important;
         row-gap: 6px;
