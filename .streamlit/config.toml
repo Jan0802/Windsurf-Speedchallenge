@@ -16,6 +16,12 @@ textColor = "#eaf4ff"
 # Limit (Fotos/FIT sind klein) -> schuetzt die 512-MB-Instanz vor Riesen-Uploads.
 fileWatcherType = "none"
 maxUploadSize = 25
+# Liefert den Ordner static/ unter /app/static/ aus. Gebraucht für die
+# Hero-Banner (static/hero/<sport>-1920.webp). Ohne das müssten die Bilder als
+# base64-Data-URI ins HTML – genau das hatten wir beim alten Vollbild-Hintergrund
+# und es kostete ~200 KB in JEDER Sitzung, statt einmal geladen und dann aus dem
+# Browser-Cache zu kommen.
+enableStaticServing = true
 
 [browser]
 gatherUsageStats = false

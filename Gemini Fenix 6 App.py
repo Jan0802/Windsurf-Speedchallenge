@@ -16303,8 +16303,28 @@ _hero_icon = (
     f'alt="{SPORT_META[sport]["label"]}">' if _sport_icon else ""
 )
 
+# Hero-Foto je Sportart, als eingefasstes Banner. Ausgeliefert aus static/
+# (server.enableStaticServing) und damit ein normales, vom Browser gecachtes
+# Bild - KEINE base64-Data-URI. Genau die hatten wir beim Vollbild-Hintergrund
+# und sie kostete ~200 KB in jeder Sitzung.
+#
+# srcset: das Handy laedt die 960er Fassung (~50 KB) statt der 1920er (~140 KB).
+# sizes="100vw", weil das Banner die ganze Inhaltsbreite einnimmt.
+#
+# Fehlt die Datei, bleibt .hero einfach dunkelblau - kein Fehler, kein Loch.
+_hero_bg = ""
+if os.path.exists(app_path("static", "hero", f"{sport}-1920.webp")):
+    _hero_bg = (
+        f'<img class="hero-bg" alt="" aria-hidden="true" loading="eager"'
+        f' src="/app/static/hero/{sport}-1920.webp"'
+        f' srcset="/app/static/hero/{sport}-960.webp 960w,'
+        f' /app/static/hero/{sport}-1920.webp 1920w" sizes="100vw">'
+        '<div class="hero-veil"></div>'
+    )
+
 _hero_html = f"""
 <div class="hero">
+    {_hero_bg}
     <div class="hero-row">
         {_hero_icon}
         <div class="hero-content">

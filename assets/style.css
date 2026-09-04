@@ -56,15 +56,91 @@ h2 {
 
 /* ---- Hero (Titelbereich, minimal/premium) ----
    Reine weiße Wortmarke mit feinem Aqua-Akzent (Punkt + dünne Linie),
-   Sport-Titel als kleine Uppercase-Kicker-Zeile, viel Weißraum. */
+   Sport-Titel als kleine Uppercase-Kicker-Zeile, viel Weißraum.
+
+   Seit 04.09.2026 mit Foto je Sportart – aber als EINGEFASSTES Banner, nicht
+   als Vollbild-Hintergrund. Der lief früher hinter der ganzen Seite durch und
+   machte den Kontrast der gläsernen Kacheln zur Glückssache. Hier liegt kein
+   Bedienelement darüber, nur Text – und der bekommt seinen dunklen Grund vom
+   Schleier unten. */
 .hero {
-    margin: 0 0 0.9rem 0;
-    padding: 12px 8px 4px 8px;
+    position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    /* Festes Verhältnis, NICHT min-height: sonst hängt der Zuschnitt an der
+       Fensterbreite und das Motiv wird auf breiten Schirmen anders beschnitten
+       als auf schmalen. 5:1 ist die Proportion, bei der in allen sechs
+       Vorlagen das Motiv vollständig bleibt (geprüft, nicht geschätzt). */
+    aspect-ratio: 5 / 1;
+    min-height: 150px;               /* Boden für schmale Fenster */
+    display: flex;
+    align-items: center;
+    margin: 0 0 1.1rem 0;
+    padding: 18px 26px;
+    background: #02162b;             /* Grund, solange das Bild noch lädt */
+}
+
+/* Das Foto. object-position rechts, weil in allen sechs Vorlagen das Motiv
+   rechts sitzt und links Himmel/Wasser frei bleibt – genau dort steht der Text.
+   aria-hidden im HTML: es trägt keine Information, die nicht auch daneben steht. */
+.hero-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* 22 % von oben, nicht center. Die Vorlagen sind 3:1, das Banner ist 5:1 –
+       es wird also senkrecht beschnitten, und in allen sechs sitzt das Motiv
+       OBEN (Segel, Kite, Wing, Sprung). Mit "center" wird ihm der Kopf
+       abgeschnitten; das war im ersten Anlauf genau so passiert. */
+    object-position: right 22%;
+    z-index: 0;
+}
+
+/* Zwei Verläufe übereinander: einer von links (trägt die Wortmarke), einer von
+   unten (trägt die Kicker- und Claim-Zeile). Ohne den zweiten steht "THE HOME
+   FOR EVERYONE …" auf manchen Bildern in der hellen Gischt. */
+.hero-veil {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+        linear-gradient(to right, #02162b 0%, rgba(2, 22, 43, .92) 28%,
+                        rgba(2, 22, 43, .48) 54%, rgba(2, 22, 43, .12) 78%,
+                        rgba(2, 22, 43, .34) 100%),
+        linear-gradient(to top, rgba(2, 22, 43, .55) 0%, rgba(2, 22, 43, 0) 58%);
 }
 
 .hero-content {
     max-width: 920px;
     min-width: 0;                    /* damit der Text auf dem Handy umbricht */
+}
+
+/* Auf dem Handy ist das 3:1-Bild so schmal beschnitten, dass Motiv UND Text um
+   dieselbe Fläche konkurrieren. Darum das Motiv etwas ins Bild holen und den
+   Schleier flächig verstärken: das Foto wird zur Textur hinter den Worten,
+   statt mit ihnen zu ringen. */
+@media (max-width: 640px) {
+    .hero {
+        border-radius: 14px;
+        padding: 14px 16px;
+        /* 5:1 wären bei 390 px Displaybreite 78 px – ein Streifen. Auf dem
+           Handy also deutlich höher, damit Motiv UND Text Platz haben. */
+        aspect-ratio: 2.4 / 1;
+        min-height: 150px;
+    }
+
+    .hero-bg {
+        object-position: 72% 25%;
+    }
+
+    .hero-veil {
+        background:
+            linear-gradient(to right, rgba(2, 22, 43, .90) 0%,
+                            rgba(2, 22, 43, .62) 60%, rgba(2, 22, 43, .74) 100%),
+            linear-gradient(to top, rgba(2, 22, 43, .60) 0%,
+                            rgba(2, 22, 43, .10) 70%);
+    }
 }
 
 /* Sport-Piktogramm links neben der Wortmarke. Die Datei ist eine weiße
@@ -74,6 +150,10 @@ h2 {
     display: flex;
     align-items: center;
     gap: 16px;
+    /* Über Foto UND Schleier – ohne z-index läge die Wortmarke darunter. */
+    position: relative;
+    z-index: 2;
+    width: 100%;
 }
 
 .hero-icon {
