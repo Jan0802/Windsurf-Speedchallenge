@@ -7168,9 +7168,20 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 .reset_index(drop=True).head(RANKING_TOP_N)
             )
             rtotal.insert(0, "Rank", rtotal.index + 1)
+            # Das Datum heisst "Date" und nicht "Last session": Nur unter
+            # diesem Namen kennt es _all_optional_cols, und nur dann wandert
+            # es in die Nebenzeile. Vorher war es fuer _rank_rows ein MESSWERT
+            # (alles, was nicht Rank, Name oder optional ist) und landete als
+            # Zweitwert unter der Zahl - daher die Zeile "Total distance km ·
+            # 2026-07-14 19:07:59 session", in der "session" das letzte Wort
+            # des Spaltennamens war, das sonst die Einheit liefert.
+            # Nur der Tag, ohne Uhrzeit: Sekunden sind hier dieselbe
+            # Scheingenauigkeit wie fuenfzehn Nachkommastellen.
+            rtotal["last_date"] = (rtotal["last_date"].astype(str)
+                                   .str.slice(0, 10))
             rtotal = rtotal.rename(columns={
                 "name": "Name", "total_distance_km": "Total distance km",
-                "last_date": "Last session",
+                "last_date": "Date",
             })
             _show_rank(rtotal, extra.get("columns"), gear_label)
 
@@ -7193,8 +7204,14 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             rtime.insert(0, "Rank", rtime.index + 1)
             rtime["Water time"] = rtime["secs"].apply(
                 lambda s: f"{int(s) // 3600}h {int(s) % 3600 // 60:02d}m")
+            # Wie bei der Gesamtdistanz "Date" statt "Last session" - hier war
+            # der Fehler noch groesser: Das Datum stand VOR der Wasserzeit und
+            # war damit der erste Messwert, also die grosse Zahl am rechten
+            # Rand. In dieser Rangliste stand als Ergebnis ein Zeitstempel.
+            rtime["last_date"] = (rtime["last_date"].astype(str)
+                                  .str.slice(0, 10))
             rtime = rtime.drop(columns=["secs"]).rename(
-                columns={"name": "Name", "last_date": "Last session"})
+                columns={"name": "Name", "last_date": "Date"})
             _show_rank(rtime, extra.get("columns"), gear_label)
 
     def _metric_body(c, metric, title, col_label, decimals=1, empty_msg="No data yet."):
@@ -8636,23 +8653,47 @@ _DISPLAY_DEC = 2
 # Spalten, die eine Geschwindigkeit enthalten – erkannt am Namen, damit es auch
 # fuer die umbenannten Anzeige-Spalten greift ("2s km/h", "500m kn" …).
 _SPEED_COL_RE = re.compile(r"(km/?h|kmh|\bkn\b|knots|speed)", re.I)
+# Koordinaten NICHT runden: zwei Nachkommastellen sind dort ueber einen
+# Kilometer. Betrifft die Backoffice-Tabellen, in denen Positionen stehen.
+_COORD_COL_RE = re.compile(r"(^|_|\b)(lat|lon|lng|latitude|longitude)"
+                           r"($|_|\b)", re.I)
 
 
 def _round_display(df, dec=_DISPLAY_DEC):
-    """Geschwindigkeitsspalten fuer die ANZEIGE runden (Kopie, Original bleibt).
+    """JEDE Kommazahl fuer die ANZEIGE runden (Kopie, Original bleibt).
 
-    Bewusst am Spaltennamen erkannt und nicht an einer festen Liste: die
-    Ranglisten benennen ihre Spalten vor der Ausgabe um, eine Liste der
-    DB-Feldnamen wuerde also nicht greifen."""
+    Bis hierhin traf das nur Spalten, deren Name nach Geschwindigkeit aussah.
+    Das war zu eng: "Total distance km" und "Run km" enthalten kein "km/h",
+    standen also mit voller Rechengenauigkeit in der Tabelle
+    (31.189098358154297 km). Gerundet wird darum an der Zahl, nicht am Namen.
+
+    Ganzzahlspalten bleiben ganzzahlig - eine Sprungzahl soll 12 sein und nicht
+    12,00. Die Rundung betrifft ausschliesslich die Anzeige; gespeichert und
+    gewertet wird weiter voll genau.
+
+    Eine Ausnahme: Koordinatenspalten. Zwei Nachkommastellen sind dort rund ein
+    Kilometer - fuer die Backoffice-Tabellen, in denen Positionen stehen, waere
+    das keine Aufraeumarbeit, sondern Datenverlust.
+    """
     if df is None or getattr(df, "empty", True):
         return df
     out = df.copy()
     for c in out.columns:
-        if not _SPEED_COL_RE.search(str(c)):
+        if _COORD_COL_RE.search(str(c)):
             continue
-        v = pd.to_numeric(out[c], errors="coerce")
-        if v.notna().any():
-            out[c] = v.round(dec)
+        # Nur echte Kommazahl-Spalten: pd.to_numeric wuerde auch Textspalten
+        # mit Zahlen darin umwandeln ("2026" aus einem Datum) und sie damit
+        # still zu Zahlen machen.
+        if pd.api.types.is_float_dtype(out[c]):
+            out[c] = out[c].round(dec)
+            continue
+        # Objektspalten koennen trotzdem Kommazahlen enthalten (gemischt
+        # geladene Werte). Nur runden, wenn ALLES darin eine Zahl ist - sonst
+        # verliert eine Textspalte ihren Inhalt.
+        if out[c].dtype == object:
+            v = pd.to_numeric(out[c], errors="coerce")
+            if v.notna().any() and v.isna().sum() == out[c].isna().sum():
+                out[c] = v.round(dec)
     return out
 
 
@@ -8721,9 +8762,19 @@ def _rank_rows(df, gear_label, sids=None):
         return escape("" if v is None else str(v), quote=True)
 
     def _num(v, col):
-        """Zahl fuer die Anzeige. Geschwindigkeiten immer mit zwei Stellen -
-        sonst steht 24.1 neben 21.67 und die Spalte wirkt schief. Alles andere
-        bleibt, wie es ist: eine Sprungzahl ist 12 und nicht 12,00."""
+        """Zahl fuer die Anzeige: hoechstens zwei Nachkommastellen.
+
+        Die Regel ist der Typ, nicht der Spaltenname: Kommazahl -> zwei
+        Stellen, ganze Zahl -> keine. Damit ist eine Sprungzahl 12 und nicht
+        12,00 (die Ranglisten wandeln Zaehlwerte bewusst nach int), waehrend
+        eine Summe wie 31.189098358154297 als 31.19 erscheint. Der Wert in der
+        Datenbank bleibt unberuehrt - die Wertung rechnet weiter mit der
+        vollen Genauigkeit, gerundet wird erst hier beim Ausgeben.
+
+        _round_display() rundet nur Geschwindigkeitsspalten (am Namen
+        erkannt). Genau deshalb standen Gesamtdistanz und Wasserzeit mit
+        fuenfzehn Stellen in der Zeile: Sie heissen nicht "km/h".
+        """
         if pd.isna(v):
             return "–"
         if _SPEED_COL_RE.search(str(col)):
@@ -8731,8 +8782,11 @@ def _rank_rows(df, gear_label, sids=None):
                 return f"{float(v):.2f}"
             except (TypeError, ValueError):
                 return str(v)
-        if isinstance(v, float) and v.is_integer():
-            return str(int(v))
+        # numpy.float64 ist eine Unterklasse von float und wird mitgefasst;
+        # numpy-Ganzzahlen sind KEINE Unterklasse von int und fallen unten
+        # durch - beides richtig so.
+        if isinstance(v, float):
+            return f"{v:.2f}"
         return str(v)
 
     optional = set(_all_optional_cols(gear_label))
