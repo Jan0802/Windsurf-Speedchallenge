@@ -6231,10 +6231,13 @@ def _render_champion(ranking, is_wind):
         ".champ2{display:flex;align-items:center;justify-content:space-between;"
         "gap:20px;background:rgba(255,255,255,.07);"
         "border:1px solid rgba(255,255,255,.10);border-left:4px solid #f5b942;"
-        # 18 px unten waren zu viel (sie kamen zum Blockabstand dazu), 0 war zu
-        # wenig - die Kacheln klebten an der Siegerzeile. 8 px plus Blockabstand
-        # ergibt die Fuge, die man sehen soll.
-        "border-radius:12px;padding:18px 22px;margin:0 0 8px;"
+        # Der Weg dieses Wertes, damit ihn niemand blind wieder auf 0 setzt:
+        # 18 px waren zu viel (sie kamen zum Blockabstand dazu), 0 zu wenig (die
+        # Kacheln klebten an), 8 px wirkten neben der Fuge ZWISCHEN den beiden
+        # Kachelreihen noch zu knapp. Die Siegerzeile ist schwerer als eine
+        # Kachelreihe, sie braucht darum mehr Luft als die Reihen untereinander -
+        # gleich viel sieht enger aus.
+        "border-radius:12px;padding:18px 22px;margin:0 0 14px;"
         "backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}"
         ".champ2-l{min-width:0;}"
         ".champ2-kicker{font-size:12px;font-weight:700;letter-spacing:2.5px;"
