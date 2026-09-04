@@ -16367,14 +16367,31 @@ _hero_icon = (
 # garantiert UEBER dem Foto und UNTER dem Text.
 #
 # Fehlt die Datei, bleibt der Kopfbereich einfach dunkelblau - kein Loch.
-_hero_style = ""
+#
+# Die Variable MUSS auf .st-key-herobox gesetzt werden und nicht per style-
+# Attribut auf .hero: Den Hintergrund traegt seit dem Einbau der
+# Ranglisten-Ueberschrift der aeussere Container, und CSS-Variablen werden nach
+# UNTEN vererbt, nicht nach oben. Auf dem Kind gesetzt sah der Container sie
+# nicht und fiel auf "none" zurueck - das Bild war weg.
+#
+# Der <style>-Block reist im Hero-HTML mit, statt ein eigener st.markdown-Block
+# zu sein; ein zusaetzlicher Block erzeugte nur eine weitere Luecke.
+# Handy-Fassung per Media-Query: mit einem Hintergrund gibt es kein srcset, die
+# Ersparnis (~50 statt ~140 KB) bleibt so trotzdem.
+_hero_css = ""
 if os.path.exists(app_path("static", "hero", f"{sport}-1920.webp")):
-    _hero_style = (
-        f' style="--hero-img:url(&quot;/app/static/hero/{sport}-1920.webp&quot;)"'
+    _u = "/app/static/hero"
+    _hero_css = (
+        "<style>"
+        ".st-key-herobox{--hero-img:url(\"" + f"{_u}/{sport}-1920.webp" + "\");}"
+        "@media (max-width:640px){.st-key-herobox{--hero-img:url(\""
+        + f"{_u}/{sport}-960.webp" + "\");}}"
+        "</style>"
     )
 
 _hero_html = f"""
-<div class="hero"{_hero_style}>
+{_hero_css}
+<div class="hero">
     <div class="hero-row">
         {_hero_icon}
         <div class="hero-content">
