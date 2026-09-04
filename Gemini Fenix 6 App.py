@@ -16073,9 +16073,25 @@ _track_pageview("safety" if _is_safety_view else "rankings-help" if _is_rankings
 # nur noch als Umweg ueber Spots).
 # Die Sportart innerhalb dieser drei Seiten wechselt man ueber deren eigenes
 # Sport-Dropdown (render_sport_switch) - zwei Knoepfe, zwei klare Bedeutungen.
-_sw_cols = st.columns([2] * len(SPORTS) + [2, 2, 2, 2])
+# Aufbau der Leiste: Wortmarke · sechs Sportarten · Luecke · vier Ansichten.
+# Die Luecke trennt "welche Sportart" von "welche Seite" - zwei verschiedene
+# Fragen, die vorher als zehn gleiche Kacheln nebeneinander standen.
+#
+# Die Spalten entstehen INNERHALB des gekeyten Containers, damit .st-key-navbar
+# den Balken darum zeichnen kann. Die Knoepfe weiter unten schreiben trotzdem
+# hinein: ein Spaltenobjekt behaelt seinen Platz, auch wenn man es spaeter
+# ausserhalb des with-Blocks benutzt.
+_NAV_S0 = 1                              # erste Sportart-Spalte (0 = Wortmarke)
+_NAV_V0 = _NAV_S0 + len(SPORTS) + 1      # erste Ansichts-Spalte (+1 = Luecke)
+with st.container(key="navbar"):
+    _sw_cols = st.columns(
+        [2.5] + [1.0] * len(SPORTS) + [0.5] + [1.2] * 4,
+        vertical_alignment="center")
+    _sw_cols[0].markdown(
+        "<div class='nav-brand'>MyWaterSessions<span class='nav-dot'>.</span></div>",
+        unsafe_allow_html=True)
 for _i, _key in enumerate(SPORTS):
-    if _sw_cols[_i].button(
+    if _sw_cols[_NAV_S0 + _i].button(
         SPORT_META[_key]["label"],
         key=f"switch_sport_{_key}",
         use_container_width=True,
@@ -16101,8 +16117,14 @@ for _i, _key in enumerate(SPORTS):
 # Einmal pro Session in den <style> des Eltern-Dokuments, wie beim Hintergrund;
 # die sechs Icons sind zusammen ~50 KB und haben in keinem Rerun etwas verloren.
 if not st.session_state.get("_sport_tile_css"):
-    _TILE_BOX = ("{flex-direction:column;height:auto;gap:3px;"
-                 "padding:9px 4px 7px;line-height:1.15;}")
+    # Leistenformat statt Kachelformat: 22-px-Bildzone, 11-px-Beschriftung,
+    # schmales Polster. 38 px und 9 px Polster waren richtig, solange die zehn
+    # Knoepfe als Kachelreihe quer ueber die Seite standen; in einem schlanken
+    # Balken machen dieselben Werte ihn doppelt so hoch.
+    _TILE_BOX = ("{flex-direction:column;height:auto;gap:2px;"
+                 "padding:7px 2px 6px;line-height:1.1;"
+                 "font-size:11px!important;}")
+    _TILE_ICON = 22
     # Niemals mitten im Wort trennen. Auf dem iPad sind zehn Kacheln nur ~75 px
     # breit, und irgendetwas in der Streamlit-Kaskade brach "Windsurf" zu
     # "Win dsu rf". Nur an Leerzeichen umbrechen ist immer lesbar.
@@ -16120,11 +16142,11 @@ if not st.session_state.get("_sport_tile_css"):
         reichen 10-11 px. Eine feste Groesse wuerde eins von beidem sprengen.
         """
         return ("@media(min-width:641px) and (max-width:1200px){"
-                f"{sel}{{font-size:clamp(9px,1.25vw,11px)!important;"
-                "padding:6px 2px 6px!important;letter-spacing:-.2px;}"
-                f"{sel} p{{font-size:clamp(9px,1.25vw,11px)!important;}}"
-                f"{sel}::before{{width:clamp(24px,3.4vw,30px)!important;"
-                "height:clamp(24px,3.4vw,30px)!important;}"
+                f"{sel}{{font-size:clamp(8.5px,1.05vw,10.5px)!important;"
+                "padding:6px 1px 5px!important;letter-spacing:-.2px;}"
+                f"{sel} p{{font-size:clamp(8.5px,1.05vw,10.5px)!important;}}"
+                f"{sel}::before{{width:clamp(17px,2.1vw,21px)!important;"
+                "height:clamp(17px,2.1vw,21px)!important;}"
                 "}")
 
     def _tile_icon(sel, b64):
@@ -16143,7 +16165,8 @@ if not st.session_state.get("_sport_tile_css"):
             f"{sel}{_TILE_BOX}"
             # Bilddaten nur EINMAL: als Variable, sonst stehen sie fuer -webkit-
             # und ohne Prefix doppelt im Stylesheet (100 KB statt 50).
-            f"{sel}::before{{content:'';display:block;width:38px;height:38px;"
+            f"{sel}::before{{content:'';display:block;"
+            f"width:{_TILE_ICON}px;height:{_TILE_ICON}px;"
             f'--i:url("data:image/png;base64,{b64}");'
             # currentColor: das Bild nimmt die Textfarbe an, faerbt sich also
             # beim aktiven Knopf mit.
@@ -16190,7 +16213,8 @@ if not st.session_state.get("_sport_tile_css"):
             "@media(min-width:641px){"
             f"{_sel}{_TILE_BOX}"
             f"{_sel}::before{{display:flex;align-items:center;"
-            "justify-content:center;width:38px;height:38px;font-size:27px;"
+            f"justify-content:center;width:{_TILE_ICON}px;"
+            f"height:{_TILE_ICON}px;font-size:17px;"
             "margin-right:0;}"
             f"{_sel}{_TILE_WORDS}"
             f"{_sel} p{_TILE_WORDS}"
@@ -16199,7 +16223,7 @@ if not st.session_state.get("_sport_tile_css"):
             # haelt die Kachelhoehe gleich wie bei den Sportarten.
             + _tile_narrow(_sel)
             + ("@media(min-width:641px) and (max-width:1200px){"
-               f"{_sel}::before{{font-size:clamp(17px,2.5vw,22px)!important;}}}}")
+               f"{_sel}::before{{font-size:clamp(12px,1.7vw,15px)!important;}}}}")
         )
     if _tiles:
         st.session_state["_sport_tile_css"] = True
@@ -16213,28 +16237,28 @@ if not st.session_state.get("_sport_tile_css"):
             height=0,
         )
 
-if _sw_cols[len(SPORTS)].button(
+if _sw_cols[_NAV_V0].button(
     "Spots", key="switch_view_spots", use_container_width=True,
     type="primary" if _is_spots_view else "secondary",
 ):
     if not _is_spots_view:
         st.query_params["view"] = "spots"
         st.rerun()
-if _sw_cols[len(SPORTS) + 1].button(
+if _sw_cols[_NAV_V0 + 1].button(
     "Live", key="switch_view_live", use_container_width=True,
     type="primary" if _is_live_view else "secondary",
 ):
     if not _is_live_view:
         st.query_params["view"] = "live"
         st.rerun()
-if _sw_cols[len(SPORTS) + 2].button(
+if _sw_cols[_NAV_V0 + 2].button(
     "Beat the Beach", key="switch_view_beat", use_container_width=True,
     type="primary" if _is_beat_view else "secondary",
 ):
     if not _is_beat_view:
         st.query_params["view"] = "beat"
         st.rerun()
-if _sw_cols[len(SPORTS) + 3].button(
+if _sw_cols[_NAV_V0 + 3].button(
     "My Results", key="switch_view_results", use_container_width=True,
     type="primary" if _is_results_view else "secondary",
 ):
@@ -16303,28 +16327,28 @@ _hero_icon = (
     f'alt="{SPORT_META[sport]["label"]}">' if _sport_icon else ""
 )
 
-# Hero-Foto je Sportart, als eingefasstes Banner. Ausgeliefert aus static/
-# (server.enableStaticServing) und damit ein normales, vom Browser gecachtes
-# Bild - KEINE base64-Data-URI. Genau die hatten wir beim Vollbild-Hintergrund
-# und sie kostete ~200 KB in jeder Sitzung.
+# Hero-Foto je Sportart. Ausgeliefert aus static/ (server.enableStaticServing)
+# und damit ein normales, vom Browser gecachtes Bild - KEINE base64-Data-URI.
+# Genau die hatten wir beim alten Vollbild-Hintergrund, und sie kostete ~200 KB
+# in JEDER Sitzung.
 #
-# srcset: das Handy laedt die 960er Fassung (~50 KB) statt der 1920er (~140 KB).
-# sizes="100vw", weil das Banner die ganze Inhaltsbreite einnimmt.
+# Als CSS-Hintergrund und NICHT als <img>: Der erste Anlauf hatte ein
+# <img class="hero-bg" position:absolute> im Hero. Da .hero ein Flex-Container
+# ist, wurde das Bild als Flex-Element behandelt und neben den Text geschrumpft,
+# statt die Flaeche zu fuellen - es stand als Kasten rechts daneben. Ein
+# Hintergrund kann das nicht passieren: er hat keine Geschwister, mit denen er
+# um Platz ringt. Die Verlaeufe liegen in derselben background-Eigenschaft, also
+# garantiert UEBER dem Foto und UNTER dem Text.
 #
-# Fehlt die Datei, bleibt .hero einfach dunkelblau - kein Fehler, kein Loch.
-_hero_bg = ""
+# Fehlt die Datei, bleibt der Kopfbereich einfach dunkelblau - kein Loch.
+_hero_style = ""
 if os.path.exists(app_path("static", "hero", f"{sport}-1920.webp")):
-    _hero_bg = (
-        f'<img class="hero-bg" alt="" aria-hidden="true" loading="eager"'
-        f' src="/app/static/hero/{sport}-1920.webp"'
-        f' srcset="/app/static/hero/{sport}-960.webp 960w,'
-        f' /app/static/hero/{sport}-1920.webp 1920w" sizes="100vw">'
-        '<div class="hero-veil"></div>'
+    _hero_style = (
+        f' style="--hero-img:url(&quot;/app/static/hero/{sport}-1920.webp&quot;)"'
     )
 
 _hero_html = f"""
-<div class="hero">
-    {_hero_bg}
+<div class="hero"{_hero_style}>
     <div class="hero-row">
         {_hero_icon}
         <div class="hero-content">

@@ -1,14 +1,32 @@
 /* === Glasmorphismus-Theme ("frosted glass" wie Apple Wetter) ===
    Das Hintergrundbild wird per Code (base64) auf .stApp gelegt. */
 
+/* Seitliches Polster des Inhaltsbereichs als Variable. Kopfleiste und
+   Hero-Banner heben es mit einem negativen Rand auf und sitzen dadurch randlos.
+   Ohne eigenen Wert müsste man Streamlits Vorgabe raten – die hängt von Version
+   und Fensterbreite ab. */
+:root {
+    --pad: 1.5rem;
+}
+
 .block-container {
-    /* 4rem oben: Die oberste Button-Reihe lag sonst unter dem (transparenten)
+    /* Früher 4rem: Die oberste Button-Reihe lag sonst unter dem (transparenten)
        Streamlit-Header (~3.75rem hoch), der die Klicks abfing -> nur der untere
-       Rand war klickbar. Mit 4rem startet der Inhalt UNTER dem Header. */
-    padding-top: 4rem;
+       Rand war klickbar. Behoben ist das inzwischen durch pointer-events:none
+       am Header (siehe unten), die Klicks gehen also durch. Darum darf die
+       Kopfleiste jetzt ganz nach oben.
+       Der Sidebar-Pfeil bleibt oben links klickbar und liegt über der Leiste –
+       die lässt ihm links Platz (.st-key-navbar). */
+    padding-top: 0.5rem;
     max-width: 100%;
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
+    padding-left: var(--pad);
+    padding-right: var(--pad);
+}
+
+@media (max-width: 640px) {
+    :root {
+        --pad: 0.9rem;
+    }
 }
 
 /* Streamlit-Kopfzeile (Fork / GitHub / Menü) ausblenden – sonst überdeckt der
@@ -41,6 +59,62 @@
     pointer-events: auto !important;   /* trotz pointer-events:none am Header klickbar */
 }
 
+/* ---- Kopfleiste (Wortmarke · Sportarten · Ansichten) --------------------
+   Ein schlanker Balken ganz oben statt zehn Kacheln quer über die Seite.
+   Randlos über die volle Breite; links bleibt Platz für den Sidebar-Pfeil, der
+   mit z-index 1000 darüber liegt und sonst die Wortmarke überdecken würde. */
+.st-key-navbar {
+    margin: 0 calc(-1 * var(--pad)) 0.9rem;
+    padding: 2px var(--pad) 0 calc(var(--pad) + 42px);
+    background: #071d33;
+    border-bottom: 1px solid rgba(255, 255, 255, .09);
+}
+
+.nav-brand {
+    font-size: clamp(15px, 1.35vw, 20px);
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    color: #ffffff;
+    white-space: nowrap;
+    line-height: 1.1;
+}
+
+.nav-dot {
+    color: #2bd4d9;
+}
+
+/* Knöpfe in der Leiste: kein Rahmen, keine Fläche – nur Bild, Text und beim
+   aktiven Eintrag ein Aqua-Unterstrich. Der Unterstrich als inset-Schatten und
+   nicht als border-bottom, damit die Kachelhöhe beim Wechsel nicht springt. */
+.st-key-navbar button {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    color: #9fb6c9 !important;
+}
+
+.st-key-navbar button:hover {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, .04) !important;
+}
+
+.st-key-navbar button[kind="primary"] {
+    color: #ffffff !important;
+    box-shadow: inset 0 -2px 0 0 #2bd4d9 !important;
+}
+
+/* Auf dem Handy stapeln die Spalten – dann ist der Balken kein Balken mehr und
+   das linke Polster für den Sidebar-Pfeil wäre nur eine Einrückung. */
+@media (max-width: 640px) {
+    .st-key-navbar {
+        padding: 4px var(--pad);
+        background: transparent;
+        border-bottom: none;
+        margin-bottom: 0.4rem;
+    }
+}
+
 /* Überschriften hell mit weichem Schatten */
 h1, h2, h3, h4 {
     color: #ffffff !important;
@@ -66,7 +140,11 @@ h2 {
 .hero {
     position: relative;
     overflow: hidden;
-    border-radius: 18px;
+    /* Randlos über die ganze Inhaltsbreite: hebt das Polster des
+       Streamlit-Inhaltsbereichs mit einem negativen Rand auf. Darum MUSS das
+       Polster oben in dieser Datei selbst gesetzt sein (--pad) – Streamlits
+       Vorgabe hängt von Version und Fensterbreite ab und wäre geraten. */
+    margin: 0 calc(-1 * var(--pad)) 1.1rem;
     /* Festes Verhältnis, NICHT min-height: sonst hängt der Zuschnitt an der
        Fensterbreite und das Motiv wird auf breiten Schirmen anders beschnitten
        als auf schmalen. 5:1 ist die Proportion, bei der in allen sechs
@@ -75,40 +153,31 @@ h2 {
     min-height: 150px;               /* Boden für schmale Fenster */
     display: flex;
     align-items: center;
-    margin: 0 0 1.1rem 0;
-    padding: 18px 26px;
-    background: #02162b;             /* Grund, solange das Bild noch lädt */
-}
+    padding: 18px calc(var(--pad) + 8px);
 
-/* Das Foto. object-position rechts, weil in allen sechs Vorlagen das Motiv
-   rechts sitzt und links Himmel/Wasser frei bleibt – genau dort steht der Text.
-   aria-hidden im HTML: es trägt keine Information, die nicht auch daneben steht. */
-.hero-bg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    /* 22 % von oben, nicht center. Die Vorlagen sind 3:1, das Banner ist 5:1 –
-       es wird also senkrecht beschnitten, und in allen sechs sitzt das Motiv
-       OBEN (Segel, Kite, Wing, Sprung). Mit "center" wird ihm der Kopf
-       abgeschnitten; das war im ersten Anlauf genau so passiert. */
-    object-position: right 22%;
-    z-index: 0;
-}
-
-/* Zwei Verläufe übereinander: einer von links (trägt die Wortmarke), einer von
-   unten (trägt die Kicker- und Claim-Zeile). Ohne den zweiten steht "THE HOME
-   FOR EVERYONE …" auf manchen Bildern in der hellen Gischt. */
-.hero-veil {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    background:
+    /* Foto UND Schleier in einer Eigenschaft. Der erste Anlauf hatte das Foto
+       als <img position:absolute> im Hero – weil .hero ein Flex-Container ist,
+       wurde es als Flex-Element neben den Text geschrumpft und stand als Kasten
+       rechts daneben. Als Hintergrund gibt es kein Geschwister, mit dem es um
+       Platz ringen könnte.
+       Reihenfolge: erster Verlauf oben, das Foto zuletzt = ganz unten.
+       Verlauf 1 von links trägt die Wortmarke, Verlauf 2 von unten die
+       Kicker- und Claim-Zeile – ohne den zweiten steht "THE HOME FOR
+       EVERYONE …" auf manchen Bildern in der hellen Gischt. */
+    background-color: #02162b;       /* Grund, solange das Bild noch lädt */
+    background-image:
         linear-gradient(to right, #02162b 0%, rgba(2, 22, 43, .92) 28%,
                         rgba(2, 22, 43, .48) 54%, rgba(2, 22, 43, .12) 78%,
                         rgba(2, 22, 43, .34) 100%),
-        linear-gradient(to top, rgba(2, 22, 43, .55) 0%, rgba(2, 22, 43, 0) 58%);
+        linear-gradient(to top, rgba(2, 22, 43, .55) 0%, rgba(2, 22, 43, 0) 58%),
+        var(--hero-img, none);
+    /* 22 % von oben, nicht center. Die Vorlagen sind 3:1, das Banner ist 5:1 –
+       es wird also senkrecht beschnitten, und in allen sechs sitzt das Motiv
+       OBEN (Segel, Kite, Wing, Sprung). Mit "center" wird ihm der Kopf
+       abgeschnitten; genau das war im ersten Anlauf passiert. */
+    background-position: center, center, right 22%;
+    background-size: cover, cover, cover;
+    background-repeat: no-repeat;
 }
 
 .hero-content {
@@ -122,24 +191,21 @@ h2 {
    statt mit ihnen zu ringen. */
 @media (max-width: 640px) {
     .hero {
-        border-radius: 14px;
-        padding: 14px 16px;
+        padding: 14px calc(var(--pad) + 4px);
         /* 5:1 wären bei 390 px Displaybreite 78 px – ein Streifen. Auf dem
            Handy also deutlich höher, damit Motiv UND Text Platz haben. */
         aspect-ratio: 2.4 / 1;
         min-height: 150px;
-    }
-
-    .hero-bg {
-        object-position: 72% 25%;
-    }
-
-    .hero-veil {
-        background:
+        /* Motiv leicht hereingeholt und der Schleier flächig verstärkt: das Foto
+           wird zur Textur hinter den Worten, statt mit ihnen um dieselbe kleine
+           Fläche zu ringen. */
+        background-image:
             linear-gradient(to right, rgba(2, 22, 43, .90) 0%,
                             rgba(2, 22, 43, .62) 60%, rgba(2, 22, 43, .74) 100%),
             linear-gradient(to top, rgba(2, 22, 43, .60) 0%,
-                            rgba(2, 22, 43, .10) 70%);
+                            rgba(2, 22, 43, .10) 70%),
+            var(--hero-img, none);
+        background-position: center, center, 72% 25%;
     }
 }
 
