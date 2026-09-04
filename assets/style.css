@@ -32,21 +32,30 @@
     gap: var(--blockgap);
 }
 
-/* Unbenutzte Platzhalter ausblenden.
+/* Null Pixel hohe Element-Container aus dem Fluss nehmen.
 
-   st.empty() legt einen Element-Container an, AUCH wenn nie etwas hineinschreibt.
-   Als Flex-Kind bekommt der trotzdem seinen gap – und weil news_slot zwischen
-   Kopfbereich und Siegerzeile liegt, war das die Lücke, die dort nach zwei
-   Rand-Korrekturen immer noch stand. Den Platzhalter selbst braucht es: die
-   Rangliste läuft im Code VOR dem Neuigkeiten-Banner (ihr Fragment hängt in der
-   Sidebar), soll aber darunter erscheinen – er reserviert die Position.
+   DAS war die Lücke zwischen Kopfbereich und Siegerzeile, nach drei Fehlversuchen
+   an Rändern und an :empty. Streamlit markiert solche Container SELBST mit
+   height="0px" – sie zeigen nichts, bekommen als Flex-Kind aber auf beiden
+   Seiten den gap. Bei --blockgap: 0,75rem sind das 24 px für ein Element, das
+   man nicht sieht.
 
-   :empty ist streng: kein einziger Kindknoten, nicht einmal Text. Ein
-   Container, der irgendetwas anzeigt, wird davon nie getroffen. Zwei
-   Schreibweisen, weil die Streamlit-Kennung je Version wechselt. */
-[data-testid="stMain"] [data-testid="stElementContainer"]:empty,
-[data-testid="stMain"] .element-container:empty {
-    display: none;
+   Warum das Attribut und nicht :empty: Streamlit rendert in einem unbenutzten
+   Platzhalter noch ein Kindelement, damit greift :empty nicht. height="0px"
+   setzt Streamlit dagegen aus eigener Messung – ein zuverlässigerer Anker als
+   jede Vermutung über den inneren Aufbau.
+
+   NICHT display:none. Darin stecken die components.html-Aufrufe mit height=0
+   (noindex-Meta, alten ws-bg-Stil leeren, aktiven Chip ins Bild holen), und
+   deren Skripte müssen laufen. position:absolute nimmt sie aus dem Fluss – ein
+   absolut positioniertes Kind ist kein Flex-Element mehr und zählt beim gap
+   nicht mit –, lässt sie aber rendern und ausführen. */
+[data-testid="stMain"] [data-testid="stElementContainer"][height="0px"] {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    pointer-events: none;
 }
 
 .block-container {
