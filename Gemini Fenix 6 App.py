@@ -4578,9 +4578,19 @@ RANKING_TOP_N = 15
 RANKING_TABLES_DEFAULT = ["30s", "2s"]
 # Sportartgerechte Default-Tabellen. Wakeboard: Speed-Distanz-Disziplinen
 # (30s/500m/nm/Longest run) sind uninteressant – es zaehlen Airtime & Sprunghoehe
-# (siehe wakeboard-gps-kennzahlen.md). Andere Sportarten spaeter (Multisport).
+# (siehe wakeboard-gps-kennzahlen.md).
+#
+# Wing (wingfoil-kennzahlen.md): Beim Windsurfen ist Topspeed die Leitkennzahl,
+# beim Wingfoilen der GEHALTENE FLUG. Wing erbte bisher den globalen Default und
+# landete damit auf "Best 30 s / Top 2 s" – der Windsurf-Blick auf eine andere
+# Sportart. Zuerst also die Manoever-Quote (Foil oben geblieben), dann der
+# laengste Run, dann Airtime: Ein grosser Teil der Wing-Szene kommt aus dem
+# Freestyle-/Bump-and-Jump-Lager, Sprungzeit ist dort kein Nebenwert.
+# Fehlen die Manoever-Daten (kein Uhr-Upload), faellt "held" automatisch weg -
+# der Chip wird nur angeboten, wenn ihn mindestens eine Session fuellt.
 RANKING_TABLES_DEFAULT_BY_SPORT = {"wakeboard": ["airtime", "jump"],
-                                   "surf": ["2s", "run", "time"]}
+                                   "surf": ["2s", "run", "time"],
+                                   "wingsurf": ["held", "run", "airtime"]}
 
 
 def _rank_default_tables(sport):
@@ -4595,8 +4605,27 @@ RANKING_TABLE_LABELS = {
     "time": "⏱️ Most water time",
     "airtime": "🪂 Best airtime", "jump": "🚀 Highest jump", "airs": "🔁 Most airs",
     "strokes": "🛶 Most strokes", "cadence": "⏱️ Max cadence",
+    "held": "🔄 Maneuvers held",
     "kw_ppf": "💪 Pound-for-pound", "kw_force": "🏋️ Sail force", "kw_power": "⚡ Power",
 }
+
+# Beschriftungen, die je Sportart anders heissen MUESSEN. "Maneuvers held" ist
+# nur der Rueckfall: Ein Wingfoiler nennt es Foiling-Wende, ein Windsurfer eine
+# durchgeglittene Halse, und beide meinen etwas anderes mit "gehalten". Dieselbe
+# Trennung macht _MANEUVER schon fuer die Diagnose-Texte - hier steht sie fuer
+# die Chips.
+RANKING_LABELS_BY_SPORT = {
+    "held": {"wingsurf": "🪽 Foiling turns",
+             "windsurf": "🔄 Planing gybes",
+             "kitesurf": "🔄 Powered transitions",
+             "sup": "🔄 Turns held"},
+}
+
+
+def _rank_label(key, sport):
+    """Chip-Beschriftung einer Rangliste, sportartgerecht."""
+    return (RANKING_LABELS_BY_SPORT.get(key, {}).get(sport)
+            or RANKING_TABLE_LABELS.get(key, key))
 
 
 def complete_sessions(df):
@@ -5586,6 +5615,11 @@ Every ranking shows each rider's best value (unless noted). Use the filters (spo
 - **🚩 Longest run** — the longest distance you rode in one go without stopping.
 - **👥 Total distance** — how far you travelled across all your sessions, added up.
 
+### 🪽 Maneuvers held (wing · windsurf · kite · SUP)
+- **🪽 Foiling turns** (wing) · **🔄 Planing gybes** (windsurf) · **🔄 Powered transitions** (kite) — the share of your turns where your speed **never** dropped below flight/planing speed. For wingfoiling that is the question that matters: did the foil stay up? Not "how many turns" — whether you kept them.
+  **Needs the watch app.** It sends a per-second speed window for every maneuver it detects. A GPS file has one point every few seconds, so entry and exit of a turn fall into the same sample — there is nothing to measure there, and we would rather show nothing than a guess.
+  At least 5 maneuvers per session, and the number of turns is shown next to the percentage: a session with few turns reaches 100 % more easily than a long one, so judge it with the count in view.
+
 ### 🪂 Jumps (windsurf · kite · wing · wakeboard)
 - **🪂 Best airtime** — your longest single jump, measured in seconds in the air.
 - **🚀 Highest jump** — how high you jumped (estimated from your airtime).
@@ -5626,6 +5660,11 @@ Jede Rangliste zeigt den besten Wert je Fahrer (wenn nicht anders vermerkt). Üb
 - **🔄 Alpha 500** — die schnellsten 500 m, bei denen Start und Ende weniger als 50 m auseinanderliegen; es muss also eine Halse drin sein. Eine Gerade mit Rückenwind zählt nicht. **Hängt von deiner Uhr ab:** wir rechnen es aus dem GPS-Track, und Uhren dünnen den aus. Liegen die Punkte weit auseinander, wird die 50-Meter-Prüfung unscharf und Alpha bleibt leer – das ist die Aufzeichnungsrate, kein Fehler.
 - **🚩 Longest run** — die längste Strecke, die du am Stück ohne Stopp gefahren bist.
 - **👥 Gesamtdistanz** — alle deine Sessions zusammengezählt.
+
+### 🪽 Gehaltene Manöver (Wing · Windsurf · Kite · SUP)
+- **🪽 Foiling-Wenden** (Wing) · **🔄 Durchgeglittene Halsen** (Windsurf) · **🔄 Transitions mit Druck** (Kite) — der Anteil deiner Manöver, in denen die Geschwindigkeit **nie** unter Flug- bzw. Gleitgrenze gefallen ist. Beim Wingfoilen ist das die entscheidende Frage: Blieb das Foil oben? Nicht „wie viele Wenden" — sondern ob du sie gehalten hast.
+  **Braucht die Uhren-App.** Sie schickt für jedes erkannte Manöver ein Sekundenfenster. Eine GPS-Datei hat nur alle paar Sekunden einen Punkt, Ein- und Ausgang einer Wende fallen also in denselben Messpunkt — da ist nichts zu messen, und wir zeigen lieber nichts als eine Schätzung.
+  Mindestens 5 Manöver je Session, und die Anzahl steht neben der Prozentzahl: Eine Session mit wenigen Wenden erreicht 100 % leichter als eine lange, also lies die Quote zusammen mit der Anzahl.
 
 ### 🪂 Sprünge (Windsurf · Kite · Wing · Wakeboard)
 - **🪂 Beste Airtime** — dein längster Sprung, gemessen in Sekunden in der Luft.
@@ -5668,6 +5707,11 @@ Elke ranglijst toont de beste waarde per rijder (tenzij anders vermeld). Met de 
 - **🚩 Langste run** — de langste afstand die je in één keer zonder stoppen voer.
 - **👥 Totale afstand** — al je sessies bij elkaar opgeteld.
 
+### 🪽 Gehouden manoeuvres (wing · windsurf · kite · SUP)
+- **🪽 Foiling-keerpunten** (wing) · **🔄 Doorgeplande gijpen** (windsurf) · **🔄 Transitions met druk** (kite) — het aandeel van je manoeuvres waarin je snelheid **nooit** onder de vlieg- of planeergrens kwam. Bij wingfoilen is dat de vraag die telt: bleef de foil boven? Niet „hoeveel keerpunten" — maar of je ze hebt gehouden.
+  **Vereist de horloge-app.** Die stuurt voor elk gedetecteerd manoeuvre een venster met één waarde per seconde. Een GPS-bestand heeft maar één punt per paar seconden, dus in- en uitgang van een keerpunt vallen in hetzelfde meetpunt — daar is niets te meten, en dan laten we liever niets zien dan een schatting.
+  Minimaal 5 manoeuvres per sessie, en het aantal staat naast het percentage: een sessie met weinig keerpunten haalt 100 % makkelijker dan een lange, lees de score dus samen met het aantal.
+
 ### 🪂 Sprongen (windsurf · kite · wing · wakeboard)
 - **🪂 Beste airtime** — je langste sprong, in seconden in de lucht.
 - **🚀 Hoogste sprong** — hoe hoog je sprong (geschat uit je airtime).
@@ -5709,6 +5753,11 @@ Chaque classement montre la meilleure valeur par rider (sauf mention contraire).
 - **🚩 Plus longue run** — la plus longue distance parcourue d'un seul trait sans t'arrêter.
 - **👥 Distance totale** — toutes tes sessions additionnées.
 
+### 🪽 Manœuvres tenues (wing · windsurf · kite · SUP)
+- **🪽 Virements en foil** (wing) · **🔄 Jibes planées** (windsurf) · **🔄 Transitions sous tension** (kite) — la part de tes manœuvres où ta vitesse n'est **jamais** descendue sous la vitesse de vol ou de planing. En wingfoil, c'est la question qui compte : le foil est-il resté en haut ? Pas « combien de virements » — mais si tu les as tenus.
+  **Nécessite l'application montre.** Elle envoie, pour chaque manœuvre détectée, une fenêtre avec une valeur par seconde. Un fichier GPS n'a qu'un point toutes les quelques secondes : l'entrée et la sortie d'un virement tombent dans le même point de mesure — il n'y a rien à mesurer là, et nous préférons ne rien montrer qu'une estimation.
+  Au moins 5 manœuvres par session, et le nombre est affiché à côté du pourcentage : une session avec peu de virements atteint 100 % plus facilement qu'une longue, lis donc le score avec le nombre sous les yeux.
+
 ### 🪂 Sauts (windsurf · kite · wing · wakeboard)
 - **🪂 Meilleur airtime** — ton plus long saut, en secondes en l'air.
 - **🚀 Saut le plus haut** — la hauteur de ton saut (estimée à partir de l'airtime).
@@ -5749,6 +5798,11 @@ Cada clasificación muestra el mejor valor por rider (salvo que se indique). Con
 - **🔄 Alpha 500** — los 500 m más rápidos cuyo inicio y final están a menos de 50 m: tiene que haber una trasluchada dentro. Una línea recta con viento a favor no cuenta. **Depende de tu reloj:** lo calculamos desde el track GPS, y los relojes lo adelgazan. Si los puntos están muy separados, la prueba de los 50 m se vuelve imprecisa y Alpha queda vacío – es la frecuencia de grabación, no un error.
 - **🚩 Run más larga** — la distancia más larga que recorriste de un tirón sin parar.
 - **👥 Distancia total** — todas tus sesiones sumadas.
+
+### 🪽 Maniobras mantenidas (wing · windsurf · kite · SUP)
+- **🪽 Viradas en foil** (wing) · **🔄 Trasluchadas planeando** (windsurf) · **🔄 Transiciones con potencia** (kite) — la proporción de tus maniobras en las que tu velocidad **nunca** bajó de la velocidad de vuelo o de planeo. En wingfoil esa es la pregunta que importa: ¿se mantuvo arriba el foil? No «cuántas viradas», sino si las aguantaste.
+  **Necesita la app del reloj.** Envía, por cada maniobra detectada, una ventana con un valor por segundo. Un archivo GPS solo tiene un punto cada varios segundos: la entrada y la salida de una virada caen en el mismo punto de medición — ahí no hay nada que medir, y preferimos no mostrar nada antes que una estimación.
+  Al menos 5 maniobras por sesión, y el número aparece junto al porcentaje: una sesión con pocas viradas alcanza el 100 % más fácilmente que una larga, así que lee el valor junto al número.
 
 ### 🪂 Saltos (windsurf · kite · wing · wakeboard)
 - **🪂 Mejor airtime** — tu salto más largo, en segundos en el aire.
@@ -6743,7 +6797,7 @@ def _rank_switch(avail, keys, selected, sport):
     with st.container(key="rankchips"):
         pick = st.pills(
             "Ranking", options, default=start, key=f"rank_metric_{sport}",
-            format_func=lambda k: RANKING_TABLE_LABELS.get(k, k),
+            format_func=lambda k: _rank_label(k, sport),
             label_visibility="collapsed",
         )
     # st.pills laesst sich abwaehlen (Klick auf den aktiven Chip) und liefert
@@ -6954,6 +7008,25 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                    | ((_board_ms > 2.2 * _wind_ms) & (_wind_ms > 0)))
         for _kc in ("kw_force_kg", "kw_power_w", "kw_ppf"):
             ranking.loc[_kw_bad, _kc] = np.nan
+
+    # --- Manoever-Quote (gehalten / gesamt) je Session --------------------
+    # "Foil oben geblieben?" ist beim Wingfoilen die Leitfrage
+    # (wingfoil-kennzahlen.md). Die Rohdaten liegen schon in der Datenbank: Die
+    # Uhr schickt je erkanntem Manoever ein Sekundenfenster (32 Werte in kn).
+    # Das gybes-Feld ist NICHT von den Massen-Ladevorgaengen ausgenommen (das
+    # ist nur der Track), es steht hier also ohne eine einzige zusaetzliche
+    # Abfrage zur Verfuegung - und rueckwirkend fuer jede Session, die es hat.
+    if active_sport() in _MANEUVER and "gybes" in ranking.columns:
+        _mq_thr = _GLIDE_KN.get(active_sport(), 10.0)
+        _mq = [_man_quota(_man_windows(_raw), _mq_thr)
+               for _raw in ranking["gybes"]]
+        ranking["man_n"] = [None if q is None else q[1] for q in _mq]
+        ranking["man_held"] = [None if q is None else q[0] for q in _mq]
+        # Die Prozentzahl nur, wenn genug Manoever da sind. Sonst stuende eine
+        # 100-%-Quote aus einer einzigen Wende ueber einer echten Session.
+        ranking["man_pct"] = [
+            None if (q is None or q[1] < _MAN_MIN_FOR_RANK)
+            else round(100.0 * q[0] / q[1], 0) for q in _mq]
 
     # Eine Zeile, die sagt, WAS man gerade ansieht. Ohne sie steht ueber der
     # Seite nur "Online rankings", und welcher Spot, welche Sportart und welcher
@@ -7262,6 +7335,55 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         _metric_body(c, "jumps", "### 🔁 Most airs", "Jumps", decimals=0,
                      empty_msg="No jump data yet – record a session with jumps on the watch.")
 
+    def _r_held(c):
+        """Manoever-Quote: Anteil der Manoever, in denen die Geschwindigkeit nie
+        unter die Flug-/Gleitschwelle fiel. Beim Wingfoilen die Leitkennzahl."""
+        with c:
+            _mm = _maneuver_cfg(_sp)
+            _thr = _GLIDE_KN.get(_sp, 10.0)
+            st.caption(
+                f"Share of {_mm['name']}s where your speed never dropped below "
+                f"{_mm['threshold']} (~{_thr:.0f} kn) – you {_mm['verb_ok'].lower()}. "
+                f"Measured on the watch second by second; needs at least "
+                f"{_MAN_MIN_FOR_RANK} {_mm['name']}s in the session, and the count "
+                "is shown so you can see the basis. A session with few "
+                f"{_mm['name']}s reaches 100 % more easily than a long one."
+            )
+            if "man_pct" not in ranking.columns:
+                st.caption("No maneuver data yet.")
+                return
+            held = ranking[fin_cols + [
+                "id", "date", "name", "man_pct", "man_n",
+                "surfspot", "board", "sail", "Weather", "Trust",
+            ]].copy()
+            held = held.dropna(subset=["man_pct"])
+            held = (
+                held.sort_values(["man_pct", "man_n"], ascending=False)
+                .drop_duplicates(subset="name", keep="first")
+                .reset_index(drop=True).head(RANKING_TOP_N)
+            )
+            if held.empty:
+                st.caption(
+                    f"No entries yet – this one needs the watch app: it sends a "
+                    f"per-second window for every {_mm['name']} it detects. "
+                    f"Sessions from file uploads cannot deliver it, the GPS track "
+                    "is too coarse."
+                )
+                return
+            held.insert(0, "Rank", held.index + 1)
+            held["man_pct"] = held["man_pct"].astype(int)
+            held["man_n"] = held["man_n"].astype(int)
+            held = held.rename(columns={
+                "date": "Date", "name": "Name", "surfspot": "Surf spot",
+                "board": "Board", "sail": gear_label,
+                # Der Spaltenname steht klein unter der Zahl, und vom Zweitwert
+                # wird das letzte Wort als Einheit gelesen - darum heisst die
+                # Anzahl-Spalte wie das Manoever der Sportart.
+                "man_pct": f"{_mm['name'].capitalize()}s held %",
+                "man_n": f"{_mm['name']}s",
+            })
+            _show_rank(held, extra.get("columns"), gear_label)
+
     def _r_kw_ppf(c):
         _metric_body(c, "kw_ppf", "### 💪 Pound-for-pound", "Force ÷ kg", decimals=2,
                      empty_msg="Needs your weight (profile), a sail size and session wind.")
@@ -7299,6 +7421,12 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         if "speed_alpha500_kmh" in ranking.columns:
             _avail.append(("alpha", _r_alpha))
         _avail += [("run", _r_run), ("total", _r_total)]
+        # Manoever-Quote nur anbieten, wenn sie mindestens eine Session fuellt.
+        # Ein Chip, der immer "No entries yet" zeigt, ist keine Disziplin,
+        # sondern eine Enttaeuschung - und der Wing-Default faellt ohne ihn
+        # automatisch auf Longest run zurueck.
+        if "man_pct" in ranking.columns and ranking["man_pct"].notna().any():
+            _avail.append(("held", _r_held))
         if _sp == "sup":
             _avail += [("strokes", _r_strokes), ("cadence", _r_cadence)]
         else:
@@ -12360,6 +12488,61 @@ def _parse_watch_gybes(raw):
     return data if isinstance(data, list) and data else None
 
 
+# Ein Manoever gilt als GEHALTEN, wenn die Geschwindigkeit nie unter die
+# Flug-/Gleitschwelle der Sportart gefallen ist - beim Wingfoilen also: das Foil
+# blieb oben. Genau dieses Urteil zeigt die Einzeldiagnose schon (dort
+# "carried = min_kn >= glide_kn"); die Quote hier ist dieselbe Rechnung ueber
+# alle Manoever einer Session, damit Zeile und Detailseite nie
+# Unterschiedliches behaupten.
+#
+# BEWUSST nicht die 70-%-Regel aus der Manoever-Zusammenfassung: "70 % der
+# Anfahrtsgeschwindigkeit gehalten" ist ein relatives Mass. Wer langsam anfaehrt
+# und langsam bleibt, erfuellt es - fliegt aber nicht. Fuer die Frage "Foil oben
+# geblieben?" zaehlt die absolute Schwelle.
+_MAN_MIN_SAMPLES = 3      # wie die Einzeldiagnose: unter drei Messpunkten kein Urteil
+_MAN_MIN_FOR_RANK = 5     # unter fuenf Manoevern ist eine Quote Zufall
+
+
+def _man_windows(raw):
+    """Sekunden-Fenster der Uhr aus dem gybes-Feld einer Session.
+
+    NUR das v2-Format ({t, speeds}): ein Wert je Sekunde, vom Uhr-Rechner. Das
+    alte 4-Phasen-Format und die Track-Erkennung bleiben absichtlich draussen -
+    bei ~5 s je GPS-Punkt liegen Ein- und Ausgang eines Manoevers im selben
+    Messpunkt, ein Minimum ist dort nicht gemessen, sondern geraten.
+    """
+    wg = _parse_watch_gybes(raw)
+    if not wg:
+        return []
+    return [g["speeds"] for g in wg
+            if isinstance(g, dict) and isinstance(g.get("speeds"), list)
+            and g["speeds"]]
+
+
+def _man_quota(fenster, glide_kn):
+    """(gehalten, gesamt) ueber die Manoever-Fenster einer Session.
+
+    None, wenn kein einziges Fenster genug Messpunkte hat. -1 markiert in den
+    Uhr-Daten "ausserhalb der Aufzeichnung" und ist kein Messwert.
+    """
+    ok = tot = 0
+    for sp in fenster:
+        werte = []
+        for x in sp or []:
+            try:
+                v = float(x)
+            except (TypeError, ValueError):
+                continue
+            if v >= 0:
+                werte.append(v)
+        if len(werte) < _MAN_MIN_SAMPLES:
+            continue
+        tot += 1
+        if min(werte) >= glide_kn:
+            ok += 1
+    return (ok, tot) if tot else None
+
+
 def _watch_gybes_to_markers(wg, t_min, v_kn):
     """Uhr-Halsen in dieselbe Marker-Form wie die Track-Erkennung bringen
     (auf der Kurve platziert über die nächstgelegene Zeit). Unterstützt das v2-
@@ -12990,6 +13173,21 @@ def _render_speed_curve(track_pts, duration_s, record):
             st.markdown(f"**🔄 {_man['name'].capitalize()} analysis (beta):** "
                         f"{len(gybes)} detected · **{planing} carried through** "
                         f"(≥70% speed kept) · avg speed kept {avg_ret:.0f}%")
+        # Die absolute Quote daneben, nicht anstelle der 70-%-Zeile darueber:
+        # Beide messen etwas anderes. "70 % der Anfahrt gehalten" ist relativ -
+        # wer langsam anfaehrt und langsam bleibt, erfuellt es, fliegt aber
+        # nicht. Diese Zeile beantwortet die Frage der Wingfoiler: Blieb das
+        # Foil oben? Dieselbe Rechnung wie die Ranglisten-Quote und dasselbe
+        # Urteil wie die Einzeldiagnose weiter unten.
+        _mq = _man_quota([g.get("speeds") for g in gybes if g.get("speeds")],
+                         glide_kn)
+        if _mq:
+            _held, _tot = _mq
+            st.markdown(
+                f"**{_held} of {_tot}** stayed above {_man['threshold']} "
+                f"(~{glide_kn:.0f} kn) all the way through — "
+                f"**{100.0 * _held / _tot:.0f}%** {_man['verb_ok'].lower()}."
+            )
         rows = "".join(
             f"<tr><td style='padding:3px 10px'><b style='color:{g['color']}'>●</b> {g['n']}</td>"
             f"<td style='padding:3px 10px'>{g['t']:.1f} min</td>"
