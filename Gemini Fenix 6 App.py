@@ -7343,11 +7343,14 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             _thr = _GLIDE_KN.get(_sp, 10.0)
             st.caption(
                 f"Share of {_mm['name']}s where your speed never dropped below "
-                f"{_mm['threshold']} (~{_thr:.0f} kn) – you {_mm['verb_ok'].lower()}. "
-                f"Measured on the watch second by second; needs at least "
-                f"{_MAN_MIN_FOR_RANK} {_mm['name']}s in the session, and the count "
-                "is shown so you can see the basis. A session with few "
-                f"{_mm['name']}s reaches 100 % more easily than a long one."
+                f"{_mm['threshold']} (~{_thr:.0f} kn) **through the turn** – you "
+                f"{_mm['verb_ok'].lower()}. Judged over the {_MAN_WIN_S} seconds "
+                f"before and after the apex, measured on the watch second by "
+                f"second: that is the {_mm['name']} itself, not the minute around "
+                f"it. Needs at least {_MAN_MIN_FOR_RANK} {_mm['name']}s in the "
+                "session, and the count is shown so you can see the basis. A "
+                f"session with few {_mm['name']}s reaches 100 % more easily than "
+                "a long one."
             )
             if "man_pct" not in ranking.columns:
                 st.caption("No maneuver data yet.")
@@ -12501,6 +12504,33 @@ def _parse_watch_gybes(raw):
 # geblieben?" zaehlt die absolute Schwelle.
 _MAN_MIN_SAMPLES = 3      # wie die Einzeldiagnose: unter drei Messpunkten kein Urteil
 _MAN_MIN_FOR_RANK = 5     # unter fuenf Manoevern ist eine Quote Zufall
+# Halbe Breite des BEURTEILTEN Fensters in Sekunden.
+#
+# Die Uhr schickt ±15 s um den Scheitel - viel Kontext fuer die Kurve, aber die
+# falsche Spanne fuer ein Urteil: Das Minimum aus einer halben Minute faengt
+# jeden Einbruch DAVOR und DANACH mit, auch einen Absetzer zehn Sekunden nach
+# der Wende. Genau das kam beim ersten Ausprobieren heraus: 64 Manoever, 0
+# gehalten - nicht weil niemand geflogen waere, sondern weil in 31 Sekunden
+# fast immer irgendwo ein Wert unter der Fluggrenze liegt.
+#
+# ±4 s ist nicht geraten: Die Uhr nennt einen Kurswechsel nur dann ein Manoever,
+# wenn der Speed dort ein lokales Minimum gegenueber ±4 s ist. Das ist also
+# genau die Spanne, die die Uhr selbst als "das Manoever" ansieht.
+_MAN_WIN_S = 4
+
+
+def _man_kern(sp):
+    """Die beurteilten Sekunden aus einem Uhr-Fenster: der Scheitel ±_MAN_WIN_S.
+
+    Der Scheitel liegt in der Mitte der Liste (die Uhr zentriert das Fenster auf
+    ihn). Kuerzere Listen werden nicht abgeschnitten - dann ist die ganze Liste
+    das Manoever.
+    """
+    n = len(sp or [])
+    if n <= 2 * _MAN_WIN_S + 1:
+        return list(sp or [])
+    mitte = n // 2
+    return list(sp[max(0, mitte - _MAN_WIN_S):mitte + _MAN_WIN_S + 1])
 
 
 def _man_windows(raw):
@@ -12522,13 +12552,16 @@ def _man_windows(raw):
 def _man_quota(fenster, glide_kn):
     """(gehalten, gesamt) ueber die Manoever-Fenster einer Session.
 
-    None, wenn kein einziges Fenster genug Messpunkte hat. -1 markiert in den
+    Beurteilt wird nur der Scheitel ±_MAN_WIN_S - siehe dort, warum nicht das
+    ganze ±15-s-Fenster.
+
+    None, wenn kein einziges Manoever genug Messpunkte hat. -1 markiert in den
     Uhr-Daten "ausserhalb der Aufzeichnung" und ist kein Messwert.
     """
     ok = tot = 0
     for sp in fenster:
         werte = []
-        for x in sp or []:
+        for x in _man_kern(sp):
             try:
                 v = float(x)
             except (TypeError, ValueError):
@@ -12615,14 +12648,30 @@ def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
     idx = np.arange(len(speeds))
     apex_i = int(min(max(apex_i, 0), len(speeds) - 1))
     apex_kn = float(speeds[apex_i]) if speeds[apex_i] >= 0 else float(np.max(speeds[valid]))
-    vmin_i = int(idx[valid][np.argmin(speeds[valid])])       # Speed-Minimum (getrennt)
+    # Das MINIMUM gehoert zum Manoever, nicht zum Umfeld: Die Uhr schickt ±15 s
+    # Kontext, und das Minimum daraus faengt auch einen Absetzer zehn Sekunden
+    # NACH der Wende mit - der Fahrer bekaeme "Touched down" fuer etwas, das er
+    # durchgezogen hat. Beurteilt wird darum der Scheitel ±_MAN_WIN_S, dieselbe
+    # Spanne wie in der Ranglisten-Quote (_man_quota) und dieselbe, die die Uhr
+    # selbst als Manoever ansieht (lokales Minimum gegenueber ±4 s).
+    #
+    # Anfahrt und Ausgang bleiben ueber das GANZE Fenster: Die
+    # Anfahrtsgeschwindigkeit kommt naturgemaess von vor dem Manoever.
+    kern = valid & (np.abs(times_sec) <= _MAN_WIN_S)
+    # Bei grobem Track liegen im engen Fenster vielleicht nur ein oder zwei
+    # Punkte - dann lieber das ganze Fenster als kein Urteil.
+    if int(kern.sum()) < _MAN_MIN_SAMPLES:
+        kern = valid
+    vmin_i = int(idx[kern][np.argmin(speeds[kern])])         # Minimum IM Manoever
     min_kn = float(speeds[vmin_i])
     before = valid & (idx <= apex_i)
     after = valid & (idx >= apex_i)
     entry = float(np.max(speeds[before])) if before.any() else apex_kn
     recovery = float(np.max(speeds[after])) if after.any() else apex_kn
     kept = (recovery / entry * 100.0) if entry > 0 else None
-    secs_below = float(np.sum(valid & (speeds < glide_kn))) * dt
+    # Auch die Sekunden unter der Schwelle nur IM Manoever zaehlen - sonst
+    # meldet die Diagnose "3 s darunter" fuer eine Pause am Fensterrand.
+    secs_below = float(np.sum(kern & (speeds < glide_kn))) * dt
     dpos = float(times_sec[vmin_i] - times_sec[apex_i])       # <0 Min vor Apex
     carried = min_kn >= glide_kn
 
@@ -12637,7 +12686,7 @@ def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
     if coarse:
         c = st.columns(4)
         c[0].metric("Approach", f"{entry:.1f} kn")
-        c[1].metric("Min speed", f"{min_kn:.1f} kn",
+        c[1].metric("Min in turn", f"{min_kn:.1f} kn",
                     f"{min_kn - glide_kn:+.1f} vs {_m['thr_short']}", delta_color="off")
         c[2].metric("Recovery", f"{recovery:.1f} kn")
         c[3].metric("Speed kept", "–" if kept is None else f"{kept:.0f} %")
@@ -12652,7 +12701,7 @@ def _render_gybe_diag(gnum, speeds, times_sec, apex_i, glide_kn, dt, note):
     c = st.columns(5)
     c[0].metric("Approach", f"{entry:.1f} kn")
     c[1].metric("At apex", f"{apex_kn:.1f} kn")
-    c[2].metric("Min speed", f"{min_kn:.1f} kn",
+    c[2].metric("Min in turn", f"{min_kn:.1f} kn",
                 f"{min_kn - glide_kn:+.1f} vs glide", delta_color="off")
     c[3].metric("Recovery", f"{recovery:.1f} kn")
     c[4].metric("Speed kept", "–" if kept is None else f"{kept:.0f} %")
