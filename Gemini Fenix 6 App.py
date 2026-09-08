@@ -2,6 +2,7 @@ import base64
 import faulthandler
 import glob
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -15281,6 +15282,112 @@ def _apply_browser_weather(text):
     return written, skipped
 
 
+_WX_AUTO_HTML = """
+<script>
+(async function(){
+  const ITEMS = __ITEMS__, EXP = __EXP__, TOKEN = "__TOKEN__", PUSH = "__PUSH__";
+  if (!ITEMS.length) { return; }
+  const F = ["wind_speed_10m","wind_gusts_10m","wind_direction_10m",
+             "temperature_2m","precipitation","weather_code"];
+  const KEYS = ["wind_kmh","gust_kmh","wind_dir_deg","temp_c","precip_mm",
+                "weather_code"];
+  // Was dieser Browser schon versucht hat, nicht wieder versuchen: Sonst
+  // fragt jeder Seitenaufruf dieselben Sessions erneut ab, wenn eine davon
+  // dauerhaft keine Daten hat.
+  let getan = {};
+  try { getan = JSON.parse(localStorage.getItem("wxdone") || "{}"); } catch(e) {}
+  const jetzt = Date.now();
+  for (const k in getan) { if (getan[k] < jetzt - 6*3600*1000) { delete getan[k]; } }
+  const offen = ITEMS.filter(it => !getan[it.id]);
+  if (!offen.length) { return; }
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const raus = [];
+  for (const it of offen) {
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + it.lat
+      + "&longitude=" + it.lon + "&hourly=" + F.join(",")
+      + "&wind_speed_unit=kmh&timezone=auto&start_date=" + it.day
+      + "&end_date=" + it.day;
+    try {
+      const j = await (await fetch(url)).json();
+      const t = (j.hourly && j.hourly.time) || [];
+      if (t.length) {
+        // Die Stunde der Session waehlen - dieselbe Regel wie auf dem Server.
+        let bi = 0, bd = 99;
+        t.forEach((s, i) => {
+          const d = Math.abs(parseInt(s.slice(11,13),10) - it.hour);
+          if (d < bd) { bd = d; bi = i; }
+        });
+        const e = { id: it.id };
+        F.forEach((f, n) => {
+          const a = j.hourly[f];
+          if (a && a[bi] !== undefined && a[bi] !== null) { e[KEYS[n]] = a[bi]; }
+        });
+        if (e.wind_kmh !== undefined) { raus.push(e); }
+      }
+    } catch(e) {}
+    getan[it.id] = jetzt;
+    await sleep(300);
+  }
+  try { localStorage.setItem("wxdone", JSON.stringify(getan)); } catch(e) {}
+  if (!raus.length) { return; }
+  // Absichtlich ohne Rueckmeldung an die Seite: Der Besucher soll davon nichts
+  // merken, und ein Fehlschlag darf die Seite nicht stoeren. Beim naechsten
+  // Aufruf (nach 6 Stunden) wird es erneut versucht.
+  try {
+    await fetch(PUSH, { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ exp: EXP, token: TOKEN, items: raus }) });
+  } catch(e) {}
+})();
+</script>
+"""
+
+
+def wx_autofill(limit=6):
+    """Wetter fuer Sessions ohne Wetter im Browser des Besuchers holen.
+
+    Warum das der richtige Weg ist und nicht ein Notbehelf: Open-Meteo rechnet
+    sein Limit je IP. Der Server sitzt auf einer geteilten Render-IP und wird
+    dort abgewiesen (429, dauerhaft - mit /weather_check nachgewiesen); der
+    Rechner eines Besuchers ist davon nicht betroffen. Und das Wetter wird erst
+    gebraucht, wenn es jemand ansieht - genau dann passiert es hier.
+
+    Laeuft still: kein sichtbares Element, keine Rueckmeldung an die Seite, kein
+    Neuladen. Der Browser schickt das Ergebnis an den Ingest, der es einsetzt.
+
+    Ohne SEED_KEY in der App-Umgebung passiert nichts - dann fehlt das Zeichen,
+    mit dem der Ingest die Schreibrechte prueft.
+    """
+    _sk = _secret("SEED_KEY", "").strip()
+    if not _sk:
+        return
+    try:
+        items = _sessions_missing_weather(int(limit))
+    except Exception:
+        return
+    if not items:
+        return
+    _exp = int(time.time()) + 900
+    _ids = sorted(int(i["id"]) for i in items)
+    # Dieselbe Rechnung wie im Ingest (wx_push_token) - der gemeinsame
+    # SEED_KEY ist der einzige Ort, an dem beide Seiten sich treffen.
+    _roh = ",".join(str(i) for i in _ids) + f"|{_exp}"
+    _tok = hmac.new(_sk.encode(), _roh.encode(),
+                    hashlib.sha256).hexdigest()[:32]
+    _ing = os.environ.get("INGEST_URL",
+                          "https://ingest-kxxw.onrender.com").rstrip("/")
+    _js = json.dumps([{k: i[k] for k in ("id", "lat", "lon", "day", "hour")}
+                      for i in items])
+    components.html(
+        _WX_AUTO_HTML.replace("__ITEMS__", _js)
+        .replace("__EXP__", str(_exp))
+        .replace("__TOKEN__", _tok)
+        .replace("__PUSH__", f"{_ing}/weather_push"),
+        height=0,
+    )
+
+
 def render_weather_via_browser():
     """Wetter über den BROWSER des Admins holen statt über den Server.
 
@@ -21263,6 +21370,18 @@ with st.expander("🌦️ Spot weather (current & forecast)", expanded=False):
                 "(via your own IP, independent of the shared server limit)."
             )
 
+
+# Wetter fuer Sessions ohne Wetter im Browser des Besuchers nachholen.
+#
+# GANZ AM ENDE, nach allem Sichtbaren: Der Abruf laeuft nebenher, und die Seite
+# soll nicht auf ihn warten. Er ist still (Hoehe 0, keine Rueckmeldung, kein
+# Neuladen) - wer die Seite ansieht, merkt nichts davon.
+#
+# Warum ueberhaupt der Browser: Open-Meteo rechnet sein Limit je IP und weist
+# die geteilte Render-IP dauerhaft ab (429, mit /weather_check nachgewiesen).
+# Der Rechner eines Besuchers ist davon nicht betroffen. Und das Wetter wird
+# erst gebraucht, wenn es jemand ansieht - also holt es der, der hinsieht.
+wx_autofill()
 
 st.markdown("---")
 
