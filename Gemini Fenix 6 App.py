@@ -17139,12 +17139,30 @@ _hero_icon = (
 # zu sein; ein zusaetzlicher Block erzeugte nur eine weitere Luecke.
 # Handy-Fassung per Media-Query: mit einem Hintergrund gibt es kein srcset, die
 # Ersparnis (~50 statt ~140 KB) bleibt so trotzdem.
+# Senkrechter Ausschnitt je Sportart. Die Vorlagen sind 3:1, das Banner auf dem
+# Desktop 5:1 - es wird also stark senkrecht beschnitten, und wo das Motiv
+# sitzt, ist von Bild zu Bild verschieden. 22 % von oben ist der gemessene
+# Standard; nur wo das Motiv HOEHER sitzt, braucht es einen eigenen Wert.
+#
+# Windsurf: Der Header von September 2026 zeigt einen Sprung, das Segel reicht
+# bis an den oberen Bildrand. Bei 22 % fehlte ihm die Spitze (nachgesehen, nicht
+# geraten - hero_crop4.py rendert 22/12/6/0 % nebeneinander). 8 % laesst das
+# Segel vollstaendig und behaelt unten die Welle.
+_HERO_POS_Y = {"windsurf": "8%"}
+
 _hero_css = ""
 if os.path.exists(app_path("static", "hero", f"{sport}-1920.webp")):
     _u = "/app/static/hero"
+    _hero_pos = _HERO_POS_Y.get(sport)
+    # Der Wert MUSS an .st-key-herobox selbst haengen, nicht an einem Kind:
+    # Das Foto liegt als Hintergrund auf diesem Container, und
+    # CSS-Eigenschaften erben nur nach unten. Genau daran war der erste Anlauf
+    # gescheitert (Bild unsichtbar, weil die Variable am Kind stand).
     _hero_css = (
         "<style>"
-        ".st-key-herobox{--hero-img:url(\"" + f"{_u}/{sport}-1920.webp" + "\");}"
+        ".st-key-herobox{--hero-img:url(\"" + f"{_u}/{sport}-1920.webp" + "\");"
+        + (f"--hero-pos-y:{_hero_pos};" if _hero_pos else "")
+        + "}"
         "@media (max-width:640px){.st-key-herobox{--hero-img:url(\""
         + f"{_u}/{sport}-960.webp" + "\");}}"
         "</style>"

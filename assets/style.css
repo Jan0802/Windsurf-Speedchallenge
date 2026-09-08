@@ -358,8 +358,14 @@ h2 {
     /* 22 % von oben, nicht center. Die Vorlagen sind 3:1, das Banner ist 5:1 –
        es wird also senkrecht beschnitten, und in allen sechs sitzt das Motiv
        OBEN (Segel, Kite, Wing, Sprung). Mit "center" wird ihm der Kopf
-       abgeschnitten; genau das war im ersten Anlauf passiert. */
-    background-position: center, center, right 22%;
+       abgeschnitten; genau das war im ersten Anlauf passiert.
+
+       Der Wert ist als Variable ansprechbar, weil er nicht für jedes Bild
+       stimmt: Wo das Motiv noch höher sitzt (Windsurf-Sprung), setzt der
+       sportartabhängige Block aus der App --hero-pos-y auf einen kleineren
+       Wert. Ohne diesen Block bleibt es bei 22 %. */
+    --hero-pos-y: 22%;
+    background-position: center, center, right var(--hero-pos-y);
     background-size: cover, cover, cover;
     background-repeat: no-repeat;
 }
