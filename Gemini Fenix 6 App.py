@@ -4589,9 +4589,20 @@ RANKING_TABLES_DEFAULT = ["30s", "2s"]
 # Freestyle-/Bump-and-Jump-Lager, Sprungzeit ist dort kein Nebenwert.
 # Fehlen die Manoever-Daten (kein Uhr-Upload), faellt "held" automatisch weg -
 # der Chip wird nur angeboten, wenn ihn mindestens eine Session fuellt.
+# Kite (kitesurf-kennzahlen.md): Die groesste Gruppe ist Big Air / Freeride
+# Twintip, ihre Leitkennzahl ist die AIRTIME - nicht der Topspeed und
+# ausdruecklich auch nicht die Sprunghoehe. Die Hoehe wird ballistisch aus der
+# Airtime gerechnet (h = g*t^2/8), und beim Kiten gilt die Annahme nicht: Der
+# Kite haelt den Fahrer oben, die Formel liefert also zu hohe Werte, und der
+# Fehler waechst mit der Airtime. Airtime ist gemessen, Hoehe ist gerechnet -
+# also wird nach Airtime gewertet. Die Hoehe bleibt sichtbar, beschriftet als
+# Schaetzung.
+#
+# Kite erbte bisher den globalen Default und startete auf "Best 30 s / Top 2 s".
 RANKING_TABLES_DEFAULT_BY_SPORT = {"wakeboard": ["airtime", "jump"],
                                    "surf": ["2s", "run", "time"],
-                                   "wingsurf": ["held", "run", "airtime"]}
+                                   "wingsurf": ["held", "run", "airtime"],
+                                   "kitesurf": ["airtime", "airs", "held"]}
 
 
 def _rank_default_tables(sport):
@@ -5622,8 +5633,8 @@ Every ranking shows each rider's best value (unless noted). Use the filters (spo
   At least 5 maneuvers per session, and the number of turns is shown next to the percentage: a session with few turns reaches 100 % more easily than a long one, so judge it with the count in view.
 
 ### 🪂 Jumps (windsurf · kite · wing · wakeboard)
-- **🪂 Best airtime** — your longest single jump, measured in seconds in the air.
-- **🚀 Highest jump** — how high you jumped (estimated from your airtime).
+- **🪂 Best airtime** — your longest single jump, measured in seconds in the air. This is the **measured** one: during a jump the watch's acceleration drops close to free fall, and that stretch is timed.
+- **🚀 Highest jump** — **estimated**, not measured: derived from your airtime assuming gravity alone (h = g·t²/8). Your kite, wing or sail holds you up during the jump, so that assumption does not hold and the estimate reads **high** — the more so the longer you hang. Compare it with your own jumps, not with a board-mounted sensor: a different position and a different formula give different numbers. For kitesurfing the ranking therefore starts on airtime, which is measured.
 - **🔁 Most airs** — how many jumps you landed in one session.
 
 ### 🛶 SUP
@@ -5668,8 +5679,8 @@ Jede Rangliste zeigt den besten Wert je Fahrer (wenn nicht anders vermerkt). Üb
   Mindestens 5 Manöver je Session, und die Anzahl steht neben der Prozentzahl: Eine Session mit wenigen Wenden erreicht 100 % leichter als eine lange, also lies die Quote zusammen mit der Anzahl.
 
 ### 🪂 Sprünge (Windsurf · Kite · Wing · Wakeboard)
-- **🪂 Beste Airtime** — dein längster Sprung, gemessen in Sekunden in der Luft.
-- **🚀 Höchster Sprung** — wie hoch du gesprungen bist (aus der Airtime geschätzt).
+- **🪂 Beste Airtime** — dein längster Sprung, in Sekunden in der Luft. Das ist der **gemessene** Wert: Während eines Sprungs fällt die Beschleunigung an der Uhr fast auf freien Fall, und diese Strecke wird gestoppt.
+- **🚀 Höchster Sprung** — **geschätzt**, nicht gemessen: aus der Airtime gerechnet, unter der Annahme, dass nur die Schwerkraft wirkt (h = g·t²/8). Dein Kite, Wing oder Segel hält dich aber oben, die Annahme stimmt also nicht, und die Schätzung läuft **zu hoch** — je länger du hängst, desto mehr. Vergleiche sie mit deinen eigenen Sprüngen, nicht mit einem Sensor am Board: andere Position, andere Formel, andere Zahl. Beim Kitesurfen startet die Wertung deshalb auf der Airtime, die gemessen ist.
 - **🔁 Meiste Sprünge** — wie viele Sprünge du in einer Session gestanden hast.
 
 ### 🛶 SUP
@@ -5714,8 +5725,8 @@ Elke ranglijst toont de beste waarde per rijder (tenzij anders vermeld). Met de 
   Minimaal 5 manoeuvres per sessie, en het aantal staat naast het percentage: een sessie met weinig keerpunten haalt 100 % makkelijker dan een lange, lees de score dus samen met het aantal.
 
 ### 🪂 Sprongen (windsurf · kite · wing · wakeboard)
-- **🪂 Beste airtime** — je langste sprong, in seconden in de lucht.
-- **🚀 Hoogste sprong** — hoe hoog je sprong (geschat uit je airtime).
+- **🪂 Beste airtime** — je langste sprong, in seconden in de lucht. Dit is de **gemeten** waarde: tijdens een sprong valt de versnelling aan de watch bijna terug naar vrije val, en die periode wordt geklokt.
+- **🚀 Hoogste sprong** — **geschat**, niet gemeten: uit je airtime berekend onder de aanname dat alleen de zwaartekracht werkt (h = g·t²/8). Je kite, wing of zeil houdt je omhoog, dus die aanname klopt niet en de schatting valt **te hoog** uit — hoe langer je hangt, hoe meer. Vergelijk hem met je eigen sprongen, niet met een sensor op het board: andere plek, andere formule, ander getal. Bij kitesurfen begint het klassement daarom bij de airtime, die gemeten is.
 - **🔁 Meeste airs** — hoeveel sprongen je in één sessie stond.
 
 ### 🛶 SUP
@@ -5760,8 +5771,8 @@ Chaque classement montre la meilleure valeur par rider (sauf mention contraire).
   Au moins 5 manœuvres par session, et le nombre est affiché à côté du pourcentage : une session avec peu de virements atteint 100 % plus facilement qu'une longue, lis donc le score avec le nombre sous les yeux.
 
 ### 🪂 Sauts (windsurf · kite · wing · wakeboard)
-- **🪂 Meilleur airtime** — ton plus long saut, en secondes en l'air.
-- **🚀 Saut le plus haut** — la hauteur de ton saut (estimée à partir de l'airtime).
+- **🪂 Meilleur airtime** — ton plus long saut, en secondes en l'air. C'est la valeur **mesurée** : pendant un saut, l'accélération à la montre tombe presque en chute libre, et cette durée est chronométrée.
+- **🚀 Saut le plus haut** — **estimé**, pas mesuré : calculé depuis l'airtime en supposant que seule la gravité agit (h = g·t²/8). Ton kite, ton wing ou ta voile te retient en haut : l'hypothèse est fausse et l'estimation est **trop élevée** — d'autant plus que tu restes longtemps en l'air. Compare-la à tes propres sauts, pas à un capteur monté sur la planche : autre position, autre formule, autre chiffre. En kitesurf, le classement démarre donc sur l'airtime, qui est mesurée.
 - **🔁 Plus de sauts** — combien de sauts tu as posés en une session.
 
 ### 🛶 SUP
@@ -5806,8 +5817,8 @@ Cada clasificación muestra el mejor valor por rider (salvo que se indique). Con
   Al menos 5 maniobras por sesión, y el número aparece junto al porcentaje: una sesión con pocas viradas alcanza el 100 % más fácilmente que una larga, así que lee el valor junto al número.
 
 ### 🪂 Saltos (windsurf · kite · wing · wakeboard)
-- **🪂 Mejor airtime** — tu salto más largo, en segundos en el aire.
-- **🚀 Salto más alto** — cuánto saltaste (estimado a partir del airtime).
+- **🪂 Mejor airtime** — tu salto más largo, en segundos en el aire. Es el valor **medido**: durante un salto la aceleración en el reloj baja casi a caída libre, y ese tramo se cronometra.
+- **🚀 Salto más alto** — **estimado**, no medido: calculado desde el airtime suponiendo que solo actúa la gravedad (h = g·t²/8). Tu cometa, wing o vela te mantiene arriba, así que ese supuesto no se cumple y la estimación sale **alta** — más cuanto más tiempo cuelgues. Compárala con tus propios saltos, no con un sensor montado en la tabla: otra posición, otra fórmula, otro número. En kitesurf la clasificación empieza por eso en el airtime, que sí se mide.
 - **🔁 Más saltos** — cuántos saltos completaste en una sesión.
 
 ### 🛶 SUP
@@ -6193,6 +6204,20 @@ def _enrich_ranking(ranking):
 
             parts.append(wind)
 
+            # Boeigkeit als eigene Zahl (Boeen / Mittelwind). Beim Kiten
+            # entscheidet sie ueber die Session mehr als der Mittelwert - 20 km/h
+            # gleichmaessig sind eine andere Sportart als 20 km/h mit Boeen bis
+            # 40 (kitesurf-kennzahlen.md). Die beiden Werte liegen laengst in der
+            # Datenbank, die Zahl kostet also nur diese Zeilen.
+            #
+            # Erst ab 1,3 anzeigen: Darunter ist es normale Streuung, und eine
+            # "G1.1" in jeder Zeile waere Rauschen, das die Nebenzeile fuellt.
+            _g = row.get("gust_kmh")
+            if pd.notna(_g) and float(row["wind_kmh"]) > 0:
+                _f = float(_g) / float(row["wind_kmh"])
+                if _f >= 1.3:
+                    parts.append(f"G{_f:.1f}")
+
         if pd.notna(row.get("temp_c")):
             parts.append(f"{row['temp_c']:.0f}°C")
 
@@ -6354,6 +6379,45 @@ def _viz_trust_anteil(text):
 # Untergrenzen, ab denen ein Wert ueberhaupt eine Leistung ist. Darunter zeigt
 # die Champion-Karte die Kachel gar nicht an, statt eine Null auszugeben.
 _MIN_PLAUSIBLE = {"max_jump_m": 0.5, "max_airtime_s": 0.5}
+
+# --- Was an der Sprunghoehe dransteht --------------------------------------
+# Die Uhr misst die AIRTIME (Zeit im freien Fall) und rechnet daraus die Hoehe
+# ballistisch: h = g*t^2/8. Die Annahme dahinter ist, dass nur die Schwerkraft
+# wirkt - beim Kiten (und schwaecher auch beim Windsurfen und Wingfoilen) haelt
+# das Zugmittel den Fahrer laenger oben. Die Formel liefert damit ZU HOHE Werte,
+# und der Fehler waechst mit der Airtime.
+#
+# Ein konstanter Korrekturfaktor waere selbst falsch (der Fehler ist nicht
+# linear), und kalibrieren koennen wir ihn ohne Vergleichsmessungen nicht. Also
+# der ehrliche Weg: Airtime ist gemessen und wird gewertet, die Hoehe wird
+# gezeigt und als Schaetzung beschriftet. Genau das empfiehlt auch
+# kitesurf-kennzahlen.md - und es erspart uns eine erfundene Zahl.
+_JUMP_AIRTIME_HELP = (
+    "Seconds in the air, measured directly by the watch: during a jump the "
+    "acceleration drops close to free fall, and that stretch is timed. This is "
+    "the measured value – the height next to it is derived from it."
+)
+_JUMP_HEIGHT_HELP = (
+    "Estimated, not measured: computed from your airtime assuming gravity alone "
+    "(h = g·t²/8). Use it to compare your own jumps, not against a "
+    "board-mounted sensor – a wrist device and a different formula give "
+    "different numbers."
+)
+_JUMP_HEIGHT_HELP_PULL = (
+    " Your {pull} holds you up during the jump, so gravity alone is not the "
+    "whole story and this estimate reads HIGH – the more so the longer you "
+    "hang. That is why the ranking uses airtime, which is measured."
+)
+_JUMP_PULL = {"kitesurf": "kite", "wingsurf": "wing", "windsurf": "sail"}
+
+
+def _jump_height_help(sport):
+    """Erklaertext zur Sprunghoehe - mit dem Zugmittel der Sportart, wo eines
+    im Spiel ist. Beim Wakeboard zieht nichts nach oben, dort bleibt es beim
+    allgemeinen Hinweis."""
+    _p = _JUMP_PULL.get(sport)
+    return _JUMP_HEIGHT_HELP + (
+        _JUMP_HEIGHT_HELP_PULL.format(pull=_p) if _p else "")
 
 # Welches Diagramm gehoert zu welcher Kennzahl. "bars" = Entwicklung ueber die
 # letzten Sessions, "line" = Verlauf (die Form sagt mehr als die Hoehe).
@@ -7331,6 +7395,10 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     def _r_jump(c):
         _metric_body(c, "max_jump_m", "### 🚀 Highest jump", "Jump m",
                      empty_msg="No jump data yet – record a session with jumps on the watch.")
+        with c:
+            # Steht bewusst UNTER der Liste: Wer sie liest, soll die Zahl im
+            # Kopf haben, wenn die Einschraenkung kommt.
+            st.caption(_jump_height_help(_sp))
 
     def _r_airs(c):
         _metric_body(c, "jumps", "### 🔁 Most airs", "Jumps", decimals=0,
@@ -13762,8 +13830,10 @@ def render_history_overview(record):
         st.markdown("## 🪂 Jumps")
         j1, j2, j3 = st.columns(3)
         j1.metric("Jumps", "–" if not _has(jumps) else f"{int(jumps)}")
-        j2.metric("Max airtime", "–" if max_air is None else f"{max_air:.1f} s")
-        j3.metric("Highest jump", "–" if max_jump is None else f"{max_jump:.1f} m")
+        j2.metric("Max airtime", "–" if max_air is None else f"{max_air:.1f} s",
+                  help=_JUMP_AIRTIME_HELP)
+        j3.metric("Highest jump", "–" if max_jump is None else f"{max_jump:.1f} m",
+                  help=_jump_height_help(active_sport()))
 
     if _has(strokes) or _has(cadence) or _has(max_cadence):
         st.markdown("## 🛶 Paddling")
