@@ -667,6 +667,14 @@ sessions_table = Table(
     Column("jumps", Integer),            # Sprungzahl (Wind)
     Column("max_airtime_s", Float),      # laengste Airtime in Sekunden
     Column("max_jump_m", Float),         # geschaetzte hoechste Sprunghoehe (m)
+    # Summe ALLER Airtimes einer Session und der Schnitt der fuenf besten
+    # Spruenge. Beim Kitesurfen ist die Summe die Leitkennzahl
+    # (kitesurf-kennzahlen.md): Sie belohnt eine ganze Session in der Luft statt
+    # eines Gluecksprungs. Beides kommt nur von der Uhr - aus dem Track sind
+    # einzelne Spruenge nicht zu rekonstruieren, aeltere Sessions bleiben also
+    # leer. Das ist kein Loch, sondern die Wahrheit: damals nicht gemessen.
+    Column("airtime_total_s", Float),
+    Column("airtime_avg5_s", Float),
     Column("strokes", Integer),          # Paddelschlaege (SUP)
     Column("cadence_spm", Integer),      # Paddelkadenz beim Stoppen (Schlaege/Minute)
     Column("max_cadence_spm", Integer),  # hoechste Kadenz der Session
@@ -1155,6 +1163,9 @@ _WATCH_COLUMNS = {
     "track": "TEXT",
     "gybes": "TEXT",
     "active_s": "INTEGER",
+    # Gesamt-Airtime und Schnitt der fuenf besten Spruenge (nur von der Uhr).
+    "airtime_total_s": "DOUBLE PRECISION",
+    "airtime_avg5_s": "DOUBLE PRECISION",
     # Sicherung vor einem Admin-Zuschnitt: JSON mit Original-Track UND den
     # Original-Kennzahlen. Beides zusammen, damit ein Zurueck die exakten
     # UHR-Werte wiederherstellt – ein aus dem Track nachgerechneter Wert waere
@@ -4602,7 +4613,11 @@ RANKING_TABLES_DEFAULT = ["30s", "2s"]
 RANKING_TABLES_DEFAULT_BY_SPORT = {"wakeboard": ["airtime", "jump"],
                                    "surf": ["2s", "run", "time"],
                                    "wingsurf": ["held", "run", "airtime"],
-                                   "kitesurf": ["airtime", "airs", "held"]}
+                                   # Gesamt-Airtime zuerst, sobald sie jemand
+                                   # hat (nur Uhr ab 0.9.9) - sonst faellt die
+                                   # Auswahl auf die beste Airtime zurueck.
+                                   "kitesurf": ["airtot", "airtime", "airs",
+                                                "held"]}
 
 
 def _rank_default_tables(sport):
@@ -4616,6 +4631,7 @@ RANKING_TABLE_LABELS = {
     "run": "🚩 Longest run", "total": "👥 Total distance",
     "time": "⏱️ Most water time",
     "airtime": "🪂 Best airtime", "jump": "🚀 Highest jump", "airs": "🔁 Most airs",
+    "airtot": "⏳ Total airtime", "air5": "🎯 Avg 5 best jumps",
     "strokes": "🛶 Most strokes", "cadence": "⏱️ Max cadence",
     "held": "🔄 Maneuvers held",
     "kw_ppf": "💪 Pound-for-pound", "kw_force": "🏋️ Sail force", "kw_power": "⚡ Power",
@@ -5636,6 +5652,10 @@ Every ranking shows each rider's best value (unless noted). Use the filters (spo
 - **🪂 Best airtime** — your longest single jump, measured in seconds in the air. This is the **measured** one: during a jump the watch's acceleration drops close to free fall, and that stretch is timed.
 - **🚀 Highest jump** — **estimated**, not measured: derived from your airtime assuming gravity alone (h = g·t²/8). Your kite, wing or sail holds you up during the jump, so that assumption does not hold and the estimate reads **high** — the more so the longer you hang. Compare it with your own jumps, not with a board-mounted sensor: a different position and a different formula give different numbers. For kitesurfing the ranking therefore starts on airtime, which is measured.
 - **🔁 Most airs** — how many jumps you landed in one session.
+- **⏳ Total airtime** — all your jumps of one session added up. For kitesurfing this is the leading number: it rewards a whole session in the air rather than one lucky jump, and twenty solid jumps beat one very good one.
+- **🎯 Avg 5 best jumps** — the average of your five longest jumps in a session. A single jump can be luck; five have to be jumped. With fewer than five it averages what is there, and the jump count is in the row so you can see the basis.
+
+Both are counted on the watch and need the watch app 0.9.9 or newer – sessions recorded before that do not have them, because the value was never measured.
 
 ### 🛶 SUP
 - **🛶 Most strokes** — most paddle strokes in a session.
@@ -5682,6 +5702,10 @@ Jede Rangliste zeigt den besten Wert je Fahrer (wenn nicht anders vermerkt). Üb
 - **🪂 Beste Airtime** — dein längster Sprung, in Sekunden in der Luft. Das ist der **gemessene** Wert: Während eines Sprungs fällt die Beschleunigung an der Uhr fast auf freien Fall, und diese Strecke wird gestoppt.
 - **🚀 Höchster Sprung** — **geschätzt**, nicht gemessen: aus der Airtime gerechnet, unter der Annahme, dass nur die Schwerkraft wirkt (h = g·t²/8). Dein Kite, Wing oder Segel hält dich aber oben, die Annahme stimmt also nicht, und die Schätzung läuft **zu hoch** — je länger du hängst, desto mehr. Vergleiche sie mit deinen eigenen Sprüngen, nicht mit einem Sensor am Board: andere Position, andere Formel, andere Zahl. Beim Kitesurfen startet die Wertung deshalb auf der Airtime, die gemessen ist.
 - **🔁 Meiste Sprünge** — wie viele Sprünge du in einer Session gestanden hast.
+- **⏳ Gesamt-Airtime** — alle Sprünge einer Session zusammengezählt. Beim Kitesurfen ist das die Leitzahl: Sie belohnt eine ganze Session in der Luft statt eines Glücksprungs — zwanzig ordentliche Sprünge schlagen einen sehr guten.
+- **🎯 Ø 5 beste Sprünge** — der Schnitt deiner fünf längsten Sprünge einer Session. Ein einzelner Sprung kann Glück sein, fünf muss man springen. Bei weniger als fünf wird über die vorhandenen gemittelt; die Sprungzahl steht in der Zeile, du siehst die Grundlage also.
+
+Beide zählt die Uhr und brauchen die Uhren-App 0.9.9 oder neuer – früher aufgenommene Sessions haben sie nicht, weil der Wert damals nicht gemessen wurde.
 
 ### 🛶 SUP
 - **🛶 Meiste Paddelschläge** — die meisten Schläge in einer Session.
@@ -5728,6 +5752,10 @@ Elke ranglijst toont de beste waarde per rijder (tenzij anders vermeld). Met de 
 - **🪂 Beste airtime** — je langste sprong, in seconden in de lucht. Dit is de **gemeten** waarde: tijdens een sprong valt de versnelling aan de watch bijna terug naar vrije val, en die periode wordt geklokt.
 - **🚀 Hoogste sprong** — **geschat**, niet gemeten: uit je airtime berekend onder de aanname dat alleen de zwaartekracht werkt (h = g·t²/8). Je kite, wing of zeil houdt je omhoog, dus die aanname klopt niet en de schatting valt **te hoog** uit — hoe langer je hangt, hoe meer. Vergelijk hem met je eigen sprongen, niet met een sensor op het board: andere plek, andere formule, ander getal. Bij kitesurfen begint het klassement daarom bij de airtime, die gemeten is.
 - **🔁 Meeste airs** — hoeveel sprongen je in één sessie stond.
+- **⏳ Totale airtime** — alle sprongen van één sessie bij elkaar opgeteld. Bij kitesurfen is dit het leidende getal: het belont een hele sessie in de lucht in plaats van één gelukssprong — twintig degelijke sprongen verslaan één zeer goede.
+- **🎯 Gem. 5 beste sprongen** — het gemiddelde van je vijf langste sprongen in een sessie. Eén sprong kan geluk zijn, vijf moet je springen. Bij minder dan vijf wordt over de aanwezige gemiddeld; het aantal sprongen staat in de regel.
+
+Beide worden op de watch geteld en vereisen de horloge-app 0.9.9 of nieuwer – eerder opgenomen sessies hebben ze niet, want de waarde is toen niet gemeten.
 
 ### 🛶 SUP
 - **🛶 Meeste slagen** — de meeste peddelslagen in een sessie.
@@ -5774,6 +5802,10 @@ Chaque classement montre la meilleure valeur par rider (sauf mention contraire).
 - **🪂 Meilleur airtime** — ton plus long saut, en secondes en l'air. C'est la valeur **mesurée** : pendant un saut, l'accélération à la montre tombe presque en chute libre, et cette durée est chronométrée.
 - **🚀 Saut le plus haut** — **estimé**, pas mesuré : calculé depuis l'airtime en supposant que seule la gravité agit (h = g·t²/8). Ton kite, ton wing ou ta voile te retient en haut : l'hypothèse est fausse et l'estimation est **trop élevée** — d'autant plus que tu restes longtemps en l'air. Compare-la à tes propres sauts, pas à un capteur monté sur la planche : autre position, autre formule, autre chiffre. En kitesurf, le classement démarre donc sur l'airtime, qui est mesurée.
 - **🔁 Plus de sauts** — combien de sauts tu as posés en une session.
+- **⏳ Airtime total** — tous tes sauts d'une session additionnés. En kitesurf c'est le chiffre de référence : il récompense une session entière en l'air plutôt qu'un saut chanceux — vingt bons sauts battent un très bon.
+- **🎯 Moy. 5 meilleurs sauts** — la moyenne de tes cinq sauts les plus longs d'une session. Un saut peut être un coup de chance ; cinq, il faut les sauter. En dessous de cinq, la moyenne porte sur ce qu'il y a ; le nombre de sauts est dans la ligne.
+
+Les deux sont comptés par la montre et nécessitent l'application montre 0.9.9 ou plus récente – les sessions enregistrées avant ne les ont pas, la valeur n'était pas mesurée.
 
 ### 🛶 SUP
 - **🛶 Plus de coups de pagaie** — le plus de coups en une session.
@@ -5820,6 +5852,10 @@ Cada clasificación muestra el mejor valor por rider (salvo que se indique). Con
 - **🪂 Mejor airtime** — tu salto más largo, en segundos en el aire. Es el valor **medido**: durante un salto la aceleración en el reloj baja casi a caída libre, y ese tramo se cronometra.
 - **🚀 Salto más alto** — **estimado**, no medido: calculado desde el airtime suponiendo que solo actúa la gravedad (h = g·t²/8). Tu cometa, wing o vela te mantiene arriba, así que ese supuesto no se cumple y la estimación sale **alta** — más cuanto más tiempo cuelgues. Compárala con tus propios saltos, no con un sensor montado en la tabla: otra posición, otra fórmula, otro número. En kitesurf la clasificación empieza por eso en el airtime, que sí se mide.
 - **🔁 Más saltos** — cuántos saltos completaste en una sesión.
+- **⏳ Airtime total** — todos tus saltos de una sesión sumados. En kitesurf es la cifra de referencia: premia una sesión entera en el aire en lugar de un salto con suerte — veinte saltos sólidos superan uno muy bueno.
+- **🎯 Media 5 mejores saltos** — la media de tus cinco saltos más largos de una sesión. Un salto puede ser suerte; cinco hay que saltarlos. Con menos de cinco se promedia lo que haya; el número de saltos está en la fila.
+
+Ambos los cuenta el reloj y necesitan la app del reloj 0.9.9 o posterior – las sesiones grabadas antes no los tienen, porque el valor no se midió entonces.
 
 ### 🛶 SUP
 - **🛶 Más paladas** — la mayor cantidad de paladas en una sesión.
@@ -7391,6 +7427,40 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     def _r_airtime(c):
         _metric_body(c, "max_airtime_s", "### 🪂 Best airtime", "Airtime s",
                      empty_msg="No jump data yet – record a session with jumps on the watch.")
+        with c:
+            st.caption(_JUMP_AIRTIME_HELP)
+
+    def _r_airtot(c):
+        """Gesamt-Airtime einer Session - beim Kitesurfen die Leitkennzahl.
+
+        Sie belohnt eine ganze Session in der Luft, nicht einen Gluecksprung:
+        zwanzig ordentliche Spruenge schlagen einen sehr guten. Genau darum
+        steht sie in der Vorlage an erster Stelle."""
+        _metric_body(c, "airtime_total_s", "### ⏳ Total airtime", "Airtime s",
+                     empty_msg=("No data yet – this one is counted on the watch "
+                                "and needs the app update (0.9.9 or newer)."))
+        with c:
+            st.caption(
+                "All your jumps of one session added up. Rewards a whole session "
+                "in the air rather than one lucky jump – twenty solid jumps beat "
+                "one very good one. Measured on the watch, so older sessions do "
+                "not have it: the value was never recorded back then."
+            )
+
+    def _r_air5(c):
+        """Schnitt der fuenf besten Spruenge - dieselbe Fairness-Logik wie
+        avg 5x10 beim Speed."""
+        _metric_body(c, "airtime_avg5_s", "### 🎯 Avg 5 best jumps", "Airtime s",
+                     decimals=2,
+                     empty_msg=("No data yet – this one is counted on the watch "
+                                "and needs the app update (0.9.9 or newer)."))
+        with c:
+            st.caption(
+                "The average of your five longest jumps in a session. A single "
+                "jump can be luck; five have to be jumped. Sessions with fewer "
+                "than five jumps are averaged over what is there – the jump "
+                "count is in the row, so you can see the basis."
+            )
 
     def _r_jump(c):
         _metric_body(c, "max_jump_m", "### 🚀 Highest jump", "Jump m",
@@ -7503,6 +7573,15 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             _avail += [("strokes", _r_strokes), ("cadence", _r_cadence)]
         else:
             _avail += [("airtime", _r_airtime), ("jump", _r_jump), ("airs", _r_airs)]
+            # Gesamt-Airtime und Ø der fuenf besten nur anbieten, wenn sie
+            # jemand hat: Beide kommen ausschliesslich von der Uhr ab 0.9.9,
+            # aeltere Sessions haben sie nicht. Ein Chip, der immer "keine
+            # Daten" zeigt, ist keine Disziplin.
+            for _k, _f, _s in (("airtot", _r_airtot, "airtime_total_s"),
+                               ("air5", _r_air5, "airtime_avg5_s")):
+                if _s in ranking.columns and pd.to_numeric(
+                        ranking[_s], errors="coerce").gt(0).any():
+                    _avail.append((_k, _f))
         if _sp == "windsurf":
             _avail += [("kw_ppf", _r_kw_ppf), ("kw_force", _r_kw_force),
                        ("kw_power", _r_kw_power)]
@@ -13834,6 +13913,26 @@ def render_history_overview(record):
                   help=_JUMP_AIRTIME_HELP)
         j3.metric("Highest jump", "–" if max_jump is None else f"{max_jump:.1f} m",
                   help=_jump_height_help(active_sport()))
+
+        # Gesamt-Airtime und der Schnitt der fuenf besten - nur wenn die Uhr sie
+        # geliefert hat. Bei aelteren Sessions fehlen sie, und eine Kachel mit
+        # "–" wuerde einen Messfehler vortaeuschen, wo einfach nichts gemessen
+        # wurde.
+        _atot = num("airtime_total_s")
+        _a5 = num("airtime_avg5_s")
+        if _has(_atot) or _has(_a5):
+            k1, k2, _k3 = st.columns(3)
+            if _has(_atot):
+                # In Sekunden, wie die Rangliste - nicht in Minuten: Eine gute
+                # Kite-Session kommt auf ein paar Minuten Gesamtflugzeit, in
+                # Minuten gerundet waeren das "4m" und der Unterschied zur
+                # naechsten Session verschwindet.
+                k1.metric("Total airtime", f"{_atot:.0f} s",
+                          help="All jumps of this session added up.")
+            if _has(_a5):
+                k2.metric("Avg 5 best", f"{_a5:.2f} s",
+                          help="Average of the five longest jumps – or of all "
+                               "of them if there were fewer than five.")
 
     if _has(strokes) or _has(cadence) or _has(max_cadence):
         st.markdown("## 🛶 Paddling")
