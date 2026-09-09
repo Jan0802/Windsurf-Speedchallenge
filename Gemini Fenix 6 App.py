@@ -675,6 +675,13 @@ sessions_table = Table(
     # leer. Das ist kein Loch, sondern die Wahrheit: damals nicht gemessen.
     Column("airtime_total_s", Float),
     Column("airtime_avg5_s", Float),
+    # Gestandene Spruenge. Die Uhr schaut drei Sekunden nach der Landung auf die
+    # Geschwindigkeit - wer weiterfaehrt, hat gestanden. Die QUOTE wird daraus
+    # und aus jumps gerechnet, nicht gespeichert: So bleibt in der Zeile beides
+    # sichtbar, Quote UND Grundlage, und die Zahl kann nicht auseinanderlaufen.
+    Column("jumps_landed", Integer),
+    # Runden bzw. Runs einer Session. Beim Wakeboarden das Grundmass.
+    Column("runs", Integer),
     Column("strokes", Integer),          # Paddelschlaege (SUP)
     Column("cadence_spm", Integer),      # Paddelkadenz beim Stoppen (Schlaege/Minute)
     Column("max_cadence_spm", Integer),  # hoechste Kadenz der Session
@@ -1166,6 +1173,8 @@ _WATCH_COLUMNS = {
     # Gesamt-Airtime und Schnitt der fuenf besten Spruenge (nur von der Uhr).
     "airtime_total_s": "DOUBLE PRECISION",
     "airtime_avg5_s": "DOUBLE PRECISION",
+    "jumps_landed": "INTEGER",
+    "runs": "INTEGER",
     # Sicherung vor einem Admin-Zuschnitt: JSON mit Original-Track UND den
     # Original-Kennzahlen. Beides zusammen, damit ein Zurueck die exakten
     # UHR-Werte wiederherstellt – ein aus dem Track nachgerechneter Wert waere
@@ -4613,7 +4622,8 @@ RANKING_TABLES_DEFAULT = ["30s", "2s"]
 # Wakeboard (wakeboard-kennzahlen.md): Gesamt-Airtime ist "der Kern der
 # Sportart", darum zuerst - sobald sie jemand hat (nur Uhr ab 0.9.9), sonst
 # faellt die Auswahl auf die beste Airtime zurueck.
-RANKING_TABLES_DEFAULT_BY_SPORT = {"wakeboard": ["airtot", "airtime", "jump"],
+RANKING_TABLES_DEFAULT_BY_SPORT = {"wakeboard": ["airtot", "land", "airtime",
+                                                 "jump"],
                                    "surf": ["2s", "run", "time"],
                                    "wingsurf": ["held", "run", "airtime"],
                                    # Gesamt-Airtime zuerst, sobald sie jemand
@@ -4635,6 +4645,7 @@ RANKING_TABLE_LABELS = {
     "time": "⏱️ Most water time",
     "airtime": "🪂 Best airtime", "jump": "🚀 Highest jump", "airs": "🔁 Most airs",
     "airtot": "⏳ Total airtime", "air5": "🎯 Avg 5 best jumps",
+    "land": "✅ Landing rate", "runs": "🔄 Most runs",
     "strokes": "🛶 Most strokes", "cadence": "⏱️ Max cadence",
     "held": "🔄 Maneuvers held",
     "kw_ppf": "💪 Pound-for-pound", "kw_force": "🏋️ Sail force", "kw_power": "⚡ Power",
@@ -6419,6 +6430,11 @@ def _viz_trust_anteil(text):
 # die Champion-Karte die Kachel gar nicht an, statt eine Null auszugeben.
 _MIN_PLAUSIBLE = {"max_jump_m": 0.5, "max_airtime_s": 0.5}
 
+# Ab wie vielen Spruengen eine Landerate eine Aussage ist. Aus zwei Spruengen
+# ist sie Zufall - und "100 %" aus einem einzigen waere die unehrlichste Zahl
+# der ganzen Seite. Dieselbe Haltung wie bei der Manoever-Quote (dort fuenf).
+_LAND_MIN_JUMPS = 5
+
 # --- Was an der Sprunghoehe dransteht --------------------------------------
 # Die Uhr misst die AIRTIME (Zeit im freien Fall) und rechnet daraus die Hoehe
 # ballistisch: h = g*t^2/8. Die Annahme dahinter ist, dass nur die Schwerkraft
@@ -7132,6 +7148,20 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             None if (q is None or q[1] < _MAN_MIN_FOR_RANK)
             else round(100.0 * q[0] / q[1], 0) for q in _mq]
 
+    # --- Landerate (gestanden / gesprungen) -------------------------------
+    # "Die aussagekraeftigste Einzelzahl ueberhaupt" nennt sie die
+    # Wakeboard-Vorlage, und die Kite-Vorlage sagt dasselbe. Sie wird HIER
+    # gerechnet und nicht gespeichert: So koennen Quote und Grundlage nicht
+    # auseinanderlaufen, und in der Zeile steht beides.
+    if {"jumps_landed", "jumps"}.issubset(ranking.columns):
+        _lj = pd.to_numeric(ranking["jumps"], errors="coerce")
+        _ll = pd.to_numeric(ranking["jumps_landed"], errors="coerce")
+        # Mindestens _LAND_MIN_JUMPS Spruenge: Aus zwei Spruengen ist eine Quote
+        # Zufall, und "100 %" aus einem einzigen waere die unehrlichste Zahl der
+        # ganzen Seite.
+        _ok = _lj.notna() & _ll.notna() & (_lj >= _LAND_MIN_JUMPS)
+        ranking["land_pct"] = (100.0 * _ll / _lj).where(_ok).round(0)
+
     # Eine Zeile, die sagt, WAS man gerade ansieht. Ohne sie steht ueber der
     # Seite nur "Online rankings", und welcher Spot, welche Sportart und welcher
     # Zeitraum gemeint sind, muss man aus den Filtern rekonstruieren - die auf
@@ -7479,6 +7509,65 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "count is in the row, so you can see the basis."
             )
 
+    def _r_land(c):
+        """Landerate: Anteil der Spruenge, nach denen es weiterging.
+
+        Die Uhr schaut drei Sekunden nach der Landung auf die Geschwindigkeit -
+        wer wieder auf Fahrt ist, hat gestanden; wer im Wasser liegt, ist auf
+        nahe null. Kein neuer Sensor, nur zwei Datenquellen, die es schon gab:
+        die Sprungerkennung und der Sekunden-Speed."""
+        with c:
+            st.caption(
+                f"Share of your jumps you rode away from. Three seconds after "
+                f"the landing the watch looks at your speed: back up to at "
+                f"least half of your approach speed counts as landed, still "
+                f"floating does not. Needs at least {_LAND_MIN_JUMPS} jumps in "
+                "the session, and the count is next to the percentage so you "
+                "can see the basis."
+            )
+            if "land_pct" not in ranking.columns:
+                st.caption("No data yet.")
+                return
+            lnd = ranking[fin_cols + [
+                "id", "date", "name", "land_pct", "jumps",
+                "surfspot", "board", "sail", "Weather", "Trust",
+            ]].copy()
+            lnd = lnd.dropna(subset=["land_pct"])
+            lnd = (
+                lnd.sort_values(["land_pct", "jumps"], ascending=False)
+                .drop_duplicates(subset="name", keep="first")
+                .reset_index(drop=True).head(RANKING_TOP_N)
+            )
+            if lnd.empty:
+                st.caption(
+                    "No entries yet – this one is counted on the watch and "
+                    "needs the app update (0.9.9 or newer), plus a session with "
+                    f"at least {_LAND_MIN_JUMPS} jumps."
+                )
+                return
+            lnd.insert(0, "Rank", lnd.index + 1)
+            lnd["land_pct"] = lnd["land_pct"].astype(int)
+            lnd["jumps"] = lnd["jumps"].astype(int)
+            lnd = lnd.rename(columns={
+                "date": "Date", "name": "Name", "surfspot": "Surf spot",
+                "board": "Board", "sail": gear_label,
+                "land_pct": "Landed %", "jumps": "jumps",
+            })
+            _show_rank(lnd, extra.get("columns"), gear_label)
+
+    def _r_runs(c):
+        """Runden bzw. Runs - beim Wakeboarden das Grundmass der Session."""
+        _metric_body(c, "runs", "### 🔄 Most runs", "Runs", decimals=0,
+                     empty_msg=("No data yet – counted on the watch, needs the "
+                                "app update (0.9.9 or newer)."))
+        with c:
+            st.caption(
+                "How many runs the watch counted: a stretch ridden above "
+                "walking pace, at least 50 m long. At a cable that is a lap, "
+                "behind a boat a pass. The basic measure of a session – not a "
+                "performance on its own, but it says how much you actually rode."
+            )
+
     def _r_jump(c):
         _metric_body(c, "max_jump_m", "### 🚀 Highest jump", "Jump m",
                      empty_msg="No jump data yet – record a session with jumps on the watch.")
@@ -7573,7 +7662,9 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         """
         raus = []
         for _k, _f, _s in (("airtot", _r_airtot, "airtime_total_s"),
-                           ("air5", _r_air5, "airtime_avg5_s")):
+                           ("air5", _r_air5, "airtime_avg5_s"),
+                           ("land", _r_land, "land_pct"),
+                           ("runs", _r_runs, "runs")):
             if _s in ranking.columns and pd.to_numeric(
                     ranking[_s], errors="coerce").gt(0).any():
                 raus.append((_k, _f))
