@@ -4610,7 +4610,10 @@ RANKING_TABLES_DEFAULT = ["30s", "2s"]
 # Schaetzung.
 #
 # Kite erbte bisher den globalen Default und startete auf "Best 30 s / Top 2 s".
-RANKING_TABLES_DEFAULT_BY_SPORT = {"wakeboard": ["airtime", "jump"],
+# Wakeboard (wakeboard-kennzahlen.md): Gesamt-Airtime ist "der Kern der
+# Sportart", darum zuerst - sobald sie jemand hat (nur Uhr ab 0.9.9), sonst
+# faellt die Auswahl auf die beste Airtime zurueck.
+RANKING_TABLES_DEFAULT_BY_SPORT = {"wakeboard": ["airtot", "airtime", "jump"],
                                    "surf": ["2s", "run", "time"],
                                    "wingsurf": ["held", "run", "airtime"],
                                    # Gesamt-Airtime zuerst, sobald sie jemand
@@ -7213,6 +7216,20 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "speed_1s_kmh": "2s km/h", "speed_1s_kn": "2s kn",
             })
             _show_rank(r1, extra.get("columns"), gear_label)
+            # Beim Wakeboarden ist Geschwindigkeit KEINE Leistung: Sie kommt vom
+            # Boot oder von der Bahn und liegt praktisch immer im gleichen
+            # Fenster (Boot 30-38, Cable 28-32 km/h). Wer hier oben steht, hat
+            # den Gashebel weiter aufgedreht - nicht besser gefahren
+            # (wakeboard-kennzahlen.md). Die Liste bleibt, weil sie als Kontext
+            # interessiert; nur soll niemand sie fuer eine Rangliste halten.
+            if _sp == "wakeboard":
+                st.caption(
+                    "Context, not a performance: your speed comes from the boat "
+                    "or the cable and sits in a narrow window either way (boat "
+                    "30–38 km/h, cable 28–32). Whoever leads here opened the "
+                    "throttle further. The rankings that say something about "
+                    "your riding are the airtime ones."
+                )
 
     def _dist_body(c, col, title, unit_label, dist_m):
         with c:
@@ -7541,13 +7558,35 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         _metric_body(c, "kw_power_w", "### ⚡ Power (force × speed)", "Power (W)", decimals=0,
                      empty_msg="Needs a sail size, session wind and GPS speed.")
 
+    def _airtime_extras():
+        """Gesamt-Airtime und Ø der fuenf besten - aber nur, wenn sie jemand hat.
+
+        Beide kommen ausschliesslich von der Uhr ab 0.9.9; aeltere Sessions
+        haben sie nicht. Ein Chip, der immer "keine Daten" zeigt, ist keine
+        Disziplin, sondern eine Enttaeuschung.
+
+        An EINER Stelle, weil sie zu ZWEI Sportart-Zweigen gehoeren: Wakeboard
+        hat seine eigene Liste (dort sind Speed-Disziplinen bewusst raus), die
+        Windsportarten die gemeinsame. Beim ersten Anlauf standen sie nur im
+        gemeinsamen Zweig - und fehlten damit gerade dem Wakeboarden, wo die
+        Gesamt-Airtime laut Vorlage der Kern der Sportart ist.
+        """
+        raus = []
+        for _k, _f, _s in (("airtot", _r_airtot, "airtime_total_s"),
+                           ("air5", _r_air5, "airtime_avg5_s")):
+            if _s in ranking.columns and pd.to_numeric(
+                    ranking[_s], errors="coerce").gt(0).any():
+                raus.append((_k, _f))
+        return raus
+
     # Verfuegbare Tabellen (sport-/datenabhaengig) in kanonischer Reihenfolge.
     _sp = active_sport()
     if _sp == "wakeboard":
         # Wakeboard: nur die relevanten Wertungen – Airtime/Sprunghoehe zuerst,
         # dazu Top-Speed + Distanz. KEINE Seemeile/500m/30s/Longest run.
-        _avail = [("airtime", _r_airtime), ("jump", _r_jump), ("airs", _r_airs),
-                  ("2s", _r_2s), ("total", _r_total)]
+        _avail = ([("airtime", _r_airtime)] + _airtime_extras()
+                  + [("jump", _r_jump), ("airs", _r_airs),
+                     ("2s", _r_2s), ("total", _r_total)])
     elif _sp == "surf":
         # Wellenreiten: bei GPS ehrlich messbar sind Top-Speed, laengster Ritt
         # (Longest run) und Wasserzeit. KEINE 500m/Seemeile/Airtime.
@@ -7572,16 +7611,8 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         if _sp == "sup":
             _avail += [("strokes", _r_strokes), ("cadence", _r_cadence)]
         else:
-            _avail += [("airtime", _r_airtime), ("jump", _r_jump), ("airs", _r_airs)]
-            # Gesamt-Airtime und Ø der fuenf besten nur anbieten, wenn sie
-            # jemand hat: Beide kommen ausschliesslich von der Uhr ab 0.9.9,
-            # aeltere Sessions haben sie nicht. Ein Chip, der immer "keine
-            # Daten" zeigt, ist keine Disziplin.
-            for _k, _f, _s in (("airtot", _r_airtot, "airtime_total_s"),
-                               ("air5", _r_air5, "airtime_avg5_s")):
-                if _s in ranking.columns and pd.to_numeric(
-                        ranking[_s], errors="coerce").gt(0).any():
-                    _avail.append((_k, _f))
+            _avail += ([("airtime", _r_airtime)] + _airtime_extras()
+                       + [("jump", _r_jump), ("airs", _r_airs)])
         if _sp == "windsurf":
             _avail += [("kw_ppf", _r_kw_ppf), ("kw_force", _r_kw_force),
                        ("kw_power", _r_kw_power)]
