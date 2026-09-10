@@ -665,6 +665,10 @@ sessions_table = Table(
     Column("glide_longest_s", Float),    # laengste einzelne Gleitphase
     Column("glide_phases", Integer),     # Anzahl Gleitphasen
     Column("glide_avg_kmh", Float),      # Ø-Geschwindigkeit im Gleiten
+    # Katapulte: Sturz nach vorn ueber den Mast, aus dem Gleiten heraus. NUR von
+    # der Uhr (ab 1.1) und nur beim Windsurfen - aus dem Track ist das nicht zu
+    # rekonstruieren, es braucht den Beschleunigungssensor.
+    Column("catapults", Integer),
     Column("wind_kmh", Float),
     Column("gust_kmh", Float),
     Column("wind_dir_deg", Float),
@@ -1200,6 +1204,7 @@ _WATCH_COLUMNS = {
     "glide_longest_s": "DOUBLE PRECISION",
     "glide_phases": "INTEGER",
     "glide_avg_kmh": "DOUBLE PRECISION",
+    "catapults": "INTEGER",
     # Sicherung vor einem Admin-Zuschnitt: JSON mit Original-Track UND den
     # Original-Kennzahlen. Beides zusammen, damit ein Zurueck die exakten
     # UHR-Werte wiederherstellt – ein aus dem Track nachgerechneter Wert waere
@@ -14040,7 +14045,31 @@ def _render_speed_curve(track_pts, duration_s, record):
             "The average speed is the one that matters for gear questions: the "
             "session average is watered down by all the standing around."
         )
+        if pd.notna(_gl_long) and record.get("source") == "watch":
+            # Uhr-Werte sind sekundengenau gezaehlt, nicht aus dem Track
+            # geschaetzt. Das gehoert dazugesagt, weil es der Unterschied
+            # zwischen "gemessen" und "gerechnet" ist.
+            _gl_txt.append("Counted second by second on the watch.")
         st.caption(" ".join(_gl_txt))
+
+    # --- Katapulte -------------------------------------------------------
+    # Der Sturz nach vorn ueber den Mast. Steht bewusst OHNE Rangliste: Der
+    # Erkenner ist neu und seine G-Schwelle ist geraten (siehe CAT_G auf der
+    # Uhr). Erst wenn die Diagnosewerte aus echten Sessions zeigen, dass sie
+    # stimmt, wird daraus eine Wertung - dieselbe Zurueckhaltung wie bei den
+    # Drehungen. Eine Rangliste "die meisten Katapulte" haette ausserdem den
+    # falschen Anreiz.
+    _cat = pd.to_numeric(record.get("catapults"), errors="coerce")
+    if pd.notna(_cat) and int(_cat) > 0:
+        _n = int(_cat)
+        st.markdown(f"### 💥 {_n} catapult" + ("s" if _n != 1 else ""))
+        st.caption(
+            "Detected on the watch: out of full planing to a dead stop within a "
+            "couple of seconds, with an impact – and no airtime just before, "
+            "which is what separates a catapult from a hard landing. **Beta:** "
+            "the impact threshold is an estimate that still needs real sessions "
+            "to confirm, so this is shown for fun and not counted in any ranking."
+        )
     # Aktive Zeit: die Aufzeichnung laeuft oft weiter, waehrend man das Brett
     # zuruecktraegt oder am Strand steht. Rein informativ – die Wertung nutzt
     # weiterhin die Aufzeichnungsdauer.
