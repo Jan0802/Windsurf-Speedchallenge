@@ -656,6 +656,15 @@ sessions_table = Table(
     Column("speed_nm_kmh", Float),       # beste Ø-Geschwindigkeit über 1 Seemeile (1852 m)
     Column("speed_5x10_kmh", Float),     # Mittel der 5 besten 10-s-Fahrten (avg 5x10)
     Column("speed_alpha500_kmh", Float), # schnellste 500 m mit Halse (Start/Ende < 50 m)
+    # Gleitanteil (windsurf-kennzahlen.md): Zeit ueber der Gleitgrenze, Anzahl und
+    # Laenge der Gleitphasen, Ø-Speed IM Gleiten (der Sessionschnitt ist durch
+    # Duempeln verwaessert). Aus dem Track gerechnet, also auch fuer Altsessions
+    # nachtragbar - siehe _glide_core und /backfill_glide.
+    Column("glide_s", Float),            # Gleitzeit in Sekunden
+    Column("glide_pct", Float),          # Anteil an der Aufzeichnungsdauer
+    Column("glide_longest_s", Float),    # laengste einzelne Gleitphase
+    Column("glide_phases", Integer),     # Anzahl Gleitphasen
+    Column("glide_avg_kmh", Float),      # Ø-Geschwindigkeit im Gleiten
     Column("wind_kmh", Float),
     Column("gust_kmh", Float),
     Column("wind_dir_deg", Float),
@@ -1184,6 +1193,13 @@ _WATCH_COLUMNS = {
     "runs": "INTEGER",
     "rot_max_deg": "INTEGER",
     "rot_count": "INTEGER",
+    # Gleitanteil. Anders als die Airtime-Spalten NICHT von der Uhr, sondern aus
+    # dem Track gerechnet - also auch fuer den Altbestand nachtragbar.
+    "glide_s": "DOUBLE PRECISION",
+    "glide_pct": "DOUBLE PRECISION",
+    "glide_longest_s": "DOUBLE PRECISION",
+    "glide_phases": "INTEGER",
+    "glide_avg_kmh": "DOUBLE PRECISION",
     # Sicherung vor einem Admin-Zuschnitt: JSON mit Original-Track UND den
     # Original-Kennzahlen. Beides zusammen, damit ein Zurueck die exakten
     # UHR-Werte wiederherstellt – ein aus dem Track nachgerechneter Wert waere
@@ -4393,6 +4409,14 @@ RECORD_METRICS = [
     {"key": "speed_alpha500_kmh", "label": "Alpha 500", "unit": "km/h", "decimals": 2},
     {"key": "longest_run_km", "label": "Longest run", "unit": "km", "decimals": 3},
     {"key": "total_distance_km", "label": "Total distance", "unit": "km", "decimals": 2},
+    # Gleitwerte. "scale" rechnet NUR fuer die Anzeige um (Sekunden sind
+    # gespeichert, Minuten liest man); verglichen wird weiter im Rohwert, sonst
+    # haenge die Rekorderkennung an einer Rundung. Gespeichert bleiben Sekunden,
+    # weil die kuerzeste zaehlende Phase drei Sekunden lang ist.
+    {"key": "glide_longest_s", "label": "Longest glide", "unit": "min",
+     "decimals": 1, "scale": 1.0 / 60.0},
+    {"key": "glide_s", "label": "Most glide time", "unit": "min",
+     "decimals": 0, "scale": 1.0 / 60.0},
 ]
 
 
@@ -4439,7 +4463,15 @@ def detect_records(entry, all_sessions, member_groups):
             continue
 
         new_val = float(new_val)
-        base = {"label": label, "value": new_val, "unit": unit, "decimals": dec}
+        # Anzeige-Umrechnung (z.B. Sekunden -> Minuten). Sie beruehrt NUR die
+        # ausgegebenen Zahlen; alle Vergleiche unten laufen im Rohwert weiter.
+        _sc = float(m.get("scale", 1.0))
+
+        def _disp(v):
+            return None if v is None else float(v) * _sc
+
+        base = {"label": label, "value": new_val * _sc, "unit": unit,
+                "decimals": dec}
 
         # --- Persönlicher Rekord (alle eigenen Sessions) ---
         prev_personal = (
@@ -4448,7 +4480,7 @@ def detect_records(entry, all_sessions, member_groups):
         is_personal = prev_personal is None or new_val > prev_personal
 
         if is_personal:
-            personal.append({**base, "previous": prev_personal})
+            personal.append({**base, "previous": _disp(prev_personal)})
 
         # --- Jahresbestleistung (nur wenn KEIN All-time-Rekord) ---
         if year and have_data and names is not None and years is not None:
@@ -4457,14 +4489,16 @@ def detect_records(entry, all_sessions, member_groups):
             is_year_best = prev_year is None or new_val > prev_year
 
             if is_year_best and not is_personal:
-                year_records.append({**base, "previous": prev_year, "year": year})
+                year_records.append({**base, "previous": _disp(prev_year),
+                                     "year": year})
 
         # --- Spotrekord (alle Fahrer am selben Spot) ---
         if spot and have_data and spots is not None:
             prev_spot = _series_max(df, key, spots == str(spot))
 
             if prev_spot is None or new_val > prev_spot:
-                spot_records.append({**base, "previous": prev_spot, "spot": str(spot)})
+                spot_records.append({**base, "previous": _disp(prev_spot),
+                                     "spot": str(spot)})
 
         # --- Gruppen: Rang & Rekord ---
         for g in member_groups:
@@ -4652,6 +4686,8 @@ RANKING_TABLE_LABELS = {
     "alpha": "🔄 Alpha 500",
     "run": "🚩 Longest run", "total": "👥 Total distance",
     "time": "⏱️ Most water time",
+    "glidel": "🌊 Longest glide", "glidet": "⏱️ Most glide time",
+    "swr": "🌬️ Speed per wind",
     "airtime": "🪂 Best airtime", "jump": "🚀 Highest jump", "airs": "🔁 Most airs",
     "airtot": "⏳ Total airtime", "air5": "🎯 Avg 5 best jumps",
     "land": "✅ Landing rate", "runs": "🔄 Most runs",
@@ -4671,6 +4707,11 @@ RANKING_LABELS_BY_SPORT = {
              "windsurf": "🔄 Planing gybes",
              "kitesurf": "🔄 Powered transitions",
              "sup": "🔄 Turns held"},
+    # Beim Wingfoilen gleitet niemand, dort fliegt man - und die Flugzeit ist
+    # genau die Kennzahl, die die Wing-Vorlage ganz oben nennt. Es ist dieselbe
+    # Rechnung wie der Gleitanteil beim Windsurfen, nur heisst sie anders.
+    "glidel": {"wingsurf": "🪽 Longest flight"},
+    "glidet": {"wingsurf": "🪽 Most flight time"},
 }
 
 
@@ -4723,10 +4764,15 @@ def personal_bests(name, spot=None, year=None):
     if year and year != "All" and "date" in df.columns:
         df = df[pd.to_datetime(df["date"], errors="coerce", format="mixed").dt.year == int(year)]
 
+    def _val(m):
+        v = _series_max(df, m["key"])
+        # Wie in detect_records: "scale" ist reine Anzeige-Umrechnung.
+        return None if v is None else v * float(m.get("scale", 1.0))
+
     return [
         {
             "label": m["label"],
-            "value": _series_max(df, m["key"]),
+            "value": _val(m),
             "unit": m["unit"],
             "decimals": m["decimals"],
         }
@@ -5667,6 +5713,13 @@ Every ranking shows each rider's best value (unless noted). Use the filters (spo
 - **🚩 Longest run** — the longest distance you rode in one go without stopping.
 - **👥 Total distance** — how far you travelled across all your sessions, added up.
 
+### 🌊 Glide & wind (windsurf · kite · wing)
+- **🌊 Longest glide** · **🪽 Longest flight** (wing) — your longest unbroken stretch above planing (or flight) speed, in minutes. Short dips of up to 2 s do not break it: a chop or a hole in the gust is not the end of a glide. The counterpart to Longest run, but in time — and it does not depend on where you happened to turn around.
+- **⏱️ Most glide time** — all your glide phases of one session added up. The honest version of water time, which also counts the floating around. Long sessions have an advantage here, and that is the point: this one rewards a full day, Longest glide rewards one good stretch.
+- **🌬️ Speed per wind** — your avg 5×10 divided by the session's average wind. It makes different days and spots comparable and measures gear plus technique instead of luck with the weather: 28 kn in 35 kn of wind is a weaker session than 24 kn in 18 kn. Needs at least 8 kn of wind — below that planing is a matter of luck and the ratio explodes.
+  The glide threshold is the **same for everyone** here (windsurf 12 kn, kite 11, wing 10), because that is what makes the numbers comparable. Your **personal** threshold from board type, volume and weight is in the session view, where it answers the other question: did *you* plane on *your* gear? Both numbers are labelled with the threshold they used.
+  All of this is computed from the GPS track, so it counts for **every session ever uploaded**, not only the new ones — your season curve starts at your first session, not today.
+
 ### 🪽 Maneuvers held (wing · windsurf · kite · SUP)
 - **🪽 Foiling turns** (wing) · **🔄 Planing gybes** (windsurf) · **🔄 Powered transitions** (kite) — the share of your turns where your speed **never** dropped below flight/planing speed. For wingfoiling that is the question that matters: did the foil stay up? Not "how many turns" — whether you kept them.
   **Needs the watch app.** It sends a per-second speed window for every maneuver it detects. A GPS file has one point every few seconds, so entry and exit of a turn fall into the same sample — there is nothing to measure there, and we would rather show nothing than a guess.
@@ -5716,6 +5769,13 @@ Jede Rangliste zeigt den besten Wert je Fahrer (wenn nicht anders vermerkt). Üb
 - **🔄 Alpha 500** — die schnellsten 500 m, bei denen Start und Ende weniger als 50 m auseinanderliegen; es muss also eine Halse drin sein. Eine Gerade mit Rückenwind zählt nicht. **Hängt von deiner Uhr ab:** wir rechnen es aus dem GPS-Track, und Uhren dünnen den aus. Liegen die Punkte weit auseinander, wird die 50-Meter-Prüfung unscharf und Alpha bleibt leer – das ist die Aufzeichnungsrate, kein Fehler.
 - **🚩 Longest run** — die längste Strecke, die du am Stück ohne Stopp gefahren bist.
 - **👥 Gesamtdistanz** — alle deine Sessions zusammengezählt.
+
+### 🌊 Gleiten & Wind (Windsurf · Kite · Wing)
+- **🌊 Längste Gleitphase** · **🪽 Längster Flug** (Wing) — die längste Strecke am Stück über der Gleit- bzw. Fluggrenze, in Minuten. Kurze Einbrüche bis 2 s zählen nicht als Ende: ein Kabbelschlag oder eine Böenlücke beendet keine Gleitphase. Das Gegenstück zum längsten Run, nur in Zeit statt in Metern — und unabhängig davon, wo du gerade umgedreht hast.
+- **⏱️ Meiste Gleitzeit** — alle Gleitphasen einer Session zusammengezählt. Die ehrliche Fassung der Wasserzeit, die auch das Dümpeln mitzählt. Lange Sessions haben hier einen Vorteil, und das ist gewollt: Diese Wertung belohnt den ganzen Tag, die längste Gleitphase eine gute Strecke.
+- **🌬️ Speed je Wind** — dein Avg 5×10 geteilt durch den Session-Wind. Damit werden Tage und Spots vergleichbar, und gemessen werden Material und Technik statt Wetterglück: 28 kn bei 35 kn Wind ist die schwächere Session als 24 kn bei 18 kn. Braucht mindestens 8 kn Wind — darunter ist Gleiten Glückssache und das Verhältnis explodiert.
+  Die Gleitgrenze ist hier für **alle dieselbe** (Windsurf 12 kn, Kite 11, Wing 10), denn nur so sind die Zahlen vergleichbar. Deine **persönliche** Schwelle aus Bretttyp, Volumen und Gewicht steht in der Sessionansicht, wo sie die andere Frage beantwortet: Bist *du* auf *deinem* Material geglitten? Beide Zahlen sind mit der Schwelle beschriftet, mit der sie gerechnet wurden.
+  Alles daran kommt aus dem GPS-Track, gilt also **rückwirkend für jede hochgeladene Session** und nicht nur für neue — dein Saisonverlauf beginnt bei deiner ersten Session, nicht heute.
 
 ### 🪽 Gehaltene Manöver (Wing · Windsurf · Kite · SUP)
 - **🪽 Foiling-Wenden** (Wing) · **🔄 Durchgeglittene Halsen** (Windsurf) · **🔄 Transitions mit Druck** (Kite) — der Anteil deiner Manöver, in denen die Geschwindigkeit **nie** unter Flug- bzw. Gleitgrenze gefallen ist. Beim Wingfoilen ist das die entscheidende Frage: Blieb das Foil oben? Nicht „wie viele Wenden" — sondern ob du sie gehalten hast.
@@ -5767,6 +5827,13 @@ Elke ranglijst toont de beste waarde per rijder (tenzij anders vermeld). Met de 
 - **🚩 Langste run** — de langste afstand die je in één keer zonder stoppen voer.
 - **👥 Totale afstand** — al je sessies bij elkaar opgeteld.
 
+### 🌊 Planeren & wind (windsurf · kite · wing)
+- **🌊 Langste planeerfase** · **🪽 Langste vlucht** (wing) — je langste ononderbroken stuk boven de planeer- of vliegsnelheid, in minuten. Korte dips tot 2 s breken de fase niet: een kabbeltje of een gat in de bui is niet het einde van je planeren. De tegenhanger van de langste run, maar in tijd — en onafhankelijk van waar je toevallig omkeerde.
+- **⏱️ Meeste planeertijd** — alle planeerfases van één sessie bij elkaar opgeteld. De eerlijke versie van watertijd, want die telt het rondhangen mee. Lange sessies hebben hier een voordeel, en dat is de bedoeling: deze telling belooft een hele dag, de langste planeerfase één goed stuk.
+- **🌬️ Snelheid per wind** — je avg 5×10 gedeeld door de gemiddelde wind van de sessie. Zo worden dagen en spots vergelijkbaar en meet je materiaal plus techniek in plaats van weergeluk: 28 kn bij 35 kn wind is een zwakkere sessie dan 24 kn bij 18 kn. Vraagt minimaal 8 kn wind — daaronder is planeren geluk en explodeert de verhouding.
+  De planeergrens is hier voor **iedereen dezelfde** (windsurf 12 kn, kite 11, wing 10), want alleen zo zijn de cijfers vergelijkbaar. Je **persoonlijke** grens uit boardtype, volume en gewicht staat in het sessieoverzicht, waar hij de andere vraag beantwoordt: planeerde *jij* op *jouw* materiaal? Beide cijfers vermelden met welke grens ze gerekend zijn.
+  Alles hiervan komt uit het GPS-spoor en geldt dus **met terugwerkende kracht voor elke geüploade sessie**, niet alleen de nieuwe — je seizoenslijn begint bij je eerste sessie, niet vandaag.
+
 ### 🪽 Gehouden manoeuvres (wing · windsurf · kite · SUP)
 - **🪽 Foiling-keerpunten** (wing) · **🔄 Doorgeplande gijpen** (windsurf) · **🔄 Transitions met druk** (kite) — het aandeel van je manoeuvres waarin je snelheid **nooit** onder de vlieg- of planeergrens kwam. Bij wingfoilen is dat de vraag die telt: bleef de foil boven? Niet „hoeveel keerpunten" — maar of je ze hebt gehouden.
   **Vereist de horloge-app.** Die stuurt voor elk gedetecteerd manoeuvre een venster met één waarde per seconde. Een GPS-bestand heeft maar één punt per paar seconden, dus in- en uitgang van een keerpunt vallen in hetzelfde meetpunt — daar is niets te meten, en dan laten we liever niets zien dan een schatting.
@@ -5817,6 +5884,13 @@ Chaque classement montre la meilleure valeur par rider (sauf mention contraire).
 - **🚩 Plus longue run** — la plus longue distance parcourue d'un seul trait sans t'arrêter.
 - **👥 Distance totale** — toutes tes sessions additionnées.
 
+### 🌊 Planing & vent (windsurf · kite · wing)
+- **🌊 Plus long planing** · **🪽 Plus long vol** (wing) — ta plus longue portion d'un seul trait au-dessus de la vitesse de planing (ou de vol), en minutes. Les creux courts jusqu'à 2 s ne l'interrompent pas : un clapot ou un trou dans la rafale n'est pas la fin d'un planing. Le pendant de la plus longue run, mais en temps — et sans dépendre de l'endroit où tu as fait demi-tour.
+- **⏱️ Plus de temps en planing** — toutes tes phases de planing d'une session additionnées. La version honnête du temps sur l'eau, qui compte aussi le temps à flotter. Les longues sessions ont un avantage ici, et c'est voulu : celle-ci récompense une journée entière, le plus long planing récompense une belle portion.
+- **🌬️ Vitesse par vent** — ton avg 5×10 divisé par le vent moyen de la session. Cela rend les journées et les spots comparables et mesure le matériel plus la technique au lieu de la chance météo : 28 nœuds dans 35 nœuds de vent est une session plus faible que 24 dans 18. Demande au moins 8 nœuds de vent — en dessous, le planing est une affaire de chance et le rapport explose.
+  Le seuil de planing est ici **le même pour tous** (windsurf 12 nœuds, kite 11, wing 10), car c'est ce qui rend les chiffres comparables. Ton seuil **personnel**, tiré du type de flotteur, du volume et du poids, se trouve dans la vue de session, où il répond à l'autre question : est-ce que *toi* tu as plané sur *ton* matériel ? Les deux chiffres indiquent le seuil utilisé.
+  Tout cela est calculé depuis la trace GPS et vaut donc **pour chaque session déjà envoyée**, pas seulement les nouvelles — ta courbe de saison commence à ta première session, pas aujourd'hui.
+
 ### 🪽 Manœuvres tenues (wing · windsurf · kite · SUP)
 - **🪽 Virements en foil** (wing) · **🔄 Jibes planées** (windsurf) · **🔄 Transitions sous tension** (kite) — la part de tes manœuvres où ta vitesse n'est **jamais** descendue sous la vitesse de vol ou de planing. En wingfoil, c'est la question qui compte : le foil est-il resté en haut ? Pas « combien de virements » — mais si tu les as tenus.
   **Nécessite l'application montre.** Elle envoie, pour chaque manœuvre détectée, une fenêtre avec une valeur par seconde. Un fichier GPS n'a qu'un point toutes les quelques secondes : l'entrée et la sortie d'un virement tombent dans le même point de mesure — il n'y a rien à mesurer là, et nous préférons ne rien montrer qu'une estimation.
@@ -5866,6 +5940,13 @@ Cada clasificación muestra el mejor valor por rider (salvo que se indique). Con
 - **🔄 Alpha 500** — los 500 m más rápidos cuyo inicio y final están a menos de 50 m: tiene que haber una trasluchada dentro. Una línea recta con viento a favor no cuenta. **Depende de tu reloj:** lo calculamos desde el track GPS, y los relojes lo adelgazan. Si los puntos están muy separados, la prueba de los 50 m se vuelve imprecisa y Alpha queda vacío – es la frecuencia de grabación, no un error.
 - **🚩 Run más larga** — la distancia más larga que recorriste de un tirón sin parar.
 - **👥 Distancia total** — todas tus sesiones sumadas.
+
+### 🌊 Planeo y viento (windsurf · kite · wing)
+- **🌊 Planeo más largo** · **🪽 Vuelo más largo** (wing) — tu tramo más largo de un tirón por encima de la velocidad de planeo (o de vuelo), en minutos. Las caídas cortas de hasta 2 s no lo interrumpen: una picada de olas o un hueco en la racha no es el final de un planeo. La contraparte de la run más larga, pero en tiempo — y sin depender de dónde diste la vuelta.
+- **⏱️ Más tiempo en planeo** — todas las fases de planeo de una sesión sumadas. La versión honesta del tiempo en el agua, que también cuenta el rato flotando. Las sesiones largas tienen ventaja aquí, y es intencionado: esta premia un día entero, el planeo más largo premia un buen tramo.
+- **🌬️ Velocidad por viento** — tu avg 5×10 dividido por el viento medio de la sesión. Así se pueden comparar días y spots, y mide material más técnica en lugar de suerte con el tiempo: 28 nudos con 35 de viento es una sesión más débil que 24 con 18. Necesita al menos 8 nudos de viento — por debajo el planeo es cuestión de suerte y la proporción se dispara.
+  El umbral de planeo aquí es **el mismo para todos** (windsurf 12 nudos, kite 11, wing 10), porque es lo que hace comparables las cifras. Tu umbral **personal**, según tipo de tabla, volumen y peso, está en la vista de sesión, donde responde a la otra pregunta: ¿planeaste *tú* con *tu* material? Ambas cifras indican con qué umbral se calcularon.
+  Todo esto se calcula desde el track GPS, así que cuenta **para todas las sesiones ya subidas**, no solo las nuevas — tu curva de temporada empieza en tu primera sesión, no hoy.
 
 ### 🪽 Maniobras mantenidas (wing · windsurf · kite · SUP)
 - **🪽 Viradas en foil** (wing) · **🔄 Trasluchadas planeando** (windsurf) · **🔄 Transiciones con potencia** (kite) — la proporción de tus maniobras en las que tu velocidad **nunca** bajó de la velocidad de vuelo o de planeo. En wingfoil esa es la pregunta que importa: ¿se mantuvo arriba el foil? No «cuántas viradas», sino si las aguantaste.
@@ -6444,6 +6525,26 @@ _MIN_PLAUSIBLE = {"max_jump_m": 0.5, "max_airtime_s": 0.5}
 # ist sie Zufall - und "100 %" aus einem einzigen waere die unehrlichste Zahl
 # der ganzen Seite. Dieselbe Haltung wie bei der Manoever-Quote (dort fuenf).
 _LAND_MIN_JUMPS = 5
+
+# --- Speed je Wind (windsurf-kennzahlen.md, Prioritaet 4) -------------------
+# "Aus meiner Sicht die unterschaetzteste Kennzahl der Sportart", und beide
+# Zahlen liegen schon in der Datenbank: erreichter Speed geteilt durch den
+# Session-Wind. Damit wird eine 28-kn-Session bei 35 kn Wind von einer
+# 24-kn-Session bei 18 kn Wind unterscheidbar - und die zweite ist die bessere
+# Leistung. Die Kennzahl misst Material und Technik statt Wetterglueck.
+#
+# Zaehler ist avg 5x10, nicht der 2-s-Spitzenwert: Ein Ausreisser im Zaehler
+# wuerde hier doppelt wirken, weil er durch eine kleine Zahl geteilt wird.
+#
+# Untergrenze beim Wind: Unter ~8 kn ist Gleiten Glueckssache, und die Division
+# durch eine kleine Zahl laesst das Verhaeltnis explodieren - ein Segler, der
+# bei 5 kn Wind einmal 15 kn erwischt, stuende sonst uneinholbar oben. Oben ein
+# Riegel gegen unmoeglich hohe Verhaeltnisse (GPS-Ausreisser oder falsch
+# eingetragener Wind): schneller als 2,2-mal den Wind faehrt auf dem Wasser
+# niemand ueber zehn Sekunden - dieselbe Grenze, die auch der Kraftweltmeister
+# als Plausibilitaetsschranke nutzt.
+_SWR_MIN_WIND_KMH = 15.0
+_SWR_MAX = 2.2
 
 # --- Was an der Sprunghoehe dransteht --------------------------------------
 # Die Uhr misst die AIRTIME (Zeit im freien Fall) und rechnet daraus die Hoehe
@@ -7172,6 +7273,27 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         _ok = _lj.notna() & _ll.notna() & (_lj >= _LAND_MIN_JUMPS)
         ranking["land_pct"] = (100.0 * _ll / _lj).where(_ok).round(0)
 
+    # --- Gleitzeit in Minuten ---------------------------------------------
+    # Gespeichert sind Sekunden (fein genug fuer die kuerzeste Phase), gezeigt
+    # werden Minuten: "4.2 min" liest sich, "252 s" muss man umrechnen.
+    if "glide_s" in ranking.columns:
+        ranking["glide_min"] = (pd.to_numeric(ranking["glide_s"], errors="coerce")
+                                / 60.0)
+    if "glide_longest_s" in ranking.columns:
+        ranking["glide_longest_min"] = (
+            pd.to_numeric(ranking["glide_longest_s"], errors="coerce") / 60.0)
+
+    # --- Speed je Wind ----------------------------------------------------
+    # Wie die Landerate hier gerechnet und NICHT gespeichert: Beide Zutaten
+    # stehen schon in der Zeile, also kann das Verhaeltnis nicht veralten, wenn
+    # eine davon nachtraeglich korrigiert wird (Wetter wird nachgetragen).
+    if {"speed_5x10_kmh", "wind_kmh"}.issubset(ranking.columns):
+        _sw_v = pd.to_numeric(ranking["speed_5x10_kmh"], errors="coerce")
+        _sw_w = pd.to_numeric(ranking["wind_kmh"], errors="coerce")
+        _sw = _sw_v / _sw_w
+        ranking["swr"] = _sw.where(_sw_v.notna() & (_sw_w >= _SWR_MIN_WIND_KMH)
+                                   & (_sw <= _SWR_MAX)).round(2)
+
     # Eine Zeile, die sagt, WAS man gerade ansieht. Ohne sie steht ueber der
     # Seite nur "Online rankings", und welcher Spot, welche Sportart und welcher
     # Zeitraum gemeint sind, muss man aus den Filtern rekonstruieren - die auf
@@ -7665,6 +7787,69 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             })
             _show_rank(held, extra.get("columns"), gear_label)
 
+    def _glide_word(sp):
+        """Wie die Sportart es nennt. Beim Wingfoilen ist es kein Gleiten,
+        sondern Fliegen - dieselbe Rechnung, ein anderes Wort."""
+        return "flight" if sp == "wingsurf" else "glide"
+
+    def _r_glidel(c):
+        """Laengste einzelne Gleitphase.
+
+        Von den Gleitwerten der einzige, der als Rangliste taugt: Die
+        PROZENTZAHL belohnt kurze Sessions bei viel Wind (zwanzig Minuten
+        durchgeglitten sind 100 %), die Gesamtzeit belohnt Ausdauer - aber eine
+        einzelne lange Phase muss man durchfahren, ohne abzusaufen. Sie ist das
+        Gegenstueck zum laengsten Run, nur in Zeit statt in Metern, und sie
+        haengt nicht daran, dass man am Ende umgedreht hat."""
+        _w = _glide_word(_sp)
+        _metric_body(c, "glide_longest_min", f"### 🌊 Longest {_w}",
+                     "Minutes", decimals=2,
+                     empty_msg=f"No {_w} phase long enough yet.")
+        with c:
+            st.caption(
+                f"Your longest unbroken stretch above {_GLIDE_KN.get(_sp, 10.0):.0f} kn "
+                f"in one session. Short dips of up to {_GLIDE_BRIDGE_S:.0f} s do not "
+                f"break the phase – a chop or a hole in the gust is not the end of "
+                f"a {_w}. Computed from the GPS track, so it counts for every "
+                "session ever uploaded, not only the new ones. The threshold is "
+                "the same for everyone here; your personal one (from board and "
+                "weight) is in the session view."
+            )
+
+    def _r_glidet(c):
+        """Gesamte Gleitzeit einer Session.
+
+        Steht bewusst neben "Most water time": Wasserzeit zaehlt auch das
+        Duempeln, diese Zahl nur die Zeit, in der es lief."""
+        _w = _glide_word(_sp)
+        _metric_body(c, "glide_min", f"### ⏱️ Most {_w} time", "Minutes",
+                     decimals=1, empty_msg=f"No {_w} data yet.")
+        with c:
+            st.caption(
+                f"Total time above {_GLIDE_KN.get(_sp, 10.0):.0f} kn in a session – "
+                f"the honest version of water time, which also counts the "
+                f"floating around. Long sessions have an advantage here, that is "
+                f"the point: this one rewards a full day, the longest {_w} "
+                "rewards one good stretch."
+            )
+
+    def _r_swr(c):
+        """Speed je Wind - Leistung ohne Wetterglueck."""
+        _metric_body(c, "swr", "### 🌬️ Speed per wind", "Speed ÷ wind",
+                     decimals=2,
+                     empty_msg="Needs avg 5×10 and the session wind.")
+        with c:
+            st.caption(
+                f"Your avg 5×10 divided by the session's average wind – how much "
+                f"of the wind you turned into speed. It makes days and spots "
+                f"comparable: 28 kn in 35 kn of wind is a weaker session than "
+                f"24 kn in 18 kn. Needs at least "
+                f"{_SWR_MIN_WIND_KMH / 1.852:.0f} kn of wind, below that planing "
+                f"is luck and the ratio explodes. The wind is the hourly value "
+                "for the spot, not a measurement on your board – so read this as "
+                "a comparison between your own sessions first."
+            )
+
     def _r_kw_ppf(c):
         _metric_body(c, "kw_ppf", "### 💪 Pound-for-pound", "Force ÷ kg", decimals=2,
                      empty_msg="Needs your weight (profile), a sail size and session wind.")
@@ -7727,6 +7912,18 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         if "speed_alpha500_kmh" in ranking.columns:
             _avail.append(("alpha", _r_alpha))
         _avail += [("run", _r_run), ("total", _r_total)]
+        # Gleitanteil: nur die Sportarten, in denen "gleiten" bzw. "fliegen" die
+        # Grenze zwischen Fahren und Duempeln ist. SUP hat zwar eine Schwelle
+        # (5 kn Renntempo), aber "laengste Gleitphase" waere dort das falsche
+        # Wort fuer die richtige Zahl. Wie bei den Airtime-Chips nur anbieten,
+        # wenn es mindestens eine Session gibt, die sie fuellt.
+        if _sp in ("windsurf", "kitesurf", "wingsurf"):
+            for _gk, _gf, _gs in (("glidel", _r_glidel, "glide_longest_min"),
+                                  ("glidet", _r_glidet, "glide_min"),
+                                  ("swr", _r_swr, "swr")):
+                if _gs in ranking.columns and pd.to_numeric(
+                        ranking[_gs], errors="coerce").gt(0).any():
+                    _avail.append((_gk, _gf))
         # Manoever-Quote nur anbieten, wenn sie mindestens eine Session fuellt.
         # Ein Chip, der immer "No entries yet" zeigt, ist keine Disziplin,
         # sondern eine Enttaeuschung - und der Wing-Default faellt ohne ihn
@@ -8229,6 +8426,150 @@ def best_alpha_500(df, meters=500.0, max_gap_m=50.0, slack=1.35):
             if v > best:
                 best = v
     return best if best > 0 else None
+
+
+# --- Gleitanteil (windsurf-kennzahlen.md, Prioritaet 1) ---------------------
+# Das windsurfspezifische Gegenstueck zur Foiling-Zeit: nicht wie schnell, sondern
+# WIE LANGE man ueber der Gleitgrenze war. Wurde bisher in der Sessionansicht
+# gerechnet und dort weggeworfen - kein Verlauf ueber die Saison, kein Vergleich
+# pro Board, keine Rangliste.
+#
+# Die Schwelle ist hier die FESTE der Sportart (_GLIDE_KN), nicht die
+# personalisierte aus Bretttyp/Gewicht/Volumen. Das ist eine Entscheidung, keine
+# Bequemlichkeit: Gespeicherte Werte werden ueber Fahrer UND ueber die eigene
+# Saison hinweg verglichen. Mit personalisierter Schwelle haette ein Foiler (8 kn)
+# mehr "Gleitanteil" als ein Slalomfahrer (14,5 kn), obwohl er langsamer war - und
+# die eigene Saisonkurve wuerde jeden Brettwechsel als Leistungssprung zeigen. Die
+# personalisierte Schwelle bleibt in der Sessionansicht, wo sie die richtige Frage
+# beantwortet ("bin ich auf MEINEM Material geglitten"), und ist dort beschriftet.
+_GLIDE_MIN_PHASE_S = 3.0      # kuerzer ist kein Gleiten, sondern ein Messpunkt
+_GLIDE_BRIDGE_S = 2.0         # kurzer Einbruch trennt keine Phase
+_GLIDE_GLITCH_KMH = 120.0     # GPS-Ausreisser, wie beim laengsten Run
+# Sportarten OHNE Gleitanteil: Surf (keine 500-m-/Seemeilen-Wertung, dort zaehlt
+# die Welle) und Wakeboard (Boot/Cable zieht konstant -> der Wert waere immer
+# ~100 % und wuerde nichts unterscheiden).
+_GLIDE_SKIP_SPORTS = {"surf", "wakeboard"}
+
+
+def _glide_core(werte, thr_kmh):
+    """Gleitphasen aus (Geschwindigkeit km/h, Dauer s)-Paaren.
+
+    ACHTUNG: Diese Funktion steht ZWEIMAL im Code - in der Web-App und im
+    Ingest-Dienst. Beide muessen zeichengleich bleiben, sonst bekommt dieselbe
+    Session je nach Weg (Datei-Upload ueber die App / Uhr ueber den Ingest) einen
+    anderen Gleitanteil. glide_test.py vergleicht darum den Quelltext beider
+    Fassungen, nicht nur ihre Ergebnisse. Dieselbe Doppelung gibt es schon bei
+    avg 5x10, Alpha 500 und dem laengsten Run.
+
+    Eine Phase beginnt, sobald die Schwelle erreicht ist, und endet beim ersten
+    Wert darunter - kurze Einbrueche bis _GLIDE_BRIDGE_S werden ueberbrueckt,
+    damit ein Kabbelschlag oder eine Boenluecke eine Phase nicht zerschneidet.
+    Ueberbrueckt wird in SEKUNDEN, nicht in Messpunkten: bei 5 s je Punkt
+    ueberbrueckt also nichts, weil aus 5 s Abstand nicht hervorgeht, ob dazwischen
+    gestanden wurde. Die ueberbrueckte Zeit UND ihre Strecke gehoeren zur Phase,
+    sonst waere die Durchschnittsgeschwindigkeit im Gleiten zu niedrig.
+
+    Gibt None, wenn keine einzige Phase _GLIDE_MIN_PHASE_S erreicht.
+    """
+    phasen = []                      # (Dauer s, Strecke m) je Gleitphase
+    dauer = strecke = 0.0
+    luecke_s = luecke_m = 0.0
+    for v, dt in werte:
+        try:
+            v = float(v)
+            dt = float(dt)
+        except (TypeError, ValueError):
+            continue
+        if not (math.isfinite(v) and math.isfinite(dt)) or dt <= 0 or v < 0:
+            continue
+        if v > _GLIDE_GLITCH_KMH:    # Ausreisser zaehlt nicht, trennt aber auch nicht
+            continue
+        if v >= thr_kmh:
+            if dauer > 0:
+                dauer += luecke_s
+                strecke += luecke_m
+            luecke_s = luecke_m = 0.0
+            dauer += dt
+            strecke += v / 3.6 * dt
+        elif dauer > 0:
+            luecke_s += dt
+            luecke_m += v / 3.6 * dt
+            if luecke_s > _GLIDE_BRIDGE_S:
+                phasen.append((dauer, strecke))
+                dauer = strecke = 0.0
+                luecke_s = luecke_m = 0.0
+    if dauer > 0:
+        phasen.append((dauer, strecke))
+    phasen = [p for p in phasen if p[0] >= _GLIDE_MIN_PHASE_S]
+    if not phasen:
+        return None
+    ges_s = sum(p[0] for p in phasen)
+    ges_m = sum(p[1] for p in phasen)
+    return {"glide_s": ges_s, "glide_phases": len(phasen),
+            "glide_longest_s": max(p[0] for p in phasen),
+            "glide_km": ges_m / 1000.0}
+
+
+def _glide_pack(kern, duration_s):
+    """Rohwerte aus _glide_core in die gespeicherten Spalten uebersetzen.
+
+    Steht getrennt, weil App und Ingest denselben Kern, aber verschiedene
+    Datenquellen haben - gepackt wird in beiden gleich.
+
+    glide_km wird NICHT gespeichert: Es ist genau glide_avg_kmh * glide_s / 3600
+    (der Durchschnitt ist streckengewichtet gerechnet), also aus zwei
+    gespeicherten Spalten exakt rekonstruierbar. Eine Spalte weniger, die
+    auseinanderlaufen kann.
+    """
+    if not kern:
+        return {}
+    ges_s = float(kern["glide_s"])
+    out = {"glide_s": round(ges_s, 1),
+           "glide_phases": int(kern["glide_phases"]),
+           "glide_longest_s": round(float(kern["glide_longest_s"]), 1),
+           "glide_avg_kmh": round(float(kern["glide_km"]) / (ges_s / 3600.0), 2)
+           if ges_s > 0 else None}
+    try:
+        dauer = float(duration_s)
+    except (TypeError, ValueError):
+        dauer = None
+    # Anteil an der AUFZEICHNUNGSDAUER, nicht an der aktiven Zeit: die Wertung
+    # rechnet ueberall mit der Aufzeichnung (siehe "Aktive Zeit" in der
+    # Sessionansicht - rein informativ). Ueber 100 % kann der Anteil trotzdem
+    # nicht kommen, aber bei einer krummen Dauer wird gedeckelt statt geglaubt.
+    if dauer is not None and math.isfinite(dauer) and dauer > 0:
+        out["glide_pct"] = round(min(100.0, ges_s / dauer * 100.0), 1)
+    return out
+
+
+def glide_metrics(df, sport, duration_s=None):
+    """Gleitkennzahlen einer Session aus dem geparsten Track (App-Weg).
+
+    Der Datei-Upload hat echte Zeitstempel, also wird das Intervall JE MESSPUNKT
+    genommen und nicht gemittelt - eine FIT-Datei mit Aufzeichnungspausen haette
+    sonst Gleitzeit, die es nicht gab.
+    """
+    sp = (sport or "").strip().lower()
+    if sp in _GLIDE_SKIP_SPORTS:
+        return {}
+    thr_kn = _GLIDE_KN.get(sp)
+    if thr_kn is None:
+        return {}
+    if df is None or getattr(df, "empty", True):
+        return {}
+    if not {"timestamp", "speed_kmh"}.issubset(df.columns):
+        return {}
+    d = df[["timestamp", "speed_kmh"]].dropna().sort_values("timestamp")
+    if len(d) < 3:
+        return {}
+    ts = pd.to_datetime(d["timestamp"])
+    dts = ts.diff().dt.total_seconds().to_numpy()
+    v = pd.to_numeric(d["speed_kmh"], errors="coerce").to_numpy(dtype=float)
+    # Der Wert an Punkt i gilt fuer das Intervall i-1 -> i, darum ab 1.
+    kern = _glide_core(list(zip(v[1:], dts[1:])), float(thr_kn) * 1.852)
+    if duration_s is None:
+        duration_s = float((ts.iloc[-1] - ts.iloc[0]).total_seconds())
+    return _glide_pack(kern, duration_s)
 
 
 def detect_runs(df):
@@ -12878,6 +13219,117 @@ def _man_quota(fenster, glide_kn):
     return (ok, tot) if tot else None
 
 
+# --- Manoever nach Seite (windsurf-kennzahlen.md, Prioritaet 2) -------------
+# "Die schwache Seite ist bei fast jedem deutlich, und kaum jemand kennt seine
+# eigene Zahl." Genau deshalb lohnt die Aufteilung: Sie sagt einem Fahrer etwas,
+# was er ohne Daten nicht wissen kann, und sie braucht keinen neuen Sensor.
+#
+# Warum das trotz grobem Track geht: Das VORZEICHEN eines Kurswechsels von 90
+# Grad und mehr uebersteht eine Abtastung von 5 s muehelos - der BETRAG des
+# Speed-Einbruchs nicht. Die Seite ist also belastbar, gerade dort, wo die
+# Feinanalyse ausdruecklich nicht belastbar ist. Beurteilt wird die Seite am
+# Track, das Urteil "gehalten" aber weiter am Sekundenfenster der Uhr.
+_SIDE_MIN = 3                  # unter drei Manoevern je Seite ist eine Quote Zufall
+_SIDE_WIND_MARGIN_DEG = 25.0   # zu dicht an Luv/Lee -> Bug nicht bestimmbar
+
+
+def _man_headings(track_pts, i, spanne=2):
+    """Kurs VOR und NACH einem Manoever am Track-Index i, oder None.
+
+    Genommen werden die Segmente `spanne` Punkte vor und nach dem Scheitel -
+    naeher dran liegt schon der Bogen selbst, und dessen Kurs ist keiner von
+    beiden.
+    """
+    n = len(track_pts or [])
+    if n < 4:
+        return None
+    a = max(1, int(i) - spanne)
+    b = min(n - 2, int(i) + spanne)
+    if b <= a:
+        return None
+    vor = _bearing_deg(track_pts[a - 1][0], track_pts[a - 1][1],
+                       track_pts[a][0], track_pts[a][1])
+    nach = _bearing_deg(track_pts[b][0], track_pts[b][1],
+                        track_pts[b + 1][0], track_pts[b + 1][1])
+    return float(vor), float(nach)
+
+
+def _turn_signed_deg(vor, nach):
+    """Kurswechsel mit Vorzeichen: positiv = im Uhrzeigersinn (rechts herum)."""
+    return (float(nach) - float(vor) + 180.0) % 360.0 - 180.0
+
+
+def _tack_of(kurs, wind_dir_deg):
+    """Bug bei Kurs `kurs` und Wind AUS Richtung `wind_dir_deg`.
+
+    "starboard" heisst: der Wind kommt von rechts (Steuerbord), rechter Fuss
+    vorn. Gerechnet wird der Winkel vom Kurs zur WINDHERKUNFT im Uhrzeigersinn:
+    liegt sie rechts vom Kurs (0-180 Grad), kommt der Wind von rechts.
+
+    None, wenn der Kurs zu dicht an Luv oder Lee liegt - dort wechselt der Bug,
+    und eine Windrichtung aus der Stundenvorhersage ist dafuer zu grob. Auf
+    einem Halbwindkurs, und dort wird gehalst, ist der Abstand gross.
+    """
+    try:
+        wd = float(wind_dir_deg)
+        k = float(kurs)
+    except (TypeError, ValueError):
+        return None
+    if not (math.isfinite(wd) and math.isfinite(k)):
+        return None
+    rel = (wd - k) % 360.0
+    if (rel < _SIDE_WIND_MARGIN_DEG
+            or rel > 360.0 - _SIDE_WIND_MARGIN_DEG
+            or abs(rel - 180.0) < _SIDE_WIND_MARGIN_DEG):
+        return None
+    return "starboard" if rel < 180.0 else "port"
+
+
+def _man_sides(gybes, track_pts, wind_dir_deg=None):
+    """Manoever in zwei Gruppen teilen. Gibt (gruppen, art).
+
+    art == "tack": nach dem Bug der ANFAHRT benannt (braucht die Windrichtung) -
+    das ist die Aufteilung, die ein Fahrer meint, wenn er von seiner schwachen
+    Seite spricht, denn sie haengt daran, welcher Fuss vorn steht.
+
+    art == "turn": nach der Drehrichtung. Dieselben Manoever landen in denselben
+    zwei Gruppen (bei einer Halse folgt die Drehrichtung aus dem Bug), nur ohne
+    Namen. Ohne Wind ist das die ehrliche Variante: die Gruppen stimmen, die
+    Beschriftung waere geraten.
+
+    Beruecksichtigt werden nur Manoever mit erkennbarem Bogen (mindestens 40
+    Grad Kurswechsel) - was darunter liegt, war entweder keine Wende oder der
+    Track ist an der Stelle zu grob, um sie zu sehen.
+    """
+    gruppen = {}
+    art = "turn"
+    for g in gybes or []:
+        kurse = _man_headings(track_pts, g.get("i", 0))
+        if kurse is None:
+            continue
+        dreh = _turn_signed_deg(kurse[0], kurse[1])
+        if abs(dreh) < 40.0:
+            continue
+        bug = _tack_of(kurse[0], wind_dir_deg)
+        if bug:
+            art = "tack"
+            gruppen.setdefault(bug, []).append(g)
+        else:
+            gruppen.setdefault("right" if dreh > 0 else "left", []).append(g)
+    # Gemischt kann nicht sein: entweder ist die Windrichtung bekannt und ALLE
+    # eindeutigen Manoever bekommen einen Bug, oder keines. Faellt bei bekanntem
+    # Wind ein einzelnes durch die Luv-/Lee-Pruefung, landet es in einer
+    # Drehrichtungs-Gruppe - die wird dann verworfen, statt zwei Zaehlweisen zu
+    # vermischen.
+    if art == "tack":
+        gruppen = {k: v for k, v in gruppen.items() if k in ("starboard", "port")}
+    return gruppen, art
+
+
+_SIDE_LABEL = {"starboard": "starboard tack", "port": "port tack",
+               "right": "turning right", "left": "turning left"}
+
+
 def _watch_gybes_to_markers(wg, t_min, v_kn):
     """Uhr-Halsen in dieselbe Marker-Form wie die Track-Erkennung bringen
     (auf der Kurve platziert über die nächstgelegene Zeit). Unterstützt das v2-
@@ -13446,7 +13898,25 @@ def _render_speed_curve(track_pts, duration_s, record):
     if glide_label:
         st.caption("🟨 " + glide_label + " · personalised from your board & weight "
                    "(starting values, calibrated over time).")
-    glide_share = float(np.mean(v_kn >= glide_kn) * 100.0) if n_seg else 0.0
+    # Zwei Gleitanteile, und das ist Absicht:
+    #   - der GEWERTETE mit der festen Schwelle der Sportart. Genau die Zahl
+    #     steht in der Rangliste und im Saisonverlauf, weil nur eine fuer alle
+    #     gleiche Schwelle vergleichbar ist.
+    #   - der PERSOENLICHE mit der Schwelle aus Brett und Gewicht. Er beantwortet
+    #     die Frage, die der Fahrer wirklich hat: Bin ich auf MEINEM Material
+    #     geglitten?
+    # Frueher stand hier nur der zweite, unbeschriftet - und wer ihn mit der
+    # Rangliste verglich, fand einen Unterschied, den nichts erklaerte.
+    _gl_fix_kn = _GLIDE_KN.get(active_sport(), 10.0)
+    glide_share = float(np.mean(v_kn >= _gl_fix_kn) * 100.0) if n_seg else 0.0
+    # Gespeichert gewinnt, wo vorhanden: Der Wert stammt aus demselben Track,
+    # wurde aber mit dem Intervall JE MESSPUNKT gerechnet (Datei-Uploads) statt
+    # mit dem gemittelten - und er ist die Zahl, die auch in der Rangliste steht.
+    _gl_stored = pd.to_numeric(record.get("glide_pct"), errors="coerce")
+    if pd.notna(_gl_stored):
+        glide_share = float(_gl_stored)
+    _gl_pers = (float(np.mean(v_kn >= glide_kn) * 100.0)
+                if (n_seg and abs(glide_kn - _gl_fix_kn) > 0.5) else None)
     # Uhr-Wert gewinnt: sie zaehlt sekundengenau, der Track gibt nur eine
     # Schaetzung her (~5 s je Punkt). Gleiches Muster wie beim laengsten Run.
     _tot_s = record.get("duration_s")
@@ -13464,8 +13934,39 @@ def _render_speed_curve(track_pts, duration_s, record):
     _t2 = record.get("speed_1s_kmh")
     k1.metric("Distance", "–" if _d is None or pd.isna(_d) else f"{float(_d):.2f} km")
     k2.metric("Top 2 s", "–" if _t2 is None or pd.isna(_t2) else f"{float(_t2) / 1.852:.1f} kn")
-    k3.metric("Glide share", f"{glide_share:.0f} %")
+    _gl_word = "Flight" if active_sport() == "wingsurf" else "Glide"
+    k3.metric(f"{_gl_word} share", f"{glide_share:.0f} %",
+              f"above {_gl_fix_kn:.0f} kn", delta_color="off")
     k4.metric("Longest run", "–" if _lr is None or pd.isna(_lr) else f"{float(_lr):.2f} km")
+    # Die drei Gleitwerte, die das Prozent erst lesbar machen: Aus "40 %" geht
+    # nicht hervor, ob das eine lange Fahrt oder zwanzig Anlaeufe waren - und
+    # genau darin steckt laut Vorlage die Aussage ("viele kurze Phasen = zu wenig
+    # Wind oder Materialproblem").
+    _gl_long = pd.to_numeric(record.get("glide_longest_s"), errors="coerce")
+    _gl_ph = pd.to_numeric(record.get("glide_phases"), errors="coerce")
+    _gl_avg = pd.to_numeric(record.get("glide_avg_kmh"), errors="coerce")
+    if pd.notna(_gl_long) or pd.notna(_gl_ph):
+        g1, g2, g3 = st.columns(3)
+        g1.metric(f"Longest {_gl_word.lower()}",
+                  "–" if pd.isna(_gl_long) else f"{float(_gl_long) / 60.0:.1f} min")
+        g2.metric(f"{_gl_word} phases",
+                  "–" if pd.isna(_gl_ph) else f"{int(_gl_ph)}")
+        g3.metric(f"Ø speed {_gl_word.lower()}ing",
+                  "–" if pd.isna(_gl_avg) else f"{float(_gl_avg) / 1.852:.1f} kn")
+        _gl_txt = [
+            f"Counted above the ranking threshold of {_gl_fix_kn:.0f} kn, the same "
+            "for everyone."
+        ]
+        if _gl_pers is not None:
+            _gl_txt.append(
+                f"On your own gear ({glide_kn:.1f} kn – the yellow line) it would "
+                f"be **{_gl_pers:.0f} %**."
+            )
+        _gl_txt.append(
+            "The average speed is the one that matters for gear questions: the "
+            "session average is watered down by all the standing around."
+        )
+        st.caption(" ".join(_gl_txt))
     # Aktive Zeit: die Aufzeichnung laeuft oft weiter, waehrend man das Brett
     # zuruecktraegt oder am Strand steht. Rein informativ – die Wertung nutzt
     # weiterhin die Aufzeichnungsdauer.
@@ -13539,6 +14040,56 @@ def _render_speed_curve(track_pts, duration_s, record):
                 f"(~{glide_kn:.0f} kn) all the way through — "
                 f"**{100.0 * _held / _tot:.0f}%** {_man['verb_ok'].lower()}."
             )
+            # --- Die schwache Seite ---------------------------------------
+            # Nur mit Uhr-Fenstern: Das Urteil "gehalten" braucht den
+            # Sekunden-Speed. Die SEITE kommt dagegen aus dem Track, und zwar
+            # aus dem Vorzeichen des Kurswechsels - das haelt auch bei 5 s je
+            # Punkt, anders als der Betrag des Einbruchs.
+            _sides, _side_art = _man_sides(
+                [g for g in gybes if g.get("speeds")], track_pts,
+                record.get("wind_dir_deg"))
+            _sq = {k: _man_quota([g["speeds"] for g in v], glide_kn)
+                   for k, v in _sides.items()}
+            _sq = {k: q for k, q in _sq.items() if q and q[1] >= _SIDE_MIN}
+            if len(_sq) == 2:
+                _zeilen = []
+                for _k, (_h, _t) in sorted(
+                        _sq.items(), key=lambda kv: kv[1][0] / kv[1][1]):
+                    _zeilen.append(
+                        f"- **{_SIDE_LABEL[_k].capitalize()}:** {_h} of {_t} "
+                        f"held (**{100.0 * _h / _t:.0f}%**)")
+                _quoten = sorted(q[0] / q[1] for q in _sq.values())
+                st.markdown("\n".join(_zeilen))
+                # Die Folgerung dazusagen, nicht nur die Zahlen: Ein Unterschied
+                # von 20 Punkten ist eine Trainingsansage, 5 Punkte sind Rauschen.
+                _diff = 100.0 * (_quoten[1] - _quoten[0])
+                if _diff >= 20.0:
+                    _schwach = min(_sq.items(), key=lambda kv: kv[1][0] / kv[1][1])[0]
+                    st.caption(
+                        f"That is a **{_diff:.0f}-point gap** – your weak side is "
+                        f"{_SIDE_LABEL[_schwach]}. Almost everyone has one, and "
+                        "most people do not know which. Worth a session of only "
+                        f"{_SIDE_LABEL[_schwach]} {_man['name']}s."
+                    )
+                elif _diff < 8.0:
+                    st.caption("Both sides within a few points of each other – "
+                               "no weak side to speak of.")
+                if _side_art == "turn":
+                    st.caption(
+                        "Grouped by which way you turned, not by tack: the "
+                        "session has no wind direction, so naming the sides "
+                        "would be a guess. The two groups are still the two "
+                        "sides – a gybe turns one way from one tack and the "
+                        "other way from the other."
+                    )
+                else:
+                    st.caption(
+                        "Sides from your course before the turn against the "
+                        f"hourly wind direction ({float(record['wind_dir_deg']):.0f}°). "
+                        "Turns entered too close to straight upwind or downwind "
+                        "are left out – there the tack is not decidable from a "
+                        "forecast."
+                    )
         rows = "".join(
             f"<tr><td style='padding:3px 10px'><b style='color:{g['color']}'>●</b> {g['n']}</td>"
             f"<td style='padding:3px 10px'>{g['t']:.1f} min</td>"
@@ -14450,6 +15001,8 @@ def _polar_entry_from_df(df, username, sport, fname):
         "sport": sport, "date": session_date, "name": username,
         "surfspot": None, "board": None, "sail": None,
         "filename": fname, "source": "polar",
+        # Gleitanteil aus demselben geparsten Track (leer bei Surf/Wakeboard).
+        **glide_metrics(df, sport),
         "track": _track_json_from_df(df),
         "total_distance_km": None if distance_km is None else round(distance_km, 2),
         "longest_run_km": None if lr_km is None else round(lr_km, 3),
@@ -15297,6 +15850,9 @@ def _metrics_from_track(points, duration_s, sport):
         "speed_nm_kmh": None if best_nm is None else round(best_nm, 2),
         "speed_5x10_kmh": None if best_5x10 is None else round(best_5x10, 2),
         "speed_alpha500_kmh": None if best_alpha is None else round(best_alpha, 2),
+        # Nach einem Zuschnitt gilt die neue Dauer, nicht die alte - sonst waere
+        # der Gleitanteil auf die Laenge VOR dem Schnitt bezogen.
+        **glide_metrics(df, sport, secs),
         "total_distance_km": round(float(df["distance"].iloc[-1]) / 1000.0, 2),
         "longest_run_m": None if lr_m is None else round(lr_m, 2),
         "longest_run_km": None if lr_m is None else round(lr_m / 1000.0, 3),
@@ -15307,6 +15863,11 @@ def _metrics_from_track(points, duration_s, sport):
 _TRIM_FIELDS = ("speed_1s_kmh", "speed_1s_kn", "speed_30s_kmh", "speed_30s_kn",
                 "speed_500m_kmh", "speed_nm_kmh", "speed_5x10_kmh",
                 "speed_alpha500_kmh",
+                # Gleitwerte gehoeren dazu: sie haengen am Track, also aendert ein
+                # Zuschnitt sie - und ein "Original wiederherstellen" muss sie
+                # zurueckholen, sonst bliebe der Gleitanteil des Schnitts stehen.
+                "glide_s", "glide_pct", "glide_longest_s", "glide_phases",
+                "glide_avg_kmh",
                 "total_distance_km",
                 "longest_run_m", "longest_run_km", "duration_s")
 
@@ -19435,6 +19996,7 @@ def _guest_process_and_save(fit_source, sport, spot, name):
         "weather_code": None if _w("code") is None else int(_w("code")),
         "trust_score": trust.get("score") if isinstance(trust, dict) else None,
         "source": "guest",
+        **glide_metrics(df, sport),
     }
     save_session(entry)
     return entry, None
@@ -20049,6 +20611,7 @@ def _import_entry_from_df(df, sport, name, spot, board, sail, filename):
         "weather_code": None if _w("code") is None else int(_w("code")),
         "trust_score": trust.get("score") if isinstance(trust, dict) else None,
         "source": "import",
+        **glide_metrics(df, sport),
     }
 
 
@@ -21639,6 +22202,7 @@ if fit_source is not None:
                     "speed_nm_kmh": None if best_nm is None else round(best_nm, 2),
                     "speed_5x10_kmh": None if best_5x10 is None else round(best_5x10, 2),
                     "speed_alpha500_kmh": None if best_alpha is None else round(best_alpha, 2),
+                    **glide_metrics(df, active_sport()),
                     "wind_kmh": None if weather is None or weather["wind"] is None else round(weather["wind"], 1),
                     "gust_kmh": None if weather is None or weather["gust"] is None else round(weather["gust"], 1),
                     "wind_dir_deg": None if weather is None or weather["dir"] is None else round(weather["dir"]),
