@@ -5718,7 +5718,7 @@ Every ranking shows each rider's best value (unless noted). Use the filters (spo
 - **⏱️ Most glide time** — all your glide phases of one session added up. The honest version of water time, which also counts the floating around. Long sessions have an advantage here, and that is the point: this one rewards a full day, Longest glide rewards one good stretch.
 - **🌬️ Speed per wind** — your avg 5×10 divided by the session's average wind. It makes different days and spots comparable and measures gear plus technique instead of luck with the weather: 28 kn in 35 kn of wind is a weaker session than 24 kn in 18 kn. Needs at least 8 kn of wind — below that planing is a matter of luck and the ratio explodes.
   The glide threshold is the **same for everyone** here (windsurf 12 kn, kite 11, wing 10), because that is what makes the numbers comparable. Your **personal** threshold from board type, volume and weight is in the session view, where it answers the other question: did *you* plane on *your* gear? Both numbers are labelled with the threshold they used.
-  All of this is computed from the GPS track, so it counts for **every session ever uploaded**, not only the new ones — your season curve starts at your first session, not today.
+  **Depends on your recording rate.** These are computed from the GPS track, so they also count for sessions uploaded long ago — but only where the track has at least one point every 6 s. Watches thin long recordings out: at 20 s per point a planing stretch gets averaged together with the turn before and after it and drops below the threshold. Rather than show a value that is quietly too low, we show none. A file upload at 1 Hz always works; a very long watch session may not.
 
 ### 🪽 Maneuvers held (wing · windsurf · kite · SUP)
 - **🪽 Foiling turns** (wing) · **🔄 Planing gybes** (windsurf) · **🔄 Powered transitions** (kite) — the share of your turns where your speed **never** dropped below flight/planing speed. For wingfoiling that is the question that matters: did the foil stay up? Not "how many turns" — whether you kept them.
@@ -5775,7 +5775,7 @@ Jede Rangliste zeigt den besten Wert je Fahrer (wenn nicht anders vermerkt). Üb
 - **⏱️ Meiste Gleitzeit** — alle Gleitphasen einer Session zusammengezählt. Die ehrliche Fassung der Wasserzeit, die auch das Dümpeln mitzählt. Lange Sessions haben hier einen Vorteil, und das ist gewollt: Diese Wertung belohnt den ganzen Tag, die längste Gleitphase eine gute Strecke.
 - **🌬️ Speed je Wind** — dein Avg 5×10 geteilt durch den Session-Wind. Damit werden Tage und Spots vergleichbar, und gemessen werden Material und Technik statt Wetterglück: 28 kn bei 35 kn Wind ist die schwächere Session als 24 kn bei 18 kn. Braucht mindestens 8 kn Wind — darunter ist Gleiten Glückssache und das Verhältnis explodiert.
   Die Gleitgrenze ist hier für **alle dieselbe** (Windsurf 12 kn, Kite 11, Wing 10), denn nur so sind die Zahlen vergleichbar. Deine **persönliche** Schwelle aus Bretttyp, Volumen und Gewicht steht in der Sessionansicht, wo sie die andere Frage beantwortet: Bist *du* auf *deinem* Material geglitten? Beide Zahlen sind mit der Schwelle beschriftet, mit der sie gerechnet wurden.
-  Alles daran kommt aus dem GPS-Track, gilt also **rückwirkend für jede hochgeladene Session** und nicht nur für neue — dein Saisonverlauf beginnt bei deiner ersten Session, nicht heute.
+  **Hängt an deiner Aufzeichnungsrate.** Die Werte kommen aus dem GPS-Track, gelten also auch für längst hochgeladene Sessions — aber nur, wenn der Track mindestens alle 6 s einen Punkt hat. Uhren dünnen lange Aufzeichnungen aus: Bei 20 s je Punkt wird eine Gleitfahrt mit der Halse davor und danach verrechnet und rutscht unter die Schwelle. Statt einen Wert zu zeigen, der still zu niedrig ist, zeigen wir keinen. Ein Datei-Upload mit 1 Hz geht immer, eine sehr lange Uhr-Session vielleicht nicht.
 
 ### 🪽 Gehaltene Manöver (Wing · Windsurf · Kite · SUP)
 - **🪽 Foiling-Wenden** (Wing) · **🔄 Durchgeglittene Halsen** (Windsurf) · **🔄 Transitions mit Druck** (Kite) — der Anteil deiner Manöver, in denen die Geschwindigkeit **nie** unter Flug- bzw. Gleitgrenze gefallen ist. Beim Wingfoilen ist das die entscheidende Frage: Blieb das Foil oben? Nicht „wie viele Wenden" — sondern ob du sie gehalten hast.
@@ -5832,7 +5832,7 @@ Elke ranglijst toont de beste waarde per rijder (tenzij anders vermeld). Met de 
 - **⏱️ Meeste planeertijd** — alle planeerfases van één sessie bij elkaar opgeteld. De eerlijke versie van watertijd, want die telt het rondhangen mee. Lange sessies hebben hier een voordeel, en dat is de bedoeling: deze telling belooft een hele dag, de langste planeerfase één goed stuk.
 - **🌬️ Snelheid per wind** — je avg 5×10 gedeeld door de gemiddelde wind van de sessie. Zo worden dagen en spots vergelijkbaar en meet je materiaal plus techniek in plaats van weergeluk: 28 kn bij 35 kn wind is een zwakkere sessie dan 24 kn bij 18 kn. Vraagt minimaal 8 kn wind — daaronder is planeren geluk en explodeert de verhouding.
   De planeergrens is hier voor **iedereen dezelfde** (windsurf 12 kn, kite 11, wing 10), want alleen zo zijn de cijfers vergelijkbaar. Je **persoonlijke** grens uit boardtype, volume en gewicht staat in het sessieoverzicht, waar hij de andere vraag beantwoordt: planeerde *jij* op *jouw* materiaal? Beide cijfers vermelden met welke grens ze gerekend zijn.
-  Alles hiervan komt uit het GPS-spoor en geldt dus **met terugwerkende kracht voor elke geüploade sessie**, niet alleen de nieuwe — je seizoenslijn begint bij je eerste sessie, niet vandaag.
+  **Hangt af van je meetfrequentie.** De waarden komen uit het GPS-spoor en gelden dus ook voor lang geleden geüploade sessies — maar alleen als het spoor minstens elke 6 s een punt heeft. Horloges dunnen lange opnames uit: bij 20 s per punt wordt een planeerstuk samen met de jibe ervoor en erna uitgemiddeld en zakt onder de grens. In plaats van een waarde te tonen die stil te laag is, tonen we er geen. Een bestandsupload op 1 Hz werkt altijd, een heel lange horlogesessie misschien niet.
 
 ### 🪽 Gehouden manoeuvres (wing · windsurf · kite · SUP)
 - **🪽 Foiling-keerpunten** (wing) · **🔄 Doorgeplande gijpen** (windsurf) · **🔄 Transitions met druk** (kite) — het aandeel van je manoeuvres waarin je snelheid **nooit** onder de vlieg- of planeergrens kwam. Bij wingfoilen is dat de vraag die telt: bleef de foil boven? Niet „hoeveel keerpunten" — maar of je ze hebt gehouden.
@@ -5889,7 +5889,7 @@ Chaque classement montre la meilleure valeur par rider (sauf mention contraire).
 - **⏱️ Plus de temps en planing** — toutes tes phases de planing d'une session additionnées. La version honnête du temps sur l'eau, qui compte aussi le temps à flotter. Les longues sessions ont un avantage ici, et c'est voulu : celle-ci récompense une journée entière, le plus long planing récompense une belle portion.
 - **🌬️ Vitesse par vent** — ton avg 5×10 divisé par le vent moyen de la session. Cela rend les journées et les spots comparables et mesure le matériel plus la technique au lieu de la chance météo : 28 nœuds dans 35 nœuds de vent est une session plus faible que 24 dans 18. Demande au moins 8 nœuds de vent — en dessous, le planing est une affaire de chance et le rapport explose.
   Le seuil de planing est ici **le même pour tous** (windsurf 12 nœuds, kite 11, wing 10), car c'est ce qui rend les chiffres comparables. Ton seuil **personnel**, tiré du type de flotteur, du volume et du poids, se trouve dans la vue de session, où il répond à l'autre question : est-ce que *toi* tu as plané sur *ton* matériel ? Les deux chiffres indiquent le seuil utilisé.
-  Tout cela est calculé depuis la trace GPS et vaut donc **pour chaque session déjà envoyée**, pas seulement les nouvelles — ta courbe de saison commence à ta première session, pas aujourd'hui.
+  **Dépend de ta fréquence d'enregistrement.** Ces valeurs viennent de la trace GPS et comptent donc aussi pour des sessions envoyées depuis longtemps — mais seulement si la trace a un point au moins toutes les 6 s. Les montres allègent les longs enregistrements : à 20 s par point, une portion en planing est moyennée avec le jibe d'avant et d'après et passe sous le seuil. Plutôt qu'afficher une valeur discrètement trop basse, nous n'affichons rien. Un fichier à 1 Hz fonctionne toujours, une très longue session de montre pas forcément.
 
 ### 🪽 Manœuvres tenues (wing · windsurf · kite · SUP)
 - **🪽 Virements en foil** (wing) · **🔄 Jibes planées** (windsurf) · **🔄 Transitions sous tension** (kite) — la part de tes manœuvres où ta vitesse n'est **jamais** descendue sous la vitesse de vol ou de planing. En wingfoil, c'est la question qui compte : le foil est-il resté en haut ? Pas « combien de virements » — mais si tu les as tenus.
@@ -5946,7 +5946,7 @@ Cada clasificación muestra el mejor valor por rider (salvo que se indique). Con
 - **⏱️ Más tiempo en planeo** — todas las fases de planeo de una sesión sumadas. La versión honesta del tiempo en el agua, que también cuenta el rato flotando. Las sesiones largas tienen ventaja aquí, y es intencionado: esta premia un día entero, el planeo más largo premia un buen tramo.
 - **🌬️ Velocidad por viento** — tu avg 5×10 dividido por el viento medio de la sesión. Así se pueden comparar días y spots, y mide material más técnica en lugar de suerte con el tiempo: 28 nudos con 35 de viento es una sesión más débil que 24 con 18. Necesita al menos 8 nudos de viento — por debajo el planeo es cuestión de suerte y la proporción se dispara.
   El umbral de planeo aquí es **el mismo para todos** (windsurf 12 nudos, kite 11, wing 10), porque es lo que hace comparables las cifras. Tu umbral **personal**, según tipo de tabla, volumen y peso, está en la vista de sesión, donde responde a la otra pregunta: ¿planeaste *tú* con *tu* material? Ambas cifras indican con qué umbral se calcularon.
-  Todo esto se calcula desde el track GPS, así que cuenta **para todas las sesiones ya subidas**, no solo las nuevas — tu curva de temporada empieza en tu primera sesión, no hoy.
+  **Depende de tu frecuencia de registro.** Estos valores salen del track GPS, así que también cuentan para sesiones subidas hace tiempo — pero solo si el track tiene un punto al menos cada 6 s. Los relojes adelgazan las grabaciones largas: a 20 s por punto, un tramo en planeo se promedia con la trasluchada anterior y posterior y cae por debajo del umbral. Antes que mostrar un valor silenciosamente bajo, no mostramos ninguno. Un archivo a 1 Hz funciona siempre; una sesión de reloj muy larga puede que no.
 
 ### 🪽 Maniobras mantenidas (wing · windsurf · kite · SUP)
 - **🪽 Viradas en foil** (wing) · **🔄 Trasluchadas planeando** (windsurf) · **🔄 Transiciones con potencia** (kite) — la proporción de tus maniobras en las que tu velocidad **nunca** bajó de la velocidad de vuelo o de planeo. En wingfoil esa es la pregunta que importa: ¿se mantuvo arriba el foil? No «cuántas viradas», sino si las aguantaste.
@@ -7810,10 +7810,14 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 f"Your longest unbroken stretch above {_GLIDE_KN.get(_sp, 10.0):.0f} kn "
                 f"in one session. Short dips of up to {_GLIDE_BRIDGE_S:.0f} s do not "
                 f"break the phase – a chop or a hole in the gust is not the end of "
-                f"a {_w}. Computed from the GPS track, so it counts for every "
-                "session ever uploaded, not only the new ones. The threshold is "
-                "the same for everyone here; your personal one (from board and "
-                "weight) is in the session view."
+                f"a {_w}. Computed from the GPS track, so it also counts for "
+                f"sessions uploaded long ago – but only where the track has a "
+                f"point at least every {_GLIDE_MAX_DT_S:.0f} s. Watches thin long "
+                f"recordings out, and at 20 s per point a {_w} gets averaged "
+                f"together with the turn around it and drops below the threshold; "
+                f"rather than a value that is quietly too low, there is none. The "
+                "threshold is the same for everyone here; your personal one "
+                "(from board and weight) is in the session view."
             )
 
     def _r_glidet(c):
@@ -7830,7 +7834,10 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 f"the honest version of water time, which also counts the "
                 f"floating around. Long sessions have an advantage here, that is "
                 f"the point: this one rewards a full day, the longest {_w} "
-                "rewards one good stretch."
+                f"rewards one good stretch. Needs a track with a point at least "
+                f"every {_GLIDE_MAX_DT_S:.0f} s – a heavily thinned watch "
+                "recording cannot deliver it, and a guessed value would be worse "
+                "than none."
             )
 
     def _r_swr(c):
@@ -8445,6 +8452,35 @@ def best_alpha_500(df, meters=500.0, max_gap_m=50.0, slack=1.35):
 _GLIDE_MIN_PHASE_S = 3.0      # kuerzer ist kein Gleiten, sondern ein Messpunkt
 _GLIDE_BRIDGE_S = 2.0         # kurzer Einbruch trennt keine Phase
 _GLIDE_GLITCH_KMH = 120.0     # GPS-Ausreisser, wie beim laengsten Run
+# DICHTE-RIEGEL. Beim ersten Anlauf hatte der Gleitanteil keinen, mit der
+# Begruendung: eine Gleitphase dauert Dutzende Sekunden, die wird auch bei 5 s je
+# Punkt getroffen. Das stimmt fuer die LAENGE der Phase, aber nicht fuer die
+# Geschwindigkeit, an der sie erkannt wird - und die Diagnose des Backfills hat
+# es gezeigt:
+#
+#   id 599: 6684 s, 333 Punkte -> 20,1 s je Punkt, schnellster Abschnitt 20,4 km/h
+#   id 597: 5901 s, 294 Punkte -> 20,1 s je Punkt, schnellster Abschnitt 10,3 km/h
+#
+# Beide Sessions sind sicher geglitten. Bei 20 s je Punkt ist die
+# "Geschwindigkeit" eines Abschnitts aber ein Mittel ueber 20 Sekunden: die
+# Gleitfahrt wird mit der Halse davor und danach verrechnet und landet unter der
+# Schwelle. Dazu schneidet die Luftlinie zwischen weit entfernten Punkten jede
+# Kurve ab, was zusaetzlich nach unten zieht.
+#
+# Gefaehrlich ist nicht der Totalausfall (der ergibt NULL und faellt auf), sondern
+# der Bereich dazwischen: bei 8-10 s je Punkt kommt ein Wert heraus, der still zu
+# niedrig ist. Und wie stark er zu niedrig ist, haengt daran, wie sehr die Uhr
+# ausgeduennt hat - also an Geraet und Sessionlaenge. Ein Ranking daraus
+# vergleicht Uhren, nicht Fahrer.
+#
+# 6 s und nicht 5: Die Uhr zielt auf 5 s je Punkt, eine krumme Dauer ergibt dann
+# 5,2 - das soll nicht durchfallen. 10 s dagegen schon.
+#
+# Der richtige Ausweg liegt nicht hier, sondern auf der Uhr: Sie kennt den
+# Sekunden-Speed und koennte die Gleitzeit selbst zaehlen, wie sie es fuer Airtime
+# und Manoever schon tut. Dann waere der Wert exakt UND unabhaengig davon, wie
+# stark der Track ausgeduennt wurde.
+_GLIDE_MAX_DT_S = 6.0
 # Sportarten OHNE Gleitanteil: Surf (keine 500-m-/Seemeilen-Wertung, dort zaehlt
 # die Welle) und Wakeboard (Boot/Cable zieht konstant -> der Wert waere immer
 # ~100 % und wuerde nichts unterscheiden).
@@ -8565,6 +8601,12 @@ def glide_metrics(df, sport, duration_s=None):
     ts = pd.to_datetime(d["timestamp"])
     dts = ts.diff().dt.total_seconds().to_numpy()
     v = pd.to_numeric(d["speed_kmh"], errors="coerce").to_numpy(dtype=float)
+    # Dichte-Riegel ueber den MEDIAN der Abstaende, nicht ueber den Schnitt: Eine
+    # einzelne Aufzeichnungspause (Brett zuruecktragen) wuerde den Schnitt
+    # verziehen und eine saubere 1-Hz-Datei aussperren.
+    _med = float(np.nanmedian(dts[1:])) if len(dts) > 1 else float("nan")
+    if not math.isfinite(_med) or _med <= 0 or _med > _GLIDE_MAX_DT_S:
+        return {}
     # Der Wert an Punkt i gilt fuer das Intervall i-1 -> i, darum ab 1.
     kern = _glide_core(list(zip(v[1:], dts[1:])), float(thr_kn) * 1.852)
     if duration_s is None:
@@ -13915,8 +13957,15 @@ def _render_speed_curve(track_pts, duration_s, record):
     _gl_stored = pd.to_numeric(record.get("glide_pct"), errors="coerce")
     if pd.notna(_gl_stored):
         glide_share = float(_gl_stored)
+    elif dt > _GLIDE_MAX_DT_S:
+        # Kein gespeicherter Wert UND ein grober Track: Dann ist der aus der
+        # Kurve gerechnete Anteil systematisch zu niedrig (siehe
+        # _GLIDE_MAX_DT_S), und eine zu niedrige Zahl ist schlimmer als keine -
+        # der Fahrer haelt sie fuer sein Ergebnis.
+        glide_share = None
     _gl_pers = (float(np.mean(v_kn >= glide_kn) * 100.0)
-                if (n_seg and abs(glide_kn - _gl_fix_kn) > 0.5) else None)
+                if (glide_share is not None and n_seg
+                    and abs(glide_kn - _gl_fix_kn) > 0.5) else None)
     # Uhr-Wert gewinnt: sie zaehlt sekundengenau, der Track gibt nur eine
     # Schaetzung her (~5 s je Punkt). Gleiches Muster wie beim laengsten Run.
     _tot_s = record.get("duration_s")
@@ -13935,8 +13984,17 @@ def _render_speed_curve(track_pts, duration_s, record):
     k1.metric("Distance", "–" if _d is None or pd.isna(_d) else f"{float(_d):.2f} km")
     k2.metric("Top 2 s", "–" if _t2 is None or pd.isna(_t2) else f"{float(_t2) / 1.852:.1f} kn")
     _gl_word = "Flight" if active_sport() == "wingsurf" else "Glide"
-    k3.metric(f"{_gl_word} share", f"{glide_share:.0f} %",
+    k3.metric(f"{_gl_word} share",
+              "–" if glide_share is None else f"{glide_share:.0f} %",
               f"above {_gl_fix_kn:.0f} kn", delta_color="off")
+    if glide_share is None:
+        st.caption(
+            f"🌊 **{_gl_word} share unavailable for this session:** at ~{dt:.0f} s "
+            f"per GPS point a {_gl_word.lower()} stretch gets averaged together "
+            f"with the turn around it, so the number would come out too low. The "
+            f"watch thins long recordings out – it needs a point at least every "
+            f"{_GLIDE_MAX_DT_S:.0f} s. Everything else on this page is unaffected."
+        )
     k4.metric("Longest run", "–" if _lr is None or pd.isna(_lr) else f"{float(_lr):.2f} km")
     # Die drei Gleitwerte, die das Prozent erst lesbar machen: Aus "40 %" geht
     # nicht hervor, ob das eine lange Fahrt oder zwanzig Anlaeufe waren - und
