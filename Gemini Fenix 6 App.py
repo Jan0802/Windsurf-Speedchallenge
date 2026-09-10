@@ -682,6 +682,13 @@ sessions_table = Table(
     Column("jumps_landed", Integer),
     # Runden bzw. Runs einer Session. Beim Wakeboarden das Grundmass.
     Column("runs", Integer),
+    # Groesste SICHERE Drehung eines Sprungs (auf 180er eingerastet) und ihre
+    # Anzahl. Die Uhr summiert die Drehrate waehrend der Airtime; behauptet wird
+    # nur, was hoechstens 50 Grad von einer Stufe abweicht - sonst bleibt es bei
+    # "Sprung erkannt". Am Handgelenk ist die Drehachse nicht die des Fahrers,
+    # eine feinere Aussage waere erfunden.
+    Column("rot_max_deg", Integer),
+    Column("rot_count", Integer),
     Column("strokes", Integer),          # Paddelschlaege (SUP)
     Column("cadence_spm", Integer),      # Paddelkadenz beim Stoppen (Schlaege/Minute)
     Column("max_cadence_spm", Integer),  # hoechste Kadenz der Session
@@ -1175,6 +1182,8 @@ _WATCH_COLUMNS = {
     "airtime_avg5_s": "DOUBLE PRECISION",
     "jumps_landed": "INTEGER",
     "runs": "INTEGER",
+    "rot_max_deg": "INTEGER",
+    "rot_count": "INTEGER",
     # Sicherung vor einem Admin-Zuschnitt: JSON mit Original-Track UND den
     # Original-Kennzahlen. Beides zusammen, damit ein Zurueck die exakten
     # UHR-Werte wiederherstellt – ein aus dem Track nachgerechneter Wert waere
@@ -4646,6 +4655,7 @@ RANKING_TABLE_LABELS = {
     "airtime": "🪂 Best airtime", "jump": "🚀 Highest jump", "airs": "🔁 Most airs",
     "airtot": "⏳ Total airtime", "air5": "🎯 Avg 5 best jumps",
     "land": "✅ Landing rate", "runs": "🔄 Most runs",
+    "rot": "🌀 Biggest spin",
     "strokes": "🛶 Most strokes", "cadence": "⏱️ Max cadence",
     "held": "🔄 Maneuvers held",
     "kw_ppf": "💪 Pound-for-pound", "kw_force": "🏋️ Sail force", "kw_power": "⚡ Power",
@@ -7555,6 +7565,29 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             })
             _show_rank(lnd, extra.get("columns"), gear_label)
 
+    def _r_rot(c):
+        """Groesste gestandene Drehung - die Zahl, die keiner sonst hat.
+
+        Die Uhr summiert waehrend der Airtime die Drehrate; daraus ergibt sich
+        der im Raum gedrehte Winkel. Behauptet wird nur eine 180er-Stufe, wenn
+        der gemessene Winkel nah genug daran liegt - sonst bleibt es bei
+        "Sprung erkannt". Am Handgelenk haengt der Arm am Seil bzw. an der Bar
+        und dreht sich mit; eine feinere Aussage waere erfunden."""
+        _metric_body(c, "rot_max_deg", "### 🌀 Biggest spin", "Spin °",
+                     decimals=0,
+                     empty_msg=("No spin detected yet – counted on the watch "
+                                "(0.9.9 or newer) and only when the measurement "
+                                "is clear enough to name a step."))
+        with c:
+            st.caption(
+                "The rotation of your biggest spin, snapped to 180° steps. "
+                "Measured from the watch's turn rate while you are in the air – "
+                "not from a board sensor. If a jump does not come out close "
+                "enough to a step, it stays an ordinary jump rather than a made-"
+                "up 540: the wrist turns with your arm, so we would rather show "
+                "nothing than the wrong trick."
+            )
+
     def _r_runs(c):
         """Runden bzw. Runs - beim Wakeboarden das Grundmass der Session."""
         _metric_body(c, "runs", "### 🔄 Most runs", "Runs", decimals=0,
@@ -7664,6 +7697,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         for _k, _f, _s in (("airtot", _r_airtot, "airtime_total_s"),
                            ("air5", _r_air5, "airtime_avg5_s"),
                            ("land", _r_land, "land_pct"),
+                           ("rot", _r_rot, "rot_max_deg"),
                            ("runs", _r_runs, "runs")):
             if _s in ranking.columns and pd.to_numeric(
                     ranking[_s], errors="coerce").gt(0).any():
