@@ -12714,9 +12714,7 @@ def _speed_series_from_track(track_pts, duration_s):
     if not track_pts or len(track_pts) < 4:
         return None
     n = len(track_pts)
-    dt = (float(duration_s) / (n - 1)) if duration_s and n > 1 else 5.0
-    if dt <= 0:
-        dt = 5.0
+    dt = _track_dt(n, duration_s)
     lat = np.array([p[0] for p in track_pts], dtype=float)
     lon = np.array([p[1] for p in track_pts], dtype=float)
     seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])   # Meter je Segment
@@ -13651,7 +13649,7 @@ def _track_svg(track_pts, duration_s):
         return pad + (1.0 - (y[i] - y0) / yr) * ph
 
     seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])
-    dt = (float(duration_s) / (n - 1)) if duration_s and n > 1 else 5.0
+    dt = _track_dt(n, duration_s)
     v = seg / max(dt, 0.1) * 3.6 / 1.852         # kn je Segment
     vmax = float(np.percentile(v, 95)) if v.size else 1.0
     if vmax <= 0:
@@ -13925,7 +13923,9 @@ def _track_map_html(track_pts, duration_s, headline=None, stats=None, marks=None
     lat = np.array([p[0] for p in pts], dtype=float)
     lon = np.array([p[1] for p in pts], dtype=float)
     seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])
-    dt = ((float(duration_s) / (n0 - 1)) * step) if duration_s and n0 > 1 else 5.0 * step
+    # step = Ausduennung der Anzeige: Das Intervall der GEZEIGTEN Punkte ist
+    # entsprechend groesser als das des Tracks.
+    dt = _track_dt(n0, duration_s) * step
     v = seg / max(dt, 0.1) * 3.6 / 1.852
     vmax = float(np.percentile(v, 95)) if v.size else 1.0
     if vmax <= 0:
@@ -15209,6 +15209,46 @@ _TRUST_RELEASE = 80          # Uhr-Basis: geraeteauthentifiziert
 _TRUST_STRIKE = -1           # negativ = Admin-Entscheidung (siehe _exclusion_reason)
 
 
+def _track_dt(n_points, duration_s, fallback=5.0):
+    """Abtastintervall (s) eines Uhr-Tracks: Dauer geteilt durch die Punkte.
+
+    Der gespeicherte Track hat KEINE Zeitstempel, das Intervall wird also
+    geschaetzt. Diese Funktion ist der eine Ort dafuer - vorher stand dieselbe
+    Zeile an fuenf Stellen, und alle fuenf hatten denselben Fehler:
+
+        dt = (float(duration_s) / (n - 1)) if duration_s and n > 1 else 5.0
+        if dt <= 0: dt = 5.0
+
+    Kommt duration_s als NaN aus der Datenbank (Spalte vorhanden, Wert leer),
+    dann ist `if duration_s` WAHR - NaN ist wahrheitswertig - und `dt <= 0` ist
+    FALSCH, weil jeder Vergleich mit NaN falsch ist. Das NaN rutscht also durch
+    beide Waechter. In pd.Timedelta(seconds=NaN) fliegt es dann als Ausnahme
+    (so aufgefallen: Live-Seite, neuer Spot-Rekord bei einer Wing-Session ohne
+    Dauer); in den anderen vier Faellen wurde still mit NaN weitergerechnet und
+    es kamen leere Kurven und fehlende Wertungen heraus.
+
+    Darum hier gegen ENDLICHKEIT geprueft, nicht gegen Wahrheitswert.
+    """
+    try:
+        n = int(n_points)
+    except (TypeError, ValueError):
+        return fallback
+    if n < 2:
+        return fallback
+    try:
+        dauer = float(duration_s)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(dauer) or dauer <= 0:
+        return fallback
+    dt = dauer / (n - 1)
+    # Auch das Ergebnis pruefen: Eine absurde Dauer (Datenfehler) ergaebe ein
+    # Intervall, mit dem kein Zeitstempel mehr gebildet werden kann.
+    if not math.isfinite(dt) or dt <= 0 or dt > 3600.0:
+        return fallback
+    return dt
+
+
 def _df_from_track(points, duration_s):
     """Track-Punkte -> DataFrame im Upload-Format (timestamp/speed_kmh/distance).
 
@@ -15219,9 +15259,7 @@ def _df_from_track(points, duration_s):
     if not points or len(points) < 2:
         return None
     n = len(points)
-    dt = (float(duration_s) / (n - 1)) if duration_s and n > 1 else 5.0
-    if dt <= 0:
-        dt = 5.0
+    dt = _track_dt(n, duration_s)
     lat = np.array([p[0] for p in points], dtype=float)
     lon = np.array([p[1] for p in points], dtype=float)
     seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])
@@ -20613,9 +20651,7 @@ def _fastest_track_segment(track_pts, duration_s, meters=_LIVE_SEG_M):
     if not track_pts or len(track_pts) < 3:
         return None
     n = len(track_pts)
-    dt = (float(duration_s) / (n - 1)) if duration_s and n > 1 else 5.0
-    if dt <= 0:
-        dt = 5.0
+    dt = _track_dt(n, duration_s)
     lat = np.array([p[0] for p in track_pts], dtype=float)
     lon = np.array([p[1] for p in track_pts], dtype=float)
     seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])
