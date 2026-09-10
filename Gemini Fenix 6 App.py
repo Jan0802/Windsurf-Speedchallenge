@@ -8462,24 +8462,40 @@ _GLIDE_GLITCH_KMH = 120.0     # GPS-Ausreisser, wie beim laengsten Run
 #   id 597: 5901 s, 294 Punkte -> 20,1 s je Punkt, schnellster Abschnitt 10,3 km/h
 #
 # Beide Sessions sind sicher geglitten. Bei 20 s je Punkt ist die
-# "Geschwindigkeit" eines Abschnitts aber ein Mittel ueber 20 Sekunden: die
-# Gleitfahrt wird mit der Halse davor und danach verrechnet und landet unter der
-# Schwelle. Dazu schneidet die Luftlinie zwischen weit entfernten Punkten jede
-# Kurve ab, was zusaetzlich nach unten zieht.
+# "Geschwindigkeit" eines Abschnitts aber ein Mittel ueber 20 Sekunden - und ein
+# Mittel ueber 20 Sekunden kann eine Gleitphase nicht mehr abgrenzen.
+#
+# Der Fehler geht in BEIDE Richtungen, je nachdem, wo die Schwelle im Verhaeltnis
+# zum ueblichen Tempo liegt. Der zweite Backfill-Lauf hat beide Faelle geliefert:
+#
+#   id 599, windsurf, 20,1 s je Punkt: schnellster Abschnitt 20,4 von 22,2 km/h.
+#     Die Gleitfahrt wird mit der Halse davor und danach verrechnet und rutscht
+#     UNTER die Schwelle - Gleitzeit zu niedrig bis auf null. Dazu schneidet die
+#     Luftlinie zwischen weit entfernten Punkten jede Kurve ab.
+#   id 638, wingsurf, 20,1 s je Punkt: schnellster Abschnitt 30,7 von 18,5 km/h.
+#     Hier liegt das Mittel deutlich UEBER der Schwelle, also zaehlen alle 20
+#     Sekunden als Flug - auch die drei, in denen das Foil unten war. Flugzeit zu
+#     HOCH.
 #
 # Gefaehrlich ist nicht der Totalausfall (der ergibt NULL und faellt auf), sondern
-# der Bereich dazwischen: bei 8-10 s je Punkt kommt ein Wert heraus, der still zu
-# niedrig ist. Und wie stark er zu niedrig ist, haengt daran, wie sehr die Uhr
-# ausgeduennt hat - also an Geraet und Sessionlaenge. Ein Ranking daraus
-# vergleicht Uhren, nicht Fahrer.
+# der Bereich dazwischen: bei 8-10 s je Punkt kommt ein plausibel aussehender
+# Wert heraus. Wie falsch er ist, haengt daran, wie sehr die Uhr ausgeduennt hat -
+# also an Geraet und Sessionlaenge. Ein Ranking daraus vergleicht Uhren, nicht
+# Fahrer.
 #
 # 6 s und nicht 5: Die Uhr zielt auf 5 s je Punkt, eine krumme Dauer ergibt dann
 # 5,2 - das soll nicht durchfallen. 10 s dagegen schon.
 #
-# Der richtige Ausweg liegt nicht hier, sondern auf der Uhr: Sie kennt den
-# Sekunden-Speed und koennte die Gleitzeit selbst zaehlen, wie sie es fuer Airtime
-# und Manoever schon tut. Dann waere der Wert exakt UND unabhaengig davon, wie
-# stark der Track ausgeduennt wurde.
+# WAS DAS KOSTET: Nach dem zweiten Lauf haben 16 von 43 Sessions einen Wert. Die
+# langen Sessions fallen praktisch alle heraus, und das sind gerade die
+# Wing-Sessions (die Uhr duennt eine 1,5-Stunden-Aufzeichnung auf 20 s je Punkt
+# aus). Der Gleitanteil ist damit vorerst eine Kennzahl fuer Datei-Uploads und
+# kurze Uhr-Sessions.
+#
+# Der Ausweg liegt nicht hier, sondern auf der Uhr: Sie kennt den Sekunden-Speed
+# und koennte die Gleitzeit selbst zaehlen, wie sie es fuer Airtime, Manoever und
+# Runs schon tut. Dann waere der Wert exakt, unabhaengig von der Ausduennung UND
+# unabhaengig von der Sessionlaenge - drei Zahlen statt tausend Trackpunkte.
 _GLIDE_MAX_DT_S = 6.0
 # Sportarten OHNE Gleitanteil: Surf (keine 500-m-/Seemeilen-Wertung, dort zaehlt
 # die Welle) und Wakeboard (Boot/Cable zieht konstant -> der Wert waere immer
