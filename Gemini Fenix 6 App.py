@@ -669,12 +669,58 @@ sessions_table = Table(
     # der Uhr (ab 1.1) und nur beim Windsurfen - aus dem Track ist das nicht zu
     # rekonstruieren, es braucht den Beschleunigungssensor.
     Column("catapults", Integer),
+    # --- Wellenreiten: aus der Datei gelesen, NICHT selbst erkannt ----------
+    # Garmins Surf-Aktivitaet und die Apple Watch legen je Welle eine Runde
+    # (lap) an. Die Vorlage nennt das richtig "konsumieren statt rechnen": Eine
+    # eigene Wellenerkennung waere der falsche Kampf. Bleibt leer, wenn die
+    # Datei keine Runden hat - unsere eigene Uhr-App erzeugt derzeit keine.
+    Column("waves", Integer),           # Anzahl Runden = Wellen
+    Column("wave_best_m", Float),       # laengste Runde (laengster Ritt)
+    Column("wave_max_kmh", Float),      # hoechste Geschwindigkeit auf einer Welle
+    # --- Wellenreiten: Logbuch (Handeingabe) -------------------------------
+    # "Die wichtigste Einzelzahl des ganzen Modells" ist die Session-Bewertung -
+    # an ihr haengen spaeter alle Auswertungen (welche Periode, welche
+    # Tidenphase, welches Board hat funktioniert). Der Rest ist bewusst kurz:
+    # Wird das Formular zu lang, wird es nicht gefuellt.
+    Column("surf_rating", Integer),     # 1-5
+    Column("wave_size", String(20)),    # Koerperskala, siehe WAVE_SIZES
+    Column("waves_self", Integer),      # eigene Schaetzung, neben waves
+    Column("best_wave", String),        # kurze Notiz zur besten Welle
+    Column("session_note", String),     # Freitext - bei Logbuechern oft der Kern
     Column("wind_kmh", Float),
     Column("gust_kmh", Float),
     Column("wind_dir_deg", Float),
     Column("temp_c", Float),
     Column("precip_mm", Float),
     Column("weather_code", Integer),
+    # --- Seegang und Tide zum Sessionzeitpunkt (Open-Meteo Marine-API) ------
+    # Der eigentliche Hebel beim Wellenreiten (wellenreiten-kennzahlen.md,
+    # Prioritaet 2): Ein Surf-Logbuch existiert, damit sein Besitzer nach zwei
+    # Jahren weiss, bei WELCHEN Bedingungen ein Spot fuer IHN laeuft. Das geht
+    # nur, wenn die Bedingungen am Eintrag haengen - und zwar ohne Eingabe.
+    #
+    # Getrennt nach Duenung (swell) und Gesamtsee (wave): Die Vorlage nennt die
+    # PERIODE den staerksten Qualitaetstreiber, und eine 12-s-Duenung unter
+    # Windsee sieht in der Gesamthoehe aus wie Kabbelwasser.
+    #
+    # Nicht nur fuer Surf: Die Windsurf-Vorlage will denselben Wasserzustand
+    # (flach / Kabbel / Welle), und der steckt in genau diesen Zahlen.
+    Column("wave_height_m", Float),
+    Column("wave_period_s", Float),
+    Column("wave_dir_deg", Float),
+    Column("swell_height_m", Float),
+    Column("swell_period_s", Float),
+    Column("swell_dir_deg", Float),
+    Column("water_temp_c", Float),
+    # Pegel und seine AENDERUNG je Stunde (mit Vorzeichen). Aus dem Vorzeichen
+    # folgt auflaufend/ablaufend, aus dem Betrag, wie schnell - und bei vielen
+    # Breaks ist genau diese Phase entscheidender als der Pegel selbst.
+    Column("sea_level_m", Float),
+    Column("tide_rate_m_h", Float),
+    # Wurde ueberhaupt schon nachgesehen? Ohne diese Marke wuerde jeder Besucher
+    # alle sechs Stunden erneut fuer jeden Binnensee fragen, wo es dauerhaft
+    # keine Marine-Daten gibt (die API antwortet dort mit einem Fehler).
+    Column("marine_checked", Boolean),
     Column("trust_score", Float),
     # Von der WaterSession-Uhr gelieferte Zusatzwerte (NULL bei FIT-Uploads):
     Column("jumps", Integer),            # Sprungzahl (Wind)
@@ -1205,6 +1251,26 @@ _WATCH_COLUMNS = {
     "glide_phases": "INTEGER",
     "glide_avg_kmh": "DOUBLE PRECISION",
     "catapults": "INTEGER",
+    # Seegang/Tide zum Sessionzeitpunkt (Marine-API, ueber den Browser geholt).
+    "wave_height_m": "DOUBLE PRECISION",
+    "wave_period_s": "DOUBLE PRECISION",
+    "wave_dir_deg": "DOUBLE PRECISION",
+    "swell_height_m": "DOUBLE PRECISION",
+    "swell_period_s": "DOUBLE PRECISION",
+    "swell_dir_deg": "DOUBLE PRECISION",
+    "water_temp_c": "DOUBLE PRECISION",
+    "sea_level_m": "DOUBLE PRECISION",
+    "tide_rate_m_h": "DOUBLE PRECISION",
+    "marine_checked": "BOOLEAN",
+    # Wellenreiten: aus der Datei (Runden = Wellen) und aus dem Logbuch.
+    "waves": "INTEGER",
+    "wave_best_m": "DOUBLE PRECISION",
+    "wave_max_kmh": "DOUBLE PRECISION",
+    "surf_rating": "INTEGER",
+    "wave_size": "VARCHAR(20)",
+    "waves_self": "INTEGER",
+    "best_wave": "TEXT",
+    "session_note": "TEXT",
     # Sicherung vor einem Admin-Zuschnitt: JSON mit Original-Track UND den
     # Original-Kennzahlen. Beides zusammen, damit ein Zurueck die exakten
     # UHR-Werte wiederherstellt – ein aus dem Track nachgerechneter Wert waere
@@ -6531,6 +6597,24 @@ _MIN_PLAUSIBLE = {"max_jump_m": 0.5, "max_airtime_s": 0.5}
 # der ganzen Seite. Dieselbe Haltung wie bei der Manoever-Quote (dort fuenf).
 _LAND_MIN_JUMPS = 5
 
+# --- Wellengroesse in Koerperskala (wellenreiten-kennzahlen.md) -------------
+# "Surfer denken nicht in Metern." Darum die koerperbezogene Skala als das, was
+# gespeichert wird, und Meter nur als grobe Zweitangabe zum Einordnen - nicht
+# umgekehrt. Der Schluessel ist stabil (er steht in der Datenbank), das Label
+# darf sich aendern.
+#
+# Die Meterwerte sind bewusst RICHTWERTE und stehen nur in der Beschriftung:
+# Sie haengen an der Koerpergroesse, und genau deshalb misst die Szene so.
+WAVE_SIZES = [
+    {"key": "knee", "label": "Knee high (~0.5 m)"},
+    {"key": "waist", "label": "Waist high (~1 m)"},
+    {"key": "chest", "label": "Chest high (~1.3 m)"},
+    {"key": "head", "label": "Head high (~1.8 m)"},
+    {"key": "overhead", "label": "Overhead (~2.5 m)"},
+    {"key": "double", "label": "Double overhead (3.5 m+)"},
+]
+_WAVE_SIZE_LABEL = {s["key"]: s["label"] for s in WAVE_SIZES}
+
 # --- Speed je Wind (windsurf-kennzahlen.md, Prioritaet 4) -------------------
 # "Aus meiner Sicht die unterschaetzteste Kennzahl der Sportart", und beide
 # Zahlen liegen schon in der Datenbank: erreichter Speed geteilt durch den
@@ -8010,6 +8094,113 @@ def read_fit_file(uploaded_file):
         df["lon"] = df["position_long"].apply(semicircles_to_degrees)
 
     return df
+
+
+# --- Wellenreiten: Runden aus der FIT lesen statt Wellen erkennen ----------
+# Die Vorlage (wellenreiten-kennzahlen.md) nennt es "konsumieren statt rechnen",
+# und das ist richtig: Garmins Surf-Aktivitaet und die Apple Watch legen je
+# gesurfter Welle eine RUNDE an - Anzahl, Distanz und Hoechstgeschwindigkeit
+# stehen dort fertig. Eine eigene Wellenerkennung waere der falsche Kampf:
+# Uhrenhersteller haben die Sensorik am Koerper.
+#
+# ACHTUNG, und das steht so NICHT in der Vorlage: Unsere EIGENE Uhr-App erzeugt
+# derzeit keine Wellen-Runden (sie schreibt SPORT_SURFING mit generischem
+# Sub-Sport). Diese Werte kommen also nur aus fremden Dateien. Wer die
+# WaterSession-App benutzt, hat sie nicht - darum bleibt die Handeingabe im
+# Logbuch gleichberechtigt daneben stehen und wird nicht dagegen validiert.
+def fit_message_overview(src):
+    """Welche Nachrichtentypen und Felder stecken in dieser FIT-Datei?
+
+    Die Vorlage sagt: "Erster Schritt: pruefen, welche Surf-Felder in den
+    FIT-Uploads tatsaechlich ankommen." Genau dafuer - eine Antwort statt einer
+    Annahme, bevor irgendetwas darauf gebaut wird.
+    """
+    try:
+        fit = FitFile(io.BytesIO(_read_bytes(src)))
+        out = {}
+        for m in fit.get_messages():
+            eintrag = out.setdefault(m.name, {"count": 0, "fields": set()})
+            eintrag["count"] += 1
+            for f in m:
+                if f.value is not None:
+                    eintrag["fields"].add(f.name)
+        return {k: {"count": v["count"], "fields": sorted(v["fields"])}
+                for k, v in sorted(out.items())}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def read_fit_laps(src):
+    """Runden einer FIT-Datei als Liste von dicts, oder [] bei Fehlern."""
+    try:
+        fit = FitFile(io.BytesIO(_read_bytes(src)))
+        raus = []
+        for m in fit.get_messages("lap"):
+            raus.append({f.name: f.value for f in m})
+        return raus
+    except Exception:  # noqa: BLE001
+        return []
+
+
+# Unter so vielen Runden ist "eine Runde = eine Welle" nicht zu glauben: Eine
+# Datei mit einer einzigen Runde ist die ganze Aufzeichnung (so legen viele
+# Uhren an, ohne dass irgendetwas erkannt wurde).
+_WAVE_MIN_LAPS = 2
+# Und eine Welle, die laenger als das dauert, war keine - dann wurde die Runde
+# von Hand gesetzt oder die Aufzeichnung lief durch. 120 s ist grosszuegig:
+# Der laengste dokumentierte Ritt auf einer normalen Welle liegt weit darunter,
+# aber Flusswellen und Pointbreaks duerfen mitkommen.
+_WAVE_MAX_S = 120.0
+
+
+def surf_metrics_from_laps(laps):
+    """Wellenzahl, laengster Ritt und Topspeed je Welle aus den Runden.
+
+    Gibt {} zurueck, wenn die Datei keine brauchbaren Runden hat - lieber nichts
+    als eine Wellenzahl, die in Wahrheit die Zahl der Handrunden ist.
+    """
+    if not laps or len(laps) < _WAVE_MIN_LAPS:
+        return {}
+    def _zahl(lap, *felder):
+        """Erster brauchbarer Wert aus mehreren moeglichen Feldnamen.
+
+        Mehrere Namen, weil dieselbe Groesse je nach Uhr anders heisst
+        (enhanced_max_speed neben max_speed). Die Reihenfolge ist die
+        Vorzugsreihenfolge; "enhanced" ist die genauere Fassung.
+        """
+        for f in felder:
+            v = lap.get(f)
+            if v is None:
+                continue
+            try:
+                v = float(v)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(v) and v > 0:
+                return v
+        return None
+
+    dauern, weiten, tempi = [], [], []
+    for lap in laps:
+        t = _zahl(lap, "total_timer_time", "total_elapsed_time")
+        if t is None or t > _WAVE_MAX_S:
+            continue
+        dauern.append(t)
+        d = _zahl(lap, "total_distance")
+        if d is not None:
+            weiten.append(d)
+        v = _zahl(lap, "enhanced_max_speed", "max_speed")
+        if v is not None:
+            tempi.append(v)
+    if len(dauern) < _WAVE_MIN_LAPS:
+        return {}
+    out = {"waves": len(dauern)}
+    if weiten:
+        out["wave_best_m"] = round(max(weiten), 1)
+    if tempi:
+        # FIT liefert Geschwindigkeit in m/s.
+        out["wave_max_kmh"] = round(max(tempi) * 3.6, 2)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -13749,6 +13940,116 @@ def _fmt_hm(secs):
     return f"{m // 60}h {m % 60:02d}m" if m >= 60 else f"{m}m"
 
 
+def _compass(deg):
+    """Gradzahl als Himmelsrichtung - 276 Grad sagt niemandem etwas, W schon."""
+    try:
+        d = float(deg)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(d):
+        return None
+    punkte = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+              "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+    return punkte[int((d % 360.0) / 22.5 + 0.5) % 16]
+
+
+def _render_sea_state(record):
+    """Seegang und Tide zum Sessionzeitpunkt.
+
+    Der Hebel aus der Wellenreit-Vorlage - aber nicht nur fuer Surf: Die
+    Windsurf-Vorlage will denselben Wasserzustand (flach / Kabbel / Welle), und
+    der steckt in genau diesen Zahlen.
+
+    Duenung und Gesamtsee stehen NEBENEINANDER, nicht uebereinander: Eine
+    12-Sekunden-Duenung unter Windsee verschwindet in der Gesamthoehe, und
+    gerade sie macht die Qualitaet.
+    """
+    def _z(feld):
+        v = pd.to_numeric(record.get(feld), errors="coerce")
+        return None if pd.isna(v) else float(v)
+
+    swh, swp, swd = _z("swell_height_m"), _z("swell_period_s"), _z("swell_dir_deg")
+    wvh, wvp, wvd = _z("wave_height_m"), _z("wave_period_s"), _z("wave_dir_deg")
+    wt, sl, tr = _z("water_temp_c"), _z("sea_level_m"), _z("tide_rate_m_h")
+    if all(v is None for v in (swh, wvh, wt, sl)):
+        return
+    st.markdown("## 🌊 Sea state")
+    c1, c2, c3, c4 = st.columns(4)
+    if swh is not None:
+        _t = f"{swh:.1f} m"
+        _d = " · ".join(x for x in (
+            f"{swp:.0f} s" if swp is not None else None,
+            _compass(swd)) if x)
+        c1.metric("Swell", _t, _d or None, delta_color="off",
+                  help="The long-period part of the sea – the one that makes the "
+                       "waves. Period matters more than height.")
+    if wvh is not None:
+        _d = " · ".join(x for x in (
+            f"{wvp:.0f} s" if wvp is not None else None,
+            _compass(wvd)) if x)
+        c2.metric("Total sea", f"{wvh:.1f} m", _d or None, delta_color="off",
+                  help="Everything together, swell plus local wind chop.")
+    if wt is not None:
+        c3.metric("Water", f"{wt:.1f} °C")
+    if sl is not None:
+        # Die PHASE ist bei vielen Breaks wichtiger als der Pegel. Sie steht als
+        # Zusatz am Pegel, nicht als eigene Kachel - sie ist seine Ableitung.
+        _ph = None
+        if tr is not None and abs(tr) >= 0.02:
+            _ph = ("rising" if tr > 0 else "falling") + f" {abs(tr):.2f} m/h"
+        elif tr is not None:
+            _ph = "slack"
+        c4.metric("Tide", f"{sl:+.2f} m", _ph, delta_color="off",
+                  help="Sea level against the mean, and whether it was coming in "
+                       "or going out. For many breaks the phase decides, not the "
+                       "level.")
+    st.caption(
+        "Modelled for the spot and the hour of your session (Open-Meteo marine) – "
+        "not measured at your board, and the tide is a model level, not a tide "
+        "table. Good enough to compare your own sessions with each other, which "
+        "is what it is for."
+    )
+
+
+def _render_surf_log(record):
+    """Das Logbuch einer Surf-Session: Bewertung, Wellengroesse, Notizen.
+
+    Beim Wellenreiten ist das der eigentliche Inhalt - "der Teil, den Leute in
+    fuenf Jahren nachlesen". Erscheint nur, wenn etwas eingetragen wurde.
+    """
+    if str(record.get("sport") or "").strip().lower() != "surf":
+        return
+    _r = pd.to_numeric(record.get("surf_rating"), errors="coerce")
+    _wv = pd.to_numeric(record.get("waves_self"), errors="coerce")
+    _ww = pd.to_numeric(record.get("waves"), errors="coerce")
+    _sz = _WAVE_SIZE_LABEL.get(str(record.get("wave_size") or ""))
+    _bw = str(record.get("best_wave") or "").strip()
+    _nt = str(record.get("session_note") or "").strip()
+    _bm = pd.to_numeric(record.get("wave_best_m"), errors="coerce")
+    if all(x in (None, "") or (isinstance(x, float) and pd.isna(x))
+           for x in (_r, _wv, _ww, _sz, _bw, _nt, _bm)):
+        return
+    st.markdown("## 📓 Surf log")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Session", "–" if pd.isna(_r) else "⭐" * int(_r))
+    c2.metric("Wave size", _sz or "–")
+    # Beide Zaehlungen nebeneinander, ausdruecklich NICHT gegeneinander: Die Uhr
+    # zaehlt Rutscher mit, der Fahrer nicht. Beide sind richtig.
+    if pd.notna(_wv) and pd.notna(_ww):
+        c3.metric("Waves", f"{int(_wv)}", f"file counted {int(_ww)}",
+                  delta_color="off")
+    elif pd.notna(_wv):
+        c3.metric("Waves (your count)", f"{int(_wv)}")
+    elif pd.notna(_ww):
+        c3.metric("Waves (from file)", f"{int(_ww)}")
+    if pd.notna(_bm):
+        st.caption(f"🏄 Longest ride in the file: **{float(_bm):.0f} m**.")
+    if _bw:
+        st.markdown(f"**Best wave:** {_bw}")
+    if _nt:
+        st.markdown(_nt)
+
+
 def _render_speed_curve(track_pts, duration_s, record):
     """Speed-über-Zeit-Kurve (Inline-SVG, kein matplotlib) mit Gleitschwelle,
     schattierten Runs, hervorgehobenem längstem Run und echtem Top-Speed."""
@@ -14750,6 +15051,13 @@ def render_history_overview(record):
         p1.metric("Strokes", "–" if not _has(strokes) else f"{int(strokes)}")
         p2.metric("Max cadence", "–" if not _has(max_cadence) else f"{int(max_cadence)} spm")
         p3.metric("Cadence (end)", "–" if not _has(cadence) else f"{int(cadence)} spm")
+
+    # Seegang/Tide und - beim Wellenreiten - das Logbuch. BEWUSST vor der
+    # Speedkurve: Beim Wellenreiten sind die Bedingungen die eigentliche
+    # Kennzahl, nicht die Geschwindigkeit. Und beides muss auch ohne Track
+    # erscheinen, darum hier und nicht in _render_speed_curve.
+    _render_sea_state(record)
+    _render_surf_log(record)
 
     # Track einmal laden (für Speedkurve UND Karte).
     track_pts = _parse_track(load_session_track(record.get("id")))
@@ -16232,22 +16540,34 @@ btn.onclick = async () => {
 """
 
 
-def _sessions_missing_weather(limit=15):
+def _sessions_missing_weather(limit=15, marine=False):
     """Sessions ohne Wetter samt Position und Stunde.
 
     Position bevorzugt aus start_lat/lon, sonst aus dem ersten Track-Punkt (die
     Uhr setzt start_lat erst ab GPS-Qualitaet USABLE). Der gespeicherte Track ist
-    in GRAD – _parse_track liest genau dieses Format."""
+    in GRAD – _parse_track liest genau dieses Format.
+
+    `marine=True` nimmt auch Sessions dazu, denen nur der SEEGANG fehlt. Die
+    beiden Luecken haengen nicht zusammen: Seegang kommt aus einer anderen
+    Schnittstelle, eine Session kann also Wind haben und keinen Seegang. Jeder
+    Eintrag traegt darum zwei Marken (`wx`, `marine`), damit der Browser nur das
+    abfragt, was wirklich fehlt.
+    """
+    _fehlt_wx = sessions_table.c.wind_kmh.is_(None)
+    # IS NOT TRUE statt IS NULL: Ein FALSE (kaeme aus einer Handkorrektur) soll
+    # genauso wie NULL "noch nicht nachgesehen" heissen.
+    _fehlt_marine = sessions_table.c.marine_checked.isnot(True)
     with get_engine().connect() as conn:
-        rows = conn.execute(
-            select(sessions_table.c.id, sessions_table.c.name,
-                   sessions_table.c.surfspot, sessions_table.c.date,
-                   sessions_table.c.start_lat, sessions_table.c.start_lon,
-                   sessions_table.c.track)
-            .where(sessions_table.c.wind_kmh.is_(None))
-            .where(sessions_table.c.date.isnot(None))
-            .order_by(sessions_table.c.date.desc()).limit(int(limit))
-        ).mappings().all()
+        q = (select(sessions_table.c.id, sessions_table.c.name,
+                    sessions_table.c.surfspot, sessions_table.c.date,
+                    sessions_table.c.start_lat, sessions_table.c.start_lon,
+                    sessions_table.c.track,
+                    sessions_table.c.wind_kmh,
+                    sessions_table.c.marine_checked)
+             .where(_fehlt_wx | _fehlt_marine if marine else _fehlt_wx)
+             .where(sessions_table.c.date.isnot(None))
+             .order_by(sessions_table.c.date.desc()).limit(int(limit)))
+        rows = conn.execute(q).mappings().all()
     out = []
     for r in rows:
         lat, lon = r["start_lat"], r["start_lon"]
@@ -16263,7 +16583,9 @@ def _sessions_missing_weather(limit=15):
         out.append({"id": int(r["id"]), "name": r["name"], "spot": r["surfspot"],
                     "lat": round(float(lat), 5), "lon": round(float(lon), 5),
                     "day": _d.strftime("%Y-%m-%d"), "hour": int(_d.hour),
-                    "when": _d.strftime("%Y-%m-%d %H:%M")})
+                    "when": _d.strftime("%Y-%m-%d %H:%M"),
+                    "wx": r["wind_kmh"] is None,
+                    "marine": bool(marine) and r["marine_checked"] is not True})
     return out
 
 
@@ -16318,6 +16640,15 @@ _WX_AUTO_HTML = """
              "temperature_2m","precipitation","weather_code"];
   const KEYS = ["wind_kmh","gust_kmh","wind_dir_deg","temp_c","precip_mm",
                 "weather_code"];
+  // Seegang und Tide aus der MARINE-Schnittstelle - eine eigene Adresse mit
+  // eigenen Feldnamen, darum eine zweite Liste. Duenung getrennt von der
+  // Gesamtsee, weil die Periode der Duenung die Qualitaet macht.
+  const MF = ["wave_height","wave_period","wave_direction",
+              "swell_wave_height","swell_wave_period","swell_wave_direction",
+              "sea_surface_temperature","sea_level_height_msl"];
+  const MKEYS = ["wave_height_m","wave_period_s","wave_dir_deg",
+                 "swell_height_m","swell_period_s","swell_dir_deg",
+                 "water_temp_c","sea_level_m"];
   // Was dieser Browser schon versucht hat, nicht wieder versuchen: Sonst
   // fragt jeder Seitenaufruf dieselben Sessions erneut ab, wenn eine davon
   // dauerhaft keine Daten hat.
@@ -16329,32 +16660,69 @@ _WX_AUTO_HTML = """
   if (!offen.length) { return; }
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // Die Stunde der Session waehlen - dieselbe Regel wie auf dem Server.
+  const stunde = (t, h) => {
+    let bi = 0, bd = 99;
+    t.forEach((s, i) => {
+      const d = Math.abs(parseInt(s.slice(11,13),10) - h);
+      if (d < bd) { bd = d; bi = i; }
+    });
+    return bi;
+  };
   const raus = [];
   for (const it of offen) {
-    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + it.lat
-      + "&longitude=" + it.lon + "&hourly=" + F.join(",")
-      + "&wind_speed_unit=kmh&timezone=auto&start_date=" + it.day
-      + "&end_date=" + it.day;
-    try {
-      const j = await (await fetch(url)).json();
-      const t = (j.hourly && j.hourly.time) || [];
-      if (t.length) {
-        // Die Stunde der Session waehlen - dieselbe Regel wie auf dem Server.
-        let bi = 0, bd = 99;
-        t.forEach((s, i) => {
-          const d = Math.abs(parseInt(s.slice(11,13),10) - it.hour);
-          if (d < bd) { bd = d; bi = i; }
-        });
-        const e = { id: it.id };
-        F.forEach((f, n) => {
-          const a = j.hourly[f];
-          if (a && a[bi] !== undefined && a[bi] !== null) { e[KEYS[n]] = a[bi]; }
-        });
-        if (e.wind_kmh !== undefined) { raus.push(e); }
-      }
-    } catch(e) {}
+    const e = { id: it.id };
+    if (it.wx) {
+      const url = "https://api.open-meteo.com/v1/forecast?latitude=" + it.lat
+        + "&longitude=" + it.lon + "&hourly=" + F.join(",")
+        + "&wind_speed_unit=kmh&timezone=auto&start_date=" + it.day
+        + "&end_date=" + it.day;
+      try {
+        const j = await (await fetch(url)).json();
+        const t = (j.hourly && j.hourly.time) || [];
+        if (t.length) {
+          const bi = stunde(t, it.hour);
+          F.forEach((f, n) => {
+            const a = j.hourly[f];
+            if (a && a[bi] !== undefined && a[bi] !== null) { e[KEYS[n]] = a[bi]; }
+          });
+        }
+      } catch(err) {}
+      await sleep(300);
+    }
+    if (it.marine) {
+      // Zweiter Abruf, andere Adresse. Binnenseen antworten hier mit einem
+      // Fehler - dann geht nur die Marke mit, damit nicht ewig neu gefragt wird.
+      const murl = "https://marine-api.open-meteo.com/v1/marine?latitude=" + it.lat
+        + "&longitude=" + it.lon + "&hourly=" + MF.join(",")
+        + "&timezone=auto&start_date=" + it.day + "&end_date=" + it.day;
+      e.marine_checked = true;
+      try {
+        const j = await (await fetch(murl)).json();
+        const t = (j.hourly && j.hourly.time) || [];
+        if (t.length) {
+          const bi = stunde(t, it.hour);
+          MF.forEach((f, n) => {
+            const a = j.hourly[f];
+            if (a && a[bi] !== undefined && a[bi] !== null) { e[MKEYS[n]] = a[bi]; }
+          });
+          // Tidenphase aus der Pegelkurve: Aenderung je Stunde MIT Vorzeichen.
+          // Positiv = auflaufend. Genommen wird die Spanne um die Stunde herum,
+          // damit ein einzelner Ausreisser nicht die Richtung dreht.
+          const sl = j.hourly[ "sea_level_height_msl" ];
+          if (sl) {
+            const a = sl[Math.max(0, bi - 1)], b = sl[Math.min(sl.length - 1, bi + 1)];
+            const n = Math.min(sl.length - 1, bi + 1) - Math.max(0, bi - 1);
+            if (a !== null && b !== null && n > 0) {
+              e.tide_rate_m_h = (b - a) / n;
+            }
+          }
+        }
+      } catch(err) {}
+      await sleep(300);
+    }
+    if (Object.keys(e).length > 1) { raus.push(e); }
     getan[it.id] = jetzt;
-    await sleep(300);
   }
   try { localStorage.setItem("wxdone", JSON.stringify(getan)); } catch(e) {}
   if (!raus.length) { return; }
@@ -16390,7 +16758,7 @@ def wx_autofill(limit=6):
     if not _sk:
         return
     try:
-        items = _sessions_missing_weather(int(limit))
+        items = _sessions_missing_weather(int(limit), marine=True)
     except Exception:
         return
     if not items:
@@ -16404,8 +16772,10 @@ def wx_autofill(limit=6):
                     hashlib.sha256).hexdigest()[:32]
     _ing = os.environ.get("INGEST_URL",
                           "https://ingest-kxxw.onrender.com").rstrip("/")
-    _js = json.dumps([{k: i[k] for k in ("id", "lat", "lon", "day", "hour")}
-                      for i in items])
+    # wx/marine mitgeben, damit der Browser nur das abfragt, was wirklich fehlt -
+    # sonst holte er fuer jede Session beide Schnittstellen.
+    _js = json.dumps([{k: i[k] for k in ("id", "lat", "lon", "day", "hour",
+                                         "wx", "marine")} for i in items])
     components.html(
         _WX_AUTO_HTML.replace("__ITEMS__", _js)
         .replace("__EXP__", str(_exp))
@@ -19273,6 +19643,62 @@ def render_session_editor(user):
             fin_carbon_e = fecb.checkbox(
                 "Carbon", value=bool(row.get("fin_carbon")), key=f"es_fincb_{sid}")
 
+            # --- Surf-Logbuch ------------------------------------------
+            # Beim Wellenreiten ist die Session-BEWERTUNG die wichtigste
+            # Einzelzahl: An ihr haengt spaeter die ganze Auswertung (bei
+            # welcher Periode, welcher Tidenphase, welchem Board lief es).
+            # Bewusst kurz gehalten - ein langes Formular wird nicht gefuellt.
+            _lb = {}
+            if sport == "surf":
+                st.markdown("**🌊 Surf log** — takes half a minute, and it is "
+                            "what makes the spot analysis possible later.")
+                _r_now = int(pd.to_numeric(row.get("surf_rating"),
+                                           errors="coerce") or 0)
+                _rate = st.select_slider(
+                    "How was the session?", options=[0, 1, 2, 3, 4, 5],
+                    value=_r_now if 0 <= _r_now <= 5 else 0,
+                    format_func=lambda v: "–" if not v else "⭐" * int(v),
+                    key=f"es_rate_{sid}")
+                _c1, _c2 = st.columns(2)
+                _sizes = ["(empty)"] + [s["label"] for s in WAVE_SIZES]
+                _cur_sz = str(row.get("wave_size") or "")
+                _sz_lbl = next((s["label"] for s in WAVE_SIZES
+                                if s["key"] == _cur_sz), "(empty)")
+                _size = _c1.selectbox(
+                    "Wave size", _sizes, index=_sizes.index(_sz_lbl),
+                    key=f"es_wsize_{sid}",
+                    help="Body scale – surfers do not think in metres.")
+                _wv = _c2.number_input(
+                    "Waves surfed (your count)", min_value=0, max_value=200,
+                    step=1,
+                    value=int(pd.to_numeric(row.get("waves_self"),
+                                            errors="coerce") or 0),
+                    key=f"es_wself_{sid}")
+                _bw = st.text_input(
+                    "Best wave", value=str(row.get("best_wave") or ""),
+                    max_chars=200, key=f"es_bw_{sid}",
+                    placeholder="The one you will want to read about in five years.")
+                _nt = st.text_area(
+                    "Notes", value=str(row.get("session_note") or ""),
+                    height=80, max_chars=2000, key=f"es_note_{sid}",
+                    placeholder="Crowd, conditions, what worked, what did not.")
+                _lb = {"surf_rating": int(_rate) or None,
+                       "wave_size": next((s["key"] for s in WAVE_SIZES
+                                          if s["label"] == _size), None),
+                       "waves_self": int(_wv) or None,
+                       "best_wave": (_bw or "").strip() or None,
+                       "session_note": (_nt or "").strip() or None}
+                # Was die UHR gezaehlt hat, danebenstellen - NICHT dagegen
+                # rechnen. Die Uhr zaehlt Rutscher mit, der Fahrer nicht; beide
+                # Zahlen sind richtig und meinen Verschiedenes.
+                _w_watch = pd.to_numeric(row.get("waves"), errors="coerce")
+                if pd.notna(_w_watch):
+                    st.caption(
+                        f"Your file counted **{int(_w_watch)} waves** (one lap "
+                        "each). That will differ from your own count – the watch "
+                        "counts every slide, you do not. Both are kept."
+                    )
+
             if st.form_submit_button("Save session", use_container_width=True):
                 def _pick(sel, new=None):
                     if new is not None and new.strip():
@@ -19294,6 +19720,7 @@ def render_session_editor(user):
                     fields["fin_size_cm"] = None
                     fields["fin_brand"] = None
                     fields["fin_carbon"] = None
+                fields.update(_lb)          # Surf-Logbuch (leer ausser bei Surf)
                 update_session(sid, fields)
 
                 if not _session_counts_in_ranking(fields["surfspot"]):
@@ -22076,6 +22503,25 @@ if fit_source is not None:
         st.error("No usable GPS records found (FIT / GPX / TCX / Strava).")
         st.stop()
 
+    # Wellenreiten: Runden aus derselben Datei lesen. Bei Garmins
+    # Surf-Aktivitaet und der Apple Watch ist eine Runde eine Welle - die Zahlen
+    # stehen also fertig darin und muessen nicht erkannt werden. Nur bei Surf:
+    # In allen anderen Sportarten sind Runden Handrunden und bedeuten nichts.
+    _surf_laps = {}
+    if (active_sport() == "surf" and _pre_df is None
+            and str(fit_name or "").lower().endswith(".fit")):
+        _surf_laps = surf_metrics_from_laps(read_fit_laps(fit_source))
+        if _surf_laps:
+            st.caption(
+                f"🌊 Read from the file: **{_surf_laps['waves']} waves** "
+                + (f"· longest ride {_surf_laps['wave_best_m']:.0f} m "
+                   if _surf_laps.get("wave_best_m") else "")
+                + (f"· fastest {_surf_laps['wave_max_kmh']:.1f} km/h"
+                   if _surf_laps.get("wave_max_kmh") else "")
+                + ". Your watch counted these as laps – we only read them, we do "
+                "not detect waves ourselves."
+            )
+
     max_speed = None
     avg_speed = None
     best_1s = None
@@ -22306,6 +22752,8 @@ if fit_source is not None:
                     "speed_5x10_kmh": None if best_5x10 is None else round(best_5x10, 2),
                     "speed_alpha500_kmh": None if best_alpha is None else round(best_alpha, 2),
                     **glide_metrics(df, active_sport()),
+                    # Wellen aus den Runden der Datei (leer ausser bei Surf).
+                    **_surf_laps,
                     "wind_kmh": None if weather is None or weather["wind"] is None else round(weather["wind"], 1),
                     "gust_kmh": None if weather is None or weather["gust"] is None else round(weather["gust"], 1),
                     "wind_dir_deg": None if weather is None or weather["dir"] is None else round(weather["dir"]),
