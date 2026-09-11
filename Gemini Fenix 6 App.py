@@ -6605,6 +6605,57 @@ _LAND_MIN_JUMPS = 5
 #
 # Die Meterwerte sind bewusst RICHTWERTE und stehen nur in der Beschriftung:
 # Sie haengen an der Koerpergroesse, und genau deshalb misst die Szene so.
+def _int_or(wert, ersatz=0):
+    """Ganzzahl aus einem Datenbankwert, sonst `ersatz`.
+
+    Gibt es, weil `int(pd.to_numeric(x, errors="coerce") or 0)` eine FALLE ist,
+    und zwar eine, die IMMER zuschnappt: pd.to_numeric(None, errors="coerce")
+    gibt NaN zurueck - nicht None. `NaN or 0` ist dann das NaN, denn NaN ist
+    wahrheitswertig, und int(NaN) wirft "cannot convert float NaN to integer".
+    Es braucht also gar keine kaputten Daten; eine leere Zelle genuegt, und
+    genau daran ist der Session-Editor gestorben.
+
+    Dieselbe Wurzel wie beim Absturz der Live-Seite (siehe _track_dt): gegen
+    Wahrheitswert geprueft statt gegen Endlichkeit.
+    """
+    v = pd.to_numeric(wert, errors="coerce")
+    if v is None or pd.isna(v):
+        return ersatz
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return ersatz
+    return int(v) if math.isfinite(v) else ersatz
+
+
+def _txt_or(wert, ersatz=""):
+    """Text aus einem Datenbankwert, sonst `ersatz`.
+
+    Dieselbe NaN-Falle wie bei _int_or, nur leiser - und mit einem Ausloeser,
+    der erst spaeter kommt: Solange eine Textspalte ueberall leer ist, bleibt
+    sie bei pandas object-dtype und die Werte sind None; `str(None or "")` ist
+    "". Sobald aber EINE Session gefuellt ist, wird die Spalte typisiert, und
+    die leeren Zellen der anderen werden zu NaN. `str(NaN or "")` ist "nan" -
+    und das stuende woertlich im Eingabefeld und in der Anzeige.
+
+    Der Fehler waere also genau dann aufgetreten, wenn der erste Logbuch-Eintrag
+    geschrieben ist - beim Ausprobieren also nicht, im Betrieb sofort.
+    """
+    if wert is None:
+        return ersatz
+    try:
+        if pd.isna(wert):
+            return ersatz
+    except (TypeError, ValueError):
+        pass                       # Listen/dicts: kein NaN, normal behandeln
+    # Unendlich ist kein Text, den jemand geschrieben hat - in einem Textfeld
+    # bedeutet es dasselbe wie NaN: kaputter Wert.
+    if isinstance(wert, float) and not math.isfinite(wert):
+        return ersatz
+    s = str(wert).strip()
+    return ersatz if s.lower() in ("", "nan", "none", "null") else s
+
+
 WAVE_SIZES = [
     {"key": "knee", "label": "Knee high (~0.5 m)"},
     {"key": "waist", "label": "Waist high (~1 m)"},
@@ -14017,14 +14068,14 @@ def _render_surf_log(record):
     Beim Wellenreiten ist das der eigentliche Inhalt - "der Teil, den Leute in
     fuenf Jahren nachlesen". Erscheint nur, wenn etwas eingetragen wurde.
     """
-    if str(record.get("sport") or "").strip().lower() != "surf":
+    if _txt_or(record.get("sport")).lower() != "surf":
         return
     _r = pd.to_numeric(record.get("surf_rating"), errors="coerce")
     _wv = pd.to_numeric(record.get("waves_self"), errors="coerce")
     _ww = pd.to_numeric(record.get("waves"), errors="coerce")
-    _sz = _WAVE_SIZE_LABEL.get(str(record.get("wave_size") or ""))
-    _bw = str(record.get("best_wave") or "").strip()
-    _nt = str(record.get("session_note") or "").strip()
+    _sz = _WAVE_SIZE_LABEL.get(_txt_or(record.get("wave_size")))
+    _bw = _txt_or(record.get("best_wave"))
+    _nt = _txt_or(record.get("session_note"))
     _bm = pd.to_numeric(record.get("wave_best_m"), errors="coerce")
     if all(x in (None, "") or (isinstance(x, float) and pd.isna(x))
            for x in (_r, _wv, _ww, _sz, _bw, _nt, _bm)):
@@ -19652,8 +19703,7 @@ def render_session_editor(user):
             if sport == "surf":
                 st.markdown("**🌊 Surf log** — takes half a minute, and it is "
                             "what makes the spot analysis possible later.")
-                _r_now = int(pd.to_numeric(row.get("surf_rating"),
-                                           errors="coerce") or 0)
+                _r_now = _int_or(row.get("surf_rating"), 0)
                 _rate = st.select_slider(
                     "How was the session?", options=[0, 1, 2, 3, 4, 5],
                     value=_r_now if 0 <= _r_now <= 5 else 0,
@@ -19661,7 +19711,7 @@ def render_session_editor(user):
                     key=f"es_rate_{sid}")
                 _c1, _c2 = st.columns(2)
                 _sizes = ["(empty)"] + [s["label"] for s in WAVE_SIZES]
-                _cur_sz = str(row.get("wave_size") or "")
+                _cur_sz = _txt_or(row.get("wave_size"))
                 _sz_lbl = next((s["label"] for s in WAVE_SIZES
                                 if s["key"] == _cur_sz), "(empty)")
                 _size = _c1.selectbox(
@@ -19671,15 +19721,14 @@ def render_session_editor(user):
                 _wv = _c2.number_input(
                     "Waves surfed (your count)", min_value=0, max_value=200,
                     step=1,
-                    value=int(pd.to_numeric(row.get("waves_self"),
-                                            errors="coerce") or 0),
+                    value=_int_or(row.get("waves_self"), 0),
                     key=f"es_wself_{sid}")
                 _bw = st.text_input(
-                    "Best wave", value=str(row.get("best_wave") or ""),
+                    "Best wave", value=_txt_or(row.get("best_wave")),
                     max_chars=200, key=f"es_bw_{sid}",
                     placeholder="The one you will want to read about in five years.")
                 _nt = st.text_area(
-                    "Notes", value=str(row.get("session_note") or ""),
+                    "Notes", value=_txt_or(row.get("session_note")),
                     height=80, max_chars=2000, key=f"es_note_{sid}",
                     placeholder="Crowd, conditions, what worked, what did not.")
                 _lb = {"surf_rating": int(_rate) or None,
