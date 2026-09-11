@@ -656,6 +656,21 @@ sessions_table = Table(
     Column("speed_nm_kmh", Float),       # beste Ø-Geschwindigkeit über 1 Seemeile (1852 m)
     Column("speed_5x10_kmh", Float),     # Mittel der 5 besten 10-s-Fahrten (avg 5x10)
     Column("speed_alpha500_kmh", Float), # schnellste 500 m mit Halse (Start/Ende < 50 m)
+    # --- Ausdauer-Bestzeiten ueber Distanzen (sup-kennzahlen.md) ------------
+    # Beim SUP liegt zwischen Sonntagsrunde und Rennfahrer nur 5 bis 12 km/h.
+    # In diesem Band trennt eine Speed-Rangliste fast nichts ausser den
+    # Bedingungen - "schnellste 500 m" sagt dort nichts. Der Ausdauersport
+    # wertet darum ueber DISTANZEN, und genau das sind diese vier Spalten.
+    # Gerechnet mit derselben Funktion wie 500 m und Seemeile.
+    Column("speed_1km_kmh", Float),
+    Column("speed_5km_kmh", Float),
+    Column("speed_10km_kmh", Float),
+    Column("speed_1h_kmh", Float),       # beste Stunde (Zeitfenster, nicht Distanz)
+    # Streckenform aus dem Track: "loop" / "there_back" / "one_way" / None.
+    # Ohne sie ist eine SUP-Distanzwertung wertlos: Eine Rheinabfahrt schlaegt
+    # jede Technik, und eine Einwegstrecke misst die Stroemung, nicht den
+    # Paddler. Gilt fuer jede Sportart - gewertet wird sie vorerst nur bei SUP.
+    Column("route_shape", String(12)),
     # Gleitanteil (windsurf-kennzahlen.md): Zeit ueber der Gleitgrenze, Anzahl und
     # Laenge der Gleitphasen, Ø-Speed IM Gleiten (der Sessionschnitt ist durch
     # Duempeln verwaessert). Aus dem Track gerechnet, also auch fuer Altsessions
@@ -1251,6 +1266,12 @@ _WATCH_COLUMNS = {
     "glide_phases": "INTEGER",
     "glide_avg_kmh": "DOUBLE PRECISION",
     "catapults": "INTEGER",
+    # Ausdauer-Bestzeiten und Streckenform (SUP).
+    "speed_1km_kmh": "DOUBLE PRECISION",
+    "speed_5km_kmh": "DOUBLE PRECISION",
+    "speed_10km_kmh": "DOUBLE PRECISION",
+    "speed_1h_kmh": "DOUBLE PRECISION",
+    "route_shape": "VARCHAR(12)",
     # Seegang/Tide zum Sessionzeitpunkt (Marine-API, ueber den Browser geholt).
     "wave_height_m": "DOUBLE PRECISION",
     "wave_period_s": "DOUBLE PRECISION",
@@ -4744,7 +4765,16 @@ RANKING_TABLES_DEFAULT_BY_SPORT = {"wakeboard": ["airtot", "land", "airtime",
                                    # hat (nur Uhr ab 0.9.9) - sonst faellt die
                                    # Auswahl auf die beste Airtime zurueck.
                                    "kitesurf": ["airtot", "airtime", "airs",
-                                                "held"]}
+                                                "held"],
+                                   # SUP (sup-kennzahlen.md): "Distanz ist bei
+                                   # SUP die Leitzahl, nicht Speed." Darum die
+                                   # Gesamtdistanz zuerst, dann das
+                                   # Technikmass (Distanz pro Zug) und eine
+                                   # Distanz-Bestzeit. Ohne Zugdaten faellt
+                                   # "dps" weg, ohne lange Touren "5km" - die
+                                   # Auswahl faellt dann von selbst auf die
+                                   # Gesamtdistanz zurueck.
+                                   "sup": ["total", "dps", "5km"]}
 
 
 def _rank_default_tables(sport):
@@ -4764,6 +4794,8 @@ RANKING_TABLE_LABELS = {
     "land": "✅ Landing rate", "runs": "🔄 Most runs",
     "rot": "🌀 Biggest spin",
     "strokes": "🛶 Most strokes", "cadence": "⏱️ Max cadence",
+    "1km": "🥇 Best 1 km", "5km": "🏅 Best 5 km", "10km": "🎖️ Best 10 km",
+    "hour": "⏳ Best hour", "dps": "📏 Distance per stroke",
     "held": "🔄 Maneuvers held",
     "kw_ppf": "💪 Pound-for-pound", "kw_force": "🏋️ Sail force", "kw_power": "⚡ Power",
 }
@@ -6686,6 +6718,25 @@ _WAVE_SIZE_LABEL = {s["key"]: s["label"] for s in WAVE_SIZES}
 _SWR_MIN_WIND_KMH = 15.0
 _SWR_MAX = 2.2
 
+# --- Distanz pro Zug (sup-kennzahlen.md, Prioritaet 2) ----------------------
+# "Das zentrale Effizienzmass der Sportart", und es steht schon in der
+# Datenbank: Gesamtstrecke geteilt durch Zugzahl. Dahinter steckt die Identitaet
+#
+#     Geschwindigkeit = Zugfrequenz x Distanz pro Zug
+#
+# und damit die Frage, die einen Paddler wirklich weiterbringt: Wirst du
+# schneller, weil du HAERTER paddelst (SPM steigt) oder weil du BESSER gleitest
+# (DPS steigt)? Genau das zeigt keine andere Plattform.
+#
+# Mindestzahl an Zuegen, damit die Zahl etwas heisst: Unter 200 Zuegen ist die
+# Session so kurz, dass Ein- und Ausstieg den Schnitt bestimmen.
+_DPS_MIN_STROKES = 200
+# Plausibel ist etwa 1 bis 4 m je Zug (Race-Boards oben, Allround unten). Alles
+# darueber heisst, dass die Zugzahl fehlt oder der Track zu lang ist - dann
+# lieber kein Wert. Untergrenze grosszuegig, weil Anfaenger wirklich kurz ziehen.
+_DPS_MIN_M = 0.3
+_DPS_MAX_M = 8.0
+
 # --- Was an der Sprunghoehe dransteht --------------------------------------
 # Die Uhr misst die AIRTIME (Zeit im freien Fall) und rechnet daraus die Hoehe
 # ballistisch: h = g*t^2/8. Die Annahme dahinter ist, dass nur die Schwerkraft
@@ -7427,6 +7478,29 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     # Wie die Landerate hier gerechnet und NICHT gespeichert: Beide Zutaten
     # stehen schon in der Zeile, also kann das Verhaeltnis nicht veralten, wenn
     # eine davon nachtraeglich korrigiert wird (Wetter wird nachgetragen).
+    # --- Distanz pro Zug --------------------------------------------------
+    # Wie die Landerate und Speed-je-Wind hier gerechnet und nicht gespeichert:
+    # Beide Zutaten stehen in der Zeile, das Mass kann also nicht veralten.
+    if {"total_distance_km", "strokes"}.issubset(ranking.columns):
+        _dd = pd.to_numeric(ranking["total_distance_km"], errors="coerce")
+        _ds = pd.to_numeric(ranking["strokes"], errors="coerce")
+        _dps = _dd * 1000.0 / _ds
+        ranking["dps_m"] = _dps.where(
+            (_ds >= _DPS_MIN_STROKES) & _dd.notna()
+            & (_dps >= _DPS_MIN_M) & (_dps <= _DPS_MAX_M)).round(2)
+
+    # --- Einwegstrecken aus den Distanzwertungen halten -------------------
+    # Der Kern der SUP-Vorlage: Eine Bestzeit ueber 5 km flussabwaerts misst die
+    # Stroemung, nicht den Paddler. Ausgeschlossen wird NUR, was sicher eine
+    # Einwegstrecke ist - eine unbestimmbare Form (route_shape = NULL) bleibt
+    # drin, sonst floege der halbe Altbestand aus der Wertung.
+    if active_sport() == "sup" and "route_shape" in ranking.columns:
+        _einweg = ranking["route_shape"].astype(str).str.lower() == "one_way"
+        for _dc in ("speed_1km_kmh", "speed_5km_kmh", "speed_10km_kmh",
+                    "speed_1h_kmh"):
+            if _dc in ranking.columns:
+                ranking.loc[_einweg, _dc] = np.nan
+
     if {"speed_5x10_kmh", "wind_kmh"}.issubset(ranking.columns):
         _sw_v = pd.to_numeric(ranking["speed_5x10_kmh"], errors="coerce")
         _sw_w = pd.to_numeric(ranking["wind_kmh"], errors="coerce")
@@ -7734,6 +7808,76 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "board": "Board", "sail": gear_label, metric: col_label,
             })
             _show_rank(tbl, extra.get("columns"), gear_label)
+
+    def _dist_pace(c, metric, title, meter=None):
+        """Distanz-Bestzeit als PACE statt als Geschwindigkeit.
+
+        Paddler denken in Minuten je Kilometer, nicht in km/h und schon gar
+        nicht in Knoten - dieselbe Zahl, die andere Einheit. Sortiert wird
+        weiter nach Geschwindigkeit (hoeher ist besser); nur die Anzeige
+        wechselt, damit die Reihenfolge nicht ploetzlich umgekehrt ist.
+        """
+        with c:
+            if metric not in ranking.columns:
+                st.markdown(title)
+                st.caption("No data yet.")
+                return
+            tbl = ranking[fin_cols + [
+                "id", "date", "name", metric, "surfspot", "board", "sail",
+                "Weather", "Trust",
+            ]].copy()
+            tbl[metric] = pd.to_numeric(tbl[metric], errors="coerce")
+            tbl = tbl[tbl[metric] > 0].dropna(subset=[metric])
+            tbl = (tbl.sort_values(metric, ascending=False)
+                   .drop_duplicates(subset="name", keep="first")
+                   .reset_index(drop=True).head(RANKING_TOP_N))
+            st.markdown(title)
+            if tbl.empty:
+                st.caption(
+                    "No entries yet – needs a session long enough to contain "
+                    "this distance."
+                )
+                return
+            tbl.insert(0, "Rank", tbl.index + 1)
+            tbl["Pace"] = [_pace(v) or "–" for v in tbl[metric]]
+            tbl[metric] = tbl[metric].round(2)
+            tbl = tbl.rename(columns={
+                "date": "Date", "name": "Name", "surfspot": "Surf spot",
+                "board": "Board", "sail": gear_label, metric: "km/h",
+            })
+            _show_rank(tbl, extra.get("columns"), gear_label)
+            st.caption(
+                "Pace in minutes per kilometre – the unit paddlers think in. "
+                "One-way runs are left out of these: a fast 5 km downriver "
+                "measures the current, not the paddler."
+            )
+
+    def _r_1km(c):
+        _dist_pace(c, "speed_1km_kmh", "### 🥇 Best 1 km")
+
+    def _r_5km(c):
+        _dist_pace(c, "speed_5km_kmh", "### 🏅 Best 5 km")
+
+    def _r_10km(c):
+        _dist_pace(c, "speed_10km_kmh", "### 🎖️ Best 10 km")
+
+    def _r_hour(c):
+        _dist_pace(c, "speed_1h_kmh", "### ⏳ Best hour")
+
+    def _r_dps(c):
+        """Distanz pro Zug - das zentrale Effizienzmass beim Paddeln."""
+        _metric_body(c, "dps_m", "### 📏 Distance per stroke", "Metres",
+                     decimals=2,
+                     empty_msg=("No data yet – needs a session with counted "
+                                f"strokes (at least {_DPS_MIN_STROKES})."))
+        with c:
+            st.caption(
+                "How far you travel with each stroke. Speed is stroke rate × "
+                "distance per stroke, so this is the half that says whether you "
+                "got faster by paddling *harder* or by *gliding better* – and "
+                "only the second one is technique. Needs at least "
+                f"{_DPS_MIN_STROKES} counted strokes in the session."
+            )
 
     def _r_strokes(c):
         _metric_body(c, "strokes", "### 🛶 Most paddle strokes", "Strokes",
@@ -8048,6 +8192,36 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         # Wellenreiten: bei GPS ehrlich messbar sind Top-Speed, laengster Ritt
         # (Longest run) und Wasserzeit. KEINE 500m/Seemeile/Airtime.
         _avail = [("2s", _r_2s), ("run", _r_run), ("time", _r_time), ("total", _r_total)]
+    elif _sp == "sup":
+        # SUP ist eine AUSDAUERSPORTART und erbte bisher den kompletten
+        # Windsurf-Satz: Top 2 s, Best 500 m, Seemeile, avg 5x10, Alpha 500.
+        # Zwischen Sonntagsrunde und Rennfahrer liegen aber nur 5 bis 12 km/h -
+        # in diesem Band trennt eine Speed-Rangliste fast nichts ausser den
+        # Bedingungen, und ein 2-Sekunden-Spitzenwert bei 7 km/h ist zu einem
+        # guten Teil GPS-Rauschen (sup-kennzahlen.md: "Max-Speed ist bei SUP
+        # meist ein Artefakt" - weglassen ist besser als eine Zahl, die Nutzer
+        # als Rekord missverstehen).
+        #
+        # Stattdessen der Ausdauer-Kanon: Bestleistungen ueber DISTANZEN, in
+        # Pace statt in Knoten, dazu Distanz pro Zug als Technikmass. Alpha 500
+        # und die Seemeile sind hier ersatzlos weg.
+        _avail = []
+        for _dk, _df_, _dc in (("1km", _r_1km, "speed_1km_kmh"),
+                               ("5km", _r_5km, "speed_5km_kmh"),
+                               ("10km", _r_10km, "speed_10km_kmh"),
+                               ("hour", _r_hour, "speed_1h_kmh")):
+            if _dc in ranking.columns and pd.to_numeric(
+                    ranking[_dc], errors="coerce").gt(0).any():
+                _avail.append((_dk, _df_))
+        if "dps_m" in ranking.columns and ranking["dps_m"].notna().any():
+            _avail.append(("dps", _r_dps))
+        _avail += [("total", _r_total), ("run", _r_run), ("time", _r_time),
+                   ("strokes", _r_strokes), ("cadence", _r_cadence)]
+        # Die Manoever-Quote bleibt: Bei SUP heisst sie "Turns held" und meint
+        # das Halten der Fahrt durch die Wende - das ist bei einem Rennen eine
+        # echte Aussage. Nur anbieten, wenn sie jemand hat.
+        if "man_pct" in ranking.columns and ranking["man_pct"].notna().any():
+            _avail.append(("held", _r_held))
     else:
         _avail = [("30s", _r_30s), ("2s", _r_2s)]
         if "speed_500m_kmh" in ranking.columns:
@@ -8077,11 +8251,10 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         # automatisch auf Longest run zurueck.
         if "man_pct" in ranking.columns and ranking["man_pct"].notna().any():
             _avail.append(("held", _r_held))
-        if _sp == "sup":
-            _avail += [("strokes", _r_strokes), ("cadence", _r_cadence)]
-        else:
-            _avail += ([("airtime", _r_airtime)] + _airtime_extras()
-                       + [("jump", _r_jump), ("airs", _r_airs)])
+        # SUP hat seit der Ausdauer-Umstellung einen eigenen Zweig weiter oben -
+        # hier kommen nur noch die Windsportarten an.
+        _avail += ([("airtime", _r_airtime)] + _airtime_extras()
+                   + [("jump", _r_jump), ("airs", _r_airs)])
         if _sp == "windsurf":
             _avail += [("kw_ppf", _r_kw_ppf), ("kw_force", _r_kw_force),
                        ("kw_power", _r_kw_power)]
@@ -8682,6 +8855,81 @@ def best_alpha_500(df, meters=500.0, max_gap_m=50.0, slack=1.35):
     return best if best > 0 else None
 
 
+# --- Streckenform (sup-kennzahlen.md, Prioritaet 4) -------------------------
+# "Ohne diesen Abschnitt sind SUP-Ranglisten wertlos." Und das stimmt: Bei 7
+# km/h Grundgeschwindigkeit machen Stroemung und Wind prozentual so viel aus,
+# dass eine Einwegstrecke flussabwaerts jede Technik schlaegt. Eine Bestzeit
+# ueber 5 km auf dem Rhein misst den Rhein.
+#
+# Unterschieden wird an zwei Verhaeltnissen, beide aus dem Track:
+#   luecke / strecke   Wie weit liegen Start und Ende auseinander, gemessen an
+#                      der gefahrenen Strecke? Gross = Einweg.
+#   ferne / strecke    Wie weit kam man ueberhaupt vom Start weg? Bei hin und
+#                      zurueck ist das die Haelfte der Strecke (0,50), bei einem
+#                      Rundkurs weniger.
+#
+# ACHTUNG bei der zweiten Zahl - hier lag der erste Entwurf daneben: `ferne` ist
+# der Abstand zum STARTPUNKT, bei einem Kreis also der DURCHMESSER und nicht der
+# Radius. Ein Kreis mit Umfang d kommt damit auf 2r/d = 1/pi = 0,32, nicht auf
+# 0,16. Eine Rechteckrunde aus vier 500-m-Seiten liegt bei 0,35, ein
+# langgezogener Rundkurs naehert sich 0,5. Rundkurs und Hin-und-zurueck sind
+# also kaum sauber zu trennen, und darum wird zwischen ihnen nur GETEILT, statt
+# eine Luecke offen zu lassen: Fuer die Wertung ist der Unterschied ohnehin
+# gleichgueltig, ausgeschlossen wird allein die Einwegstrecke.
+#
+# Was NICHT eindeutig geschlossen und nicht eindeutig Einweg ist, bekommt None
+# und faellt damit nicht aus der Wertung - lieber eine Session zu viel gewertet
+# als eine zu Unrecht ausgeschlossen.
+_ROUTE_CLOSED = 0.15      # Luecke bis 15 % der Strecke gilt als geschlossen
+_ROUTE_ONEWAY = 0.50      # ab 50 % ist es eine Einwegstrecke
+_ROUTE_BACK = 0.45        # ferne/strecke darueber -> hin und zurueck, sonst Runde
+_ROUTE_MIN_M = 300.0      # kuerzere Strecken haben keine erkennbare Form
+
+
+def _route_shape(punkte, haversine):
+    """Streckenform eines Tracks: "loop", "there_back", "one_way" oder None.
+
+    ACHTUNG: Diese Funktion steht ZWEIMAL im Code - in der Web-App und im
+    Ingest-Dienst. Beide muessen zeichengleich bleiben, sonst wird dieselbe
+    Session je nach Weg (Datei-Upload / Uhr) anders eingeordnet und faellt
+    einmal aus der Wertung und einmal nicht. sup_test.py vergleicht darum den
+    Quelltext beider Fassungen. Dieselbe Doppelung gibt es bei _glide_core.
+
+    `haversine` wird uebergeben, weil die beiden Dienste verschiedene Fassungen
+    haben (numpy hier, reines Python dort) - die LOGIK bleibt damit trotzdem
+    identisch.
+    """
+    if not punkte or len(punkte) < 3:
+        return None
+    strecke = 0.0
+    ferne = 0.0
+    a = punkte[0]
+    for i in range(1, len(punkte)):
+        try:
+            strecke += float(haversine(punkte[i - 1][0], punkte[i - 1][1],
+                                       punkte[i][0], punkte[i][1]))
+            d = float(haversine(a[0], a[1], punkte[i][0], punkte[i][1]))
+        except (TypeError, ValueError, IndexError):
+            return None
+        if d > ferne:
+            ferne = d
+    if not math.isfinite(strecke) or strecke < _ROUTE_MIN_M:
+        return None
+    try:
+        luecke = float(haversine(a[0], a[1], punkte[-1][0], punkte[-1][1]))
+    except (TypeError, ValueError, IndexError):
+        return None
+    if not math.isfinite(luecke) or not math.isfinite(ferne):
+        return None
+    q_luecke = luecke / strecke
+    q_ferne = ferne / strecke
+    if q_luecke >= _ROUTE_ONEWAY:
+        return "one_way"
+    if q_luecke <= _ROUTE_CLOSED:
+        return "there_back" if q_ferne >= _ROUTE_BACK else "loop"
+    return None
+
+
 # --- Gleitanteil (windsurf-kennzahlen.md, Prioritaet 1) ---------------------
 # Das windsurfspezifische Gegenstueck zur Foiling-Zeit: nicht wie schnell, sondern
 # WIE LANGE man ueber der Gleitgrenze war. Wurde bisher in der Sessionansicht
@@ -8807,6 +9055,79 @@ def _glide_core(werte, thr_kmh):
     return {"glide_s": ges_s, "glide_phases": len(phasen),
             "glide_longest_s": max(p[0] for p in phasen),
             "glide_km": ges_m / 1000.0}
+
+
+def endurance_metrics(df, sport):
+    """Bestleistungen ueber Distanzen - der Ausdauer-Kanon.
+
+    Beim SUP ersetzen sie die Speed-Kategorien: Zwischen Sonntagsrunde und
+    Rennfahrer liegen 5 bis 12 km/h, in diesem Band trennt "schnellste 500 m"
+    nichts ausser den Bedingungen. Ueber 1, 5 und 10 km und die beste Stunde
+    trennt es sehr wohl.
+
+    Gerechnet fuer JEDE Sportart ausser Surf (dort gilt dieselbe Ausnahme wie
+    bei 500 m und Seemeile) - ein Windsurfer, der eine Langstrecke faehrt, hat
+    die Zahlen dann auch. Angeboten werden die Chips vorerst nur bei SUP.
+    """
+    if (sport or "").strip().lower() == "surf":
+        return {}
+    if df is None or getattr(df, "empty", True):
+        return {}
+    raus = {}
+    for spalte, meter in (("speed_1km_kmh", 1000.0),
+                          ("speed_5km_kmh", 5000.0),
+                          ("speed_10km_kmh", 10000.0)):
+        v = best_distance_speed(df, meter)
+        if v is not None:
+            raus[spalte] = round(float(v), 2)
+    # Die beste STUNDE ist ein Zeitfenster, keine Distanz - dieselbe Funktion
+    # wie "Best 30 s", nur mit 3600.
+    v = best_average_speed(df, 3600)
+    if v is not None:
+        raus["speed_1h_kmh"] = round(float(v), 2)
+    # Die Streckenform gehoert dazu, weil sie erst die Wertung ermoeglicht: Eine
+    # Bestzeit ueber 5 km flussabwaerts misst die Stroemung. Sie steht hier und
+    # nicht in einer eigenen Funktion, damit sie an ALLEN Eintragswegen
+    # mitkommt, an denen auch die Bestzeiten entstehen - getrennt haette man sie
+    # irgendwo vergessen.
+    #
+    # Ausgeduennt auf hoechstens 600 Punkte: Die FORM einer Strecke haengt nicht
+    # an der Aufloesung, und eine Datei mit 20000 Punkten soll die Rechnung
+    # nicht ausbremsen.
+    if {"lat", "lon"}.issubset(df.columns):
+        d = df[["lat", "lon"]].dropna()
+        if len(d) >= 3:
+            if len(d) > 600:
+                d = d.iloc[:: len(d) // 600 + 1]
+            form = _route_shape(
+                list(zip(d["lat"].astype(float), d["lon"].astype(float))),
+                _haversine_m)
+            if form:
+                raus["route_shape"] = form
+    return raus
+
+
+def _pace(kmh):
+    """Geschwindigkeit als Pace "m:ss /km" - die Einheit, in der Paddler denken.
+
+    Knoten sind die Sprache der Windsportler; ein Paddler rechnet in Minuten je
+    Kilometer, wie ein Laeufer. Ueber 30 min/km (also unter 2 km/h) wird nichts
+    mehr ausgegeben: Das ist Treiben, keine Pace.
+    """
+    try:
+        v = float(kmh)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(v) or v <= 0:
+        return None
+    minuten = 60.0 / v
+    if minuten > 30.0:
+        return None
+    m = int(minuten)
+    s = int(round((minuten - m) * 60))
+    if s == 60:
+        m, s = m + 1, 0
+    return f"{m}:{s:02d} /km"
 
 
 def _glide_pack(kern, duration_s):
@@ -15465,6 +15786,7 @@ def _polar_entry_from_df(df, username, sport, fname):
         "filename": fname, "source": "polar",
         # Gleitanteil aus demselben geparsten Track (leer bei Surf/Wakeboard).
         **glide_metrics(df, sport),
+        **endurance_metrics(df, sport),
         "track": _track_json_from_df(df),
         "total_distance_km": None if distance_km is None else round(distance_km, 2),
         "longest_run_km": None if lr_km is None else round(lr_km, 3),
@@ -16315,6 +16637,7 @@ def _metrics_from_track(points, duration_s, sport):
         # Nach einem Zuschnitt gilt die neue Dauer, nicht die alte - sonst waere
         # der Gleitanteil auf die Laenge VOR dem Schnitt bezogen.
         **glide_metrics(df, sport, secs),
+        **endurance_metrics(df, sport),
         "total_distance_km": round(float(df["distance"].iloc[-1]) / 1000.0, 2),
         "longest_run_m": None if lr_m is None else round(lr_m, 2),
         "longest_run_km": None if lr_m is None else round(lr_m / 1000.0, 3),
@@ -20576,6 +20899,7 @@ def _guest_process_and_save(fit_source, sport, spot, name):
         "trust_score": trust.get("score") if isinstance(trust, dict) else None,
         "source": "guest",
         **glide_metrics(df, sport),
+        **endurance_metrics(df, sport),
     }
     save_session(entry)
     return entry, None
@@ -21191,6 +21515,7 @@ def _import_entry_from_df(df, sport, name, spot, board, sail, filename):
         "trust_score": trust.get("score") if isinstance(trust, dict) else None,
         "source": "import",
         **glide_metrics(df, sport),
+        **endurance_metrics(df, sport),
     }
 
 
@@ -22801,6 +23126,7 @@ if fit_source is not None:
                     "speed_5x10_kmh": None if best_5x10 is None else round(best_5x10, 2),
                     "speed_alpha500_kmh": None if best_alpha is None else round(best_alpha, 2),
                     **glide_metrics(df, active_sport()),
+                    **endurance_metrics(df, active_sport()),
                     # Wellen aus den Runden der Datei (leer ausser bei Surf).
                     **_surf_laps,
                     "wind_kmh": None if weather is None or weather["wind"] is None else round(weather["wind"], 1),
