@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "MyWaterSessions",
+  "short_name": "WaterSessions",
+  "description": "Your sessions, rankings and spots for windsurf, kite, wing, SUP, wakeboard and surf.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#02162b",
+  "theme_color": "#02162b",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/app/static/pwa/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app/static/pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app/static/pwa/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

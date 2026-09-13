@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MyWaterSessions – offline</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #02162b; color: #eaf4ff;
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; text-align: center;
+  }
+  .box { max-width: 26rem; }
+  img { width: 72px; height: 72px; border-radius: 18px; margin-bottom: 20px; }
+  h1 { font-size: 1.35rem; margin: 0 0 .6rem; }
+  p { margin: 0 0 1rem; opacity: .85; }
+  .hint { font-size: .88rem; opacity: .6; }
+  button {
+    background: #2bd4d9; color: #02162b; border: 0; border-radius: 999px;
+    padding: 12px 26px; font-size: 1rem; font-weight: 600; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="box">
+    <img src="/app/static/pwa/icon-192.png" alt="" />
+    <h1>No connection</h1>
+    <p>
+      MyWaterSessions needs a connection – your sessions, rankings and spots
+      live on the server, not on this device.
+    </p>
+    <button onclick="location.reload()">Try again</button>
+    <p class="hint" style="margin-top:20px">
+      Your watch keeps recording without a phone. Unsent sessions stay on it and
+      go up later with “Resend last”.
+    </p>
+  </div>
+</body>
+</html>
