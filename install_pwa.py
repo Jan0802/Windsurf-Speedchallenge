@@ -101,10 +101,21 @@ def streamlit_static() -> str:
 def kopf_block(sw_name: str) -> str:
     """Der Block, der in den <head> kommt.
 
-    Die Registrierung steht INLINE und nicht in einer eigenen Datei: Eine
-    zusaetzliche Datei unter "/" bekaeme wieder ein Jahr Cache, und dann zeigte
-    sie womoeglich auf einen Worker, den es nicht mehr gibt.
+    Die Registrierung UND die Installationsleiste stehen INLINE und nicht in
+    eigenen Dateien: Alles unter "/" bekommt von Streamlit ein Jahr
+    "immutable" - eine ausgelieferte JS-Datei waere also ein Jahr lang nicht zu
+    aendern. index.html dagegen wird nie gecacht, inline ist hier also der
+    Weg. Die Quelle bleibt trotzdem eine ordentliche Datei (pwa/install-ui.js),
+    sie wird beim Einbau nur hineinkopiert.
     """
+    ui = os.path.join(QUELLE, "install-ui.js")
+    if not os.path.isfile(ui):
+        fehler(f"{ui} fehlt")
+    ui_text = io.open(ui, encoding="utf-8").read()
+    # "</script>" im Quelltext wuerde den umgebenden <script>-Block beenden.
+    # Kommt dort nicht vor, aber lieber gepruefet als spaeter gesucht.
+    if "</script" in ui_text:
+        fehler("install-ui.js enthaelt '</script' - das zerlegt den <head>")
     return f"""{MARKE_AUF}
     <link rel="manifest" href="/pwa.webmanifest" />
     <meta name="theme-color" content="#02162b" />
@@ -119,6 +130,9 @@ def kopf_block(sw_name: str) -> str:
             .catch(function () {{ /* ohne Worker laeuft die App normal weiter */ }});
         }});
       }}
+    </script>
+    <script>
+{ui_text}
     </script>
     {MARKE_ZU}
     """
@@ -192,6 +206,7 @@ def installieren(laut: bool = True) -> str:
         ('rel="manifest"', 'rel="manifest"' in neu),
         ("apple-touch-icon", "apple-touch-icon" in neu),
         (f"Registrierung auf /{sw_name}", f"/{sw_name}" in neu),
+        ("Installationsleiste eingebettet", "ws-install-ask" in neu),
         ("genau EIN Block", neu.count(MARKE_AUF) == 1),
         (f"{sw_name} liegt da", os.path.isfile(os.path.join(ziel, sw_name))),
         ("pwa.webmanifest liegt da",
