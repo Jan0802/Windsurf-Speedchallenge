@@ -23412,11 +23412,13 @@ with st.expander("🌦️ Spot weather (current & forecast)", expanded=False):
             )
         else:
             st.markdown(f"**Current & forecast** &nbsp; 📍 {spot_lat:.3f}, {spot_lon:.3f}")
+            # Hier stand ein Hinweis, dass das Wetter im Browser des Besuchers
+            # geholt wird "unabhaengig vom geteilten Server-Limit". Das erklaert
+            # UNSER Infrastrukturproblem, nicht das Wetter - fuer den Leser ist
+            # es bestenfalls belanglos und schlimmstenfalls beunruhigend. Der
+            # Grund fuer den Browser-Weg gehoert in den Code (siehe
+            # render_weather_browser und wx_autofill), nicht auf die Seite.
             render_weather_browser(spot_lat, spot_lon)
-            st.caption(
-                "The weather is loaded directly in your browser from Open-Meteo "
-                "(via your own IP, independent of the shared server limit)."
-            )
 
 
 # Wetter fuer Sessions ohne Wetter im Browser des Besuchers nachholen.
