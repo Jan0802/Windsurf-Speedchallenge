@@ -117,6 +117,12 @@
     transform:translateY(-2px); }
   .sportcard img{ width:52px; height:52px; }
   .sportcard span{ font-size:14px; font-weight:600; line-height:1.3; }
+  .grid.two{ grid-template-columns:repeat(2,1fr); }
+  @media(max-width:820px){ .grid.two{ grid-template-columns:1fr; } }
+  .steps{ margin:12px 0 0; padding-left:20px; color:#bcd4dd; font-size:15px; }
+  .steps li{ margin:7px 0; }
+  .steps b{ color:#eaf4ff; }
+  .note{ margin-top:18px; font-size:14px; color:#9fc4cf; }
 </style>
 <!-- Cloudflare Web Analytics (cookieless) -->
 <script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "c16ea8dadd7749e1826d6ea48f80ca6d"}'></script>
@@ -204,6 +210,37 @@
   </div>
 </section>
 
+<!-- install:anfang -->
+<section id="install" style="padding-top:0;">
+  <div class="wrap">
+    <h2>En tu pantalla de inicio — sin tienda, sin descarga</h2>
+    <p class="lead">MyWaterSessions es una <b>app online</b>: se instala directamente desde el navegador, se actualiza sola y apenas ocupa espacio en el móvil. Siempre tienes la versión actual — no hay nada que descargar ni nada que mantener.</p>
+    <div class="grid two">
+      <div class="card">
+        <div class="ic">📱</div>
+        <h3>iPhone &amp; iPad <span style="opacity:.6;font-weight:400">· en Safari</span></h3>
+        <ol class="steps">
+        <li>Abre <b>app.mywatersessions.com</b> en <b>Safari</b>.</li>
+        <li>Toca el botón <b>Compartir</b> — el cuadrado con la flecha hacia arriba.</li>
+        <li><b>Baja en la lista</b> de ese menú. «Añadir a pantalla de inicio» está más abajo de lo que se suele mirar.</li>
+        <li>Toca <b>Añadir</b> arriba a la derecha.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <div class="ic">🤖</div>
+        <h3>Android <span style="opacity:.6;font-weight:400">· en Chrome</span></h3>
+        <ol class="steps">
+        <li>Abre <b>app.mywatersessions.com</b> en <b>Chrome</b>.</li>
+        <li>Toca <b>Instalar aplicación</b> cuando aparezca el aviso — o abre el <b>menú ⋮</b> y elige <b>Instalar aplicación</b>.</li>
+        <li>Confirma con <b>Instalar</b>.</li>
+        </ol>
+      </div>
+    </div>
+    <p class="note">Se abre a pantalla completa con su propio icono, como cualquier otra app. Lo que no es: una app sin conexión. Tus sesiones, clasificaciones y spots están en el servidor, así que necesita conexión — tu reloj, en cambio, sigue grabando sin móvil.</p>
+  </div>
+</section>
+<!-- install:ende -->
+
 <section class="cta">
   <div class="wrap">
     <h2>¿Listo para navegar?</h2>
@@ -223,6 +260,7 @@
       <a href="/import-es.html">Import</a> ·
       <a href="https://spots.mywatersessions.com/seguridad">Seguridad</a> ·
       <a href="/changelog.html">Changelog</a> ·
+      <a href="#install">Instalar</a> ·
       <a href="https://app.mywatersessions.com/">Abrir la app</a> ·
       <a href="/imprint.html">Aviso legal</a> ·
       <a href="/privacy.html">Privacidad</a>
