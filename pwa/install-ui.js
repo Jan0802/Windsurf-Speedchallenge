@@ -121,7 +121,12 @@
     var text = el('div', 'flex:1 1 auto;');
     text.appendChild(el('div', 'font-weight:700;', 'Add to your home screen'));
     text.appendChild(el('div', 'font-size:13.5px;opacity:.8;',
-      'Opens full screen, like an app. No app store, no download.'));
+      istApple
+        // Auf iOS SOFORT sagen, dass der Nutzer es selbst tun muss. Steht das
+        // erst in den Schritten, sucht er den Knopf, der es fuer ihn erledigt -
+        // und den kann es hier nicht geben.
+        ? 'Safari can only do this from its own menu — three taps:'
+        : 'Opens full screen, like an app. No app store, no download.'));
     kopf.appendChild(bild);
     kopf.appendChild(text);
     huelle.appendChild(kopf);
@@ -130,7 +135,8 @@
       var schritte = document.createElement('ol');
       schritte.style.cssText =
         'margin:12px 0 0;padding-left:20px;font-size:14px;opacity:.9;';
-      [['Tap the ', 'Share', ' button below.'],
+      [['Tap ', 'Share', ' — the square with the arrow, in the bar at the '
+        + 'bottom of Safari.'],
        ['', 'Scroll down', ' — “Add to Home Screen” sits further down.'],
        ['Tap ', 'Add', ' at the top right.']].forEach(function (t) {
         var li = document.createElement('li');
@@ -145,15 +151,30 @@
       huelle.appendChild(schritte);
     }
 
-    var reihe = el('div', 'display:flex;gap:10px;margin-top:14px;');
+    var reihe = el('div',
+      'display:flex;gap:10px;margin-top:14px;' +
+      // Auf iOS gibt es keinen Hauptknopf, also stehen beide rechts.
+      (istApple ? 'justify-content:flex-end;' : ''));
+    // "No thanks" und nicht "Not now": Die Leiste kommt NIE wieder. "Spaeter"
+    // waere eine Zusage, die wir nicht einhalten.
     var nein = el('button',
       'flex:0 0 auto;background:transparent;color:#9fc4cf;border:0;' +
       'padding:12px 14px;font-size:15px;cursor:pointer;',
-      istApple ? 'Not now' : 'Not now');
+      'No thanks');
+    // DER ENTSCHEIDENDE UNTERSCHIED: Auf Android loest dieser Knopf wirklich
+    // eine Installation aus (prompt()), auf iOS KANN er das nicht - dort ist er
+    // nur ein Schliessen. Darum sieht er dort auch nicht aus wie ein
+    // Aktionsknopf: kein Fuellbalken, keine Signalfarbe. Ein grosser tuerkiser
+    // Knopf mit "Got it" sah aus wie "jetzt installieren" und tat nichts -
+    // genau so ist es im Feld passiert.
     var ja = el('button',
-      'flex:1 1 auto;background:#2bd4d9;color:#02162b;border:0;border-radius:999px;' +
-      'padding:13px 20px;font-size:15px;font-weight:700;cursor:pointer;',
-      istApple ? 'Got it' : 'Install');
+      istApple
+        ? 'flex:0 0 auto;background:transparent;color:#eaf4ff;border:0;' +
+          'padding:12px 14px;font-size:15px;font-weight:700;cursor:pointer;'
+        : 'flex:1 1 auto;background:#2bd4d9;color:#02162b;border:0;' +
+          'border-radius:999px;padding:13px 20px;font-size:15px;' +
+          'font-weight:700;cursor:pointer;',
+      istApple ? 'Close' : 'Install');
     reihe.appendChild(nein);
     reihe.appendChild(ja);
     huelle.appendChild(reihe);
@@ -171,12 +192,18 @@
       if (istApple) {
         // Mehr als die Anleitung geht hier nicht - siehe Kopf der Datei.
         schliessen('ios-shown');
-      } else {
-        // Das ECHTE Systemfenster. Danach nicht mehr fragen, egal wie der
-        // Nutzer dort entscheidet: Ein zweites Mal waere Draengeln.
-        schliessen('prompted');
-        aufInstallieren();
+        return;
       }
+      // ZUERST prompt(), DANN aufraeumen. prompt() darf nur aus einer
+      // Nutzergeste heraus laufen, und je weniger zwischen der Beruehrung und
+      // dem Aufruf steht, desto sicherer gilt sie noch. schliessen() fasst das
+      // DOM an und setzt einen Timer - das gehoert dahinter, nicht davor.
+      try {
+        aufInstallieren();
+      } catch (e) {}
+      // Danach nicht mehr fragen, egal wie der Nutzer im Systemfenster
+      // entscheidet: Ein zweites Mal waere Draengeln.
+      schliessen('prompted');
     });
 
     document.body.appendChild(huelle);
