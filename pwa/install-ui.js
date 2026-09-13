@@ -16,7 +16,15 @@
 //     "Verstanden" tippt, gilt darum als erledigt - mehr ist ehrlich nicht
 //     moeglich.
 //
-// Gefragt wird genau einmal. Ein Nein wird gemerkt und nie wieder gestellt.
+// Gefragt wird genau einmal, und erst ab dem ZWEITEN Besuch. Der Grund liegt in
+// der Regel selbst: Weil ein Nein endgueltig ist, waere eine Frage an jemanden,
+// der die App noch gar nicht kennt, eine verbrannte Gelegenheit - er tippt
+// reflexhaft weg, und damit ist das Thema fuer immer erledigt. Beim zweiten
+// Besuch weiss er, wofuer er das Symbol bekommt.
+//
+// "Besuch" heisst dabei nicht "Seitenaufruf": Ein Neuladen innerhalb derselben
+// Browsersitzung zaehlt nicht mit (sessionStorage merkt sich das), sonst waere
+// der zweite Besuch schon der zweite Klick auf "Aktualisieren".
 
 (function () {
   'use strict';
@@ -25,8 +33,12 @@
   if (window.top !== window.self) { return; }
 
   var SPEICHER = 'ws-install-ask';
+  var BESUCHE = 'ws-install-visits';
+  var SITZUNG = 'ws-install-seen';
+  // Ab dem wievielten Besuch gefragt wird. 1 waere "sofort beim ersten Mal".
+  var AB_BESUCH = 2;
   // Kurz warten, damit der Nutzer zuerst die Seite sieht und nicht eine
-  // Aufforderung auf leerem Grund. Siehe auch den Hinweis unten zum Zeitpunkt.
+  // Aufforderung auf leerem Grund.
   var WARTEN_MS = 2500;
 
   function erledigt(grund) {
@@ -34,6 +46,28 @@
   }
   function schonGefragt() {
     try { return !!localStorage.getItem(SPEICHER); } catch (e) { return true; }
+  }
+
+  // Zaehlt diesen Besuch und gibt zurueck, der wievielte es ist.
+  //
+  // Ein Neuladen zaehlt NICHT als neuer Besuch: sessionStorage ueberlebt das
+  // Neuladen, aber nicht das Schliessen des Tabs. Ohne diese Unterscheidung
+  // waere der "zweite Besuch" schon der zweite Klick auf Aktualisieren - und
+  // die Frage kaeme faktisch doch beim ersten Mal.
+  function besuchZaehlen() {
+    try {
+      if (sessionStorage.getItem(SITZUNG)) {
+        return Number(localStorage.getItem(BESUCHE) || 0);
+      }
+      sessionStorage.setItem(SITZUNG, '1');
+      var n = Number(localStorage.getItem(BESUCHE) || 0) + 1;
+      localStorage.setItem(BESUCHE, String(n));
+      return n;
+    } catch (e) {
+      // Ohne Speicher laesst sich nichts zaehlen. Dann lieber gar nicht fragen,
+      // als bei jedem Aufruf - schonGefragt() faengt diesen Fall ohnehin ab.
+      return 0;
+    }
   }
 
   // Laeuft die Seite bereits als installierte App? Dann nie fragen.
@@ -56,6 +90,10 @@
 
   if (installiert()) { erledigt('installed'); return; }
   if (schonGefragt() || !istHandy || inAppBrowser) { return; }
+
+  // Erst ab dem zweiten Besuch. Gezaehlt wird NACH den Abbruchgruenden oben:
+  // Wer schon installiert hat oder schon gefragt wurde, braucht keinen Zaehler.
+  if (besuchZaehlen() < AB_BESUCH) { return; }
 
   // --- Aussehen ----------------------------------------------------------
   // Alles inline: Der Streamlit-Stil laedt spaeter und wuerde eigene Klassen
