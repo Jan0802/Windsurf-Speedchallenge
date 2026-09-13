@@ -7718,9 +7718,13 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 .reset_index(drop=True).head(RANKING_TOP_N)
             )
             if r5.empty:
-                st.caption("No entries yet – this one needs a GPS track. Sessions "
-                           "uploaded earlier get the value once the backoffice "
-                           "backfill has run.")
+                # Hier stand, dass alte Sessions den Wert bekommen, "sobald der
+                # Backoffice-Nachtrag gelaufen ist". Der Nachtrag ist unsere
+                # Wartungsarbeit - der Leser kann ihn weder ausloesen noch
+                # abwarten, und ein Hinweis, auf den man nicht handeln kann, ist
+                # keine Hilfe. Was ihn betrifft, ist die Bedingung: Es braucht
+                # einen GPS-Track.
+                st.caption("No entries yet – this one needs a GPS track.")
                 return
             r5.insert(0, "Rank", r5.index + 1)
             r5["5×10 kn"] = (pd.to_numeric(r5["speed_5x10_kmh"], errors="coerce")
