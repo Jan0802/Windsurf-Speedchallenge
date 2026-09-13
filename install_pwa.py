@@ -64,9 +64,27 @@ MARKE_ZU = "<!-- pwa:ende -->"
 ANKER = "<title>Streamlit</title>"
 
 
+class PwaFehler(RuntimeError):
+    """Etwas hat nicht geklappt.
+
+    Eine eigene Ausnahme statt SystemExit, weil dieses Modul ZWEI Aufrufer hat:
+    den Build-Schritt (dort soll ein Fehler den Deploy abbrechen) und die App
+    selbst beim Start (dort darf ein Fehler die App NICHT umbringen - eine
+    fehlende PWA ist ein Schoenheitsfehler, eine tote App nicht).
+    """
+
+
 def fehler(text: str) -> None:
-    print(f"install_pwa: FEHLER - {text}", file=sys.stderr)
-    raise SystemExit(1)
+    raise PwaFehler(text)
+
+
+def ist_installiert() -> bool:
+    """Steht der Block schon im <head>? Billige Pruefung fuer den App-Start."""
+    try:
+        index = os.path.join(streamlit_static(), "index.html")
+        return MARKE_AUF in io.open(index, encoding="utf-8").read()
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def streamlit_static() -> str:
@@ -106,10 +124,19 @@ def kopf_block(sw_name: str) -> str:
     """
 
 
-def main() -> None:
+def installieren(laut: bool = True) -> str:
+    """Baut die PWA-Teile ein. Wirft PwaFehler, wenn etwas nicht stimmt.
+
+    `laut=False` schaltet die Ausgabe ab - fuer den Aufruf aus der laufenden
+    App, wo niemand ein Protokoll liest.
+    """
+    def sag(text: str) -> None:
+        if laut:
+            print(text)
+
     ziel = streamlit_static()
     index = os.path.join(ziel, "index.html")
-    print(f"install_pwa: Ziel {ziel}")
+    sag(f"install_pwa: Ziel {ziel}")
 
     # --- 1. Service Worker mit Inhalts-Hash im Namen ----------------------
     sw_quelle = os.path.join(QUELLE, "sw.js")
@@ -123,9 +150,9 @@ def main() -> None:
     for alt in os.listdir(ziel):
         if re.fullmatch(r"sw-[0-9a-f]{10}\.js", alt) and alt != sw_name:
             os.remove(os.path.join(ziel, alt))
-            print(f"install_pwa: alter Worker entfernt: {alt}")
+            sag(f"install_pwa: alter Worker entfernt: {alt}")
     io.open(os.path.join(ziel, sw_name), "w", encoding="utf-8").write(sw_text)
-    print(f"install_pwa: {sw_name} geschrieben")
+    sag(f"install_pwa: {sw_name} geschrieben")
 
     # --- 2. Manifest und Offline-Seite ------------------------------------
     for name in ("pwa.webmanifest", "offline.html"):
@@ -133,7 +160,7 @@ def main() -> None:
         if not os.path.isfile(q):
             fehler(f"{q} fehlt")
         shutil.copy2(q, os.path.join(ziel, name))
-        print(f"install_pwa: {name} kopiert")
+        sag(f"install_pwa: {name} kopiert")
 
     # --- 3. index.html ergaenzen ------------------------------------------
     if not os.path.isfile(index):
@@ -145,7 +172,7 @@ def main() -> None:
     html = re.sub(re.escape(MARKE_AUF) + r".*?" + re.escape(MARKE_ZU),
                   "", html, flags=re.S)
     if html != vorher:
-        print("install_pwa: frueheren Block ersetzt")
+        sag("install_pwa: frueheren Block ersetzt")
 
     if ANKER not in html:
         fehler(
@@ -156,7 +183,7 @@ def main() -> None:
         )
     html = html.replace(ANKER, kopf_block(sw_name) + ANKER, 1)
     io.open(index, "w", encoding="utf-8", newline="").write(html)
-    print("install_pwa: index.html ergaenzt")
+    sag("install_pwa: index.html ergaenzt")
 
     # --- 4. Nachpruefen ----------------------------------------------------
     # Nicht "hat geklappt" behaupten, sondern nachsehen.
@@ -173,10 +200,24 @@ def main() -> None:
          os.path.isfile(os.path.join(ziel, "offline.html"))),
     ]
     for text, ok in pruef:
-        print(f"install_pwa:   {'OK  ' if ok else 'NEIN'} {text}")
+        sag(f"install_pwa:   {'OK  ' if ok else 'NEIN'} {text}")
     if not all(ok for _, ok in pruef):
         fehler("Nachpruefung fehlgeschlagen")
-    print("install_pwa: fertig")
+    sag("install_pwa: fertig")
+    return sw_name
+
+
+def main() -> None:
+    """Aufruf von der Kommandozeile (Build-Schritt).
+
+    Hier ist ein Fehler ein ABBRUCH: Der Deploy soll rot werden, statt
+    stillschweigend eine App auszuliefern, die sich nicht installieren laesst.
+    """
+    try:
+        installieren(laut=True)
+    except PwaFehler as exc:
+        print(f"install_pwa: FEHLER - {exc}", file=sys.stderr)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

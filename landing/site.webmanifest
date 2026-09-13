@@ -1,7 +1,7 @@
 {
-  "name": "MyWaterSessions",
+  "name": "MyWaterSessions (website)",
   "short_name": "MyWaterSessions",
-  "description": "Free speed ranking & spot guide for windsurf, kite, wing, SUP & wakeboard.",
+  "description": "Website of MyWaterSessions. The installable app lives at https://app.mywatersessions.com/ - this manifest deliberately uses display:browser so the brochure is not offered as an app.",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
@@ -9,6 +9,6 @@
   ],
   "theme_color": "#06303a",
   "background_color": "#06222e",
-  "display": "standalone",
+  "display": "browser",
   "start_url": "/"
 }

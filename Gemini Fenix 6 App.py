@@ -1300,6 +1300,48 @@ _WATCH_COLUMNS = {
 }
 
 @st.cache_resource(show_spinner=False)
+def ensure_pwa():
+    """PWA-Teile nachtraeglich einbauen, falls der Build-Schritt gefehlt hat.
+
+    GEDACHT IST der Weg ueber den Render-Build-Befehl:
+
+        pip install -r requirements.txt && python install_pwa.py
+
+    Der ist eine Handarbeit, die genau EINMAL vergessen werden muss - und genau
+    das ist beim ersten Anlauf passiert: Die App lief normal, lieferte aber
+    weiterhin <title>Streamlit</title> ohne Manifest aus, und was aufs iPhone
+    kam, war ein Safari-Lesezeichen statt einer installierten App. Von aussen
+    ist das kaum zu sehen; selbst /pwa.webmanifest antwortet dann mit 200, weil
+    Streamlit bei einem Fehlschlag seine index.html ausliefert.
+
+    Darum hier noch einmal, beim Start des Prozesses. Drei Eigenschaften machen
+    das vertretbar:
+
+      * @st.cache_resource -> genau EINMAL je Prozess, nicht bei jedem Rerun.
+      * Ist der Block schon da (Build-Schritt lief), wird nur eine Datei GELESEN
+        und sonst nichts getan.
+      * Ein Fehler wird geschluckt. Eine fehlende PWA ist ein
+        Schoenheitsfehler - eine App, die deswegen nicht startet, waere keiner.
+
+    Was dieser Weg NICHT kann: Die allererste Seitenansicht nach einem Kaltstart
+    hat den Block noch nicht, weil der Browser das HTML schon geladen hat,
+    bevor dieses Skript ueberhaupt laeuft. Ein Neuladen genuegt. Der
+    Build-Schritt bleibt deshalb der bessere Weg - das hier ist das Netz
+    darunter.
+    """
+    try:
+        import install_pwa
+        if install_pwa.ist_installiert():
+            return "schon vorhanden"
+        name = install_pwa.installieren(laut=False)
+        logging.info("PWA beim Start nachtraeglich eingebaut (%s)", name)
+        return name
+    except Exception:  # noqa: BLE001
+        logging.exception("PWA-Einbau beim Start fehlgeschlagen")
+        return None
+
+
+@st.cache_resource(show_spinner=False)
 def ensure_watch_columns():
     """Ergaenzt die von der WaterSession-Uhr genutzten sessions-Spalten.
 
@@ -20974,6 +21016,8 @@ def render_account_sidebar(user):
 ensure_schema()
 # Uhr-Spalten ungecacht nachziehen (ensure_schema ist @st.cache_resource-gegated).
 ensure_watch_columns()
+# PWA-Teile, falls der Build-Schritt gefehlt hat. Einmal je Prozess, still.
+ensure_pwa()
 
 # Login aus „Angemeldet bleiben"-Cookie wiederherstellen.
 # st.context.cookies liefert auf der Streamlit Community Cloud leider nichts,
