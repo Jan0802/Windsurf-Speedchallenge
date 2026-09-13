@@ -20777,6 +20777,14 @@ def render_user_profile(user):
                         st.rerun()
 
 
+# Die beiden Sidebar-Bereiche, die WEITER UNTEN im Skript gefuellt werden
+# ("Add session" bekommt den Upload, "Filter" die Ranglisten-Filter). Erzeugt
+# werden sie in render_account_sidebar, damit sie oben stehen - die Reihenfolge
+# in der Sidebar ist die Reihenfolge der Erzeugung, nicht die der Befuellung.
+sidebar_tab_material = None
+sidebar_tab_filter = None
+
+
 def render_account_sidebar(user):
     with st.sidebar:
         st.markdown(f"### 👤 {user['username']}")
@@ -20788,8 +20796,18 @@ def render_account_sidebar(user):
         st.markdown("---")
         render_user_profile(user)
 
-        with st.expander("💬 Feedback / idea?"):
-            render_feedback_form(source="sidebar", key_prefix="sidebar")
+        # Die zwei Bereiche, die man im Alltag WIRKLICH braucht: eine Session
+        # hochladen und die Ranglisten filtern. Sie standen ganz unten, hinter
+        # Gruppen und Kontoloeschung - also hinter allem, was man ein- bis
+        # zweimal im Leben anfasst. Jetzt direkt unter dem Profil.
+        #
+        # Erzeugt (nicht gefuellt) wird hier: Streamlit ordnet nach dem Moment
+        # der ERZEUGUNG. Der Inhalt kommt spaeter im Skript ueber
+        # `with sidebar_tab_filter:` bzw. ueber `left` - beides bleibt
+        # unveraendert.
+        global sidebar_tab_material, sidebar_tab_filter
+        sidebar_tab_material = st.expander("🏄 Add session", expanded=False)
+        sidebar_tab_filter = st.expander("🔎 Filter", expanded=False)
 
         st.markdown("---")
         groups = list_groups()
@@ -20913,6 +20931,12 @@ def render_account_sidebar(user):
                     st.markdown("---")
 
         st.markdown("---")
+
+        # Rueckmeldung und Kontoloeschung ganz nach unten: Beides sind
+        # Ausnahmefaelle. Vor allem "Account & delete data" hat weiter oben
+        # nichts zu suchen - ein Warnschild mitten im taeglichen Weg.
+        with st.expander("💬 Feedback / idea?"):
+            render_feedback_form(source="sidebar", key_prefix="sidebar")
 
         with st.expander("⚠️ Account & delete data"):
             session_count = count_user_sessions(user["username"], active_sport())
@@ -22721,8 +22745,14 @@ if _is_live_view:
 # darüber. Beide standardmäßig zu, damit die Sidebar aufgeräumt bleibt.
 with st.sidebar:
     st.markdown("---")
-    sidebar_tab_material = st.expander("🏄 Add session", expanded=False)
-    sidebar_tab_filter = st.expander("🔎 Filter", expanded=False)
+    # "Add session" und "Filter" werden jetzt in render_account_sidebar erzeugt
+    # (direkt unter dem Profil). Sollte das ausnahmsweise nicht gelaufen sein,
+    # entstehen sie hier - sonst liefe das Skript weiter unten in einen
+    # NameError, und zwar an einer Stelle, die mit der Sidebar nichts zu tun hat.
+    if sidebar_tab_material is None:
+        sidebar_tab_material = st.expander("🏄 Add session", expanded=False)
+    if sidebar_tab_filter is None:
+        sidebar_tab_filter = st.expander("🔎 Filter", expanded=False)
     st.link_button("📖 Guide · Anleitung · Handleiding", "?seite=guide",
                    use_container_width=True)
     st.link_button("⌚ Watches · Uhren · Horloges",
