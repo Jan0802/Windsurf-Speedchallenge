@@ -6150,6 +6150,8 @@ def render_rankings(results_container):
     year_filter = st.session_state.get(f"rank_year_{sport}", preset.get("year") or "All years")
     month_filter = st.session_state.get(f"rank_month_{sport}", preset.get("month") or "Whole year")
     day_filter = st.session_state.get(f"rank_day_{sport}", preset.get("day") or "Whole month")
+    quick_filter = st.session_state.get(f"rank_quick_{sport}",
+                                        preset.get("quick") or _QUICK_ALL)
     gear_filter = st.session_state.get(f"rank_gear_{sport}", preset.get("gear") or "All")
 
     # Erweiterte (optionale) Filter – 0 bzw. (0,0) bedeutet „aus".
@@ -6179,6 +6181,7 @@ def render_rankings(results_container):
         "weight_to": weight_to,
         "columns": col_order,
         "tables": table_choice,
+        "quick": quick_filter,
     }
 
     # ---- Tabellen ZUERST (Hauptinhalt) in den Haupt-Container ----
@@ -6222,6 +6225,7 @@ def render_rankings(results_container):
                     "year": st.session_state.get(f"rank_year_{sport}", "All years"),
                     "month": st.session_state.get(f"rank_month_{sport}", "Whole year"),
                     "day": st.session_state.get(f"rank_day_{sport}", "Whole month"),
+                    "quick": st.session_state.get(f"rank_quick_{sport}", _QUICK_ALL),
                     "gear": st.session_state.get(f"rank_gear_{sport}", "All"),
                     "columns": st.session_state.get(f"rank_cols_{sport}",
                                                     _default_cols(_gear_label)),
@@ -6239,6 +6243,7 @@ def render_rankings(results_container):
                 if _keep:
                     save_user_pref(username, _keep)
                 for _k in ("rank_group", "rank_spot", "rank_year", "rank_month", "rank_day",
+                           "rank_quick",
                            "rank_gear", "rank_front", "rank_finmax", "rank_finbrand",
                            "rank_fincarbon", "rank_cols", "rank_tables", "rank_wfrom", "rank_wto"):
                     st.session_state.pop(f"{_k}_{sport}", None)
@@ -6321,6 +6326,15 @@ def render_rankings(results_container):
             "📍 Location", spot_options,
             index=_preset_index(spot_options, spot_filter), key=f"rank_spot_{sport}",
         )
+        # Schnellwahl VOR den drei Datumsfeldern: Sie ist der haeufigste Fall
+        # ("wer war heute hier"), und wer sie benutzt, soll die drei Felder
+        # darunter gar nicht mehr ansehen muessen.
+        st.radio("⏱️ Quick period", _QUICK_OPTIONS, horizontal=True,
+                 index=_preset_index(_QUICK_OPTIONS, quick_filter),
+                 key=f"rank_quick_{sport}")
+        if (st.session_state.get(f"rank_quick_{sport}") or _QUICK_ALL) != _QUICK_ALL:
+            st.caption("Quick period is active – the three date fields below are "
+                       "ignored until you set it back to “All time”.")
         st.selectbox(
             "📅 Year", year_options,
             index=_preset_index(year_options, year_filter), key=f"rank_year_{sport}",
@@ -6628,6 +6642,36 @@ _MIN_PLAUSIBLE = {"max_jump_m": 0.5, "max_airtime_s": 0.5}
 # ist sie Zufall - und "100 %" aus einem einzigen waere die unehrlichste Zahl
 # der ganzen Seite. Dieselbe Haltung wie bei der Manoever-Quote (dort fuenf).
 _LAND_MIN_JUMPS = 5
+
+# --- Schnellwahl fuer den Zeitraum -----------------------------------------
+# Der Datumsfilter ist dreistufig (Jahr, Monat, Tag). Fuer den haeufigsten Fall
+# ueberhaupt - "wer war heute/gestern mit mir draussen" - sind das drei
+# Einstellungen plus Spot, und wer nicht weiss, dass es den Filter gibt, findet
+# den Vergleich gar nicht. Diese vier Knoepfe sind dieselbe Abfrage in einem
+# Klick.
+_QUICK_ALL = "All time"
+_QUICK_OPTIONS = [_QUICK_ALL, "Today", "Yesterday", "Last 7 days"]
+
+
+def _quick_range(wahl, heute=None):
+    """(von, bis) als normalisierte Tagesstempel - oder None fuer "alles".
+
+    `heute` ist ueberschreibbar, damit der Test nicht vom Kalender abhaengt.
+    """
+    if not wahl or wahl == _QUICK_ALL:
+        return None
+    tag = pd.Timestamp(heute).normalize() if heute is not None \
+        else pd.Timestamp.now().normalize()
+    if wahl == "Today":
+        return tag, tag
+    if wahl == "Yesterday":
+        gestern = tag - pd.Timedelta(days=1)
+        return gestern, gestern
+    if wahl == "Last 7 days":
+        # Einschliesslich heute, also sechs Tage zurueck - "letzte 7 Tage" meint
+        # eine Woche mit heute darin, nicht acht Tage.
+        return tag - pd.Timedelta(days=6), tag
+    return None
 
 # --- Wellengroesse in Koerperskala (wellenreiten-kennzahlen.md) -------------
 # "Surfer denken nicht in Metern." Darum die koerperbezogene Skala als das, was
@@ -7329,14 +7373,25 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     if spot_filter and spot_filter != "Overall":
         ranking = ranking[ranking["surfspot"].astype(str) == spot_filter]
 
-    if str(year_filter).isdigit():
-        ranking = ranking[ranking["_date"].dt.year == int(year_filter)]
+    # Schnellwahl fuer den haeufigsten Fall: "wer war heute/gestern hier".
+    # Sie SETZT SICH DURCH gegen Jahr/Monat/Tag - sonst muesste man erst drei
+    # Felder zuruecksetzen, um sie zu benutzen, und genau das ist die Huerde,
+    # die sie abschaffen soll.
+    _quick = extra.get("quick") or _QUICK_ALL
+    _spanne = _quick_range(_quick)
+    if _spanne:
+        _von, _bis = _spanne
+        _tage = ranking["_date"].dt.normalize()
+        ranking = ranking[(_tage >= _von) & (_tage <= _bis)]
+    else:
+        if str(year_filter).isdigit():
+            ranking = ranking[ranking["_date"].dt.year == int(year_filter)]
 
-    if month_filter in months:
-        ranking = ranking[ranking["_date"].dt.month == months.index(month_filter) + 1]
+        if month_filter in months:
+            ranking = ranking[ranking["_date"].dt.month == months.index(month_filter) + 1]
 
-        if str(day_filter).isdigit():
-            ranking = ranking[ranking["_date"].dt.day == int(day_filter)]
+            if str(day_filter).isdigit():
+                ranking = ranking[ranking["_date"].dt.day == int(day_filter)]
 
     if gear_filter and gear_filter != "All":
         # Ältere Sessions ohne gear_type (None) fallen bei Fin/Foil-Auswahl raus.
@@ -7525,6 +7580,11 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
     else:
         _ctx.append("<b>All spots</b>")
     _ctx.append(escape(SPORT_META[active_sport()]["name"]))
+    # Der Zeitraum gehoert in die Kontextzeile, sobald er nicht "alles" ist -
+    # sonst steht eine gefilterte Rangliste da und nichts erklaert, warum sie so
+    # kurz ist.
+    if _quick != _QUICK_ALL:
+        _ctx.append(f"<b>{escape(str(_quick))}</b>")
     _riders = int(ranking["name"].nunique()) if "name" in ranking.columns else 0
     _ctx.append(f"{_riders} rider" + ("s" if _riders != 1 else ""))
     _last = ranking["_date"].max() if "_date" in ranking.columns else None
@@ -14383,6 +14443,139 @@ def _render_sea_state(record):
     )
 
 
+# --- "Wer war noch da?" -----------------------------------------------------
+# Der Vergleich mit denen, mit denen man WIRKLICH draussen war, hing bisher am
+# Pfad Rangliste -> Filter, und der Datumsfilter ist dreistufig (Jahr, Monat,
+# Tag). Wer nach einer gemeinsamen Session wissen will, wie er gegen die anderen
+# lag, musste also vier Einstellungen vornehmen - und ueberhaupt erst wissen,
+# dass es den Filter gibt.
+#
+# Dabei steht die Antwort schon auf dem Bildschirm: Spot und Datum stehen an der
+# Session. Die Frage ist aus dem, was da ist, vollstaendig beantwortbar - es
+# fehlt nur die Stelle, an der sie gestellt wird.
+#
+# Je Sportart eine Reihe von Kandidaten, und genommen wird der ERSTE, den der Tag
+# wirklich hergibt. So steht bei einer Surf-Session mit Logbuch die Wellenzahl
+# da, bei einer ohne der Topspeed - statt einer leeren Spalte mit dem richtigen
+# Namen.
+_DAY_METRICS = {
+    "windsurf": [("speed_1s_kmh", "Top 2 s", "kn", 1.0 / 1.852, 1)],
+    "kitesurf": [("airtime_total_s", "Total airtime", "s", 1.0, 1),
+                 ("max_airtime_s", "Best airtime", "s", 1.0, 2),
+                 ("speed_1s_kmh", "Top 2 s", "kn", 1.0 / 1.852, 1)],
+    "wingsurf": [("speed_1s_kmh", "Top 2 s", "kn", 1.0 / 1.852, 1)],
+    "wakeboard": [("airtime_total_s", "Total airtime", "s", 1.0, 1),
+                  ("max_airtime_s", "Best airtime", "s", 1.0, 2)],
+    "surf": [("waves_self", "Waves", "", 1.0, 0),
+             ("waves", "Waves", "", 1.0, 0),
+             ("longest_run_km", "Longest ride", "km", 1.0, 2),
+             ("speed_1s_kmh", "Top speed", "kn", 1.0 / 1.852, 1)],
+    "sup": [("total_distance_km", "Distance", "km", 1.0, 2),
+            ("speed_5km_kmh", "Best 5 km", "km/h", 1.0, 2)],
+}
+# Unter zwei Fahrern gibt es nichts zu vergleichen - dann waere die Ueberschrift
+# "Wer war noch da" eine Enttaeuschung statt einer Antwort.
+_DAY_MIN_RIDERS = 2
+
+
+def _render_same_day(record):
+    """Die anderen, die am selben Tag am selben Spot unterwegs waren.
+
+    Zeigt Platz und Abstand, nicht nur eine Tabelle: "Du warst 2. von 4" ist die
+    Zahl, wegen der jemand ueberhaupt fragt.
+    """
+    sport = _txt_or(record.get("sport")) or active_sport()
+    spot = _txt_or(record.get("surfspot"))
+    ich = _txt_or(record.get("name"))
+    tag = pd.to_datetime(record.get("date"), errors="coerce")
+    if not spot or pd.isna(tag):
+        return
+    try:
+        alle = load_sessions(sport)
+    except Exception:  # noqa: BLE001
+        return
+    if alle is None or alle.empty or "surfspot" not in alle.columns:
+        return
+    # Dieselbe Plausibilitaetspruefung wie die Rangliste, damit hier keine Zahl
+    # steht, die dort nicht zaehlt - sonst erklaert niemand den Unterschied.
+    tagdf = _drop_excluded(complete_sessions(alle.copy()))
+    if tagdf.empty:
+        return
+    _d = pd.to_datetime(tagdf["date"], errors="coerce", format="mixed")
+    tagdf = tagdf[(tagdf["surfspot"].astype(str) == spot)
+                  & (_d.dt.normalize() == tag.normalize())]
+    if tagdf.empty or tagdf["name"].nunique() < _DAY_MIN_RIDERS:
+        return
+
+    # Die erste Kennzahl nehmen, die dieser Tag wirklich hergibt.
+    spalte = label = einheit = None
+    faktor, stellen = 1.0, 2
+    for _c, _l, _u, _f, _s in _DAY_METRICS.get(sport, _DAY_METRICS["windsurf"]):
+        if _c in tagdf.columns and pd.to_numeric(
+                tagdf[_c], errors="coerce").gt(0).sum() >= _DAY_MIN_RIDERS:
+            spalte, label, einheit, faktor, stellen = _c, _l, _u, _f, _s
+            break
+    if spalte is None:
+        return
+
+    tagdf = tagdf.assign(_w=pd.to_numeric(tagdf[spalte], errors="coerce"))
+    tagdf = tagdf.dropna(subset=["_w"])
+    # Je Fahrer die beste Session des Tages - wer zweimal raus war, steht einmal
+    # da und nicht zweimal.
+    besten = (tagdf.sort_values("_w", ascending=False)
+              .drop_duplicates(subset="name", keep="first")
+              .reset_index(drop=True))
+    if len(besten) < _DAY_MIN_RIDERS:
+        return
+
+    st.markdown(f"## 👥 Who else was out on {tag.strftime('%d %b')}")
+    _platz = None
+    if ich:
+        _treffer = besten.index[besten["name"].astype(str) == ich]
+        if len(_treffer):
+            _platz = int(_treffer[0]) + 1
+    if _platz:
+        st.markdown(
+            f"**You were {_platz}. of {len(besten)}** at {escape(spot)} "
+            f"that day — measured on {label.lower()}."
+        )
+    _max = float(besten["_w"].max()) or 1.0
+    zeilen = []
+    for i, r in besten.iterrows():
+        _name = _txt_or(r.get("name")) or "–"
+        _wert = float(r["_w"]) * faktor
+        _anteil = max(2.0, float(r["_w"]) / _max * 100.0)
+        _mir = str(r.get("name")) == ich
+        _farbe = "#2BD4D9" if _mir else "#3f5a63"
+        zeilen.append(
+            f"<tr><td style='padding:3px 8px;opacity:.6'>{i + 1}</td>"
+            f"<td style='padding:3px 8px'>"
+            f"{'<b>' if _mir else ''}{escape(_name)}{'</b>' if _mir else ''}</td>"
+            f"<td style='padding:3px 8px;width:55%'>"
+            f"<div style='background:{_farbe};height:10px;border-radius:5px;"
+            f"width:{_anteil:.0f}%'></div></td>"
+            f"<td style='padding:3px 8px;text-align:right;white-space:nowrap'>"
+            f"{_wert:.{stellen}f} {einheit}</td></tr>")
+    st.markdown("<table style='font-size:14px;border-collapse:collapse;width:100%'>"
+                + "".join(zeilen) + "</table>", unsafe_allow_html=True)
+
+    # Der ganze Tag als Vollbild - das Spot-TV kann das seit jeher, es war nur
+    # als Café-Anzeige gedacht und von hier aus nicht erreichbar.
+    _q = {"tv": "1", "sport": sport, "spot": spot, "mode": "today", "zoom": 75}
+    _heute = tag.normalize() == pd.Timestamp.now().normalize()
+    if _heute:
+        st.link_button("📺 Show the whole day on one screen", "?" + urlencode(_q),
+                       use_container_width=True)
+    st.caption(
+        f"Everyone who logged a session at {escape(spot)} that day, best session "
+        "per rider, same plausibility check as the rankings. "
+        + ("" if _heute else
+           "The full-screen day view only works for today – it is the live "
+           "screen. ")
+        + "Anyone who was at the spot can see they were there."
+    )
+
+
 def _render_surf_log(record):
     """Das Logbuch einer Surf-Session: Bewertung, Wellengroesse, Notizen.
 
@@ -15430,6 +15623,10 @@ def render_history_overview(record):
     # erscheinen, darum hier und nicht in _render_speed_curve.
     _render_sea_state(record)
     _render_surf_log(record)
+    # "Wer war noch da?" - der Vergleich mit denen, mit denen man wirklich
+    # draussen war. Steht bewusst hier und nicht in der Rangliste: Die Frage
+    # entsteht an der eigenen Session, nicht im Filter.
+    _render_same_day(record)
 
     # Track einmal laden (für Speedkurve UND Karte).
     track_pts = _parse_track(load_session_track(record.get("id")))
