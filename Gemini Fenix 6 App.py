@@ -20591,7 +20591,9 @@ def render_user_profile(user):
                 "Convenience dead-man's timer: if you don't confirm you're back in time, we email "
                 "your emergency contact (last known start position included). It arms automatically "
                 "when you start a session on the watch, and clears when your session uploads or when "
-                "you tap “I'm safe”. ⚠️ This is NOT a rescue service and cannot guarantee delivery – "
+                "you tap “I'm safe”. With notifications on (see below) we nudge **you** about ten "
+                "minutes before the deadline, so the alert doesn't go out just because you forgot. "
+                "⚠️ This is NOT a rescue service and cannot guarantee delivery – "
                 "never rely on it alone; use proper safety gear and tell someone in person."
             )
             _sos = load_sos_config(user["username"])
