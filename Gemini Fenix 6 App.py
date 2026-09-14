@@ -16653,6 +16653,86 @@ def _admin_stats():
         return None
 
 
+# Wie alt ein Lebenszeichen werden darf, bevor gewarnt wird – je Job, in
+# Minuten. Grosszuegig gegenueber dem Takt: /check_sos laeuft jede Minute, aber
+# ein einzelner Aussetzer (Neustart, Kaltstart der Datenbank) ist kein Alarm.
+# Gemeldet werden soll ein AUSFALL, nicht ein Ruckler – sonst gewoehnt man sich
+# an die Warnung und uebersieht sie, wenn sie einmal stimmt.
+_CRON_JOBS = {
+    "check_sos":     ("🆘 Sicherheits-Check-in", 60),
+    "check_records": ("🏆 Spot-Rekorde", 120),
+    "enrich_spots":  ("✍️ Spottexte", 60 * 36),
+}
+
+
+def _cron_health():
+    """Alter der Cron-Lebenszeichen. Liefert Liste (job, label, minuten, faellig).
+
+    minuten ist None, wenn der Job noch NIE gelaufen ist – das ist etwas
+    anderes als "lange her" und wird auch anders angezeigt.
+    """
+    try:
+        with get_engine().connect() as conn:
+            rows = conn.execute(text(
+                "SELECT job, EXTRACT(EPOCH FROM (NOW() - last_run))/60 AS alt_min,"
+                " runs, note FROM cron_heartbeat")).mappings().all()
+    except Exception:  # noqa: BLE001
+        return None
+    gesehen = {r["job"]: r for r in rows}
+    out = []
+    for job, (label, grenze) in _CRON_JOBS.items():
+        r = gesehen.get(job)
+        alt = None if r is None else float(r["alt_min"] or 0)
+        out.append({"job": job, "label": label, "alt_min": alt,
+                    "grenze": grenze, "faellig": alt is None or alt > grenze,
+                    "runs": None if r is None else r["runs"],
+                    "note": None if r is None else r["note"]})
+    return out
+
+
+def _cron_alter_text(alt_min):
+    if alt_min is None:
+        return "noch nie gelaufen"
+    if alt_min < 90:
+        return f"vor {int(alt_min)} min"
+    if alt_min < 60 * 48:
+        return f"vor {alt_min / 60:.1f} h"
+    return f"vor {alt_min / 1440:.1f} Tagen"
+
+
+def render_cron_health():
+    """Warnung, wenn ein Cron-Job nicht mehr laeuft.
+
+    DER ANLASS: /check_sos lief vom 24.07. bis zum 14.09.2026 nicht –
+    cron-job.org hatte den Job nach wiederholten 403 abgeschaltet, weil der
+    SEED_KEY in der URL an einem '#' abgeschnitten wurde. Sieben Wochen ohne
+    Totmann-Alarm. Der Fehler selbst war klein; schlimm war, dass es keine
+    Stelle gab, an der er haette auffallen koennen.
+    """
+    zustand = _cron_health()
+    if zustand is None:
+        return
+    schlecht = [z for z in zustand if z["faellig"]]
+    if not schlecht:
+        st.caption("⏱️ Cron-Jobs: " + " · ".join(
+            f"{z['label']} {_cron_alter_text(z['alt_min'])}" for z in zustand))
+        return
+    for z in schlecht:
+        # Der Check-in ist das Sicherheitsfeature – der bekommt einen Fehler,
+        # nicht eine Warnung neben anderen.
+        (st.error if z["job"] == "check_sos" else st.warning)(
+            f"**{z['label']}** läuft nicht: {_cron_alter_text(z['alt_min'])} "
+            f"(erwartet: höchstens alle {z['grenze']} min). "
+            + ("Der Totmann-Timer verschickt damit **keine** Alarme. "
+               if z["job"] == "check_sos" else "")
+            + "Prüfe den Cron-Job – häufigste Ursache: ein `#` im Schlüssel, "
+              "das in der URL `%23` heißen muss.")
+    ok = [z for z in zustand if not z["faellig"]]
+    if ok:
+        st.caption("⏱️ Läuft: " + " · ".join(
+            f"{z['label']} {_cron_alter_text(z['alt_min'])}" for z in ok))
+
+
 def render_admin_feedback():
     st.caption("Nachrichten aus dem Feedback-Formular – nur hier sichtbar, keine Mail.")
     items = list_feedback()
@@ -16740,6 +16820,10 @@ def render_admin():
     flash = st.session_state.pop("_admin_flash", None)
     if flash:
         st.success(flash)
+
+    # Ganz oben: Laeuft der Totmann-Timer ueberhaupt noch? Weiter unten haette
+    # man es genauso uebersehen wie sieben Wochen lang gar nichts.
+    render_cron_health()
 
     top = st.columns([1.4, 1.4, 5])
     if top[0].button("← Zurück zur App", key="admin_back"):
