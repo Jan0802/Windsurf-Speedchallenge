@@ -5141,11 +5141,15 @@ def render_session_history(name):
                 _sp = _r.get("surfspot") or "?"
                 _excl_notes.append(f"{_ds} · {_sp}: {_reason}")
         if _excl_notes:
+            # Nicht mehr "(data looks implausible)": Seit der fehlende Spot hier
+            # mit auftaucht, stimmt das nicht mehr fuer jeden Grund - und der
+            # fehlende Spot ist der einzige, den der Fahrer selbst beheben kann.
             st.warning(
-                "⚠️ **Not counted in the rankings** (data looks implausible):\n\n- "
+                "⚠️ **Not counted in the rankings:**\n\n- "
                 + "\n- ".join(_excl_notes)
                 + "\n\nThese sessions stay here for you, but are kept out of the public "
-                  "rankings. If you think this is a mistake, get in touch."
+                  "rankings. A missing spot you can fix yourself in the session editor; "
+                  "if anything else looks wrong, get in touch."
             )
 
         if history_full.empty:
@@ -9601,6 +9605,15 @@ def _exclusion_reason(row, water_ok_spots=None):
     # Gilt auch an Spots mit „Gewässer bestätigt" – der Admin hat das letzte Wort.
     if ts is not None and ts < 0:
         return "Manually excluded by an admin"
+    # FEHLENDER SPOT. Stand lange NICHT hier, obwohl complete_sessions solche
+    # Sessions aus jeder Wertung wirft - die Regel lag allein dort. Folge: Eine
+    # Session ohne Spot war in Rangliste, Rekorden und auf den oeffentlichen
+    # Seiten unsichtbar, waehrend ALLE vier Stellen, die "zaehlt nicht" erklaeren,
+    # sie als gewertet ausgaben. Auch im Backoffice stand ein gruenes Haekchen.
+    # Damit war der haeufigste Grund zugleich der einzige unauffindbare.
+    # Dieselbe Pruefung wie complete_sessions, ueber denselben Helfer.
+    if not _session_counts_in_ranking(spot):
+        return "No spot set – the session can't be placed in any ranking"
     # Wasser-Sentinel aus dem Ingest: trust_score == 0 = GPS-Spur klar an Land.
     if not water_ok and ts is not None and ts == 0:
         return "GPS track was not on the water"
@@ -20342,13 +20355,16 @@ def render_session_editor(user):
         # vergeblich. Darum hier direkt an der gewaehlten Session.
         _excl = _exclusion_reason(row, _water_ok_spots())
         if _excl:
-            st.error(
-                f"⛔ **Not counted in the rankings:** {_excl}\n\n"
+            # Beim fehlenden Spot steht die Loesung direkt darunter - dann waere
+            # der Hinweis auf den Wasser-Check des Backoffice nur verwirrend.
+            _hilfe = (
+                "Pick a spot below and save – then it counts."
+                if not _session_counts_in_ranking(row.get("surfspot")) else
                 "The values stay visible for you. If this spot is definitely on the "
                 "water, an admin can tick “Gewässer bestätigt” for it in the "
                 "backoffice – then sessions like this count again (the physics "
-                "checks still apply)."
-            )
+                "checks still apply).")
+            st.error(f"⛔ **Not counted in the rankings:** {_excl}\n\n{_hilfe}")
 
         rider = load_profiles().get(user["username"], {})
         spots = rider.get("spots", [])
