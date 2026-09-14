@@ -17433,6 +17433,21 @@ def push_auth_tag(user):
         unsafe_allow_html=True)
 
 
+def push_slot():
+    """Der Platzhalter, aus dem das Skript im <head> den Schalter macht.
+
+    WARUM KEIN STREAMLIT-KNOPF: Notification.requestPermission() und
+    pushManager.subscribe() verlangen eine echte Nutzergeste im OBERSTEN
+    Dokument. Ein st.button loest stattdessen einen Rerun aus - die Geste waere
+    vorbei, bevor ueberhaupt gefragt wird. Und components.html steckt in einem
+    iframe, in dem der Browser Benachrichtigungen gar nicht erst erlaubt.
+
+    Also dasselbe Vorgehen wie beim Zeichen: ein leeres Element, das das Skript
+    im Kopf findet und fuellt.
+    """
+    st.markdown("<div id='ws-push-slot'></div>", unsafe_allow_html=True)
+
+
 def render_weather_via_browser():
     """Wetter über den BROWSER des Admins holen statt über den Server.
 
@@ -20609,6 +20624,20 @@ def render_user_profile(user):
                     st.success("Safety timer started – tap “I'm safe” when you're back.")
                     st.rerun()
 
+        # --- Benachrichtigungen (Web Push) ---
+        # Steht direkt hinter dem Check-in, weil der sein Hauptgrund ist.
+        # Und er ist der einzige Weg zurueck: Die Leiste beim Start fragt genau
+        # einmal: Wer sie wegtippt oder bei wem das Abonnieren scheitert, kaeme
+        # sonst nur ueber Loeschen und Neuinstallieren der App wieder heran.
+        if _section("🔔 Notifications", f"sec_push_{user['id']}"):
+            st.caption(
+                "A spot record falls, or your safety check-in is overdue. "
+                "Nothing else – no marketing. ⚠️ On iPhone and iPad this only "
+                "works when the app runs from your home screen, not in a "
+                "Safari tab."
+            )
+            push_slot()
+
         # --- Equipment teilen / übernehmen (gleiches Material über Konten) ---
         if _section("🔗 Share equipment (family / friends)", f"sec_share_{user['id']}"):
             st.caption(
@@ -20818,6 +20847,12 @@ sidebar_tab_filter = None
 
 def render_account_sidebar(user):
     with st.sidebar:
+        # Das Zeichen fuers Push-Abonnement lag frueher am Skriptende - also
+        # NUR auf der Startseite: Alle anderen Ansichten (Spots, My Results,
+        # Safety...) steigen vorher mit st.stop() aus, die Leiste fand dort
+        # nie eine Anmeldung und erschien gar nicht. Die Seitenleiste dagegen
+        # laeuft auf jeder angemeldeten Seite.
+        push_auth_tag(user)
         st.markdown(f"### 👤 {user['username']}")
 
         if st.button("Log out", use_container_width=True):
@@ -23541,10 +23576,6 @@ with st.expander("🌦️ Spot weather (current & forecast)", expanded=False):
 # Der Rechner eines Besuchers ist davon nicht betroffen. Und das Wetter wird
 # erst gebraucht, wenn es jemand ansieht - also holt es der, der hinsieht.
 wx_autofill()
-# Zeichen fuers Push-Abonnement in die Seite legen - die Leiste im <head> liest
-# es von dort. Ganz am Ende, damit es nicht bei jedem Zwischenschritt neu
-# entsteht; die Leiste wartet ohnehin einige Sekunden.
-push_auth_tag(current_user)
 
 st.markdown("---")
 
