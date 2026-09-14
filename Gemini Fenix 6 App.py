@@ -17402,6 +17402,37 @@ def wx_autofill(limit=6):
     )
 
 
+def push_auth_tag(user):
+    """Unsichtbares Element mit dem Zeichen fuers Push-Abonnement.
+
+    WARUM UEBER DAS DOM und nicht ueber einen Aufruf: Die Abonnier-Leiste liegt
+    im <head> der Seite - sie muss dort liegen, weil
+    Notification.requestPermission() und pushManager.subscribe() im obersten
+    Dokument und aus einer Nutzergeste laufen muessen, und
+    Streamlit-Komponenten stecken in einem iframe. Der <head> wird aber beim
+    Deploy gebaut und weiss nichts von einem angemeldeten Nutzer.
+
+    st.markdown mit unsafe_allow_html schreibt dagegen in das OBERSTE Dokument.
+    Damit ist ein leeres <div> mit Datenattributen der kuerzeste Weg vom
+    angemeldeten Nutzer zum Skript im Kopf.
+
+    Das Zeichen ist dieselbe Rechnung wie im Ingest (push_sub_token): Ohne es
+    koennte jeder ein Abonnement auf einen fremden Namen eintragen. Der Browser
+    bekommt nur das Zeichen, nie den SEED_KEY.
+    """
+    _sk = _secret("SEED_KEY", "").strip()
+    if not _sk or not user or not user.get("username"):
+        return
+    _name = str(user["username"]).strip()
+    _exp = int(time.time()) + 900
+    _roh = f"push|{_name.lower()}|{_exp}"
+    _tok = hmac.new(_sk.encode(), _roh.encode(), hashlib.sha256).hexdigest()[:32]
+    st.markdown(
+        f"<div id='ws-push-auth' data-name='{escape(_name)}' "
+        f"data-token='{_tok}' data-exp='{_exp}' style='display:none'></div>",
+        unsafe_allow_html=True)
+
+
 def render_weather_via_browser():
     """Wetter über den BROWSER des Admins holen statt über den Server.
 
@@ -23510,6 +23541,10 @@ with st.expander("🌦️ Spot weather (current & forecast)", expanded=False):
 # Der Rechner eines Besuchers ist davon nicht betroffen. Und das Wetter wird
 # erst gebraucht, wenn es jemand ansieht - also holt es der, der hinsieht.
 wx_autofill()
+# Zeichen fuers Push-Abonnement in die Seite legen - die Leiste im <head> liest
+# es von dort. Ganz am Ende, damit es nicht bei jedem Zwischenschritt neu
+# entsteht; die Leiste wartet ohnehin einige Sekunden.
+push_auth_tag(current_user)
 
 st.markdown("---")
 

@@ -41,6 +41,46 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// --- Benachrichtigungen ---------------------------------------------------
+// Der Push-Dienst weckt den Worker, auch wenn keine Seite offen ist - genau das
+// ist der Sinn. Der Inhalt kommt verschluesselt an und ist nur hier lesbar.
+//
+// showNotification ist PFLICHT: Wir haben mit userVisibleOnly abonniert, und
+// ein Push ohne sichtbare Benachrichtigung fuehrt dazu, dass der Browser die
+// Erlaubnis nach mehreren Verstoessen von sich aus entzieht.
+self.addEventListener('push', (e) => {
+  let d = { title: 'MyWaterSessions', body: '', url: '/' };
+  try { if (e.data) { d = Object.assign(d, e.data.json()); } }
+  catch (err) { try { d.body = e.data.text(); } catch (e2) {} }
+  e.waitUntil(self.registration.showNotification(d.title, {
+    body: d.body,
+    icon: '/app/static/pwa/icon-192.png',
+    badge: '/app/static/pwa/icon-192.png',
+    data: { url: d.url || '/' },
+    // Gleiches tag = die neue Nachricht ERSETZT die alte, statt sich zu
+    // stapeln. Wer drei Tage nicht hineingesehen hat, soll nicht drei
+    // Erinnerungen vorfinden.
+    tag: 'ws-note',
+    renotify: true
+  }));
+});
+
+// Tippen soll die App oeffnen - und zwar die BEREITS offene, wenn es eine gibt.
+// Sonst sammelt jeder Fingertipp einen weiteren Tab an.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const ziel = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((liste) => {
+        for (const c of liste) {
+          if ('focus' in c) { c.navigate(ziel); return c.focus(); }
+        }
+        return self.clients.openWindow(ziel);
+      })
+  );
+});
+
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   // NUR Seitenaufrufe abfangen. Alles andere - die WebSocket-Verbindung, die

@@ -108,14 +108,18 @@ def kopf_block(sw_name: str) -> str:
     Weg. Die Quelle bleibt trotzdem eine ordentliche Datei (pwa/install-ui.js),
     sie wird beim Einbau nur hineinkopiert.
     """
-    ui = os.path.join(QUELLE, "install-ui.js")
-    if not os.path.isfile(ui):
-        fehler(f"{ui} fehlt")
-    ui_text = io.open(ui, encoding="utf-8").read()
-    # "</script>" im Quelltext wuerde den umgebenden <script>-Block beenden.
-    # Kommt dort nicht vor, aber lieber gepruefet als spaeter gesucht.
-    if "</script" in ui_text:
-        fehler("install-ui.js enthaelt '</script' - das zerlegt den <head>")
+    teile = []
+    for name in ("install-ui.js", "push-ui.js"):
+        p = os.path.join(QUELLE, name)
+        if not os.path.isfile(p):
+            fehler(f"{p} fehlt")
+        t = io.open(p, encoding="utf-8").read()
+        # "</script>" im Quelltext wuerde den umgebenden <script>-Block beenden.
+        # Kommt dort nicht vor, aber lieber geprueft als spaeter gesucht.
+        if "</script" in t:
+            fehler(f"{name} enthaelt '</script' - das zerlegt den <head>")
+        teile.append(t)
+    ui_text = "\n".join(teile)
     return f"""{MARKE_AUF}
     <link rel="manifest" href="/pwa.webmanifest" />
     <meta name="theme-color" content="#02162b" />
@@ -207,6 +211,7 @@ def installieren(laut: bool = True) -> str:
         ("apple-touch-icon", "apple-touch-icon" in neu),
         (f"Registrierung auf /{sw_name}", f"/{sw_name}" in neu),
         ("Installationsleiste eingebettet", "ws-install-ask" in neu),
+        ("Push-Leiste eingebettet", "ws-push-auth" in neu),
         ("genau EIN Block", neu.count(MARKE_AUF) == 1),
         (f"{sw_name} liegt da", os.path.isfile(os.path.join(ziel, sw_name))),
         ("pwa.webmanifest liegt da",
