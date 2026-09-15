@@ -16944,32 +16944,44 @@ def _track_dt(n_points, duration_s, fallback=5.0):
     return dt
 
 
-def _df_from_track(points, duration_s):
+def _df_from_track(points, duration_s, idx=None, dt=None):
     """Track-Punkte -> DataFrame im Upload-Format (timestamp/speed_kmh/distance).
 
     Damit lassen sich fuer einen ZUSCHNITT dieselben Kennzahlen berechnen wie
     beim Datei-Upload (best_average_speed, best_distance_speed, detect_runs) –
     ohne die Formeln zu duplizieren. Zeitstempel sind synthetisch: der Uhr-Track
-    hat keine, das Intervall wird aus Dauer/Punktzahl geschaetzt."""
+    hat keine, das Intervall wird aus Dauer/Punktzahl geschaetzt.
+
+    idx: die ORIGINAL-Positionen der Punkte. Nur noetig, wenn MITTENDRIN etwas
+    entfernt wurde – dann liegen zwei benachbarte Punkte nicht dt, sondern
+    k·dt auseinander. Ohne diese Angabe zaehlte die Naht als EIN Intervall und
+    erzeugte damit genau die Spitze, die der Schnitt loswerden sollte: Die
+    Strecke ueber die Luecke, geteilt durch fuenf Sekunden.
+    """
     if not points or len(points) < 2:
         return None
     n = len(points)
-    dt = _track_dt(n, duration_s)
+    pos = (np.arange(n, dtype=float) if idx is None
+           else np.asarray(idx, dtype=float))
+    if dt is None:
+        dt = _track_dt(int(pos[-1] - pos[0]) + 1, duration_s)
     lat = np.array([p[0] for p in points], dtype=float)
     lon = np.array([p[1] for p in points], dtype=float)
     seg = _haversine_m(lat[:-1], lon[:-1], lat[1:], lon[1:])
-    speeds = np.concatenate([[0.0], seg / dt * 3.6])
+    sek = np.diff(pos) * dt
+    sek[sek <= 0] = dt                    # darf nie 0 werden (Division)
+    speeds = np.concatenate([[0.0], seg / sek * 3.6])
     dist = np.concatenate([[0.0], np.cumsum(seg)])
     t0 = pd.Timestamp("2000-01-01")
     return pd.DataFrame({
-        "timestamp": [t0 + pd.Timedelta(seconds=i * dt) for i in range(n)],
+        "timestamp": [t0 + pd.Timedelta(seconds=float(x) * dt) for x in pos],
         "speed_kmh": speeds, "distance": dist, "lat": lat, "lon": lon,
     })
 
 
-def _metrics_from_track(points, duration_s, sport):
+def _metrics_from_track(points, duration_s, sport, idx=None, dt=None):
     """Kennzahlen eines (zugeschnittenen) Tracks – gleiche Formeln wie der Upload."""
-    df = _df_from_track(points, duration_s)
+    df = _df_from_track(points, duration_s, idx=idx, dt=dt)
     if df is None or df.empty:
         return None
     best_1s = best_average_speed(df, 1)
@@ -17087,10 +17099,34 @@ def render_session_trim(row):
     danach sind aber echt. Ohne Zuschnitt bliebe nur, die ganze Session zu
     streichen und damit auch die ehrlichen Werte zu verlieren."""
     sid = row["id"]
+
+    def _loeschblock():
+        """Ganze Session löschen. Eigener Baustein, weil er an JEDEM Ausgang
+        erreichbar sein muss – gerade die Session ohne brauchbaren Track ist
+        die, die man loswerden will, und genau dort stieg die Funktion
+        bisher vorher aus."""
+        st.markdown("---")
+        _d1, _d2 = st.columns([3, 2])
+        _d1.caption(
+            "Nichts zu retten? Dann ganz weg. Anders als das Streichen (Trust) "
+            "ist das **endgültig** – auch der Fahrer sieht die Session dann "
+            "nicht mehr. Zum bloßen Ausschließen aus der Wertung reicht "
+            "„⛔ streichen“ oben."
+        )
+        if _d2.checkbox("Löschen bestätigen", key=f"del_ok_{sid}"):
+            if _d2.button("🗑️ Session endgültig löschen", key=f"del_go_{sid}",
+                          use_container_width=True):
+                if delete_session(sid, row.get("name")):
+                    st.success(f"Session #{sid} gelöscht.")
+                    st.rerun()
+                else:
+                    st.error("Konnte die Session nicht löschen.")
+
     track = _parse_track(load_session_track(sid))
     if not track or len(track) < 4:
         st.caption("Für diese Session ist kein (ausreichender) GPS-Track gespeichert – "
                    "ohne Track keine Karte und kein Zuschnitt.")
+        _loeschblock()
         return
     dur = None
     with get_engine().connect() as conn:
@@ -17129,19 +17165,41 @@ def render_session_trim(row):
     st.caption(f"{n} Punkte · ~{dt:.0f}s je Punkt · {total_min:.0f} min. "
                "Die Karte färbt schnelle Abschnitte hell – eine Anfahrt über Land "
                "fällt so sofort auf.")
-    lo, hi = st.slider("Diesen Zeitraum behalten (Minuten ab Start)", 0.0,
-                       round(total_min, 1), (0.0, round(total_min, 1)), step=0.5,
-                       key=f"trim_{sid}")
+    # Zwei Richtungen, ein Regler. "Behalten" reicht nur, solange der Fehler am
+    # Rand liegt (Anfahrt, Heimweg). Ein GPS-Ausreisser MITTENDRIN – ein Sprung
+    # ueber den halben See mit 123 km/h – laesst sich damit nicht wegnehmen,
+    # ohne die ehrliche Fahrt davor und danach mitzuverlieren.
+    _ent = st.radio(
+        "Was der Regler bedeutet", ["✂️ behalten", "🗑️ entfernen"],
+        horizontal=True, key=f"trim_mode_{sid}",
+        help="„behalten“ schneidet aussen ab, „entfernen“ nimmt ein Stück "
+             "mittendrin heraus – etwa einen GPS-Sprung.") == "🗑️ entfernen"
+    lo, hi = st.slider(
+        ("Diesen Zeitraum ENTFERNEN (Minuten ab Start)" if _ent else
+         "Diesen Zeitraum behalten (Minuten ab Start)"),
+        0.0, round(total_min, 1),
+        ((0.0, 0.0) if _ent else (0.0, round(total_min, 1))), step=0.5,
+        key=f"trim_{sid}")
     i0 = max(0, int(lo * 60.0 / dt))
     i1 = min(n - 1, int(hi * 60.0 / dt))
-    part = track[i0:i1 + 1]
+    if _ent:
+        _idx = list(range(0, i0)) + list(range(i1 + 1, n))
+        part = [track[i] for i in _idx]
+    else:
+        _idx = list(range(i0, i1 + 1))
+        part = track[i0:i1 + 1]
     if len(part) < 4:
-        st.warning("Der gewählte Abschnitt ist zu kurz.")
+        st.warning("Es bleibt zu wenig übrig." if _ent else
+                   "Der gewählte Abschnitt ist zu kurz.")
+        _loeschblock()
         return
-    _pdur = (len(part) - 1) * dt
+    # Dauer aus den ORIGINAL-Positionen: Beim Entfernen bleibt die Zeit stehen,
+    # die das herausgenommene Stueck gedauert hat – sie gehoert zur Session.
+    _pdur = (_idx[-1] - _idx[0]) * dt
     # Werte VOR der Karte rechnen: dann steht der Top-Speed des Zuschnitts gross
     # im Bild und eine Anfahrt ueber Land verraet sich auf einen Blick.
-    new = _metrics_from_track(part, _pdur, _sport)
+    new = _metrics_from_track(part, _pdur, _sport,
+                              idx=(_idx if _ent else None), dt=dt)
     _thl, _tstats = None, []
     if new:
         if new.get("speed_1s_kmh"):
@@ -17159,8 +17217,30 @@ def render_session_trim(row):
         components.html(html, height=height)
 
     if not new:
+        _loeschblock()
         return
-    trimmed = (i0 > 0) or (i1 < n - 1)
+    trimmed = (i1 > i0) if _ent else ((i0 > 0) or (i1 < n - 1))
+    if _ent and trimmed:
+        st.caption(
+            f"{n - len(part)} von {n} Punkten werden entfernt "
+            f"({(i1 - i0) * dt / 60.0:.1f} min). Die Lücke bleibt als Zeit "
+            "stehen; die Karte zeichnet über sie hinweg eine gerade Linie."
+        )
+        # Die Naht ist die einzige Stelle, an der ein Entfernen etwas kaputt
+        # machen kann: Liegen die beiden Enden weit auseinander, entsteht dort
+        # ein neuer schneller Abschnitt. Gerechnet wird er ehrlich (Strecke
+        # durch die ganze Luecke), aber sagen muss man es trotzdem.
+        if 0 < i0 < n and i1 + 1 < n:
+            _a, _b = track[i0 - 1], track[i1 + 1]
+            _naht_m = float(_haversine_m(_a[0], _a[1], _b[0], _b[1]))
+            _naht_kmh = _naht_m / max(dt, (i1 - i0 + 2) * dt) * 3.6
+            if _naht_kmh > 40:
+                st.warning(
+                    f"An der Schnittstelle liegen {_naht_m / 1000:.1f} km "
+                    f"zwischen den beiden Enden – das ergibt dort rechnerisch "
+                    f"{_naht_kmh:.0f} km/h. Nimm den Bereich etwas größer, "
+                    "damit auch der Sprung selbst verschwindet."
+                )
     st.markdown("**Werte laut Zuschnitt** (aus dem Track gerechnet) "
                 "vs. **gespeichert** (von der Uhr):")
     cmp_rows = []
@@ -17181,15 +17261,21 @@ def render_session_trim(row):
         "Spitzen (Anfahrt, Brücke) loszuwerden – nicht zur Feinjustage."
     )
     if not trimmed:
-        st.caption("Noch nichts ausgewählt zum Abschneiden – Regler anpassen.")
-        return
-    if st.checkbox("Ja, Track und Werte dieser Session dauerhaft ersetzen",
-                   key=f"trim_ok_{sid}"):
-        if st.button("✂️ Zuschnitt übernehmen", key=f"trim_go_{sid}",
-                     use_container_width=True):
-            _save_trimmed_session(sid, part, new)
-            st.success(f"Session #{sid} zugeschnitten: {len(part)} von {n} Punkten behalten.")
-            st.rerun()
+        st.caption("Noch nichts ausgewählt – Regler anpassen.")
+    else:
+        if st.checkbox("Ja, Track und Werte dieser Session dauerhaft ersetzen",
+                       key=f"trim_ok_{sid}"):
+            if st.button("✂️ Zuschnitt übernehmen", key=f"trim_go_{sid}",
+                         use_container_width=True):
+                _save_trimmed_session(sid, part, new)
+                st.success(f"Session #{sid}: {len(part)} von {n} Punkten behalten.")
+                st.rerun()
+
+    # Manches ist nicht zu retten: eine reine Autofahrt, ein Fehlstart, eine
+    # Session, deren Track von vorn bis hinten Unsinn ist. Der Weg dafuer
+    # fuehrte bisher aus dem Backoffice heraus in den Session-Editor des
+    # Fahrers - obwohl man hier gerade alles vor sich hat, um es zu beurteilen.
+    _loeschblock()
 
 
 def _set_session_trust(session_id, value):
