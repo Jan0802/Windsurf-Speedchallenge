@@ -9585,6 +9585,24 @@ def _water_ok_spots():
         return set()
 
 
+# Diese beiden standen frueher beim Session-Editor (~Zeile 20290) - also WEIT
+# unter _exclusion_reason. Das ging gut, solange sie nur aus Funktionen gerufen
+# wurden, die spaeter laufen. Seit _exclusion_reason den Spot prueft, gilt das
+# nicht mehr: render_admin() wird auf MODULEBENE aufgerufen (?admin=1), und zu
+# diesem Zeitpunkt ist das Skript noch nicht bis Zeile 20290 gekommen - den
+# Namen gibt es schlicht noch nicht. Ergebnis war ein NameError im Backoffice.
+# Darum stehen sie jetzt oberhalb ihres ersten Nutzers.
+def _field_set(v):
+    v = str(v or "").strip().lower()
+    return v != "" and v not in ("none", "nan", "null")
+
+
+def _session_counts_in_ranking(spot):
+    """Zählt die Session in Ranking/Personal Bests? Nur der Spot ist Pflicht –
+    Material ist Kür (siehe complete_sessions)."""
+    return _field_set(spot)
+
+
 def _exclusion_reason(row, water_ok_spots=None):
     """Gibt einen kurzen Grund (str) zurueck, wenn die Session sicher unplausibel
     ist – sonst None. 'row' ist eine DataFrame-Zeile (dict-artig). Fuer Spots in
@@ -20271,17 +20289,6 @@ def render_group_news_banner(user, slot):
 
         st.markdown("---")
     return True
-
-
-def _field_set(v):
-    v = str(v or "").strip().lower()
-    return v != "" and v not in ("none", "nan", "null")
-
-
-def _session_counts_in_ranking(spot):
-    """Zählt die Session in Ranking/Personal Bests? Nur der Spot ist Pflicht –
-    Material ist Kür (siehe complete_sessions)."""
-    return _field_set(spot)
 
 
 def _session_gear_complete(spot, board, sail, sport=None):
