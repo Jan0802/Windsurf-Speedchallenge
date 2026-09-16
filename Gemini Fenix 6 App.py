@@ -16546,18 +16546,31 @@ def _app_usage_stats(days=30):
         return None
 
 
+def _de(n):
+    """Tausenderpunkte. Lag als verschachtelte Funktion in
+    render_admin_analytics und war damit nur dort zu haben – die Zahlen
+    daneben brauchen sie genauso."""
+    return f"{int(n):,}".replace(",", ".")
+
+
 def render_admin_analytics():
     st.caption(
         "Cookieless Web Analytics via Cloudflare (kein Tracking einzelner Besucher). "
         "Werte 30 Min zwischengespeichert."
     )
-    if not _secret("CF_API_TOKEN") or not _secret("CF_ACCOUNT_ID"):
+    # Ohne Cloudflare-Token fehlen nur DESSEN Zahlen. Bisher stieg die Funktion
+    # hier aus – und damit fielen auch die eigenen Daten weg, die gar nichts
+    # mit Cloudflare zu tun haben: App-Nutzung, Seitenaufrufe und jetzt die
+    # Uhren. Ein fremder Dienst darf nicht bestimmen, ob man die eigenen
+    # Zahlen sieht.
+    _cf_ok = bool(_secret("CF_API_TOKEN") and _secret("CF_ACCOUNT_ID"))
+    if not _cf_ok:
         st.info(
-            "Noch nicht konfiguriert. In Render (App-Service) die Umgebungsvariablen "
-            "**CF_API_TOKEN** und **CF_ACCOUNT_ID** setzen (Cloudflare-API-Token mit "
-            "*Account Analytics: Read*)."
+            "Cloudflare noch nicht konfiguriert – die Werte unten stammen aus "
+            "der eigenen Datenbank und sind davon unberührt. Für die "
+            "Web-Analytics in Render (App-Service) **CF_API_TOKEN** und "
+            "**CF_ACCOUNT_ID** setzen (API-Token mit *Account Analytics: Read*)."
         )
-        return
 
     # LAZY: st.tabs rendert ALLE Tab-Inhalte bei JEDEM Rerun serverseitig. Damit
     # der (schwere) Cloudflare-Call + die vielen Tabellen/Charts NICHT bei jeder
@@ -16582,45 +16595,44 @@ def render_admin_analytics():
         _app_pageviews.clear()
         st.rerun()
 
-    data = _cf_web_analytics(days)
-    if data is None:
-        st.info("Nicht konfiguriert."); return
-    if "error" in data:
-        st.error(f"Cloudflare-API: {data['error']}"); return
+    data = _cf_web_analytics(days) if _cf_ok else None
+    if data is not None and "error" in data:
+        st.error(f"Cloudflare-API: {data['error']} – die eigenen Zahlen "
+                 "darunter sind davon nicht betroffen.")
+        data = None
 
-    def _de(n):
-        return f"{int(n):,}".replace(",", ".")
+    if data is not None:
+        k1, k2, k3 = st.columns(3)
+        k1.metric("👁️ Page Views", _de(data["views"]))
+        k2.metric("🧭 Besuche", _de(data["visits"]))
+        k3.metric("📄 Views / Besuch",
+                  f"{(data['views'] / data['visits']):.1f}" if data["visits"] else "–")
 
-    k1, k2, k3 = st.columns(3)
-    k1.metric("👁️ Page Views", _de(data["views"]))
-    k2.metric("🧭 Besuche", _de(data["visits"]))
-    k3.metric("📄 Views / Besuch", f"{(data['views'] / data['visits']):.1f}" if data["visits"] else "–")
+        if data["byDay"]:
+            df = pd.DataFrame(data["byDay"])
+            df["date"] = pd.to_datetime(df["date"])
+            st.line_chart(df.set_index("date")[["views", "visits"]])
 
-    if data["byDay"]:
-        df = pd.DataFrame(data["byDay"])
-        df["date"] = pd.to_datetime(df["date"])
-        st.line_chart(df.set_index("date")[["views", "visits"]])
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown("**Top-Seiten**")
+            if data["topPaths"]:
+                st.dataframe(pd.DataFrame(data["topPaths"]), hide_index=True,
+                             use_container_width=True)
+            else:
+                st.caption("–")
+        with col_b:
+            st.markdown("**Top-Länder**")
+            if data["topCountries"]:
+                st.dataframe(pd.DataFrame(data["topCountries"]), hide_index=True,
+                             use_container_width=True)
+            else:
+                st.caption("–")
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.markdown("**Top-Seiten**")
-        if data["topPaths"]:
-            st.dataframe(pd.DataFrame(data["topPaths"]), hide_index=True,
+        if data["byHost"]:
+            st.markdown("**Nach Hostname** (Landing vs. Spots)")
+            st.dataframe(pd.DataFrame(data["byHost"]), hide_index=True,
                          use_container_width=True)
-        else:
-            st.caption("–")
-    with col_b:
-        st.markdown("**Top-Länder**")
-        if data["topCountries"]:
-            st.dataframe(pd.DataFrame(data["topCountries"]), hide_index=True,
-                         use_container_width=True)
-        else:
-            st.caption("–")
-
-    if data["byHost"]:
-        st.markdown("**Nach Hostname** (Landing vs. Spots)")
-        st.dataframe(pd.DataFrame(data["byHost"]), hide_index=True,
-                     use_container_width=True)
 
     # --- Erste-Hand-App-Nutzung (eigene DB) – misst, was Cloudflare NICHT sieht ---
     # Cloudflare erfasst nur Landing + Spot-Seiten (Beacon), nicht die Streamlit-App.
@@ -16663,6 +16675,102 @@ def render_admin_analytics():
                 pd.DataFrame([{"Bereich": _names.get(v, v), "Aufrufe": c}
                               for v, c in pv["by_view"]]),
                 hide_index=True, use_container_width=True)
+
+    # Die Uhren zuletzt: Sie sind die Quelle VOR allem anderen hier – wer die
+    # App im Store lädt, taucht in keiner der Zahlen darüber auf, solange er
+    # kein Konto anlegt.
+    render_iq_reach(days)
+
+
+def _iq_reach(days):
+    """Aktive Uhren, Verbindungsquote, Sportarten – aus iq_devices.
+
+    Gezählt werden GERÄTE, nicht Zeilen: Die Uhr fragt den Spot-Rekord bis zum
+    GPS-Fix mehrfach an, und die Tabelle hält je Tag, Gerät und Sportart eine
+    Zeile. Ohne DISTINCT misst man also GPS-Qualität statt Reichweite.
+
+    None, solange es die Tabelle nicht gibt – sie entsteht erst mit dem
+    nächsten Ingest-Deploy.
+    """
+    try:
+        with get_engine().connect() as conn:
+            _n = conn.execute(text(
+                "SELECT COUNT(*) FROM iq_devices")).scalar()
+            if _n is None:
+                return None
+            seit = conn.execute(text("SELECT MIN(day) FROM iq_devices")).scalar()
+            ger = conn.execute(text(
+                "SELECT COUNT(DISTINCT device_hash) FROM iq_devices"
+                " WHERE day >= CURRENT_DATE - :d"), {"d": days}).scalar() or 0
+            verb = conn.execute(text(
+                "SELECT COUNT(DISTINCT device_hash) FROM iq_devices"
+                " WHERE day >= CURRENT_DATE - :d AND linked IS TRUE"),
+                {"d": days}).scalar() or 0
+            sportarten = conn.execute(text(
+                "SELECT coalesce(nullif(sport,''),'?') AS sport,"
+                " COUNT(DISTINCT device_hash) AS n FROM iq_devices"
+                " WHERE day >= CURRENT_DATE - :d GROUP BY 1 ORDER BY 2 DESC"),
+                {"d": days}).mappings().all()
+            tage = conn.execute(text(
+                "SELECT day, COUNT(DISTINCT device_hash) AS n FROM iq_devices"
+                " WHERE day >= CURRENT_DATE - :d GROUP BY 1 ORDER BY 1"),
+                {"d": days}).mappings().all()
+    except Exception:  # noqa: BLE001
+        return None
+    return {"devices": int(ger), "linked": int(verb), "since": seit,
+            "by_sport": [dict(r) for r in sportarten],
+            "by_day": [dict(r) for r in tage]}
+
+
+def render_iq_reach(days):
+    """Wie viele Uhren wirklich laufen – und wie viele davon ein Konto haben.
+
+    WARUM DAS HIER STEHT: Der Connect-IQ-Store weist 0,08 % aus, also zwischen
+    1.150 und über 2.000 Installationen, und zählt womöglich Downloads statt
+    aktiver Geräte. Diese Zahl misst stattdessen, wer tatsächlich aufs Wasser
+    geht – ohne Konto, ohne App-Update: Die Uhr ruft für den „Beat the
+    Beach"-Ring ohnehin bei jedem Start den Spot-Rekord ab.
+    """
+    reach = _iq_reach(days)
+    st.markdown("---")
+    st.markdown("### ⌚ Uhren auf dem Wasser (anonym gezählt)")
+    if reach is None:
+        st.caption("Wird ab dem nächsten Ingest-Deploy gezählt.")
+        return
+    if not reach["devices"]:
+        st.caption("Noch keine Uhr erfasst – gezählt wird ab dem ersten "
+                   "Sessionstart mit Handy in Reichweite.")
+        return
+    q = reach["linked"] / reach["devices"] if reach["devices"] else 0
+    r1, r2, r3 = st.columns(3)
+    r1.metric("⌚ Aktive Uhren", _de(reach["devices"]),
+              help=f"verschiedene Geräte in den letzten {days} Tagen")
+    r2.metric("🔗 mit Konto", _de(reach["linked"]))
+    r3.metric("🔗 Verbindungsquote", f"{q * 100:.0f} %",
+              help="Die eigentliche Zielgröße: Anteil der Uhren, deren Token "
+                   "einen Nutzer auflöst.")
+    # Zwei Sätze, ohne die jede Zahl hier irreführend wäre.
+    _seit = reach["since"]
+    _tage_gemessen = ((datetime.now().date() - _seit).days + 1
+                      if hasattr(_seit, "year") else 0)
+    st.caption(
+        f"Gemessen seit {_seit} ({_tage_gemessen} Tag(e)). "
+        "⚠️ **Untergrenze:** Gezählt wird nur, wer beim Sessionstart ein Handy "
+        "in Reichweite hatte – wer allein losfährt, taucht hier nie auf. "
+        "Gespeichert wird ein nicht umkehrbarer Hash, kein Gerät und keine "
+        "Person."
+    )
+    if len(reach["by_day"]) > 1:
+        _d = pd.DataFrame(reach["by_day"]).rename(columns={"n": "Uhren"})
+        _d["day"] = pd.to_datetime(_d["day"])
+        st.bar_chart(_d.set_index("day")[["Uhren"]])
+    if reach["by_sport"]:
+        st.markdown("**Sportarten** (verschiedene Uhren, nicht Sessions)")
+        st.dataframe(
+            pd.DataFrame([{"Sportart": SPORT_META.get(r["sport"], {})
+                           .get("label", r["sport"]), "Uhren": r["n"]}
+                          for r in reach["by_sport"]]),
+            hide_index=True, use_container_width=True)
 
 
 def _admin_stats():
