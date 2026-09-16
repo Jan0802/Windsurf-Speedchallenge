@@ -21949,6 +21949,33 @@ def render_best_placement(name):
                           use_container_width=True)
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def _ortsname(lat, lon):
+    """Ortsname zu Koordinaten – geholt vom Ingest, nicht selbst gerechnet.
+
+    Die Kette dort ist mehr als ein HTTP-Aufruf: Zwischenspeicher, Ruhephase
+    nach einer Drosselung, Ausweichweg auf einen zweiten Dienst, und die
+    Auswahl, welches Feld der Antwort ein brauchbarer Spotname ist. Ein
+    zweiter Nachbau hier waere der Anfang von Auseinanderdriften – zwei
+    Dienste, die denselben Punkt verschieden benennen, erzeugen zwei Spots am
+    selben Ort.
+
+    None bei jedem Fehler: Ein Vorschlag, der nicht kommt, darf den Upload
+    nicht aufhalten.
+    """
+    _key = _secret("SEED_KEY", "").strip()
+    if not _key or lat is None or lon is None:
+        return None
+    _base = os.environ.get("INGEST_URL",
+                           "https://ingest-kxxw.onrender.com").rstrip("/")
+    _q = urlencode({"key": _key, "lat": float(lat), "lon": float(lon)})
+    try:
+        with urlopen(f"{_base}/geo_name?{_q}", timeout=8) as r:
+            return (json.loads(r.read().decode()) or {}).get("name")
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _nearest_known_spot(lat, lon, max_km=2.0):
     """Naechster bekannter Spot (Name) zu den Koordinaten, sonst None. Fuer den
     Historien-Import: ordnet jede Datei automatisch ihrem Spot zu."""
@@ -23133,10 +23160,24 @@ with left:
     # nicht mehr hier im Material-Tab.
 
     spot_options = rider.get("spots", [])
-    spot_choice = st.selectbox("Surf spot", [NEW_ENTRY] + spot_options)
+    # Ein erkannter Spot aus der hochgeladenen Datei. Er wird HIER eingesetzt,
+    # VOR dem Erzeugen der Felder: Streamlit verbietet es, den Zustand eines
+    # Bedienelements zu aendern, nachdem es im selben Lauf entstanden ist. Der
+    # Knopf weiter unten legt den Namen darum nur ab und laesst neu laufen.
+    _auto = st.session_state.pop("_spot_auto", None)
+    if _auto:
+        if _auto in spot_options:
+            st.session_state["spot_sel"] = _auto
+        else:
+            # Unbekannt? Dann als neuen Spot vorschlagen statt zu verwerfen -
+            # das ist genau der Fall, in dem bisher gar nichts passierte.
+            st.session_state["spot_sel"] = NEW_ENTRY
+            st.session_state["spot_new"] = _auto
+    spot_choice = st.selectbox("Surf spot", [NEW_ENTRY] + spot_options,
+                               key="spot_sel")
 
     if spot_choice == NEW_ENTRY:
-        spot = st.text_input("New surf spot")
+        spot = st.text_input("New surf spot", key="spot_new")
     else:
         spot = spot_choice
 
@@ -23412,6 +23453,36 @@ if fit_source is not None:
     if df is None or df.empty:
         st.error("No usable GPS records found (FIT / GPX / TCX / Strava).")
         st.stop()
+
+    # --- Spot-Vorschlag aus dem Track ---------------------------------------
+    # Die Uhr-Sessions bekommen ihren Spot seit dem 15.09.2026 automatisch; der
+    # Web-Upload nicht. Wer hier keinen Spot waehlt, hat eine Session, die in
+    # KEINER Wertung auftaucht - und bis vor Kurzem sagte ihm das niemand.
+    # Vorgeschlagen, nicht gesetzt: Der Fahrer war da, wir nur im Track.
+    _sp_lat = _sp_lon = None
+    if "lat" in df.columns and "lon" in df.columns:
+        _gps = df.dropna(subset=["lat", "lon"])
+        if not _gps.empty:
+            _sp_lat = float(_gps["lat"].iloc[0])
+            _sp_lon = float(_gps["lon"].iloc[0])
+    if _sp_lat is not None and not _field_set(spot):
+        _nahe = _nearest_known_spot(_sp_lat, _sp_lon)
+        _vor = _nahe or _ortsname(_sp_lat, _sp_lon)
+        if _vor:
+            _v1, _v2 = st.columns([3, 1])
+            _v1.info(
+                f"📍 Erkannt: **{_vor}**"
+                + ("" if _nahe else " (neuer Spot – Ortsname aus den Koordinaten)")
+            )
+            if _v2.button("Übernehmen", key="spot_auto_btn",
+                          use_container_width=True):
+                st.session_state["_spot_auto"] = _vor
+                st.rerun()
+        else:
+            st.caption(
+                "📍 Kein Spot aus den Koordinaten erkennbar – bitte oben "
+                "eintragen. Ohne Spot zählt die Session in keiner Wertung."
+            )
 
     # Wellenreiten: Runden aus derselben Datei lesen. Bei Garmins
     # Surf-Aktivitaet und der Apple Watch ist eine Runde eine Welle - die Zahlen
