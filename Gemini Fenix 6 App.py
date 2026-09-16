@@ -17116,7 +17116,11 @@ def render_session_trim(row):
         if _d2.checkbox("Löschen bestätigen", key=f"del_ok_{sid}"):
             if _d2.button("🗑️ Session endgültig löschen", key=f"del_go_{sid}",
                           use_container_width=True):
-                if delete_session(sid, row.get("name")):
+                # Der Aufrufer im Backoffice reicht die ANZEIGE-Zeile herein,
+                # dort heisst der Fahrer "Fahrer". delete_session verlangt den
+                # Namen als Gegenprobe (kein Fremdloeschen) - mit None waere er
+                # immer leer zurueckgekommen, ohne dass etwas passiert.
+                if delete_session(sid, row.get("Fahrer") or row.get("name")):
                     st.success(f"Session #{sid} gelöscht.")
                     st.rerun()
                 else:
@@ -17128,13 +17132,20 @@ def render_session_trim(row):
                    "ohne Track keine Karte und kein Zuschnitt.")
         _loeschblock()
         return
+    # Die GANZE Zeile aus der Datenbank, nicht nur Dauer und Sportart: Der
+    # Aufrufer reicht die ANZEIGE-Zeile herein ("Fahrer", "2s km/h", …), und
+    # die Vergleichstabelle unten sucht darin DB-Feldnamen (speed_1s_kmh, …).
+    # Die fand sie dort nie – die Spalte "gespeichert" blieb immer leer, und
+    # damit verglich man den Zuschnitt mit nichts.
     dur = None
+    _db = {}
     with get_engine().connect() as conn:
-        _r = conn.execute(select(sessions_table.c.duration_s, sessions_table.c.sport)
-                          .where(sessions_table.c.id == int(sid))).first()
+        _r = conn.execute(sessions_table.select()
+                          .where(sessions_table.c.id == int(sid))).mappings().first()
     if _r is not None:
-        dur, _sport = _r[0], _r[1]
-    else:
+        _db = dict(_r)
+        dur, _sport = _db.get("duration_s"), _db.get("sport")
+    if not _sport:
         _sport = active_sport()
     n = len(track)
     dt = (float(dur) / (n - 1)) if dur and n > 1 else 5.0
@@ -17250,7 +17261,7 @@ def render_session_trim(row):
                        ("speed_alpha500_kmh", "Alpha 500 km/h"),
                        ("total_distance_km", "Distanz km"), ("longest_run_m", "Longest run m"),
                        ("duration_s", "Dauer s")):
-        cmp_rows.append({"Wert": label, "gespeichert": row.get(key) if key in row else None,
+        cmp_rows.append({"Wert": label, "gespeichert": _db.get(key),
                          "nach Zuschnitt": new.get(key)})
     st.dataframe(_round_display(pd.DataFrame(cmp_rows)), width="stretch", hide_index=True,
                  height=df_height(len(cmp_rows)))
@@ -17721,11 +17732,38 @@ def render_admin_sessions():
     # avg 5x10 fuer aeltere Sessions nachtragen – auch eine Wertungs-Sache.
     render_5x10_backfill()
 
-    sport = active_sport()
-    df = load_sessions(sport)
+    # Sportart und Zeitraum HIER waehlen, nicht oben im Kopf. Wer im Backoffice
+    # nach einer bestimmten Session sucht, weiss meistens nicht mehr, unter
+    # welcher Sportart sie liegt - und musste bisher jede einzeln durchschalten.
+    # Darum ist "Alle" die Vorgabe: Die Frage lautet fast immer "was ist zuletzt
+    # passiert", nicht "was ist beim Windsurfen passiert".
+    _ALLE_SP = "🌍 Alle Sportarten"
+    _sp_keys = list(SPORT_META.keys())
+    _sp_labels = [SPORT_META[k]["label"] for k in _sp_keys]
+    _ZEIT = {"Alle": None, "Heute": 0, "Letzte 7 Tage": 7, "Letzte 30 Tage": 30}
+    g1, g2 = st.columns(2)
+    _sp_wahl = g1.selectbox("Sportart", [_ALLE_SP] + _sp_labels,
+                            key="adm_sess_sport")
+    _zt_wahl = g2.selectbox("Zeitraum", list(_ZEIT.keys()), key="adm_sess_zeit")
+
+    _alle_sp = _sp_wahl == _ALLE_SP
+    sport = (active_sport() if _alle_sp
+             else _sp_keys[_sp_labels.index(_sp_wahl)])
+    df = load_sessions() if _alle_sp else load_sessions(sport)
+    _was = "Sessions" if _alle_sp else f"{SPORT_META[sport]['label']}-Sessions"
     if df is None or df.empty:
-        st.info(f"Keine {SPORT_META[sport]['label']}-Sessions vorhanden.")
+        st.info(f"Keine {_was} vorhanden.")
         return
+
+    _tage = _ZEIT[_zt_wahl]
+    if _tage is not None and "date" in df.columns:
+        _dt = pd.to_datetime(df["date"], errors="coerce", format="mixed")
+        _ab = pd.Timestamp(datetime.now()).normalize() - pd.Timedelta(days=_tage)
+        df = df[_dt >= _ab]
+        if df.empty:
+            st.info(f"Keine {_was} im Zeitraum „{_zt_wahl}“.")
+            return
+
     _wl = _water_ok_spots()
     rows = []
     for _, r in df.iterrows():
@@ -17735,6 +17773,10 @@ def render_admin_sessions():
             "id": int(r["id"]) if pd.notna(r.get("id")) else None,
             "Datum": (_d.strftime("%Y-%m-%d %H:%M") if hasattr(_d, "strftime")
                       and pd.notna(_d) else ""),
+            # Die Spalte nur, wenn sie etwas unterscheidet - bei einer einzelnen
+            # Sportart waere sie in jeder Zeile dieselbe.
+            **({"Sport": SPORT_META.get(str(r.get("sport") or ""), {})
+                .get("label", r.get("sport"))} if _alle_sp else {}),
             "Fahrer": r.get("name"), "Spot": r.get("surfspot"),
             "2s km/h": (round(float(r["speed_1s_kmh"]), 1)
                         if pd.notna(r.get("speed_1s_kmh")) else None),
@@ -17760,8 +17802,9 @@ def render_admin_sessions():
     if q:
         shown = [r for r in shown
                  if q in str(r["Fahrer"] or "").lower() or q in str(r["Spot"] or "").lower()]
-    st.caption(f"{len(shown)} von {len(rows)} {SPORT_META[sport]['label']}-Sessions "
-               f"· insgesamt {n_ex} ausgeschlossen. Sportart oben im Kopf umschalten.")
+    st.caption(f"{len(shown)} von {len(rows)} {_was}"
+               + ("" if _zt_wahl == "Alle" else f" ({_zt_wahl.lower()})")
+               + f" · davon {n_ex} ausgeschlossen.")
     if not shown:
         st.info("Keine Session passt zu Filter/Suche.")
         return
