@@ -11614,23 +11614,109 @@ def _sail_ctx_for(username, sport):
             "vol": vol, "k": cfg["k"], "min_kn": cfg["min_kn"], "emoji": cfg["emoji"]}
 
 
-def _sail_pick(wind_kmh, ctx):
-    """Empfohlene Groesse (str) fuer eine Windstaerke aus dem eigenen Quiver (bei
-    Zwischenwert das kleinere = boeensicher); ohne Quiver die Zielgroesse mit '~'."""
-    if not ctx or not wind_kmh:
-        return None
-    knots = wind_kmh / 1.852
-    if knots < ctx["min_kn"]:
-        return None  # zu wenig Wind zum Angleiten/Fahren
-    target = ctx["k"] * ctx["weight"] / knots
+# Wie stark die Boe in den gerechneten Wind eingeht.
+#
+# DAS PROBLEM, DAS DAMIT VERSCHWINDET: Gerechnet wurde bisher mit dem
+# MITTELWIND. Am 19.09.2026 lag der an Strand Horst bei 11 kn, die Boeen bei
+# 25 kn - mehr als das Doppelte. Die Formel ergab damit 12,3 m² und schlug einem
+# 90-kg-Fahrer sein groesstes Segel (9,2) vor, obwohl in den Boeen 6 Windstaerken
+# standen. Mit gewichteter Boe kommt 8,1 heraus und damit die 7,8: richtig.
+#
+# 0,4 heisst: Man faehrt weder nach dem Mittelwind (dann killt einen jede Boe)
+# noch nach der Spitze (dann steht man die meiste Zeit), sondern dazwischen,
+# naeher am Mittel. Der Wert ist gesetzt, nicht gemessen - kalibrierbar, sobald
+# genug Sessions mit Segelgroesse UND Boenwert vorliegen.
+_GUST_WEIGHT = 0.4
+# Ab diesem Verhaeltnis (Boe-Ueberschuss zu Mittelwind) gilt der Tag als boeig
+# und die Anzeige sagt es dazu.
+_GUSTY_RATIO = 0.5
+# Wie viel besser die neue Groesse passen muss, damit gewechselt wird (Anteil
+# der Zielflaeche). Siehe _sail_pick.
+_SAIL_HYST = 0.06
+
+
+def _sail_eff_kn(wind_kmh, gust_kmh=None):
+    """Gerechneter Wind in Knoten: Mittelwind, gewichtet um den Boenanteil."""
+    v = (wind_kmh or 0) / 1.852
+    g = (gust_kmh or 0) / 1.852
+    if g > v:
+        v += _GUST_WEIGHT * (g - v)
+    return v
+
+
+def _sail_target(eff_kn, ctx):
+    """Rechnerische Zielflaeche in m² zu einem gerechneten Wind."""
+    target = ctx["k"] * ctx["weight"] / eff_kn
     if ctx["vol"]:
         ref = ctx["weight"] + 30.0
         target *= min(1.15, max(0.9, (ref / ctx["vol"]) ** 0.25))
+    return target
+
+
+def _sail_pick(wind_kmh, ctx, gust_kmh=None, keep=None):
+    """Empfohlenes Segel aus dem eigenen Quiver. Gibt (label, groesse) zurueck.
+
+    gust_kmh: Boe derselben Stunde. Ohne sie wird wie frueher nur der
+    Mittelwind gerechnet - die Empfehlung faellt dann zu gross aus.
+
+    keep: die Groesse der Vorstunde.
+
+    HYSTERESE: Ohne sie sprang die Stundenzeile zwischen benachbarten Groessen
+    hin und her, obwohl sich der Wind kaum aenderte - am 19.09. stand um 10 Uhr
+    7,8 und um 12 Uhr 9,2 bei praktisch gleichem Wind. Eine Zeile, die so
+    zappelt, glaubt einem niemand.
+
+    Gewechselt wird darum erst, wenn die neue Groesse SPUERBAR besser passt.
+    "Bleib, solange du ±8 % triffst" waere wirkungslos gewesen: Bei ueblichen
+    Quiver-Abstaenden (~1,4 m² bei 8 m²) liegt diese Haltegrenze fast genau auf
+    der Umschaltgrenze zwischen zwei Groessen - die Bedingung haette nie
+    gegriffen, wo sie gebraucht wird.
+    """
+    if not ctx or not wind_kmh:
+        return None, None
+    eff = _sail_eff_kn(wind_kmh, gust_kmh)
+    if eff < ctx["min_kn"]:
+        return None, None  # zu wenig Wind zum Angleiten/Fahren
+    target = _sail_target(eff, ctx)
     sizes = ctx["sizes"]
     if not sizes:
-        return f"~{target:.1f}"
+        return f"~{target:.1f}", None
     best = min(sizes, key=lambda s: (abs(s[0] - target), s[0] - target))
-    return f"{best[0]:g}"
+    if keep is not None and \
+            abs(keep - target) <= abs(best[0] - target) + _SAIL_HYST * target:
+        return f"{keep:g}", keep
+    return f"{best[0]:g}", best[0]
+
+
+def _sail_hint(rows, ctx):
+    """Eine Zeile unter der Stundenansicht: Zielbereich und Boenlage.
+
+    WARUM EIN BEREICH: Ein einzelner Wert behauptet eine Genauigkeit, die es
+    bei doppeltem Boenspread nicht gibt. "7,0-7,8" ist ehrlicher als "7,4" -
+    und wer nur eine der beiden Groessen besitzt, kann selbst entscheiden.
+    """
+    if not ctx:
+        return ""
+    werte, boeig = [], False
+    for r in rows:
+        w, g = r[1] or 0, r[2]
+        if not w:
+            continue
+        eff = _sail_eff_kn(w, g)
+        if eff < ctx["min_kn"]:
+            continue
+        werte.append(_sail_target(eff, ctx))
+        if g and w and (g - w) / w > _GUSTY_RATIO:
+            boeig = True
+    if not werte:
+        return ""
+    lo, hi = min(werte), max(werte)
+    spanne = (f"{lo:.1f} m²" if abs(hi - lo) < 0.25
+              else f"{lo:.1f}–{hi:.1f} m²")
+    txt = f"{ctx['emoji']} Rechnerisch {spanne} über den Tag"
+    if boeig:
+        txt += " · böig – im Zweifel die kleinere Größe"
+    return txt
 
 
 def _marine_strip_html(lat, lon, day_index=0):
@@ -11764,6 +11850,7 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
     _uname = (st.session_state.get("user") or {}).get("username")
     _sail_ctx = _sail_ctx_for(_uname, active_sport())
     _any_sail = False
+    _sail_last = None     # Groesse der Vorstunde, fuer die Hysterese
     shore_deg = _spot_shore_deg(spot)   # Ufernormale (Grad) oder None
     offshore_any = False
     for hh, w, g, d, rad, cloud, temp, code in rows:
@@ -11793,7 +11880,9 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
             except Exception:  # noqa: BLE001
                 wx = ""
         temp_txt = f"{round(float(temp))}°" if temp is not None else ""
-        sail_txt = _sail_pick(wv, _sail_ctx)
+        # Die Boe (gv) steht hier laengst - sie ging bisher nur in den Balken
+        # ein, nicht in die Empfehlung. Genau daran lag der zu grosse Vorschlag.
+        sail_txt, _sail_last = _sail_pick(wv, _sail_ctx, gv, _sail_last)
         if sail_txt:
             _any_sail = True
         sail_html = (f"<div class='hb-sail'>{_sail_ctx['emoji']} {sail_txt}</div>"
@@ -11916,6 +12005,13 @@ def _render_hourly(spot, coords, day_index, show_thermal=False):
         elif not _sail_ctx.get("sizes"):
             st.caption(f"🎽 Showing a target size (~). Add your {_gl}s in your equipment "
                        "to see which of YOUR sizes fits.")
+        # Bereich und Boenlage IMMER dazu, wenn ueberhaupt gerechnet wurde: Die
+        # Zahl je Stunde ist die Groesse aus dem Quiver, der Bereich darunter
+        # sagt, wie genau das ueberhaupt sein kann.
+        if _any_sail:
+            _hint = _sail_hint(rows, _sail_ctx)
+            if _hint:
+                st.caption(_hint)
 
 
 @st.fragment(run_every=30)
