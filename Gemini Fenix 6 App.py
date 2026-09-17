@@ -13291,6 +13291,83 @@ def _md_lang_from_name(filename):
     return code if code in _MD_LANGS else None
 
 
+# Haeufige Funktionswoerter je Sprache. Bewusst KEINE Fachbegriffe: "Wind",
+# "Kite" oder "Spot" stehen in jeder Fassung und unterscheiden nichts.
+# Gewaehlt sind Woerter, die in einem Fliesstext dieser Laenge sicher vorkommen
+# und zwischen den Sprachen kaum ueberlappen.
+_MD_STOPWORDS = {
+    "de": ("der", "die", "das", "und", "ist", "nicht", "mit", "auf", "sich",
+           "eine", "auch", "wird", "sind", "aber", "oder", "vom"),
+    "en": ("the", "and", "is", "not", "with", "for", "this", "that", "are",
+           "you", "from", "have", "will", "there", "which", "but"),
+    "nl": ("de", "het", "een", "en", "is", "niet", "met", "voor", "dat",
+           "van", "je", "zijn", "maar", "ook", "wordt", "naar"),
+    "fr": ("le", "la", "les", "et", "est", "pas", "avec", "pour", "que",
+           "des", "une", "sur", "dans", "sont", "vous", "plus"),
+    "es": ("el", "la", "los", "las", "y", "es", "no", "con", "para", "que",
+           "una", "del", "en", "son", "por", "más"),
+    "it": ("il", "la", "le", "e", "è", "non", "con", "per", "che", "una",
+           "del", "sono", "dei", "alla", "più", "anche"),
+    "da": ("og", "er", "ikke", "med", "for", "det", "til", "af", "en",
+           "som", "der", "kan", "på", "har", "men", "eller"),
+    "sv": ("och", "är", "inte", "med", "för", "det", "till", "av", "en",
+           "som", "kan", "på", "har", "men", "eller", "den"),
+    "pl": ("i", "nie", "jest", "na", "do", "to", "się", "w", "że", "z",
+           "ale", "lub", "oraz", "przez", "dla", "może"),
+    "pt": ("o", "a", "os", "as", "e", "é", "não", "com", "para", "que",
+           "uma", "do", "da", "em", "são", "mais"),
+}
+# So viel besser muss die beste Sprache sein, damit die Erkennung als sicher
+# gilt. Lieber eine Fehlermeldung als ein niederlaendischer Text im deutschen
+# Feld - der faellt erst auf, wenn ihn jemand liest.
+_MD_LANG_MARGIN = 1.35
+
+
+def _md_detect_lang(text):
+    """Sprachkuerzel aus dem TEXT raten, oder None wenn unsicher.
+
+    Zaehlt Funktionswoerter je Sprache. Das genuegt fuer die Textlaenge eines
+    Revierfuehrers und braucht keine Bibliothek.
+    """
+    woerter = re.findall(r"[^\W\d_]+", str(text or "").lower(), flags=re.UNICODE)
+    if len(woerter) < 40:
+        return None            # zu wenig Text fuer eine ehrliche Aussage
+    gezaehlt = {}
+    for w in woerter:
+        gezaehlt[w] = gezaehlt.get(w, 0) + 1
+    treffer = {code: sum(gezaehlt.get(w, 0) for w in ws)
+               for code, ws in _MD_STOPWORDS.items()}
+    beste = sorted(treffer.items(), key=lambda kv: -kv[1])
+    if not beste or beste[0][1] < 10:
+        return None
+    if len(beste) > 1 and beste[1][1] * _MD_LANG_MARGIN > beste[0][1]:
+        return None            # zwei Sprachen zu dicht beieinander
+    return beste[0][0]
+
+
+def _md_split_langs(raw):
+    """Eine Datei mit MEHREREN Sprachfassungen in ihre Teile zerlegen.
+
+    WARUM: Der Prompt aus dem Backoffice laesst das Sprachmodell den Fuehrer
+    DREIMAL schreiben - Englisch, Landessprache, Deutsch - und liefert damit
+    eine einzige Datei. Der Import verlangte aber eine Datei je Sprache mit
+    Sprachkuerzel im Namen. Man musste die Datei also von Hand dritteln, bevor
+    man sie einladen konnte.
+
+    Getrennt wird an Ueberschriften erster Ebene: Jede Fassung beginnt mit
+    ihrem eigenen '# Titel'. Gibt es nur eine, kommt die Datei unveraendert
+    zurueck.
+    """
+    text = str(raw or "")
+    stellen = [m.start() for m in re.finditer(r"(?m)^#[ \t]+\S", text)]
+    if len(stellen) < 2:
+        return [text]
+    stellen.append(len(text))
+    teile = [text[stellen[i]:stellen[i + 1]].strip()
+             for i in range(len(stellen) - 1)]
+    return [t for t in teile if t]
+
+
 def _md_import_clean(raw):
     """Markdown fuer den Import saeubern.
 
@@ -18269,8 +18346,10 @@ def render_admin_spots():
         _ups = st.file_uploader(
             "Markdown-Dateien", type=["md", "markdown", "txt"],
             accept_multiple_files=True, key="admin_md_up",
-            help="Mehrere Dateien gleichzeitig möglich. Die Sprache wird am "
-                 "Dateinamen erkannt: …-DE.md, …-EN.md, …-NL.md usw.")
+            help="Mehrere Dateien gleichzeitig möglich. Die Sprache kommt aus "
+                 "dem Dateinamen (…-DE.md, …-EN.md) – fehlt sie dort, wird sie "
+                 "am Text erkannt. Eine Datei mit mehreren Sprachfassungen "
+                 "wird dabei automatisch aufgeteilt.")
         st.caption(
             "Was beim Einladen automatisch passiert: Die **erste Überschrift** "
             "(`# Soma Bay …`) fällt weg — die Seite setzt ihren Titel selbst. "
@@ -18287,16 +18366,40 @@ def render_admin_spots():
                 except UnicodeDecodeError:
                     # Word/Notepad speichern gern in der Windows-Codepage.
                     _roh = _f.getvalue().decode("cp1252", errors="replace")
-                _txt = _md_import_clean(_roh)
-                if not _txt:
-                    _fehler.append(f"{_f.name}: leer")
-                    continue
+                # Sprachkuerzel im Dateinamen gilt weiterhin und hat Vorrang -
+                # wer die Datei bewusst benennt, will das auch so.
                 _code = _md_lang_from_name(_f.name)
-                if not _code:
-                    _fehler.append(f"{_f.name}: keine Sprache im Dateinamen "
-                                   "(…-DE.md / …-EN.md)")
+                if _code:
+                    _txt = _md_import_clean(_roh)
+                    if not _txt:
+                        _fehler.append(f"{_f.name}: leer")
+                        continue
+                    _ziel[_code] = (_f.name, _txt)
                     continue
-                _ziel[_code] = (_f.name, _txt)
+                # Sonst die Datei in ihre Sprachfassungen zerlegen und jede am
+                # TEXT erkennen. Genau das liefert der Prompt: eine Datei mit
+                # Englisch, Landessprache und Deutsch hintereinander.
+                _teile = _md_split_langs(_roh)
+                _erkannt = 0
+                for _teil in _teile:
+                    _tc = _md_detect_lang(_teil)
+                    if not _tc:
+                        continue
+                    if _tc in _ziel:
+                        continue           # erste Fassung gewinnt
+                    _tt = _md_import_clean(_teil)
+                    if not _tt:
+                        continue
+                    _ziel[_tc] = (f"{_f.name} ({_MD_LANGS[_tc]})", _tt)
+                    _erkannt += 1
+                if not _erkannt:
+                    _fehler.append(
+                        f"{_f.name}: Sprache weder im Dateinamen (…-DE.md) "
+                        "noch am Text erkennbar")
+                elif _erkannt < len(_teile):
+                    _fehler.append(
+                        f"{_f.name}: {_erkannt} von {len(_teile)} Abschnitten "
+                        "zugeordnet – die übrigen bitte prüfen")
             if _ziel:
                 _p, _wohin = _md_apply_targets(_ziel, name)
                 st.session_state["_ki_pending"] = _p
