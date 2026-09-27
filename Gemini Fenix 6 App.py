@@ -436,12 +436,113 @@ def kmh_to_beaufort(kmh):
 # funktioniert lokal wie in Produktion.
 _PAGE_ICON = "https://mywatersessions.com/icon-192.png"
 
+# --- Messschalter ?perf=1 -------------------------------------------------
+# Beantwortet EINE Frage: Steckt die Zeit eines Klicks in der Datenbank oder im
+# Python-Code? Ohne diese Trennung ist jede Optimierung geraten - beim Ingest
+# hat genau sie die Ursache geliefert, nachdem zwei Vermutungen danebenlagen.
+#
+# Streamlit laesst bei JEDER Interaktion das ganze Skript neu laufen. Gemessen
+# werden deshalb der komplette Durchlauf und, davon getrennt, die Summe aller
+# SQL-Abfragen. Bleibt viel Zeit uebrig, liegt sie im Code - dann helfen
+# Fragmente (@st.fragment), nicht schnellere Abfragen.
+#
+# ZUSTAND JE THREAD: Streamlit faehrt jede Browser-Sitzung in einem eigenen
+# Thread. Ein gewoehnliches Modul-Dict waere zwischen allen Besuchern geteilt
+# und die Zahlen Unsinn, sobald zwei Leute gleichzeitig da sind.
+#
+# HIER OBEN definiert, aber NICHT aufgerufen: set_page_config muss der erste
+# Streamlit-Befehl sein, und schon das Lesen der Query-Parameter waere einer.
+import threading as _threading
+
+_PERF = _threading.local()
+
+
+def _perf_on():
+    try:
+        return getattr(_PERF, "on", False)
+    except Exception:
+        return False
+
+
+def _perf_note(statement, dauer):
+    """Eine ausgefuehrte SQL-Abfrage verbuchen. Wird aus dem SQLAlchemy-Hook
+    gerufen und muss deshalb IMMER billig und still sein."""
+    if not _perf_on():
+        return
+    try:
+        ms = dauer * 1000.0
+        _PERF.n += 1
+        _PERF.ms += ms
+        if ms > _PERF.top_ms:
+            _PERF.top_ms = ms
+            _PERF.top_sql = " ".join(str(statement).split())[:160]
+    except Exception:
+        pass
+
+
+def _perf_start():
+    """Nach set_page_config aufrufen. Schaltet sich nur bei ?perf=1 ein."""
+    try:
+        an = str(st.query_params.get("perf", "")) == "1"
+    except Exception:
+        an = False
+    _PERF.on = an
+    _PERF.t0 = time.perf_counter()
+    _PERF.n = 0
+    _PERF.ms = 0.0
+    _PERF.top_ms = 0.0
+    _PERF.top_sql = ""
+    _PERF.gezeigt = False
+    if not an:
+        return
+    # st.stop() MITNEHMEN: Zwanzig Stellen im Skript steigen vorzeitig aus
+    # (Impressum, TV, Backoffice ...). Ohne diesen Umweg zeigte die Messung
+    # ausgerechnet dort nichts an - und zwanzig Aufrufe einzeln anzufassen
+    # waeren zwanzig Gelegenheiten, einen zu vergessen.
+    if not getattr(st, "_perf_stop_gepatcht", False):
+        _echtes_stop = st.stop
+
+        def _stop_mit_messung():
+            _perf_render()
+            _echtes_stop()
+
+        st.stop = _stop_mit_messung
+        st._perf_stop_gepatcht = True
+
+
+def _perf_render():
+    """Die Messung anzeigen. Laeuft hoechstens einmal je Durchlauf."""
+    if not _perf_on() or getattr(_PERF, "gezeigt", False):
+        return
+    _PERF.gezeigt = True
+    try:
+        gesamt = (time.perf_counter() - _PERF.t0) * 1000.0
+        rest = gesamt - _PERF.ms
+        st.markdown("---")
+        st.caption(
+            f"**?perf=1** · Durchlauf **{gesamt:.0f} ms** · "
+            f"davon Datenbank **{_PERF.ms:.0f} ms** in **{_PERF.n}** Abfragen · "
+            f"uebriger Code **{rest:.0f} ms**"
+        )
+        if _PERF.top_sql:
+            st.caption(f"langsamste Abfrage {_PERF.top_ms:.0f} ms: `{_PERF.top_sql}`")
+        st.caption(
+            "Viel Zeit in der Datenbank → Abfragen zusammenfassen oder cachen. "
+            "Viel Zeit im übrigen Code → @st.fragment, damit ein Klick nicht "
+            "das ganze Skript neu rechnet."
+        )
+    except Exception:
+        pass
+
+
 st.set_page_config(
     page_title="MyWaterSessions",
     page_icon=_PAGE_ICON,
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+_perf_start()
 
 # --- Diese App gehoert NICHT in den Suchindex -----------------------------
 # app.mywatersessions.com ist eine Streamlit-Oberflaeche. Landet sie im Index,
@@ -1155,6 +1256,32 @@ def get_engine():
 
         engine_kwargs["creator"] = _creator
     engine = create_engine(url, connect_args=connect_args, **engine_kwargs)
+
+    # Zeitnahme fuer ?perf=1 an der Engine, nicht an den Aufrufstellen: Es gibt
+    # ueber 250 davon, und eine vergessene faelschte die Summe nach unten -
+    # also ausgerechnet in die Richtung, die "die Datenbank ist es nicht" sagt.
+    # Die Haken haengen hier, weil get_engine per @st.cache_resource genau
+    # einmal je Prozess laeuft.
+    #
+    # Ohne ?perf=1 kostet das zwei Funktionsaufrufe je Abfrage, die sofort
+    # zurueckkehren - messbar ist das nicht, und die Messung ist damit immer
+    # einsatzbereit statt erst nach einem Deploy.
+    try:
+        from sqlalchemy import event as _sa_event
+
+        @_sa_event.listens_for(engine, "before_cursor_execute")
+        def _perf_vor(conn, cursor, statement, parameters, context, executemany):
+            if _perf_on():
+                context._perf_t0 = time.perf_counter()
+
+        @_sa_event.listens_for(engine, "after_cursor_execute")
+        def _perf_nach(conn, cursor, statement, parameters, context, executemany):
+            t0 = getattr(context, "_perf_t0", None)
+            if t0 is not None:
+                _perf_note(statement, time.perf_counter() - t0)
+    except Exception:
+        pass   # Eine Messung darf nie den Start der App gefaehrden.
+
     DB_METADATA.create_all(engine)
     _migrate_legacy(engine)
     return engine
@@ -24206,3 +24333,8 @@ st.markdown(f"""
     </p>
 </div>
 """, unsafe_allow_html=True)
+
+# Ganz zum Schluss, damit die Zahl den VOLLSTAENDIGEN Durchlauf umfasst.
+# Seiten, die vorher mit st.stop() aussteigen, zeigen sie ueber den Umweg in
+# _perf_start(). Ohne ?perf=1 kehrt der Aufruf sofort zurueck.
+_perf_render()
