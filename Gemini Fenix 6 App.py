@@ -497,22 +497,74 @@ def _dbperf_start():
     _DBPERF.ms = 0.0
     _DBPERF.top_ms = 0.0
     _DBPERF.top_sql = ""
+    _DBPERF.gezeigt = False
+    if not an:
+        return
+    # st.stop() MITNEHMEN, sonst misst man nur die Startseite.
+    #
+    # FUENF DER SECHS ANSICHTEN steigen vorher aus: My Results (23507), Beat
+    # the Beach, Live, Spots, Safety - dazu Impressum, TV, Backoffice, Login.
+    # Die Profiler-Zeile steht aber erst ganz unten im Skript. Ohne diesen
+    # Umweg zeigt ?perf=1 ausgerechnet auf den Seiten nichts, die man messen
+    # will. (Genau das ist passiert, als dieser Patch einmal wegfiel.)
+    #
+    # EINMAL ersetzen statt zwanzig Aufrufe einzeln anzufassen - das waeren
+    # zwanzig Gelegenheiten, einen zu vergessen. Und nur im Messbetrieb.
+    if not getattr(st, "_dbperf_stop_gepatcht", False):
+        _echtes_stop = st.stop
+
+        def _stop_mit_messung():
+            _dbperf_zeigen()
+            _echtes_stop()
+
+        st.stop = _stop_mit_messung
+        st._dbperf_stop_gepatcht = True
 
 
-def _dbperf_text():
-    """Zusatz fuer die Profiler-Zeile. Leer, wenn nicht gemessen wurde."""
-    if not _dbperf_on():
+def _dbperf_zeile():
+    """Die vollstaendige Profiler-Zeile bauen; "" wenn nichts zu zeigen ist.
+
+    Sie vereint beide Messungen: die Abschnittszeiten des alten Profilers
+    (_PERF, weiter unten im Skript) und den Datenbank-Anteil von hier. Getrennt
+    angezeigt waeren es zwei Zahlen, die man erst gegeneinander rechnen muss -
+    und genau diese Trennung ist ja der Zweck.
+
+    _PERF wird ueber globals() geholt, nicht direkt benannt: Diese Funktion
+    steht weit VOR der Liste im Skript. Zum Aufrufzeitpunkt gibt es sie, zum
+    Definitionszeitpunkt nicht. Auf den frueh abbrechenden Seiten fehlt sie
+    ganz - dann bleibt eben der Datenbank-Teil.
+    """
+    if not _dbperf_on() or getattr(_DBPERF, "gezeigt", False):
         return ""
+    _DBPERF.gezeigt = True
     try:
+        teile = []
+        liste = globals().get("_PERF")
+        if isinstance(liste, list) and liste:
+            teile.append(
+                " · ".join(f"{lbl}: {ms:.0f} ms" for lbl, ms in liste)
+                + f" (Σ {sum(ms for _, ms in liste):.0f} ms)")
         gesamt = (time.perf_counter() - _DBPERF.t0) * 1000.0
         rest = gesamt - _DBPERF.ms
-        t = (f"  ·  Durchlauf {gesamt:.0f} ms, davon DB {_DBPERF.ms:.0f} ms "
-             f"in {_DBPERF.n} Abfragen, uebriger Code {rest:.0f} ms")
+        teile.append(f"Durchlauf {gesamt:.0f} ms, davon DB {_DBPERF.ms:.0f} ms "
+                     f"in {_DBPERF.n} Abfragen, uebriger Code {rest:.0f} ms")
         if _DBPERF.top_sql:
-            t += f"  ·  langsamste Abfrage {_DBPERF.top_ms:.0f} ms: {_DBPERF.top_sql}"
-        return t
+            teile.append(
+                f"langsamste Abfrage {_DBPERF.top_ms:.0f} ms: {_DBPERF.top_sql}")
+        return "⏱ " + "  ·  ".join(teile)
     except Exception:
         return ""
+
+
+def _dbperf_zeigen():
+    """Die Zeile ausgeben. Hoechstens einmal je Durchlauf (siehe gezeigt)."""
+    t = _dbperf_zeile()
+    if not t:
+        return
+    try:
+        st.caption(t)
+    except Exception:
+        pass
 
 
 st.set_page_config(
@@ -23916,15 +23968,16 @@ with left:
 
 # Personal Bests + Session-Editor liegen jetzt auf der „👤 My Results"-Seite.
 
-# Profiler-Ausgabe (nur mit ?perf=1): zeigt die Dauer der Hauptbereiche - und
-# seit 28.09.2026 zusaetzlich, wie viel davon in der DATENBANK steckt
-# (_dbperf_text ganz oben). Erst diese Trennung sagt, ob Caching hilft oder ob
-# @st.fragment noetig ist: Streamlit rechnet bei jedem Klick das ganze Skript
-# neu, und wenn die Zeit dort liegt, nuetzen schnellere Abfragen nichts.
-if st.query_params.get("perf") and _PERF:
-    st.caption("⏱ " + " · ".join(f"{lbl}: {ms:.0f} ms" for lbl, ms in _PERF)
-               + f"  (Σ {sum(ms for _, ms in _PERF):.0f} ms)"
-               + _dbperf_text())
+# Profiler-Ausgabe (nur mit ?perf=1): Abschnittszeiten UND Datenbank-Anteil,
+# gebaut in _dbperf_zeile() ganz oben. Erst diese Trennung sagt, ob Caching
+# hilft oder ob @st.fragment noetig ist: Streamlit rechnet bei jedem Klick das
+# ganze Skript neu, und wenn die Zeit dort liegt, nuetzen schnellere Abfragen
+# nichts.
+#
+# HIER steht sie nur fuer die Startseite - fuenf der sechs Ansichten steigen
+# vorher mit st.stop() aus und zeigen sie ueber den Patch in _dbperf_start().
+# Doppelt erscheint sie nicht, dafuer sorgt das gezeigt-Kennzeichen.
+_dbperf_zeigen()
 
 
 required_ok = all([
