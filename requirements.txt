@@ -13,7 +13,16 @@ pandas==2.2.3
 pyarrow==17.0.0
 pydeck
 fitparse
-SQLAlchemy
+# GEPINNT (28.09.2026, die App stand still): Ungepinnt zog ein Neubau
+# SQLAlchemy 2.1.1. Dort ist der Standardtreiber fuer "postgresql://" von
+# psycopg2 auf psycopg (v3) gewechselt - installiert ist hier aber nur
+# psycopg2-binary. Ergebnis: "ModuleNotFoundError: No module named 'psycopg'"
+# beim Start und ein Crashloop. Ausgeloest hat das KEIN Codewechsel, sondern
+# allein ein Deploy - dieselbe Falle wie bei numpy/pyarrow darueber.
+# Zusaetzlich steht der Treiber jetzt ausdruecklich in der URL (_mit_treiber),
+# damit ein kuenftiger Standardwechsel gar nicht mehr greift.
+# Vor einem Upgrade auf 2.1.x: psycopg[binary] mit aufnehmen.
+SQLAlchemy==2.0.54
 extra-streamlit-components
 qrcode[pil]
 

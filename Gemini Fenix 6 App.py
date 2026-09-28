@@ -1141,14 +1141,49 @@ _SESSION_COLS_NO_TRACK = [c for c in sessions_table.c if c.name != "track"]
 
 
 def _database_url():
+    url = None
     try:
         url = st.secrets.get("DATABASE_URL")
-        if url:
-            return url
     except Exception:
         pass
+    if not url:
+        url = os.environ.get("DATABASE_URL")
+    if not url:
+        return f"sqlite:///{app_path('surfapp.db')}"
+    return _mit_treiber(url)
 
-    return os.environ.get("DATABASE_URL") or f"sqlite:///{app_path('surfapp.db')}"
+
+def _mit_treiber(url):
+    """Den Treiber AUSDRUECKLICH in die URL schreiben: postgresql+psycopg2://
+
+    WARUM (28.09.2026, die App stand still): DATABASE_URL kommt als
+    "postgresql://..." ohne Treiberangabe. Welchen SQLAlchemy dann waehlt, ist
+    seine Entscheidung - und die hat sich geaendert. Bis 2.0 war es psycopg2,
+    seit 2.1 ist es psycopg (v3). Installiert ist bei uns nur psycopg2-binary,
+    also endete der erste Neubau nach dem Versionssprung in
+
+        ModuleNotFoundError: No module named 'psycopg'
+
+    und die App kam nicht mehr hoch. Ausgeloest hat das kein Codewechsel,
+    sondern ein Deploy: SQLAlchemy stand in requirements.txt ungepinnt, pip
+    holte 2.1.1.
+
+    Die Version ist jetzt gepinnt - aber ein Pin ist nur eine Bitte an die
+    Zukunft. Steht der Treiber in der URL, ist die Wahl gar nicht mehr
+    SQLAlchemys, und der naechste Standardwechsel geht an uns vorbei.
+
+    Beide Schreibweisen abdecken: "postgres://" ist die alte Heroku-Form, die
+    manche Anbieter bis heute ausgeben.
+    """
+    try:
+        if "://" not in url or "+" in url.split("://", 1)[0]:
+            return url          # sqlite, oder Treiber steht schon drin
+        schema, rest = url.split("://", 1)
+        if schema in ("postgres", "postgresql"):
+            return "postgresql+psycopg2://" + rest
+    except Exception:
+        pass
+    return url
 
 
 def _py(value):
