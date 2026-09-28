@@ -498,6 +498,7 @@ def _dbperf_start():
     _DBPERF.top_ms = 0.0
     _DBPERF.top_sql = ""
     _DBPERF.gezeigt = False
+    _DBPERF.marken = []
     if not an:
         return
     # st.stop() MITNEHMEN, sonst misst man nur die Startseite.
@@ -519,6 +520,41 @@ def _dbperf_start():
 
         st.stop = _stop_mit_messung
         st._dbperf_stop_gepatcht = True
+
+
+def _dbperf_marke(label):
+    """Abschnittsgrenze setzen. Der Name beschreibt, was VOR ihr lag.
+
+    Damit zerfaellt der Durchlauf in seine Phasen. Das ist die Frage hinter
+    "fuehlt sich nicht direkt an": Streamlit rechnet bei JEDEM Klick das ganze
+    Skript neu - also auch Vorspann, Kopfzeile und Seitenleiste, nicht nur die
+    Ansicht, die man gerade sieht. Liegt die Zeit dort, hilft @st.fragment;
+    liegt sie in der Ansicht, muss man dort ansetzen.
+    """
+    if not _dbperf_on():
+        return
+    try:
+        _DBPERF.marken.append((label, time.perf_counter()))
+    except Exception:
+        pass
+
+
+def _dbperf_phasen():
+    """Die Phasen als Text, oder "" wenn keine Marken gesetzt wurden."""
+    try:
+        marken = getattr(_DBPERF, "marken", None)
+        if not marken:
+            return ""
+        teile = []
+        vor = _DBPERF.t0
+        for label, t in marken:
+            teile.append(f"{label} {(t - vor) * 1000:.0f} ms")
+            vor = t
+        # Was nach der letzten Marke kam, ist die eigentliche Ansicht.
+        teile.append(f"Ansicht {(time.perf_counter() - vor) * 1000:.0f} ms")
+        return " · ".join(teile)
+    except Exception:
+        return ""
 
 
 def _dbperf_zeile():
@@ -548,6 +584,9 @@ def _dbperf_zeile():
         rest = gesamt - _DBPERF.ms
         teile.append(f"Durchlauf {gesamt:.0f} ms, davon DB {_DBPERF.ms:.0f} ms "
                      f"in {_DBPERF.n} Abfragen, uebriger Code {rest:.0f} ms")
+        ph = _dbperf_phasen()
+        if ph:
+            teile.append(ph)
         if _DBPERF.top_sql:
             teile.append(
                 f"langsamste Abfrage {_DBPERF.top_ms:.0f} ms: {_DBPERF.top_sql}")
@@ -19737,6 +19776,10 @@ if st.query_params.get("state", "").startswith("strava") and "code" in st.query_
             del st.query_params[_k]
     st.rerun()
 
+# Alles bis hier ist VORSPANN: Importe, CSS, Tabellendefinitionen, die rund
+# 19 000 Zeilen Funktionsdefinitionen. Das laeuft bei JEDEM Klick neu.
+_dbperf_marke("Vorspann")
+
 # Aktiver Sport (aus ?sport=). Standard: Windsurf.
 sport = active_sport()
 _is_spots_view = st.query_params.get("view") == "spots"
@@ -21841,6 +21884,9 @@ def render_account_sidebar(user):
                 st.rerun()
 
 
+# Dazwischen lagen Sportart-Umschalter, Navigationsleiste und Seitenzaehlung.
+_dbperf_marke("Kopfzeile")
+
 # Fehlende Tabellen anlegen (z.B. nach Deploy mit neuen Tabellen) – vor jedem DB-Zugriff.
 ensure_schema()
 # Uhr-Spalten ungecacht nachziehen (ensure_schema ist @st.cache_resource-gegated).
@@ -22082,6 +22128,11 @@ render_account_sidebar(current_user)
 if st.session_state.get("_pending_token"):
     _persist_auth_cookie(st.session_state["_pending_token"])
     st.session_state.pop("_pending_token", None)
+
+
+# Dazwischen lagen Schema-Pruefung, Anmeldung und Konto-Seitenleiste. Ab hier
+# beginnt die eigentliche Ansicht - alles davor laeuft auf JEDER Seite gleich.
+_dbperf_marke("Anmeldung")
 
 
 # Reine Spots-Seite (Revierführer) – ersetzt die Rankings; Header/Umschalter oben
