@@ -22900,12 +22900,20 @@ def render_my_results_page(user):
 
     render_sport_switch(st.columns([1, 2])[0])
 
+    # ?perf=1 zerlegt diese Seite in ihre Bausteine. Gemessen am 28.09.2026
+    # entfielen 206 der 289 ms eines Durchlaufs auf diese Funktion - welcher
+    # der elf Bausteine das ist, sagte die Zahl aber nicht. Die Marken kosten
+    # ohne ?perf=1 je einen Funktionsaufruf, der sofort zurueckkehrt.
+    _dbperf_marke("Kopf")
+
     # --- "Wo du gerade vorne bist" – Erfolgs-Badge zur Begrüßung ---
     render_best_placement(name)
+    _dbperf_marke("Badge")
 
     # --- Headline-KPIs (Allzeit-Rekorde + Performance-Index) ---
     render_my_results_kpis(name)
     st.markdown("---")
+    _dbperf_marke("KPIs")
 
     # --- Beat the Beach: kompakte Kachel, Hauptort ist ?view=beat ---
     # Bewusst abgesichert: die Kachel ist ein Zusatz auf einer bestehenden Seite.
@@ -22916,11 +22924,13 @@ def render_my_results_page(user):
         st.markdown("---")
     except Exception:  # noqa: BLE001
         logging.exception("Beat-the-Beach-Kachel fehlgeschlagen")
+    _dbperf_marke("BtB")
 
     # --- Personal Bests: Filter offen + eigener Rang + Top-10-Tabelle ---
     pb_table, pb_caption, pb_total = render_personal_best_filter(name, inline=True)
     render_my_results_rank(name, st.session_state.get(f"pb_spot_{name}", "All"))
     render_personal_best_table(pb_table, pb_caption, pb_total)
+    _dbperf_marke("Bestleistungen")
 
     st.markdown("---")
 
@@ -22928,21 +22938,25 @@ def render_my_results_page(user):
     selected = render_session_history(name)
     if selected is not None:
         render_history_overview(selected)
+    _dbperf_marke("Sessions")
 
     st.markdown("---")
 
     # --- Finnenberater (Windsurf, aufklappbar; reine Faustregel, kein Serverkost) ---
     _render_fin_advisor(name)
+    _dbperf_marke("Finne")
 
     st.markdown("---")
 
     # --- Historie von anderen Diensten importieren (Wechselhuerde senken) ---
     render_history_import(user)
+    _dbperf_marke("Import")
 
     st.markdown("---")
 
     # --- Sessions vervollständigen (Spot/Board/Segel -> zählen fürs Ranking) ---
     render_session_editor(user)
+    _dbperf_marke("Editor")
 
 
 # ===========================================================================
