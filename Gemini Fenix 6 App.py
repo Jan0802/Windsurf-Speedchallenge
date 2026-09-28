@@ -22089,6 +22089,7 @@ if st.session_state.get("_pending_token"):
 if _is_spots_view:
     ensure_schema()
     render_spots_page(current_user)
+    _dbperf_zeigen()   # ?perf=1: vor dem Ausstieg messen
     st.stop()
 
 
@@ -22096,11 +22097,13 @@ if _is_spots_view:
 # Ingest-SEO-Seite, mit Sprachwahl. Erreichbar über die Gefahren-Tags + Spots-Seite.
 if _is_safety_view:
     render_safety_page()
+    _dbperf_zeigen()   # ?perf=1: vor dem Ausstieg messen
     st.stop()
 
 # Ranglisten-Erklärseite (?view=rankings-help) – erklärt alle Wertungen.
 if _is_rankings_help:
     render_rankings_help()
+    _dbperf_zeigen()   # ?perf=1: vor dem Ausstieg messen
     st.stop()
 
 
@@ -23556,16 +23559,19 @@ def render_public_live_page():
 # Persönliche „My Results"-Seite (Bestleistungen + eigene Sessions + Editor).
 if _is_results_view:
     render_my_results_page(current_user)
+    _dbperf_zeigen()   # ?perf=1: vor dem Ausstieg messen
     st.stop()
 
 # „Beat the Beach"-Seite (?view=beat) – auch ohne Login (dann nur der Rekord).
 if _is_beat_view:
     render_beat_the_beach(current_user)
+    _dbperf_zeigen()   # ?perf=1: vor dem Ausstieg messen
     st.stop()
 
 # Öffentliche Live-Seite (?view=live) – bewusst ganz ohne Login.
 if _is_live_view:
     render_public_live_page()
+    _dbperf_zeigen()   # ?perf=1: vor dem Ausstieg messen
     st.stop()
 
 
