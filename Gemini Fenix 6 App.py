@@ -436,15 +436,20 @@ def kmh_to_beaufort(kmh):
 # funktioniert lokal wie in Produktion.
 _PAGE_ICON = "https://mywatersessions.com/icon-192.png"
 
-# --- Messschalter ?perf=1 -------------------------------------------------
-# Beantwortet EINE Frage: Steckt die Zeit eines Klicks in der Datenbank oder im
-# Python-Code? Ohne diese Trennung ist jede Optimierung geraten - beim Ingest
-# hat genau sie die Ursache geliefert, nachdem zwei Vermutungen danebenlagen.
+# --- Datenbank-Anteil fuer den vorhandenen Profiler (?perf=1) --------------
+# Die App misst mit ?perf=1 SCHON die Dauer der Hauptbereiche - siehe _PERF
+# und _perf() weit unten, die "⏱ rankings: 250 ms (Σ 250 ms)"-Zeile. Was dort
+# fehlte, ist die Trennung, auf die es ankommt: Steckt die Zeit in den
+# ABFRAGEN oder im Python-Code? Nur die beantwortet, ob Caching hilft oder ob
+# @st.fragment noetig ist, damit ein Klick nicht 24 000 Zeilen neu rechnet.
 #
-# Streamlit laesst bei JEDER Interaktion das ganze Skript neu laufen. Gemessen
-# werden deshalb der komplette Durchlauf und, davon getrennt, die Summe aller
-# SQL-Abfragen. Bleibt viel Zeit uebrig, liegt sie im Code - dann helfen
-# Fragmente (@st.fragment), nicht schnellere Abfragen.
+# Hier wird deshalb NUR die Datenbank gemessen; angezeigt wird das Ergebnis
+# unten in derselben Profiler-Zeile. Zwei getrennte Messungen nebeneinander
+# waeren zwei Zahlen, die man erst gegeneinander rechnen muesste.
+#
+# ACHTUNG BEIM BENENNEN: _PERF gehoert dem Profiler weiter unten. Ein zweites
+# _PERF hier oben wird dort stillschweigend ueberschrieben - die Messung ist
+# dann tot, ohne Fehlermeldung. Deshalb _DBPERF.
 #
 # ZUSTAND JE THREAD: Streamlit faehrt jede Browser-Sitzung in einem eigenen
 # Thread. Ein gewoehnliches Modul-Dict waere zwischen allen Besuchern geteilt
@@ -454,85 +459,60 @@ _PAGE_ICON = "https://mywatersessions.com/icon-192.png"
 # Streamlit-Befehl sein, und schon das Lesen der Query-Parameter waere einer.
 import threading as _threading
 
-_PERF = _threading.local()
+_DBPERF = _threading.local()
 
 
-def _perf_on():
+def _dbperf_on():
     try:
-        return getattr(_PERF, "on", False)
+        return getattr(_DBPERF, "on", False)
     except Exception:
         return False
 
 
-def _perf_note(statement, dauer):
+def _dbperf_note(statement, dauer):
     """Eine ausgefuehrte SQL-Abfrage verbuchen. Wird aus dem SQLAlchemy-Hook
     gerufen und muss deshalb IMMER billig und still sein."""
-    if not _perf_on():
+    if not _dbperf_on():
         return
     try:
         ms = dauer * 1000.0
-        _PERF.n += 1
-        _PERF.ms += ms
-        if ms > _PERF.top_ms:
-            _PERF.top_ms = ms
-            _PERF.top_sql = " ".join(str(statement).split())[:160]
+        _DBPERF.n += 1
+        _DBPERF.ms += ms
+        if ms > _DBPERF.top_ms:
+            _DBPERF.top_ms = ms
+            _DBPERF.top_sql = " ".join(str(statement).split())[:120]
     except Exception:
         pass
 
 
-def _perf_start():
+def _dbperf_start():
     """Nach set_page_config aufrufen. Schaltet sich nur bei ?perf=1 ein."""
     try:
         an = str(st.query_params.get("perf", "")) == "1"
     except Exception:
         an = False
-    _PERF.on = an
-    _PERF.t0 = time.perf_counter()
-    _PERF.n = 0
-    _PERF.ms = 0.0
-    _PERF.top_ms = 0.0
-    _PERF.top_sql = ""
-    _PERF.gezeigt = False
-    if not an:
-        return
-    # st.stop() MITNEHMEN: Zwanzig Stellen im Skript steigen vorzeitig aus
-    # (Impressum, TV, Backoffice ...). Ohne diesen Umweg zeigte die Messung
-    # ausgerechnet dort nichts an - und zwanzig Aufrufe einzeln anzufassen
-    # waeren zwanzig Gelegenheiten, einen zu vergessen.
-    if not getattr(st, "_perf_stop_gepatcht", False):
-        _echtes_stop = st.stop
-
-        def _stop_mit_messung():
-            _perf_render()
-            _echtes_stop()
-
-        st.stop = _stop_mit_messung
-        st._perf_stop_gepatcht = True
+    _DBPERF.on = an
+    _DBPERF.t0 = time.perf_counter()
+    _DBPERF.n = 0
+    _DBPERF.ms = 0.0
+    _DBPERF.top_ms = 0.0
+    _DBPERF.top_sql = ""
 
 
-def _perf_render():
-    """Die Messung anzeigen. Laeuft hoechstens einmal je Durchlauf."""
-    if not _perf_on() or getattr(_PERF, "gezeigt", False):
-        return
-    _PERF.gezeigt = True
+def _dbperf_text():
+    """Zusatz fuer die Profiler-Zeile. Leer, wenn nicht gemessen wurde."""
+    if not _dbperf_on():
+        return ""
     try:
-        gesamt = (time.perf_counter() - _PERF.t0) * 1000.0
-        rest = gesamt - _PERF.ms
-        st.markdown("---")
-        st.caption(
-            f"**?perf=1** · Durchlauf **{gesamt:.0f} ms** · "
-            f"davon Datenbank **{_PERF.ms:.0f} ms** in **{_PERF.n}** Abfragen · "
-            f"uebriger Code **{rest:.0f} ms**"
-        )
-        if _PERF.top_sql:
-            st.caption(f"langsamste Abfrage {_PERF.top_ms:.0f} ms: `{_PERF.top_sql}`")
-        st.caption(
-            "Viel Zeit in der Datenbank → Abfragen zusammenfassen oder cachen. "
-            "Viel Zeit im übrigen Code → @st.fragment, damit ein Klick nicht "
-            "das ganze Skript neu rechnet."
-        )
+        gesamt = (time.perf_counter() - _DBPERF.t0) * 1000.0
+        rest = gesamt - _DBPERF.ms
+        t = (f"  ·  Durchlauf {gesamt:.0f} ms, davon DB {_DBPERF.ms:.0f} ms "
+             f"in {_DBPERF.n} Abfragen, uebriger Code {rest:.0f} ms")
+        if _DBPERF.top_sql:
+            t += f"  ·  langsamste Abfrage {_DBPERF.top_ms:.0f} ms: {_DBPERF.top_sql}"
+        return t
     except Exception:
-        pass
+        return ""
 
 
 st.set_page_config(
@@ -542,7 +522,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-_perf_start()
+_dbperf_start()
 
 # --- Diese App gehoert NICHT in den Suchindex -----------------------------
 # app.mywatersessions.com ist eine Streamlit-Oberflaeche. Landet sie im Index,
@@ -1305,15 +1285,15 @@ def get_engine():
         from sqlalchemy import event as _sa_event
 
         @_sa_event.listens_for(engine, "before_cursor_execute")
-        def _perf_vor(conn, cursor, statement, parameters, context, executemany):
-            if _perf_on():
-                context._perf_t0 = time.perf_counter()
+        def _dbperf_vor(conn, cursor, statement, parameters, context, executemany):
+            if _dbperf_on():
+                context._dbperf_t0 = time.perf_counter()
 
         @_sa_event.listens_for(engine, "after_cursor_execute")
-        def _perf_nach(conn, cursor, statement, parameters, context, executemany):
-            t0 = getattr(context, "_perf_t0", None)
+        def _dbperf_nach(conn, cursor, statement, parameters, context, executemany):
+            t0 = getattr(context, "_dbperf_t0", None)
             if t0 is not None:
-                _perf_note(statement, time.perf_counter() - t0)
+                _dbperf_note(statement, time.perf_counter() - t0)
     except Exception:
         pass   # Eine Messung darf nie den Start der App gefaehrden.
 
@@ -23936,10 +23916,15 @@ with left:
 
 # Personal Bests + Session-Editor liegen jetzt auf der „👤 My Results"-Seite.
 
-# Profiler-Ausgabe (nur mit ?perf=1): zeigt die Dauer der Hauptbereiche.
+# Profiler-Ausgabe (nur mit ?perf=1): zeigt die Dauer der Hauptbereiche - und
+# seit 28.09.2026 zusaetzlich, wie viel davon in der DATENBANK steckt
+# (_dbperf_text ganz oben). Erst diese Trennung sagt, ob Caching hilft oder ob
+# @st.fragment noetig ist: Streamlit rechnet bei jedem Klick das ganze Skript
+# neu, und wenn die Zeit dort liegt, nuetzen schnellere Abfragen nichts.
 if st.query_params.get("perf") and _PERF:
     st.caption("⏱ " + " · ".join(f"{lbl}: {ms:.0f} ms" for lbl, ms in _PERF)
-               + f"  (Σ {sum(ms for _, ms in _PERF):.0f} ms)")
+               + f"  (Σ {sum(ms for _, ms in _PERF):.0f} ms)"
+               + _dbperf_text())
 
 
 required_ok = all([
@@ -24368,8 +24353,3 @@ st.markdown(f"""
     </p>
 </div>
 """, unsafe_allow_html=True)
-
-# Ganz zum Schluss, damit die Zahl den VOLLSTAENDIGEN Durchlauf umfasst.
-# Seiten, die vorher mit st.stop() aussteigen, zeigen sie ueber den Umweg in
-# _perf_start(). Ohne ?perf=1 kehrt der Aufruf sofort zurueck.
-_perf_render()
