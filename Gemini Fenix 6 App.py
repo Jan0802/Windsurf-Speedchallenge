@@ -22346,7 +22346,28 @@ def _bp_rank_in(df, name, metric):
     }
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+# 30 MINUTEN statt 5 (28.09.2026, mit ?perf=1 gemessen).
+#
+# Diese Funktion war der teuerste einzelne Posten der ganzen App: 322 ms von
+# 568 ms eines kalten Aufrufs von My Results - 57 Prozent, und viermal so viel
+# wie der naechstgroessere Posten. Warm kostet sie 3 ms.
+#
+# Der Grund steht unten: eine verschachtelte Schleife ueber alle Kontexte des
+# Fahrers (jeder seiner Spots, dazu die Gewichtsklasse) mal alle Kennzahlen.
+# Mit ttl=300 fiel diese Rechnung alle fuenf Minuten erneut an - und traf damit
+# fast jeden Besucher, der die Seite oeffnet.
+#
+# WARUM DAS VERTRETBAR IST: Das Badge sagt "wo du gerade vorne bist". Das
+# aendert sich, wenn jemand eine Session hochlaedt, nicht im Minutentakt. Eine
+# halbe Stunde Verzug ist bei dieser Aussage nicht zu bemerken; 322 ms
+# Wartezeit beim Oeffnen schon. ttl=3600 ist in dieser Datei ohnehin die
+# haeufigste Wahl (11 Stellen).
+#
+# ACHTUNG, falls das je stoeren sollte: Die App leert Caches NIRGENDS
+# ausdruecklich, auch nicht nach einem Upload - sie verlaesst sich allein auf
+# die Fristen. Wer hier kuerzer will, muesste stattdessen die Rechnung
+# billiger machen (weniger Kandidaten), nicht die Frist senken.
+@st.cache_data(ttl=1800, show_spinner=False)
 def best_placement(name, sport):
     """Bester glaubwuerdiger Teilwertungs-Rang des Fahrers. -> dict mit top/others
     ODER {'fallback': ...} ODER None."""
