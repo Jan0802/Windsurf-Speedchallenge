@@ -20159,7 +20159,12 @@ _hero_icon = (
 # bis an den oberen Bildrand. Bei 22 % fehlte ihm die Spitze (nachgesehen, nicht
 # geraten - hero_crop4.py rendert 22/12/6/0 % nebeneinander). 8 % laesst das
 # Segel vollstaendig und behaelt unten die Welle.
-_HERO_POS_Y = {"windsurf": "8%"}
+#
+# Wing: Der Header von Oktober 2026 (Fahrer in der Welle, Sonnenuntergang) hat
+# dasselbe Problem - der Fluegel reicht oben aus dem Bild. Bei 22 % ist seine
+# Spitze weg, bei 12 % steht sie frei und unten bleibt das Wasser. Ebenfalls
+# nachgesehen, nicht geraten (hero_crop5.py, gleiche Methode).
+_HERO_POS_Y = {"windsurf": "8%", "wingsurf": "12%"}
 
 _hero_css = ""
 if os.path.exists(app_path("static", "hero", f"{sport}-1920.webp")):
