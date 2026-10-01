@@ -17123,9 +17123,34 @@ def _iq_reach(days):
                 {"d": days}).mappings().all()
     except Exception:  # noqa: BLE001
         return None
+    # Die Stufe dazwischen: Uhren, die eine fertige Session SENDEN wollten und
+    # kein Konto haben (iq_upload_denied, gefüllt aus dem 401 im Ingest).
+    #
+    # IN EIGENEM try: Die Tabelle ist jünger als iq_devices. Stünde sie in
+    # derselben Abfolge, würde ein fehlender Deploy die ganze Kachel auf None
+    # setzen – und damit auch die Zahlen verstecken, die längst da sind.
+    abgewiesen = None
+    try:
+        with get_engine().connect() as conn:
+            _a = conn.execute(text(
+                "SELECT COUNT(DISTINCT device_hash), COALESCE(SUM(tries),0),"
+                " MIN(day) FROM iq_upload_denied"
+                " WHERE day >= CURRENT_DATE - :d"), {"d": days}).first()
+            _spaeter = conn.execute(text(
+                "SELECT COUNT(*) FROM ("
+                "  SELECT DISTINCT device_hash FROM iq_upload_denied"
+                "   WHERE day >= CURRENT_DATE - :d) d"
+                " WHERE EXISTS (SELECT 1 FROM iq_devices i"
+                "  WHERE i.device_hash = d.device_hash AND i.linked IS TRUE)"),
+                {"d": days}).scalar() or 0
+            abgewiesen = {"devices": int(_a[0] or 0), "tries": int(_a[1] or 0),
+                          "since": _a[2], "later_linked": int(_spaeter)}
+    except Exception:  # noqa: BLE001
+        abgewiesen = None
     return {"devices": int(ger), "linked": int(verb), "since": seit,
             "by_sport": [dict(r) for r in sportarten],
-            "by_day": [dict(r) for r in tage]}
+            "by_day": [dict(r) for r in tage],
+            "denied": abgewiesen}
 
 
 def render_iq_reach(days):
@@ -17170,6 +17195,37 @@ def render_iq_reach(days):
         _d = pd.DataFrame(reach["by_day"]).rename(columns={"n": "Uhren"})
         _d["day"] = pd.to_datetime(_d["day"])
         st.bar_chart(_d.set_index("day")[["Uhren"]])
+    # --- Die Stufe, die bisher fehlte ------------------------------------
+    #
+    # „Aktive Uhren" heißt nur: Beim Sessionstart war ein Handy in Reichweite.
+    # Ob daraus eine gefahrene, gestoppte und abgeschickte Session wurde, stand
+    # nirgends. Diese Zahl sagt es: Jemand hat gefahren, gestoppt, „Save and
+    # Send" gewählt – und scheitert an der Kontoverknüpfung.
+    #
+    # Das ist die präziseste Stelle im ganzen Trichter, weil hier keine Absicht
+    # geraten wird. Wer hier steht, wollte seine Daten bei uns haben.
+    _ab = reach.get("denied")
+    if _ab and _ab["devices"]:
+        st.markdown("**Wollten senden, haben kein Konto**")
+        d1, d2, d3 = st.columns(3)
+        d1.metric("⌚ Uhren", _de(_ab["devices"]),
+                  help="verschiedene Geräte, deren Upload mangels Konto "
+                       "abgewiesen wurde")
+        d2.metric("↻ Versuche", _de(_ab["tries"]),
+                  help="Die Uhr wiederholt aus ihrer Warteschlange. Viele "
+                       "Versuche je Gerät heißt: Da liegen mehrere Sessions "
+                       "und jemand will sie loswerden.")
+        _quote = (_ab["later_linked"] / _ab["devices"]) if _ab["devices"] else 0
+        d3.metric("🔗 danach verbunden", f"{_quote * 100:.0f} %",
+                  help="Anteil dieser Geräte, die später doch ein Konto "
+                       "bekommen haben – die Erfolgsquote des Onboardings.")
+        st.caption(
+            f"Gezählt seit {_ab['since']}. Rückwirkend gibt es nichts: Vor dem "
+            "Einbau wurde dieses Ereignis beantwortet und vergessen."
+        )
+    elif _ab is not None:
+        st.caption("Noch keine abgewiesenen Uploads erfasst.")
+
     if reach["by_sport"]:
         st.markdown("**Sportarten** (verschiedene Uhren, nicht Sessions)")
         st.dataframe(
