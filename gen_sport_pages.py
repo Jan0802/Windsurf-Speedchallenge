@@ -166,6 +166,16 @@ SPORTS = {
                "name": {"en": "Wakeboard", "de": "Wakeboard", "nl": "Wakeboard", "fr": "Wakeboard", "es": "Wakeboard"}},
 }
 
+# --- Header-Foto je Sportart ----------------------------------------------
+# Slug -> Dateiname-Stamm unter /img. Wer hier nicht steht, bekommt den
+# Farbverlauf von vorher - die Seite sieht dann aus wie bisher, nicht kaputt.
+#
+# ZWEI GROESSEN je Bild (<stamm>-1920.webp und <stamm>-960.webp), erzeugt aus
+# der Vorlage in Bilder\Hintergruende. Ein Handy laedt sonst 1920 px, die es
+# nie zeigt - und diese Seiten existieren fuer Google, das genau die Ladezeit
+# des sichtbaren Bereichs misst.
+HERO_BG = {"wingfoil": "wingfoil-hero"}
+
 # app ?sport= key je slug
 SPORT_KEY = {"windsurf": "windsurf", "kitesurf": "kitesurf", "wingfoil": "wingsurf",
              "sup": "sup", "wakeboard": "wakeboard"}
@@ -468,7 +478,7 @@ TEMPLATE = """<!doctype html>
   .sports-links a{{ display:inline-block; margin:4px 10px 4px 0; }}
   footer{{ padding:30px 0 48px; color:#7fa6b2; font-size:13px; text-align:center; }}
   footer a{{ color:#9fd9e3; margin:0 8px; }}
-</style>
+{herocss}</style>
 {beacon}
 </head>
 <body>
@@ -543,6 +553,34 @@ def build():
                 for c in SPORTS[slug]["cards"]
             )
             why = "".join(f"<li>{w.replace('%SPOTS%', SPOTS)}</li>" for w in t["why"])
+            # Header-Foto, falls es fuer diese Sportart eines gibt.
+            #
+            # DER VERLAUF BLEIBT UND LIEGT OBEN. Er ist nicht Deko, sondern der
+            # Grund, warum die weisse Schrift auf einem Foto lesbar bleibt - ein
+            # Sonnenuntergang hat helle Stellen, und genau dort stuenden sonst
+            # Logo und Ueberschrift. Nach unten laeuft er fast blickdicht aus,
+            # damit der Uebergang zum Seitenhintergrund nicht als Kante sichtbar
+            # wird.
+            #
+            # 62 % STATT MITTE: Das Motiv (Fahrer, Welle) sitzt rechts, die
+            # Sonne links. Auf einem Handy schneidet "cover" den Grossteil der
+            # Breite weg - mittig zentriert bliebe nur Wasser uebrig. 62 %
+            # haelt den Fahrer im Bild und nimmt den Sonnenschein mit.
+            herocss = ""
+            if slug in HERO_BG:
+                stamm = HERO_BG[slug]
+                # Keine f-Strings hier: Die geschweiften Klammern sind CSS, und
+                # in einem f-String waeren sie Platzhalter.
+                verlauf = ("linear-gradient(180deg, rgba(6,34,46,.55),"
+                           " rgba(6,34,46,.93))")
+                herocss = (
+                    "  .hero{ background-image: " + verlauf
+                    + ", url('/img/" + stamm + "-1920.webp');"
+                    " background-size:cover; background-position:62% center; }\n"
+                    "  @media(max-width:960px){ .hero{ background-image: " + verlauf
+                    + ", url('/img/" + stamm + "-960.webp'); } }\n"
+                )
+
             others = [s for s in SLUGS if s != slug]
             otherlinks = " · ".join(
                 f'<a href="/{fname(s, lang)}">{SPORTS[s]["name"][lang]}</a>' for s in others
@@ -557,6 +595,7 @@ def build():
                 foot=t["foot"], homehref=home[lang], home=t["home"],
                 guidehref=guide[lang], guide=t["guide"], spotsw=t["spotsw"],
                 chg=t["chg"], openapp=t["openapp"], beacon=BEACON,
+                herocss=herocss,
             )
             with open(os.path.join(out_dir, fname(slug, lang)), "w", encoding="utf-8") as fh:
                 fh.write(html)
