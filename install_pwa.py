@@ -120,6 +120,24 @@ def kopf_block(sw_name: str) -> str:
             fehler(f"{name} enthaelt '</script' - das zerlegt den <head>")
         teile.append(t)
     ui_text = "\n".join(teile)
+
+    # Welche Sportarten ein Kopffoto HABEN - aus dem Ordner gelesen, nicht
+    # aufgeschrieben. Eine Liste im Quelltext waere beim naechsten neuen Sport
+    # still falsch; das Verzeichnis kann das nicht sein.
+    #
+    # Ohne diese Pruefung wuerde "?sport=unsinn" einen Download ins Leere
+    # anstossen - harmlos, aber eine 404 in der Konsole jedes Besuchers, der
+    # sich an der URL vertippt.
+    hero_dir = os.path.join(HIER, "static", "hero")
+    sportarten = sorted({
+        n[:-len("-1920.webp")]
+        for n in (os.listdir(hero_dir) if os.path.isdir(hero_dir) else [])
+        if n.endswith("-1920.webp")
+    })
+    if not sportarten:
+        sag("install_pwa: WARNUNG - keine Kopffotos gefunden, kein Vorabladen")
+    sport_js = "[" + ",".join(f"'{s}'" for s in sportarten) + "]"
+
     return f"""{MARKE_AUF}
     <link rel="manifest" href="/pwa.webmanifest" />
     <meta name="theme-color" content="#02162b" />
@@ -127,6 +145,46 @@ def kopf_block(sw_name: str) -> str:
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="WaterSessions" />
     <link rel="apple-touch-icon" href="/app/static/pwa/apple-touch-icon.png" />
+    <script>
+      /* Kopffoto SOFORT anfordern, nicht erst wenn Streamlit laeuft.
+       *
+       * DAS PROBLEM: Das Foto haengt als CSS-Variable am Kopfbereich, und dieses
+       * CSS entsteht im Python-Durchlauf. Der kann aber erst beginnen, wenn das
+       * JavaScript-Buendel geladen, geparst und die WebSocket-Verbindung
+       * aufgebaut ist. Bis dahin weiss der Browser nichts von dem Bild -
+       * sichtbar als dunkelblauer Kasten, in den das Foto spaeter nachrutscht.
+       * Jan hat es als "laedt den Header zweimal" beschrieben, und so sieht es
+       * auch aus.
+       *
+       * HIER IM <head> faengt der Browser den Download an, waehrend er das
+       * Buendel noch holt - also parallel statt hintereinander.
+       *
+       * DIESELBE REGEL WIE DER SERVER, nicht geraten: active_sport() liest
+       * ausschliesslich ?sport= und faellt auf "windsurf" zurueck. Der Browser
+       * kann die Sportart damit genauso bestimmen - keine Gefahr, das falsche
+       * Bild zu holen.
+       *
+       * 640 px ist der Umschaltpunkt der Media Query im Kopfbereich; bei einer
+       * anderen Zahl laedt das Handy die grosse Fassung VORAB und die kleine
+       * danach - also beide.
+       *
+       * Faellt hier irgendetwas aus, passiert nichts Schlimmes: Dann holt das
+       * CSS das Bild wie bisher, nur eben spaeter. Darum das try ohne Inhalt.
+       */
+      try {{
+        var _ok = {sport_js};
+        var _sp = new URLSearchParams(location.search).get('sport') || 'windsurf';
+        if (_ok.indexOf(_sp) >= 0) {{
+          var _br = (window.innerWidth <= 640) ? '960' : '1920';
+          var _l = document.createElement('link');
+          _l.rel = 'preload';
+          _l.as = 'image';
+          _l.type = 'image/webp';
+          _l.href = '/app/static/hero/' + _sp + '-' + _br + '.webp';
+          document.head.appendChild(_l);
+        }}
+      }} catch (e) {{}}
+    </script>
     <script>
       if ('serviceWorker' in navigator) {{
         window.addEventListener('load', function () {{
