@@ -628,16 +628,24 @@ _dbperf_start()
 #
 # Seit Impressum und Datenschutz als statische Seiten auf der Website liegen,
 # geht dabei auch keine Pflichtseite mehr verloren.
-if not st.session_state.get("_noindex_meta"):
-    st.session_state["_noindex_meta"] = True
-    components.html(
-        "<script>(function(){try{var d=window.parent.document;"
-        "if(!d.querySelector('meta[name=\"robots\"]')){"
-        "var m=d.createElement('meta');m.name='robots';"
-        "m.content='noindex,nofollow';d.head.appendChild(m);}"
-        "}catch(e){}})();</script>",
-        height=0,
-    )
+#
+# OHNE WAECHTER je Sitzung, und zwar aus demselben Grund wie bei den beiden
+# Bloecken vor dem Kopfbereich: Ein Element, das nur im ERSTEN Durchlauf
+# entsteht, verschiebt beim zweiten alles darunter im Element-Baum um einen
+# Platz. Streamlit haengt die Elemente dann neu - sichtbar als Kopfbereich, der
+# kurz doppelt dasteht (Jans Befund vom 07.10.2026).
+#
+# Hier kostet der Verzicht nichts: Das Skript fragt selbst, ob das Meta-Tag
+# schon da ist, und tut sonst nichts. Der Waechter war eine Sparmassnahme ohne
+# Ersparnis.
+components.html(
+    "<script>(function(){try{var d=window.parent.document;"
+    "if(!d.querySelector('meta[name=\"robots\"]')){"
+    "var m=d.createElement('meta');m.name='robots';"
+    "m.content='noindex,nofollow';d.head.appendChild(m);}"
+    "}catch(e){}})();</script>",
+    height=0,
+)
 
 
 # --- "Online jetzt"-Zähler (grobe Näherung) -------------------------------
@@ -19907,6 +19915,23 @@ for _i, _key in enumerate(SPORTS):
 # das Bild nimmt die Textfarbe an, faerbt sich also beim aktiven Knopf mit.
 # Einmal pro Session in den <style> des Eltern-Dokuments, wie beim Hintergrund;
 # die sechs Icons sind zusammen ~50 KB und haben in keinem Rerun etwas verloren.
+# IMMER GENAU EIN ELEMENT HIER, auch wenn es nichts zu senden gibt.
+#
+# JANS BEFUND (07.10.2026): "Für ganz kurze Zeit stehen die Header-Bilder
+# übereinander, dann verschwindet das untere."
+#
+# Die Ursache ist nicht das Bild, sondern die ANZAHL der Elemente über ihm.
+# Dieser Block und der ws-bg-Block darunter schickten ihr components.html NUR
+# im ersten Durchlauf einer Sitzung. Beim zweiten Durchlauf fehlten also zwei
+# Elemente, und alles darunter – der Kopfbereich zuerst – rückte im
+# Element-Baum zwei Plätze nach vorn. Streamlit kann die Elemente dann nicht
+# mehr zuordnen, hängt die neue Fassung an und entfernt die alte: für einen
+# Augenblick stehen zwei Kopfbereiche untereinander.
+#
+# Die Lösung ist nicht, das CSS jedes Mal zu schicken – es sind rund 50 KB.
+# Sondern: Das Element steht immer, der INHALT entscheidet. Beim zweiten
+# Durchlauf enthält es ein Skript, das nichts tut.
+_tiles = []
 if not st.session_state.get("_sport_tile_css"):
     # Leistenformat statt Kachelformat: 22-px-Bildzone, 11-px-Beschriftung,
     # schmales Polster. 38 px und 9 px Polster waren richtig, solange die zehn
@@ -20025,15 +20050,22 @@ if not st.session_state.get("_sport_tile_css"):
         )
     if _tiles:
         st.session_state["_sport_tile_css"] = True
-        components.html(
-            "<script>(function(){try{var d=window.parent.document;"
-            "var el=d.getElementById('ws-sport-tiles');"
-            "if(!el){el=d.createElement('style');el.id='ws-sport-tiles';"
-            "d.head.appendChild(el);}"
-            "el.textContent=" + json.dumps("".join(_tiles)) + ";"
-            "}catch(e){}})();</script>",
-            height=0,
-        )
+
+# Ausserhalb des if: Das Element entsteht in JEDEM Durchlauf, der Inhalt nur im
+# ersten. "null" heisst fuer das Skript "nichts zu tun" - der <style> im
+# Elterndokument steht ja schon und wird von Streamlit nicht angefasst.
+components.html(
+    "<script>(function(){try{var t="
+    + (json.dumps("".join(_tiles)) if _tiles else "null") + ";"
+    "if(t===null){return;}"
+    "var d=window.parent.document;"
+    "var el=d.getElementById('ws-sport-tiles');"
+    "if(!el){el=d.createElement('style');el.id='ws-sport-tiles';"
+    "d.head.appendChild(el);}"
+    "el.textContent=t;"
+    "}catch(e){}})();</script>",
+    height=0,
+)
 
 if _sw_cols[_NAV_V0].button(
     "Spots", key="switch_view_spots", use_container_width=True,
@@ -20077,15 +20109,20 @@ if _sw_cols[_NAV_V0 + 3].button(
 # Ein Rest muss bleiben: Wer die Seite schon offen hatte, traegt den alten
 # <style id="ws-bg"> mit dem Foto noch im Dokument. Der wird hier einmal je
 # Sitzung geleert - ohne das saehe genau dieser Nutzer weiter das Bild.
-if not st.session_state.get("_bg_cleared"):
-    st.session_state["_bg_cleared"] = True
-    components.html(
-        "<script>(function(){try{"
-        "var el=window.parent.document.getElementById('ws-bg');"
-        "if(el){el.textContent='';}"
-        "}catch(e){}})();</script>",
-        height=0,
-    )
+#
+# OHNE WAECHTER, und das ist Absicht: Das Skript ist folgenlos, wenn es nichts
+# zu tun gibt - ein bereits leerer <style> wird eben noch einmal geleert. Der
+# Waechter sparte also nichts und kostete dafuer die Stabilitaet des
+# Element-Baums: Beim zweiten Durchlauf fehlte dieses Element, alles darunter
+# rueckte einen Platz vor, und der Kopfbereich wurde neu gehaengt (siehe die
+# ausfuehrliche Begruendung beim Kachel-Block weiter oben).
+components.html(
+    "<script>(function(){try{"
+    "var el=window.parent.document.getElementById('ws-bg');"
+    "if(el){el.textContent='';}"
+    "}catch(e){}})();</script>",
+    height=0,
+)
 
 # Mobile-Layout: auf schmalen Screens Spalten (st.columns) untereinander stapeln
 # statt nebeneinander (sonst laufen z.B. die 7 Navi-Buttons ueber den Rand) +
