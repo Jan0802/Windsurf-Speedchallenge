@@ -2867,6 +2867,83 @@ def render_feedback_form(source="", key_prefix=""):
     st.caption("We read every message but can't always reply. No account needed.")
 
 
+# Was an einem Spot falsch sein kann. Die Auswahl ist kein Selbstzweck: Sie
+# steht spaeter als erste Zeile in der Nachricht, und damit sieht man im
+# Backoffice schon in der Liste, worum es geht - ohne jede Meldung zu oeffnen.
+#
+# "Something else" steht bewusst am Ende und nicht am Anfang: Die erste Wahl
+# wird am haeufigsten genommen, und eine Meldung ohne Einordnung ist genau die,
+# die man zweimal lesen muss.
+SPOT_REPORT_KINDS = [
+    "Description is wrong or outdated",
+    "Wrong location or coordinates",
+    "Hazards wrong or missing",
+    "Wrong sports or conditions",
+    "Webcam link broken",
+    "Name wrong / duplicate spot",
+    "Something else",
+]
+
+
+def render_spot_report(spot, user=None):
+    """Melden, dass an einem Spot etwas nicht stimmt.
+
+    WARUM EIN EIGENES FORMULAR und nicht render_feedback_form: Eine
+    Spot-Meldung ohne den Spot ist wertlos - und freiwillig schreibt ihn
+    niemand dazu ("das Bild stimmt nicht" steht dann ohne Ort im Backoffice).
+    Hier steht er automatisch an drei Stellen: in der Quelle zum Filtern, in der
+    ersten Zeile zum Lesen und in der Einordnung zum Sortieren.
+
+    WARUM UEBERHAUPT: Die Spot-Texte, die Einstufung und die Gefahren kommen
+    groesstenteils von der KI. Fehler sind dort keine Ausnahme, sondern zu
+    erwarten - und ohne Rueckmeldeweg bleiben sie stehen, auch wenn taeglich
+    jemand darueber stolpert. Wer einen Spot kennt, sieht einen falschen Satz
+    sofort; bisher konnte er nichts damit anfangen.
+    """
+    flash = st.session_state.pop(f"_spotrep_ok_{spot}", None)
+    if flash:
+        st.success("🙏 Thanks — we'll check it.")
+    with st.expander("⚠️ Something wrong on this spot? Let us know"):
+        st.caption(
+            "Spot descriptions and ratings are partly AI-generated — if you "
+            "know this spot and something is off, this is the fastest way to "
+            "get it fixed."
+        )
+        with st.form(f"spot_report_{spot}", clear_on_submit=True):
+            kind = st.selectbox("What's wrong?", SPOT_REPORT_KINDS,
+                                key=f"spotrep_kind_{spot}")
+            msg = st.text_area(
+                "What should it say instead?", key=f"spotrep_msg_{spot}",
+                placeholder="A sentence is enough. Local knowledge welcome.",
+                height=100,
+            )
+            # Eingeloggt: Name steht schon fest, danach fragt niemand gern
+            # zweimal. Ohne Konto bleibt das Feld - Meldungen sollen auch von
+            # Gaesten moeglich sein, die ueber die Spot-Seite hereinkommen.
+            nm = (user or {}).get("username") or ""
+            if not nm:
+                nm = st.text_input("Name (optional)", key=f"spotrep_name_{spot}")
+            em = st.text_input(
+                "Email (optional, only if you'd like a reply)",
+                key=f"spotrep_mail_{spot}",
+            )
+            sent = st.form_submit_button("Send report")
+        if sent:
+            if len((msg or "").strip()) < 3:
+                st.warning("Please add a short note about what's wrong.")
+            else:
+                # Spotname AUCH in die Nachricht: source ist auf 40 Zeichen
+                # begrenzt (siehe save_feedback), lange Spotnamen wuerden dort
+                # abgeschnitten. Im Text steht er vollstaendig.
+                save_feedback(
+                    f"[Spot] {spot}\n[{kind}]\n\n{msg}",
+                    nm, em, f"spot:{spot}",
+                )
+                st.session_state[f"_spotrep_ok_{spot}"] = True
+                st.rerun()
+        st.caption("Goes to our backoffice only — no account needed.")
+
+
 # ---- Sponsor-Self-Service: per-Spot-Login (Admin 2) ------------------------
 def set_spot_manager_password(spot, password):
     """Setzt/aktualisiert das Sponsor-Passwort fuer einen Spot (durch Admin 1)."""
@@ -14031,6 +14108,11 @@ def render_spots_page(user=None):
     # --- Community-Sterne-Bewertung (nur Sterne, kein Text) ---
     _render_spot_rating(spot, user)
 
+    # Meldeweg DIREKT UNTER den Angaben, auf die er sich bezieht - Beschreibung,
+    # Einstufung, Gefahren stehen gerade darueber. Weiter unten, hinter Fotos und
+    # Wetter, haette ihn niemand mit dem falschen Satz in Verbindung gebracht.
+    render_spot_report(spot, user)
+
     # Bilder-Galerie: Handy/Tablet 6 Fotos (2 Spalten -> 3x2, geht sauber auf),
     # Desktop 5 Fotos in EINER Reihe (Querformat-Bilder wirken über wenige breite
     # Spalten sonst gestreckt). Gecachte Thumbnails -> kleine Seitenlast.
@@ -17369,12 +17451,24 @@ def render_admin_feedback():
         when = _ca.strftime("%d.%m.%Y %H:%M") if hasattr(_ca, "strftime") else str(_ca or "")
         who = f.get("name") or "anonym"
         mark = "" if f.get("handled") else "🟡 "
-        with st.expander(f"{mark}{who} · {when}"):
+        # Spot-Meldungen SCHON IM TITEL erkennbar. Sie kommen aus einem eigenen
+        # Formular (render_spot_report) und betreffen fast immer einen Text, den
+        # die KI geschrieben hat - man will sie der Reihe nach abarbeiten, und
+        # dafuer muss man sehen, welche es sind, ohne jede zu oeffnen.
+        _src = f.get("source") or ""
+        _spot = _src[5:] if _src.startswith("spot:") else ""
+        _titel = f"{mark}{'⚠️ ' + _spot + ' · ' if _spot else ''}{who} · {when}"
+        with st.expander(_titel):
             st.write(f.get("message") or "")
             if f.get("email"):
                 st.caption(f"✉️ {f['email']}")
-            if f.get("source"):
-                st.caption(f"Quelle: {f['source']}")
+            if _spot:
+                # Direkt zur Seite, um die es geht - sonst sucht man den Spot
+                # von Hand in einer Liste mit hunderten Eintraegen.
+                _q = urlencode({"view": "spots", "spot": _spot})
+                st.caption(f"Quelle: {_src} · [Spot-Seite öffnen](?{_q})")
+            elif _src:
+                st.caption(f"Quelle: {_src}")
             b1, b2 = st.columns(2)
             if not f.get("handled"):
                 if b1.button("✓ Erledigt", key=f"fbdone_{f['id']}"):
