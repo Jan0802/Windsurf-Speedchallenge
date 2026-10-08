@@ -12878,6 +12878,15 @@ _MD_CSS = (
     # und nicht mit dem Fliesstext verschmelzen.
     ".md-h{color:#7fe6ea;font-weight:600;line-height:1.3;"
     "margin:26px 0 8px;}"
+    # Ueberschriften und Tabellen beginnen UNTER einem eingeflochtenen Bild,
+    # nicht daneben.
+    #
+    # Seit die Bilder auch in strukturierten Text eingeflochten werden, steht
+    # links oder rechts ein Foto von 38 % Breite. Eine Ueberschrift daneben
+    # sieht aus, als gehoerte sie zur Bildunterschrift; eine Tabelle mit 520 px
+    # Mindestbreite passt gar nicht erst und wuerde scrollen, obwohl daneben
+    # Platz waere. Fliesstext darf weiter umfliessen - dafuer ist das Layout da.
+    ".md-h,.md-tw{clear:both;}"
     "h3.md-h{font-size:23px;}h4.md-h{font-size:19px;}h5.md-h{font-size:17px;}"
     # Aufzaehlungen: Einzug, damit die Punkte nicht am Rand kleben.
     ".md-l{margin:6px 0 12px;padding-left:22px;}"
@@ -13074,6 +13083,65 @@ def _split_into(text, n):
     return [c for c in chunks if c.strip()]
 
 
+# Alles, was _md_lite als eigenstaendigen Block ausgibt. Nur ZWISCHEN diesen
+# Bloecken darf geschnitten werden.
+_MD_TAG_RE = re.compile(r"<(/?)(p|h[3-5]|ul|ol|table|blockquote|pre|div)\b[^>]*>",
+                        re.I)
+
+
+def _split_blocks(html, n):
+    """Strukturierten Text in ~n Stuecke schneiden – NUR an Blockgrenzen.
+
+    WOZU: _split_into schneidet an Wortgrenzen und verweigert deshalb bei
+    Tabellen und Ueberschriften ganz (sonst laege <table> im einen Stueck und
+    </table> im anderen). Fuer _lead_split ist dieses Verweigern richtig – ein
+    15-KB-Revierfuehrer gehoert nicht in eine schmale Spalte neben die Webcam.
+
+    Fuers Einflechten der Bilder war es aber falsch: Ein Text aus Markdown hat
+    fast immer eine Ueberschrift, bekam also GENAU EIN Stueck – und alle Bilder
+    landeten hinten dran statt im Text (Jans Befund vom 08.10.2026, Isla Blanca
+    / Cancún).
+
+    Gezaehlt wird die Verschachtelungstiefe: Geschnitten wird nur, wo sie auf
+    null steht, also hinter einem abgeschlossenen Block. Damit kann kein
+    <table> und keine <ul> auseinandergerissen werden – unabhaengig davon, was
+    _md_lite kuenftig noch erzeugt.
+    """
+    t = html or ""
+    if n <= 1 or not t.strip():
+        return [t] if t.strip() else []
+
+    grenzen = []          # Offsets, an denen geschnitten werden DARF
+    tiefe = 0
+    for m in _MD_TAG_RE.finditer(t):
+        if m.group(1):    # schliessendes Tag
+            tiefe = max(0, tiefe - 1)
+            if tiefe == 0:
+                grenzen.append(m.end())
+        else:
+            tiefe += 1
+    if not grenzen:
+        return [t]
+
+    # Die Schnitte moeglichst gleichmaessig verteilen: je Zielmarke die
+    # naechstgelegene erlaubte Grenze nehmen, jede nur einmal.
+    schnitte = []
+    for k in range(1, n):
+        ziel = len(t) * k // n
+        kand = min((g for g in grenzen if g not in schnitte),
+                   key=lambda g: abs(g - ziel), default=None)
+        if kand is not None and kand not in (0, len(t)):
+            schnitte.append(kand)
+    schnitte = sorted(set(schnitte))
+
+    stuecke, start = [], 0
+    for s in schnitte:
+        stuecke.append(t[start:s])
+        start = s
+    stuecke.append(t[start:])
+    return [s for s in stuecke if s.strip()]
+
+
 def _desc_with_images(text, uris):
     """Beschreibungstext mit eingeflochtenen Bildern (abwechselnd links/rechts
     floatend, Text läuft drumherum – Magazin-Layout). Ohne Bilder: einfacher Text."""
@@ -13088,7 +13156,11 @@ def _desc_with_images(text, uris):
         return (f"<img src='{uris[j]}' style='float:{side};width:38%;max-width:430px;"
                 f"border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.18);{m}'>")
 
-    chunks = _split_into(text, len(uris) + 1)
+    # Strukturierter Text (Ueberschriften, Tabellen, Listen) wird an
+    # BLOCKGRENZEN geteilt, Fliesstext an Wortgrenzen. Vorher gab es fuer den
+    # ersten Fall gar keine Teilung - und damit alle Bilder am Ende.
+    chunks = (_split_blocks(text, len(uris) + 1) if _hat_bloecke(text)
+              else _split_into(text, len(uris) + 1))
     out = [f"<div style='{base}overflow:hidden'>"]
     for i, ch in enumerate(chunks):
         j = i - 1
