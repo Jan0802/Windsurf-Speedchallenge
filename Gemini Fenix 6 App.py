@@ -17309,10 +17309,30 @@ def _iq_reach(days):
                           "since": _a[2], "later_linked": int(_spaeter)}
     except Exception:  # noqa: BLE001
         abgewiesen = None
+    # Welche App-Version läuft auf den Uhren?
+    #
+    # DIE FRAGE, DIE AM 10.10.2026 NICHT ZU BEANTWORTEN WAR: Ein Store-Release
+    # mit dem Token-Fix war draußen, aber ob er bei den Geräten ankam, stand
+    # nirgends – kein Upload trug eine Versionsangabe. Man sah Zahlen und
+    # konnte sie nicht deuten.
+    #
+    # „?" sind Uhren, die noch zu alt sind, um ihre Version zu melden. Diese
+    # Zahl ist selbst die Antwort: Solange sie groß ist, läuft der Rollout noch.
+    versionen = None
+    try:
+        with get_engine().connect() as conn:
+            versionen = [dict(r) for r in conn.execute(text(
+                "SELECT COALESCE(app,'?') AS v,"
+                " COUNT(DISTINCT device_hash) AS n FROM iq_devices"
+                " WHERE day >= CURRENT_DATE - :d GROUP BY 1 ORDER BY 2 DESC"),
+                {"d": days}).mappings().all()]
+    except Exception:  # noqa: BLE001
+        versionen = None
     return {"devices": int(ger), "linked": int(verb), "since": seit,
             "by_sport": [dict(r) for r in sportarten],
             "by_day": [dict(r) for r in tage],
-            "denied": abgewiesen}
+            "denied": abgewiesen,
+            "by_app": versionen}
 
 
 def render_iq_reach(days):
@@ -17387,6 +17407,24 @@ def render_iq_reach(days):
         )
     elif _ab is not None:
         st.caption("Noch keine abgewiesenen Uploads erfasst.")
+
+    # --- Kommt ein Store-Release bei den Uhren an? ------------------------
+    _vs = reach.get("by_app")
+    if _vs:
+        st.markdown("**App-Version auf den Uhren**")
+        _ges = sum(r["n"] for r in _vs) or 1
+        st.dataframe(
+            pd.DataFrame([
+                {"Version": ("? (älter als 1.3.3)" if r["v"] == "?" else r["v"]),
+                 "Uhren": r["n"], "Anteil": f"{r['n'] * 100 / _ges:.0f} %"}
+                for r in _vs]),
+            hide_index=True, use_container_width=True)
+        st.caption(
+            "„?“ sind Uhren, die zu alt sind, um ihre Version zu melden. "
+            "Solange dieser Anteil groß ist, läuft der Rollout eines Updates "
+            "noch – und Zahlen, die von einem Fix abhängen, sind noch nicht "
+            "zu deuten."
+        )
 
     if reach["by_sport"]:
         st.markdown("**Sportarten** (verschiedene Uhren, nicht Sessions)")
