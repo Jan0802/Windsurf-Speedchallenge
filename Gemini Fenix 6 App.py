@@ -19957,10 +19957,19 @@ if "ping" in st.query_params:
     st.write("ping ok")
     st.stop()
 
-# Auto-Aufwaermen per ?warm=1 (Cron alle ~10 Min): fuellt die prozessweiten
-# Caches nach einem Deploy/Neustart, damit echte Besucher (und der Spot-TV) NICHT
-# in den langsamen Kaltstart/502 laufen. Leichtgewichtig, kein Login noetig; dank
-# Cache-TTL macht der Cron nur echte Arbeit, wenn ein Cache abgelaufen/leer ist.
+# Auto-Aufwaermen per ?warm=1: fuellt die prozessweiten Caches, damit echte
+# Besucher (und der Spot-TV) nicht in den Kaltstart laufen.
+#
+# ERNUECHTERUNG (gemessen 11.10.2026): Ein Cron-GET auf ?warm=1 fuehrt diesen
+# Code NICHT aus. Streamlit laeuft das Skript erst, wenn ein Browser die
+# WebSocket-Sitzung oeffnet - ein einfacher GET bekommt nur die index.html.
+# Der Cron haelt damit zwar den Render-Dienst wach (jeder HTTP-Treffer zaehlt
+# fuer den Leerlauf-Timer, dafuer reicht auch ?ping=1), aber die Caches fuellt
+# erst der erste echte Besucher. Dass das ertraeglich ist, liegt an zwei
+# Dingen: Der Dienst steht in Frankfurt (kurze Wege zu Neon), und Neon selbst
+# haelt der Warm-Cron des INGEST wach - beide teilen sich die Datenbank.
+# Diese Route bleibt trotzdem: Im BROWSER aufgerufen waermt sie wirklich
+# (nach einem Deploy einmal oeffnen), und sie zeigt an, was sie geladen hat.
 if "warm" in st.query_params:
     ensure_schema()
     ensure_watch_columns()
@@ -22217,20 +22226,44 @@ ensure_watch_columns()
 ensure_pwa()
 
 # Login aus „Angemeldet bleiben"-Cookie wiederherstellen.
-# st.context.cookies liefert auf der Streamlit Community Cloud leider nichts,
-# daher lesen wir das Cookie über die extra-streamlit-components-Komponente –
-# ABER nur, wenn noch KEIN User in der Session ist (= frischer Seitenaufruf).
-# Sobald eingeloggt, wird nichts gemountet → Reruns/Filter-Interaktionen bleiben
-# schnell. Der Komponenten-Roundtrip fällt also nur einmal beim Laden an.
+#
+# SCHNELLER WEG ZUERST: st.context.cookies. Die Cookies kommen mit dem
+# WebSocket-Handshake an den Server - sie sind also schon im ERSTEN Durchlauf
+# da, ohne Komponenten-Mount, ohne Warte-Rerun. Genau dafuer setzt
+# _persist_auth_cookie das Cookie per JS auf die App-Domain (path=/).
+# Der alte Hinweis "st.context.cookies liefert nichts" stammt von der
+# Streamlit Community Cloud; auf Render (gemessen 11.10.2026, Streamlit 1.58)
+# reicht der Proxy den Cookie-Header durch.
+#
+# DIE KOMPONENTE BLEIBT ALS NETZ DARUNTER - aber nur noch fuer den Fall, der
+# sich von "Plattform liefert keine Cookies" nicht unterscheiden laesst: ein
+# komplett cookieloser Browser. Hat der Besucher IRGENDEIN Cookie auf der
+# Domain, nur kein surf_auth, dann funktioniert der Kontext nachweislich und
+# er ist schlicht nicht angemeldet -> direkt zum Login, ohne "one moment".
+#
+# Gemountet wird weiterhin nur, wenn noch KEIN User in der Session ist
+# (= frischer Seitenaufruf). Sobald eingeloggt, wird nichts gemountet ->
+# Reruns/Filter-Interaktionen bleiben schnell.
 if "user" not in st.session_state:
-    cm = _cookie_manager()
     saved_token = None
+    _ctx_hat_cookies = False
+    try:
+        _ctx = st.context.cookies
+        _ctx_hat_cookies = len(_ctx) > 0
+        saved_token = _ctx.get("surf_auth")
+    except Exception:
+        saved_token = None
 
-    if cm is not None:
-        try:
-            saved_token = cm.get("surf_auth")
-        except Exception:
-            saved_token = None
+    cm = None
+    if not saved_token and not _ctx_hat_cookies:
+        # Kontext leer: entweder kann die Plattform es nicht, oder der Browser
+        # hat wirklich keine Cookies. Beides sieht gleich aus -> alter Weg.
+        cm = _cookie_manager()
+        if cm is not None:
+            try:
+                saved_token = cm.get("surf_auth")
+            except Exception:
+                saved_token = None
 
     if saved_token:
         restored = user_for_token(saved_token)
