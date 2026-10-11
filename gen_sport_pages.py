@@ -14,6 +14,18 @@ BEACON = ("<script type='module' src='https://static.cloudflareinsights.com/beac
 
 SLUGS = ["windsurf", "kitesurf", "wingfoil", "sup", "wakeboard"]
 
+# Ratgeber-Links je (slug, lang) - erzeugt von gen_guide_pages.py. Interner
+# Link MIT dem Suchbegriff als Ankertext: Die Landingpage verkauft, der
+# Ratgeber erklaert; wer nach "GPS Tracking Windsurfen" sucht, soll von hier
+# dorthin finden (und Google den Zusammenhang sehen). Weitere Sportarten
+# bekommen ihren Eintrag, sobald ihr Ratgeber existiert.
+GUIDE_LINKS = {
+    ("windsurf", "de"): ("gps-tracking-windsurfen.html",
+                         "Ratgeber: GPS-Tracking beim Windsurfen — Speed richtig messen"),
+    ("windsurf", "en"): ("gps-tracking-windsurfing.html",
+                         "Guide: GPS tracking for windsurfing — measuring speed properly"),
+}
+
 
 def fname(slug, lang):
     return f"{slug}.html" if lang == "en" else f"{slug}-{lang}.html"
@@ -502,7 +514,7 @@ TEMPLATE = """<!doctype html>
     <h2>{s_why}</h2>
     <ul>{why}</ul>
     <p style="margin-top:22px;"><a class="btn" href="{app}/?sport={sportkey}">{cta}</a></p>
-    <div class="sports-links"><b>{other}</b> {otherlinks}</div>
+    <div class="sports-links">{otherlinks}</div>
   </div>
 </section>
 <footer>
@@ -585,6 +597,13 @@ def build():
             otherlinks = " · ".join(
                 f'<a href="/{fname(s, lang)}">{SPORTS[s]["name"][lang]}</a>' for s in others
             )
+            # Ratgeber-Link (falls vorhanden) VOR die Sportarten-Zeile.
+            _gl = GUIDE_LINKS.get((slug, lang))
+            if _gl:
+                otherlinks = (f'<a href="/{_gl[0]}">📘 {_gl[1]}</a><br>'
+                              + f"<b>{t['other']}</b> " + otherlinks)
+            else:
+                otherlinks = f"<b>{t['other']}</b> " + otherlinks
             html = TEMPLATE.format(
                 html=t["html"], title=title, meta=meta, canon=canon, base=BASE,
                 hreflang=hreflang, h1=h1, h1_plain=strip_tags(h1), sub=sub, lead=lead,
