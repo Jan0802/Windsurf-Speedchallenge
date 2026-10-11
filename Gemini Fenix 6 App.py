@@ -23387,7 +23387,11 @@ def _btb_overview(name, sport):
         holder = str(r.get("name") or "")
         row = {"spot": spot, "record": recv, "holder": holder,
                "mine": None, "pct": None, "gap": None, "i_hold": False,
-               "date": r.get("date")}
+               "date": r.get("date"),
+               # Sportart des Rekords - gebraucht im "All sports"-Modus, wo je
+               # Spot der Schnellste ueber ALLE Sportarten gewinnt und die
+               # Tabelle sagen muss, womit er gefahren ist.
+               "sport": str(r.get("sport") or "")}
         if mine_best is not None:
             m = mine_best[mine_best["_spot"] == spot]
             if not m.empty:
@@ -23479,23 +23483,47 @@ def render_beat_the_beach(user):
     eigenen Spots und der Fortschritt am gewaehlten Spot. Ohne Login bleibt der
     Rekord sichtbar (Conversion-Haken fuer die vielen Uhr-Nutzer ohne Konto),
     nur die eigenen Werte fehlen."""
-    sport = active_sport()
+    # NUR HIER gibt es "All sports" (Jans Wunsch 11.10.2026): je Spot gewinnt
+    # dann der Schnellste ueber alle Sportarten. Die Rekorde sind quer durch
+    # die Sportarten nicht wirklich vergleichbar (ein Windsurf-Topspeed
+    # schlaegt jedes SUP) - aber "wer ist an diesem Spot ueberhaupt der
+    # Schnellste?" ist trotzdem eine gute Frage, darum nennt die Seite im
+    # Alle-Modus die Sportart des Rekords ueberall mit.
+    #
+    # Gemerkt wird der Modus als ?sport=all in der URL - gefahrlos, weil
+    # active_sport() gegen SPORTS validiert: Jede ANDERE Seite faellt mit
+    # dieser URL einfach auf Windsurf zurueck statt in einen Fehler.
+    all_mode = (st.query_params.get("sport") or "").strip() == "all"
+    sport = None if all_mode else active_sport()
+    sport_label = "All sports" if all_mode else SPORT_META[sport]["label"]
     name = user["username"] if user else None
     st.markdown("## 🎯 Beat the Beach")
     st.caption(
         "The ring from your watch – plus what the watch cannot show you: where you are "
-        f"closest to a record, and what it would mean for your rank · {SPORT_META[sport]['label']}"
+        f"closest to a record, and what it would mean for your rank · {sport_label}"
     )
 
     # Sportart und Spot als Paar oben. Die Spalten werden hier angelegt, aber die
     # rechte erst weiter unten gefuellt - der Sport-Wechsel muss VOR dem fruehen
     # Ausstieg stehen, sonst kommt man aus einer Sportart ohne Rekorde nicht raus.
+    # Eigenes Dropdown statt render_sport_switch, weil nur dieses die
+    # "All sports"-Option traegt; der Key folgt derselben Regel (traegt den
+    # aktuellen Wert, sonst stellt ein gespeicherter alter Wert sofort zurueck).
     _c_sport, _c_spot = st.columns([1, 2])
-    render_sport_switch(_c_sport)
+    _opts = list(SPORTS) + ["all"]
+    _cur = "all" if all_mode else sport
+    _new = _c_sport.selectbox(
+        "Sport", _opts, index=_opts.index(_cur),
+        format_func=lambda k: "All sports" if k == "all" else SPORT_META[k]["label"],
+        key=f"btb_sport_switch_{_cur}",
+    )
+    if _new != _cur:
+        st.query_params["sport"] = _new
+        st.rerun()
 
     rows = _btb_overview(name, sport)
     if not rows:
-        st.info(f"No {SPORT_META[sport]['label']} records yet. Upload a session and be the first.")
+        st.info(f"No {sport_label} records yet. Upload a session and be the first.")
         return
 
     # Spot-Auswahl: ?spot= gewinnt, sonst der Spot, an dem am wenigsten fehlt
@@ -23524,8 +23552,15 @@ def render_beat_the_beach(user):
         components.html(
             f"<div style='display:flex;justify-content:center'>{svg}</div>", height=310)
 
+    def _sport_label(key):
+        return SPORT_META.get((key or "").lower(), {}).get("label") or (key or "–")
+
     with c2:
-        st.metric("🏆 Spot record", f"{row['record']:.1f} km/h", row["holder"] or "–")
+        # Im Alle-Modus gehoert zur Zahl die Sportart, sonst ist sie unlesbar:
+        # "47,3 km/h von Mika" heisst etwas anderes, wenn Mika gekitet ist.
+        _rec_sub = (f"{row['holder'] or '–'} · {_sport_label(row['sport'])}"
+                    if all_mode else (row["holder"] or "–"))
+        st.metric("🏆 Spot record", f"{row['record']:.1f} km/h", _rec_sub)
         if row["mine"] is None:
             if name:
                 st.metric("⚡ Your best here", "–", "no session at this spot yet")
@@ -23599,6 +23634,9 @@ def render_beat_the_beach(user):
             "Your best": round(r["mine"], 1),
             "Record": round(r["record"], 1),
             "Holder": ("you" if r["i_hold"] else (r["holder"] or "–")),
+            # Nur im Alle-Modus: womit der Rekord gefahren wurde - sonst traegt
+            # die Spalte nichts, die ganze Seite IST dann eine Sportart.
+            **({"Record sport": _sport_label(r["sport"])} if all_mode else {}),
             "Missing": ("–" if r["i_hold"] else round(r["gap"], 1)),
             "% of record": round(r["pct"], 0),
         } for r in mine_rows])
