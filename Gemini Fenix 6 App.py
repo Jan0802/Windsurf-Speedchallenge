@@ -14978,9 +14978,23 @@ def _render_gybe_detail_window(gnum, speeds, glide_kn):
 
 _STILL_KN = 2.5          # darunter = steht/treibt/watet (deckt GPS-Rauschen mit ab)
 _MIN_PAUSE_S = 60.0      # erst ab einer Minute Stillstand ist es wirklich Pause
+# SUP FAELLT HERAUS: 2,5 kn sind 4,6 km/h, und genau dort liegt beim SUP das
+# Reisetempo - die Session vom 10.10.2026 hatte im Schnitt 4,4 km/h. Mit der
+# allgemeinen Grenze gaelte normales Paddeln als Pause. Beim Windsurfen und
+# Kiten ist 2,5 kn dagegen richtig: Darunter steht oder treibt man wirklich.
+#
+# MUSS ZU Sports.SportDef.stillMps AUF DER UHR PASSEN (dort 0,8333 m/s).
+# Dieselbe Groesse an zwei Stellen gerechnet - weichen sie ab, zeigt die App
+# je nach Quelle etwas anderes an: Die Uhr liefert active_s sekundengenau,
+# ohne Uhr-Wert wird hier aus dem Track geschaetzt.
+_STILL_KN_SUP = 3.0 / 1.852      # 3 km/h = 1,62 kn
 
 
-def _active_seconds(v_kn, dt, duration_s):
+def _still_kn(sport):
+    return _STILL_KN_SUP if sport == "sup" else _STILL_KN
+
+
+def _active_seconds(v_kn, dt, duration_s, still_kn=None):
     """(aktive Sekunden, Pausensekunden) – Aufzeichnungsdauer minus LANGE
     Stillstands-Phasen.
 
@@ -14993,10 +15007,12 @@ def _active_seconds(v_kn, dt, duration_s):
     dem ~5-s-Track nicht – die Uhr koennte es sekundengenau liefern."""
     if v_kn is None or len(v_kn) == 0 or not dt or dt <= 0:
         return None, None
+    if still_kn is None:
+        still_kn = _STILL_KN
     total = float(duration_s) if duration_s else float(len(v_kn)) * float(dt)
     paused = 0.0
     run = 0
-    for is_still in (np.asarray(v_kn) < _STILL_KN):
+    for is_still in (np.asarray(v_kn) < still_kn):
         if is_still:
             run += 1
             continue
@@ -15501,13 +15517,17 @@ def _render_speed_curve(track_pts, duration_s, record):
     # Uhr-Wert gewinnt: sie zaehlt sekundengenau, der Track gibt nur eine
     # Schaetzung her (~5 s je Punkt). Gleiches Muster wie beim laengsten Run.
     _tot_s = record.get("duration_s")
+    # Die Stillstandsgrenze haengt an der Sportart dieser SESSION, nicht an
+    # der gerade gewaehlten Ansicht - sonst saehe dieselbe Session je nach
+    # Sport-Umschalter anders aus.
+    _still = _still_kn(_txt_or(record.get("sport")) or active_sport())
     _watch_active = pd.to_numeric(record.get("active_s"), errors="coerce")
     if pd.notna(_watch_active) and _tot_s:
         _act = float(_watch_active)
         _pause = max(0.0, float(_tot_s) - _act)
         _act_src = "measured on the watch"
     else:
-        _act, _pause = _active_seconds(v_kn, dt, _tot_s)
+        _act, _pause = _active_seconds(v_kn, dt, _tot_s, _still)
         _act_src = "estimated from the GPS track"
     k1, k2, k3, k4 = st.columns(4)
     _d = record.get("total_distance_km")
@@ -15593,7 +15613,7 @@ def _render_speed_curve(track_pts, duration_s, record):
         a3.metric("Share active",
                   f"{(_act / float(_tot) * 100.0):.0f} %" if _tot else "–")
         st.caption(
-            f"Pauses longer than {int(_MIN_PAUSE_S)} s below {_STILL_KN:.1f} kn are "
+            f"Pauses longer than {int(_MIN_PAUSE_S)} s below {_still:.1f} kn are "
             "subtracted – carrying the board back, rigging, standing on the beach. "
             "Short stops (water starts) still count. This measures movement, not "
             f"land versus water, and it does not change any ranking. ({_act_src})"
