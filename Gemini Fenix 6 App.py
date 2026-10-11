@@ -23816,13 +23816,19 @@ def _live_records(sport, limit=_LIVE_LIMIT):
     return d.to_dict("records")
 
 
-def _live_label(row, records_mode):
-    """Zeile für die Auswahlliste."""
+def _live_label(row, records_mode, show_sport=False):
+    """Zeile für die Auswahlliste. `show_sport` (Alle-Modus): die Sportart muss
+    mit in die Zeile, sonst liest sich ein SUP-Topspeed wie ein kaputter
+    Windsurf-Wert."""
     dt = row.get("_d")
     when = dt.strftime("%d.%m. %H:%M") if pd.notna(dt) and (dt.hour or dt.minute) \
         else (dt.strftime("%d.%m.%Y") if pd.notna(dt) else "?")
     val = float(row.get(_BTB_METRIC) or 0)
     base = f"{when} · {row.get('name') or '?'} · {row.get('_spot')} · {val:.1f} km/h"
+    if show_sport:
+        _sp = SPORT_META.get(str(row.get("sport") or "").lower(), {}).get("label")
+        if _sp:
+            base += f" · {_sp}"
     if records_mode:
         base += " · 🥇 first entry" if row.get("_is_first") else \
             f" · 🏆 +{float(row.get('_gain') or 0):.1f}"
@@ -23883,16 +23889,34 @@ def _render_live_card_head(row):
 def render_public_live_page():
     """Öffentliche Seite (?view=live): letzte Sessions oder neue Spot-Rekorde,
     mit Karte des schnellsten Abschnitts und den Werten der Sportart."""
-    sport = active_sport()
+    # "All sports" wie auf der Beat-the-Beach-Seite (gleiche Begruendung,
+    # gleiche Mechanik): ?sport=all gilt nur hier; active_sport() validiert,
+    # also faellt jede andere Seite mit dieser URL auf Windsurf zurueck.
+    # Im Alle-Modus heisst "Rekord": schneller als ALLES, was an dem Spot je
+    # gefahren wurde - egal womit.
+    all_mode = (st.query_params.get("sport") or "").strip() == "all"
+    sport = None if all_mode else active_sport()
+    sport_label = "All sports" if all_mode else SPORT_META[sport]["label"]
     st.markdown("## 🌍 Live")
     st.caption(
         "What is happening on the water right now – no account needed. Switch between the "
-        f"latest sessions and freshly broken spot records · {SPORT_META[sport]['label']}"
+        f"latest sessions and freshly broken spot records · {sport_label}"
     )
 
     # Vor dem "Nothing here yet"-Ausstieg, sonst kaeme man aus einer leeren
-    # Sportart nicht wieder heraus.
-    render_sport_switch(st.columns([1, 2])[0])
+    # Sportart nicht wieder heraus. Eigenes Dropdown statt render_sport_switch,
+    # weil nur diese Seite (und Beat the Beach) "All sports" anbietet; der Key
+    # traegt den aktuellen Wert, sonst stellt der gespeicherte alte zurueck.
+    _opts = list(SPORTS) + ["all"]
+    _cur = "all" if all_mode else sport
+    _new = st.columns([1, 2])[0].selectbox(
+        "Sport", _opts, index=_opts.index(_cur),
+        format_func=lambda k: "All sports" if k == "all" else SPORT_META[k]["label"],
+        key=f"live_sport_switch_{_cur}",
+    )
+    if _new != _cur:
+        st.query_params["sport"] = _new
+        st.rerun()
 
     mode = st.radio("Show", ["🕒 Latest sessions", "🏆 New spot records"],
                     horizontal=True, key="live_mode", label_visibility="collapsed")
@@ -23903,7 +23927,7 @@ def render_public_live_page():
         st.info("Nothing here yet for this sport. Upload a session and you are the first.")
         return
 
-    labels = [_live_label(r, records_mode) for r in rows]
+    labels = [_live_label(r, records_mode, show_sport=all_mode) for r in rows]
     pick = st.selectbox("Session", labels, key=f"live_pick_{records_mode}",
                         label_visibility="collapsed")
     row = rows[labels.index(pick)]
@@ -23988,6 +24012,10 @@ def render_public_live_page():
     with cdata:
         st.markdown(f"### {row.get('_spot')}")
         bits = [f"👤 **{row.get('name') or '?'}**"]
+        if all_mode:
+            _sp = SPORT_META.get(str(row.get("sport") or "").lower(), {}).get("label")
+            if _sp:
+                bits.append(f"🏷️ {_sp}")
         dt = row.get("_d")
         if pd.notna(dt):
             bits.append(f"📅 {dt:%Y-%m-%d %H:%M}" if (dt.hour or dt.minute)
@@ -24006,7 +24034,12 @@ def render_public_live_page():
                            f"over the previous {float(row.get('_prev') or 0):.1f} km/h")
 
         shown = 0
-        for key, label, unit, dec in _live_metric_fields(sport):
+        # Im Alle-Modus entscheidet die Sportart der SESSION, welche Werte
+        # gezeigt werden - ein Surf-Eintrag bekommt keine 500-m-Zeile, nur
+        # weil die Seite gerade alle Sportarten zeigt. Unbekannt -> die
+        # generische Werteliste (alles ausser den Sport-Sonderfaellen).
+        _fields_sport = (str(row.get("sport") or "").lower() if all_mode else sport)
+        for key, label, unit, dec in _live_metric_fields(_fields_sport):
             val = pd.to_numeric(row.get(key), errors="coerce")
             if pd.isna(val) or float(val) <= 0:
                 continue
