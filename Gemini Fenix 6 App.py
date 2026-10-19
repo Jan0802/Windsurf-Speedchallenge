@@ -21209,6 +21209,14 @@ def render_login():
                     st.info(resend_verification(rv))
 
     with tab_register:
+        # Der Satz schliesst die Luecke im Uhr-Funnel: Die Uhr schickt die
+        # Leute mit "Connect watch ... your code" hierher - ohne diesen
+        # Hinweis wissen sie nicht, dass der Code NACH der Registrierung
+        # eingegeben wird (Befund 19.10.: 0 % Konversion trotz Code).
+        st.caption("⌚ Coming from your **watch** (“Connect watch … your "
+                   "code”)? Register here — after your first login a banner "
+                   "asks for the code, and your recorded sessions upload "
+                   "right after.")
         with st.form("register_form"):
             new_username = st.text_input("Choose a username")
             new_email = st.text_input("Email")
@@ -22522,6 +22530,71 @@ if st.session_state.get("_pending_token"):
 # Dazwischen lagen Schema-Pruefung, Anmeldung und Konto-Seitenleiste. Ab hier
 # beginnt die eigentliche Ansicht - alles davor laeuft auf JEDER Seite gleich.
 _dbperf_marke("Anmeldung")
+
+
+def _watch_connect_banner(user):
+    """Junge Konten ohne verbundene Uhr sanft zur Code-Eingabe fuehren.
+
+    DER FUNNEL-BEFUND vom 19.10.2026: Die Uhr (ab 1.3.3) zeigt nach der
+    Abweisung "Connect watch at mywatersessions.com - your code: ...", aber
+    auf der Website fuehrte NICHTS zur Code-Eingabe - sie lag zusammengeklappt
+    im Konto-Bereich. Zwei 1.3.5-Uhren scheiterten genau an dieser Stelle
+    (0 % Konversion TROTZ Code auf der Uhr). Darum: Wer ein junges Konto
+    (<= 14 Tage) und keine Uhr hat, bekommt die Eingabe GANZ OBEN auf jeder
+    Seite - wegklickbar je Sitzung, dauerhaft weg, sobald verbunden.
+    """
+    if st.session_state.get("_cw_weg"):
+        return
+    zeig = st.session_state.get("_cw_zeigen")
+    if zeig is None:
+        zeig = False
+        try:
+            if not get_device_token(user["id"]):
+                with get_engine().connect() as conn:
+                    _row = conn.execute(
+                        select(users_table.c.created_at)
+                        .where(users_table.c.id == int(user["id"]))).first()
+                _alter = ((datetime.now() - _row[0]).days
+                          if _row and _row[0] else 999)
+                zeig = _alter <= 14
+        except Exception:  # noqa: BLE001 - Banner darf nie die Seite reissen
+            zeig = False
+        st.session_state["_cw_zeigen"] = zeig
+    if not zeig:
+        return
+    with st.form("cw_banner"):
+        st.markdown(
+            "**⌚ Connect your watch** — does your watch show "
+            "*“Connect watch … your code”*? Enter the code here and your "
+            "sessions land in this account.")
+        code_in = st.text_input("Watch code", placeholder="e.g. AB3KQ7",
+                                label_visibility="collapsed")
+        _b1, _b2 = st.columns(2)
+        _ok = _b1.form_submit_button("🔗 Connect watch", type="primary",
+                                     use_container_width=True)
+        _spaeter = _b2.form_submit_button("Later / no Garmin watch",
+                                          use_container_width=True)
+    if _spaeter:
+        st.session_state["_cw_weg"] = True
+        st.rerun()
+    if _ok:
+        code = (code_in or "").strip().replace(" ", "").replace("-", "")
+        if 0 < len(code) <= 8:
+            code = code.upper()
+        if not code:
+            st.error("Please enter the code shown on your watch.")
+        else:
+            _ok2, _msg2 = admin_set_device_token(user["id"], code)
+            if _ok2:
+                st.session_state["_cw_weg"] = True
+                st.session_state["_cw_zeigen"] = False
+                st.success("Watch connected — now tap “↻ Resend” on the watch "
+                           "once to upload sessions you already recorded.")
+            else:
+                st.error(_msg2)
+
+
+_watch_connect_banner(current_user)
 
 
 # Reine Spots-Seite (Revierführer) – ersetzt die Rankings; Header/Umschalter oben
