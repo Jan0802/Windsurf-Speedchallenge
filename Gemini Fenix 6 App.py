@@ -17325,8 +17325,20 @@ def _iq_reach(days):
                 " WHERE EXISTS (SELECT 1 FROM iq_devices i"
                 "  WHERE i.device_hash = d.device_hash AND i.linked IS TRUE)"),
                 {"d": days}).scalar() or 0
+            # Versionen der ABGEWIESENEN Uhren - die Spalte, die entscheidet,
+            # ob 0 % Konversion ein Kopplungs-Problem ist: Uhren vor 1.3.3
+            # laufen nach dem 401 in die Token-Sackgasse (kein Code-Bildschirm,
+            # keine Chance zu koppeln) - fuer sie ist 0 % ERWARTBAR. Erst
+            # 1.3.3+ mit 0 % hiesse: Der Code wird gezeigt und fuehrt trotzdem
+            # nicht zum Konto (Befund 19.10.2026, "0 % danach verbunden").
+            _abw_vers = conn.execute(text(
+                "SELECT COALESCE(app,'?') AS v,"
+                " COUNT(DISTINCT device_hash) AS n FROM iq_upload_denied"
+                " WHERE day >= CURRENT_DATE - :d GROUP BY 1 ORDER BY 2 DESC"),
+                {"d": days}).mappings().all()
             abgewiesen = {"devices": int(_a[0] or 0), "tries": int(_a[1] or 0),
-                          "since": _a[2], "later_linked": int(_spaeter)}
+                          "since": _a[2], "later_linked": int(_spaeter),
+                          "by_app": [dict(r) for r in _abw_vers]}
     except Exception:  # noqa: BLE001
         abgewiesen = None
     # Welche App-Version läuft auf den Uhren?
@@ -17425,6 +17437,28 @@ def render_iq_reach(days):
             f"Gezählt seit {_ab['since']}. Rückwirkend gibt es nichts: Vor dem "
             "Einbau wurde dieses Ereignis beantwortet und vergessen."
         )
+        # OHNE diese Aufschlüsselung ist „0 % danach verbunden" nicht zu
+        # deuten: Uhren VOR 1.3.3 laufen nach der Abweisung in die
+        # Token-Sackgasse — sie zeigen keinen Kopplungs-Code und KÖNNEN gar
+        # nicht konvertieren. Nur bei 1.3.3+ misst die Quote das Onboarding.
+        if _ab.get("by_app"):
+            _g2 = sum(r["n"] for r in _ab["by_app"]) or 1
+            st.dataframe(
+                pd.DataFrame([
+                    {"Version": ("? (vor 1.3.3 — sieht nach der Abweisung "
+                                 "KEINEN Kopplungs-Code)" if r["v"] == "?"
+                                 else r["v"]),
+                     "Uhren": r["n"],
+                     "Anteil": f"{r['n'] * 100 / _g2:.0f} %"}
+                    for r in _ab["by_app"]]),
+                hide_index=True, use_container_width=True)
+            st.caption(
+                "Lesart: Abgewiesene mit „?“ stecken in der Token-Sackgasse "
+                "alter Versionen — 0 % Konversion ist dort erwartbar, nicht "
+                "reparierbar (nur per Store-Update). Erst Uhren ab 1.3.3 "
+                "sehen den Code; bleibt die Quote AUCH dort bei 0 %, hakt "
+                "das Onboarding (Code-Anzeige/Web-Eingabe) wirklich."
+            )
     elif _ab is not None:
         st.caption("Noch keine abgewiesenen Uploads erfasst.")
 
