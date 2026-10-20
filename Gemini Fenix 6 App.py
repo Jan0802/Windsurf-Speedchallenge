@@ -17719,7 +17719,7 @@ def render_admin():
     # der 512-MB-Instanz fuehrte das im Backoffice (Karte/Profile/Analytics
     # gleichzeitig) zu Segfaults/502. Radio -> nur der gewaehlte Bereich rendert.
     _sections = ["📣 Werbung pro Spot", "📍 Spots", "⚖️ Sessions", "👤 Profile",
-                 "📊 Web Analytics", fb_label]
+                 "📊 Web Analytics", fb_label, "🚴 MyBikeSessions"]
     _pick = st.radio("Bereich", _sections, horizontal=True, key="admin_section",
                      label_visibility="collapsed")
     if _pick == _sections[0]:
@@ -17732,8 +17732,173 @@ def render_admin():
         render_admin_profiles()
     elif _pick == _sections[4]:
         render_admin_analytics()
+    elif _pick == "🚴 MyBikeSessions":
+        render_admin_mbs()
     else:
         render_admin_feedback()
+
+
+# --- MyBikeSessions im ZENTRALEN Backoffice (Jans Wunsch 20.10.2026) ---------
+#
+# EIN Backoffice fuer alle MySessions, innen getrennt: Die Verticals teilen
+# sich die Neon-DB - MBS wohnt im Schema `mbs`, dieser Bereich liest es
+# DIREKT mit rohem SQL (kein Import aus dem mbs-Repo; die App-Trennung vom
+# 13.10. bleibt). Jeder Block faengt seine Fehler selbst: Bewegt sich das
+# mbs-Schema, bricht hier EIN Block mit Klartext, nicht das Backoffice.
+
+def _mbs_hash_password(pw):
+    """MUSS zum Format in mbs/bike_core/auth.py passen
+    (pbkdf2$iter$salt$hash, SHA-256, 240k) - die EINE bewusste Kopplung
+    dieses Bereichs. Wer dort das Format aendert, zieht hier mit."""
+    import base64 as _b64
+    import hashlib as _hl
+    import os as _os
+    salt = _os.urandom(16)
+    h = _hl.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, 240000)
+    return ("pbkdf2$240000$" + _b64.b64encode(salt).decode("ascii")
+            + "$" + _b64.b64encode(h).decode("ascii"))
+
+
+def render_admin_mbs():
+    st.markdown("### 🚴 MyBikeSessions")
+    st.caption("Eigener Dienst ([mybikesessions.com](https://mybikesessions.com)), "
+               "gleiche Neon-DB, Schema `mbs` — hier nur Verwaltung, die App "
+               "selbst bleibt getrennt.")
+
+    # --- Kennzahlen -------------------------------------------------------
+    try:
+        with get_engine().connect() as conn:
+            kz = conn.execute(text(
+                "SELECT (SELECT COUNT(*) FROM mbs.users) AS mitglieder,"
+                " (SELECT COUNT(*) FROM mbs.users"
+                "  WHERE password_hash IS NOT NULL) AS registriert,"
+                " (SELECT COUNT(*) FROM mbs.sessions) AS fahrten,"
+                " (SELECT COUNT(*) FROM mbs.sessions"
+                "  WHERE created_at >= NOW() - INTERVAL '30 days') AS f30,"
+                " (SELECT COUNT(*) FROM mbs.planned_routes) AS routen,"
+                " (SELECT COUNT(*) FROM mbs.sessions"
+                "  WHERE shared IS TRUE) AS geteilt")).mappings().first()
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("👥 Mitglieder", int(kz["mitglieder"]),
+                  help=f"{kz['registriert']} selbst registriert, "
+                       "der Rest Altzugang (BIKE_USERS).")
+        c2.metric("🚴 Fahrten", int(kz["fahrten"]),
+                  f"+{kz['f30']} in 30 Tagen")
+        c3.metric("🗺️ Routen", int(kz["routen"]))
+        c4.metric("🌍 Geteilt", int(kz["geteilt"]))
+    except Exception as exc:  # noqa: BLE001
+        st.warning(f"mbs-Kennzahlen nicht lesbar: {exc}")
+        return
+    try:
+        with get_engine().connect() as conn:
+            foto = conn.execute(text(
+                "SELECT COUNT(*) AS n,"
+                " COALESCE(SUM(OCTET_LENGTH(data)), 0) / 1048576.0 AS mb"
+                " FROM mbs.session_photos")).mappings().first()
+        st.caption(f"📷 Fotos: {int(foto['n'])} Stück · "
+                   f"{float(foto['mb']):.1f} MB in der DB "
+                   "(Neon-Platz im Blick behalten).")
+    except Exception:  # noqa: BLE001
+        st.caption("📷 Foto-Tabelle noch nicht vorhanden.")
+
+    # --- Verlauf 30 Tage --------------------------------------------------
+    try:
+        with get_engine().connect() as conn:
+            tage = conn.execute(text(
+                "SELECT DATE(created_at) AS tag, COUNT(*) AS fahrten"
+                " FROM mbs.sessions"
+                " WHERE created_at >= NOW() - INTERVAL '30 days'"
+                " GROUP BY 1 ORDER BY 1")).mappings().all()
+        if tage:
+            _df = pd.DataFrame([dict(r) for r in tage])
+            _df["tag"] = pd.to_datetime(_df["tag"])
+            st.bar_chart(_df.set_index("tag")[["fahrten"]], height=160)
+    except Exception:  # noqa: BLE001
+        pass
+
+    # --- Mitglieder -------------------------------------------------------
+    mg = []
+    try:
+        with get_engine().connect() as conn:
+            mg = conn.execute(text(
+                "SELECT u.id, u.name, u.email,"
+                " (u.password_hash IS NOT NULL) AS registriert,"
+                " u.created_at AS seit, COUNT(s.id) AS fahrten,"
+                " MAX(s.started_at) AS letzte"
+                " FROM mbs.users u"
+                " LEFT JOIN mbs.sessions s ON s.user_id = u.id"
+                " GROUP BY u.id, u.name, u.email, u.password_hash,"
+                " u.created_at ORDER BY u.created_at DESC")).mappings().all()
+    except Exception as exc:  # noqa: BLE001
+        st.warning(f"Mitgliederliste nicht lesbar: {exc}")
+    if mg:
+        st.dataframe(pd.DataFrame([{
+            "Name": r["name"], "E-Mail": r["email"] or "–",
+            "Konto": "registriert" if r["registriert"] else "Altzugang",
+            "Seit": str(r["seit"])[:10],
+            "Fahrten": int(r["fahrten"]),
+            "Letzte": str(r["letzte"])[:10] if r["letzte"] else "–",
+        } for r in mg]), hide_index=True, use_container_width=True)
+
+        # --- Konto-Werkzeuge ---------------------------------------------
+        st.markdown("**Konto-Werkzeuge**")
+        wahl = st.selectbox("Mitglied", mg, format_func=lambda r: r["name"],
+                            key="mbs_admin_user")
+        w1, w2 = st.columns(2)
+        with w1:
+            with st.form("mbs_admin_pw"):
+                neu_pw = st.text_input("Neues Passwort (mind. 8 Zeichen)",
+                                       type="password")
+                pw_ok = st.form_submit_button("🔑 Passwort setzen")
+            if pw_ok:
+                if len(neu_pw or "") < 8:
+                    st.error("Mindestens 8 Zeichen.")
+                else:
+                    # Setzt auch Altzugaenge auf ein eigenes Passwort um -
+                    # danach gilt fuer dieses Konto NUR noch dieses.
+                    with get_engine().begin() as conn:
+                        conn.execute(text(
+                            "UPDATE mbs.users SET password_hash = :h"
+                            " WHERE id = :i"),
+                            {"h": _mbs_hash_password(neu_pw),
+                             "i": int(wahl["id"])})
+                    st.success(f"Passwort für „{wahl['name']}“ gesetzt.")
+        with w2:
+            st.caption("Löscht das Konto MIT ALLEM: Fahrten, Fotos, Routen, "
+                       "Räder, Orte, Touren. Endgültig (DSGVO-Werkzeug).")
+            bestaetigung = st.text_input("Zum Löschen LÖSCHEN eintippen",
+                                         key="mbs_admin_delconfirm")
+            if st.button("🗑️ Konto endgültig löschen", key="mbs_admin_del"):
+                if bestaetigung.strip() != "LÖSCHEN":
+                    st.error("Bitte LÖSCHEN eintippen.")
+                else:
+                    uid = int(wahl["id"])
+                    # Reihenfolge = Fremdschluessel rueckwaerts.
+                    befehle = [
+                        "DELETE FROM mbs.session_photos WHERE user_id = :i",
+                        "DELETE FROM mbs.ebike_session_details WHERE session_id"
+                        " IN (SELECT id FROM mbs.sessions WHERE user_id = :i)",
+                        "DELETE FROM mbs.sessions WHERE user_id = :i",
+                        "DELETE FROM mbs.trip_stages WHERE trip_id IN"
+                        " (SELECT id FROM mbs.multiday_trips WHERE user_id = :i)",
+                        "DELETE FROM mbs.multiday_trips WHERE user_id = :i",
+                        "DELETE FROM mbs.accommodation_reviews WHERE user_id = :i",
+                        "DELETE FROM mbs.planned_routes WHERE user_id = :i",
+                        "DELETE FROM mbs.favorite_places WHERE user_id = :i",
+                        "DELETE FROM mbs.charging_spots WHERE user_id = :i",
+                        "DELETE FROM mbs.pairing_codes WHERE user_id = :i",
+                        "DELETE FROM mbs.accommodations WHERE user_id = :i",
+                        "DELETE FROM mbs.user_settings WHERE user_id = :i",
+                        "DELETE FROM mbs.users WHERE id = :i",
+                    ]
+                    try:
+                        with get_engine().begin() as conn:
+                            for sql in befehle:
+                                conn.execute(text(sql), {"i": uid})
+                        st.success(f"„{wahl['name']}“ und alle Daten gelöscht.")
+                        st.rerun()
+                    except Exception as exc:  # noqa: BLE001
+                        st.error(f"Löschen fehlgeschlagen: {exc}")
 
 
 _TRUST_RELEASE = 80          # Uhr-Basis: geraeteauthentifiziert
