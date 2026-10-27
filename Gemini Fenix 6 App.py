@@ -5148,6 +5148,8 @@ RANKING_TABLE_LABELS = {
     "run": "🚩 Longest run", "total": "👥 Total distance",
     "time": "⏱️ Most water time",
     "glidel": "🌊 Longest glide", "glidet": "⏱️ Most glide time",
+    "glidesum": "🧮 Total glide time",
+    "days": "📅 Days on the water",
     "swr": "🌬️ Speed per wind",
     "airtime": "🪂 Best airtime", "jump": "🚀 Highest jump", "airs": "🔁 Most airs",
     "airtot": "⏳ Total airtime", "air5": "🎯 Avg 5 best jumps",
@@ -5175,6 +5177,7 @@ RANKING_LABELS_BY_SPORT = {
     # Rechnung wie der Gleitanteil beim Windsurfen, nur heisst sie anders.
     "glidel": {"wingsurf": "🪽 Longest flight"},
     "glidet": {"wingsurf": "🪽 Most flight time"},
+    "glidesum": {"wingsurf": "🪽 Total flight time"},
 }
 
 
@@ -6179,10 +6182,12 @@ Every ranking shows each rider's best value (unless noted). Use the filters (spo
 - **🔄 Alpha 500** — fastest 500 m whose start and finish are less than 50 m apart, so a jibe has to be inside it. A straight downwind blast does not count. **Depends on your watch:** we compute it from the GPS track, and watches thin that track out. If the points are far apart, the 50 m test gets blurry and Alpha stays empty – that is the recording rate, not a mistake.
 - **🚩 Longest run** — the longest distance you rode in one go without stopping.
 - **👥 Total distance** — how far you travelled across all your sessions, added up.
+- **📅 Days on the water** — on how many distinct days you rode in the selected period (two sessions on one day count as one day; the session count is shown next to it). A sum over the date filter, not a best value — set the period to a month for a monthly contest.
 
 ### 🌊 Glide & wind (windsurf · kite · wing)
 - **🌊 Longest glide** · **🪽 Longest flight** (wing) — your longest unbroken stretch above planing (or flight) speed, in minutes. Short dips of up to 2 s do not break it: a chop or a hole in the gust is not the end of a glide. The counterpart to Longest run, but in time — and it does not depend on where you happened to turn around.
 - **⏱️ Most glide time** — all your glide phases of one session added up. The honest version of water time, which also counts the floating around. Long sessions have an advantage here, and that is the point: this one rewards a full day, Longest glide rewards one good stretch.
+- **🧮 Total glide time** — all your glide time in the selected period added up across sessions, not just your best one. Counts only sessions whose track is dense enough to measure glide phases, so read it as a lower bound.
 - **🌬️ Speed per wind** — your avg 5×10 divided by the session's average wind. It makes different days and spots comparable and measures gear plus technique instead of luck with the weather: 28 kn in 35 kn of wind is a weaker session than 24 kn in 18 kn. Needs at least 8 kn of wind — below that planing is a matter of luck and the ratio explodes.
   The glide threshold is the **same for everyone** here (windsurf 12 kn, kite 11, wing 10), because that is what makes the numbers comparable. Your **personal** threshold from board type, volume and weight is in the session view, where it answers the other question: did *you* plane on *your* gear? Both numbers are labelled with the threshold they used.
   **Depends on your recording rate.** These are computed from the GPS track, so they also count for sessions uploaded long ago — but only where the track has at least one point every 6 s. Watches thin long recordings out: at 20 s per point a planing stretch gets averaged together with the turn before and after it and drops below the threshold. Rather than show a value that is quietly too low, we show none. A file upload at 1 Hz always works; a very long watch session may not.
@@ -6236,10 +6241,12 @@ Jede Rangliste zeigt den besten Wert je Fahrer (wenn nicht anders vermerkt). Üb
 - **🔄 Alpha 500** — die schnellsten 500 m, bei denen Start und Ende weniger als 50 m auseinanderliegen; es muss also eine Halse drin sein. Eine Gerade mit Rückenwind zählt nicht. **Hängt von deiner Uhr ab:** wir rechnen es aus dem GPS-Track, und Uhren dünnen den aus. Liegen die Punkte weit auseinander, wird die 50-Meter-Prüfung unscharf und Alpha bleibt leer – das ist die Aufzeichnungsrate, kein Fehler.
 - **🚩 Longest run** — die längste Strecke, die du am Stück ohne Stopp gefahren bist.
 - **👥 Gesamtdistanz** — alle deine Sessions zusammengezählt.
+- **📅 Tage auf dem Wasser** — an wie vielen verschiedenen Tagen du im gewählten Zeitraum gefahren bist (zwei Sessions an einem Tag zählen als ein Tag; die Sessionzahl steht daneben). Eine Summe über den Datums-Filter, kein Bestwert — stell den Zeitraum auf einen Monat und du hast einen Monatswettbewerb.
 
 ### 🌊 Gleiten & Wind (Windsurf · Kite · Wing)
 - **🌊 Längste Gleitphase** · **🪽 Längster Flug** (Wing) — die längste Strecke am Stück über der Gleit- bzw. Fluggrenze, in Minuten. Kurze Einbrüche bis 2 s zählen nicht als Ende: ein Kabbelschlag oder eine Böenlücke beendet keine Gleitphase. Das Gegenstück zum längsten Run, nur in Zeit statt in Metern — und unabhängig davon, wo du gerade umgedreht hast.
 - **⏱️ Meiste Gleitzeit** — alle Gleitphasen einer Session zusammengezählt. Die ehrliche Fassung der Wasserzeit, die auch das Dümpeln mitzählt. Lange Sessions haben hier einen Vorteil, und das ist gewollt: Diese Wertung belohnt den ganzen Tag, die längste Gleitphase eine gute Strecke.
+- **🧮 Gesamte Gleitzeit** — deine komplette Gleitzeit im gewählten Zeitraum, über alle Sessions aufsummiert — nicht nur die beste. Zählt nur Sessions, deren Track dicht genug für die Gleitmessung ist; lies die Zahl also als Untergrenze.
 - **🌬️ Speed je Wind** — dein Avg 5×10 geteilt durch den Session-Wind. Damit werden Tage und Spots vergleichbar, und gemessen werden Material und Technik statt Wetterglück: 28 kn bei 35 kn Wind ist die schwächere Session als 24 kn bei 18 kn. Braucht mindestens 8 kn Wind — darunter ist Gleiten Glückssache und das Verhältnis explodiert.
   Die Gleitgrenze ist hier für **alle dieselbe** (Windsurf 12 kn, Kite 11, Wing 10), denn nur so sind die Zahlen vergleichbar. Deine **persönliche** Schwelle aus Bretttyp, Volumen und Gewicht steht in der Sessionansicht, wo sie die andere Frage beantwortet: Bist *du* auf *deinem* Material geglitten? Beide Zahlen sind mit der Schwelle beschriftet, mit der sie gerechnet wurden.
   **Hängt an deiner Aufzeichnungsrate.** Die Werte kommen aus dem GPS-Track, gelten also auch für längst hochgeladene Sessions — aber nur, wenn der Track mindestens alle 6 s einen Punkt hat. Uhren dünnen lange Aufzeichnungen aus: Bei 20 s je Punkt wird eine Gleitfahrt mit der Halse davor und danach verrechnet und rutscht unter die Schwelle. Statt einen Wert zu zeigen, der still zu niedrig ist, zeigen wir keinen. Ein Datei-Upload mit 1 Hz geht immer, eine sehr lange Uhr-Session vielleicht nicht.
@@ -6293,10 +6300,12 @@ Elke ranglijst toont de beste waarde per rijder (tenzij anders vermeld). Met de 
 - **🔄 Alpha 500** — de snelste 500 m waarvan start en finish minder dan 50 m van elkaar liggen; er moet dus een gijp in zitten. Een rechte lijn met de wind mee telt niet. **Afhankelijk van je horloge:** we rekenen het uit de GPS-track, en horloges dunnen die uit. Liggen de punten ver uit elkaar, dan wordt de 50-metertoets onscherp en blijft Alpha leeg – dat is de opnamefrequentie, geen fout.
 - **🚩 Langste run** — de langste afstand die je in één keer zonder stoppen voer.
 - **👥 Totale afstand** — al je sessies bij elkaar opgeteld.
+- **📅 Dagen op het water** — op hoeveel verschillende dagen je in de gekozen periode hebt gevaren (twee sessies op één dag tellen als één dag; het aantal sessies staat ernaast). Een som over het datumfilter, geen beste waarde — zet de periode op een maand en je hebt een maandklassement.
 
 ### 🌊 Planeren & wind (windsurf · kite · wing)
 - **🌊 Langste planeerfase** · **🪽 Langste vlucht** (wing) — je langste ononderbroken stuk boven de planeer- of vliegsnelheid, in minuten. Korte dips tot 2 s breken de fase niet: een kabbeltje of een gat in de bui is niet het einde van je planeren. De tegenhanger van de langste run, maar in tijd — en onafhankelijk van waar je toevallig omkeerde.
 - **⏱️ Meeste planeertijd** — alle planeerfases van één sessie bij elkaar opgeteld. De eerlijke versie van watertijd, want die telt het rondhangen mee. Lange sessies hebben hier een voordeel, en dat is de bedoeling: deze telling belooft een hele dag, de langste planeerfase één goed stuk.
+- **🧮 Totale planeertijd** — al je planeertijd in de gekozen periode, opgeteld over alle sessies — niet alleen je beste. Telt alleen sessies waarvan het spoor dicht genoeg is voor de planeermeting; lees het getal dus als ondergrens.
 - **🌬️ Snelheid per wind** — je avg 5×10 gedeeld door de gemiddelde wind van de sessie. Zo worden dagen en spots vergelijkbaar en meet je materiaal plus techniek in plaats van weergeluk: 28 kn bij 35 kn wind is een zwakkere sessie dan 24 kn bij 18 kn. Vraagt minimaal 8 kn wind — daaronder is planeren geluk en explodeert de verhouding.
   De planeergrens is hier voor **iedereen dezelfde** (windsurf 12 kn, kite 11, wing 10), want alleen zo zijn de cijfers vergelijkbaar. Je **persoonlijke** grens uit boardtype, volume en gewicht staat in het sessieoverzicht, waar hij de andere vraag beantwoordt: planeerde *jij* op *jouw* materiaal? Beide cijfers vermelden met welke grens ze gerekend zijn.
   **Hangt af van je meetfrequentie.** De waarden komen uit het GPS-spoor en gelden dus ook voor lang geleden geüploade sessies — maar alleen als het spoor minstens elke 6 s een punt heeft. Horloges dunnen lange opnames uit: bij 20 s per punt wordt een planeerstuk samen met de jibe ervoor en erna uitgemiddeld en zakt onder de grens. In plaats van een waarde te tonen die stil te laag is, tonen we er geen. Een bestandsupload op 1 Hz werkt altijd, een heel lange horlogesessie misschien niet.
@@ -6350,10 +6359,12 @@ Chaque classement montre la meilleure valeur par rider (sauf mention contraire).
 - **🔄 Alpha 500** — les 500 m les plus rapides dont le départ et l'arrivée sont à moins de 50 m l'un de l'autre : il faut donc un empannage dedans. Une ligne droite au portant ne compte pas. **Dépend de ta montre :** nous le calculons depuis la trace GPS, et les montres l'allègent. Si les points sont espacés, le test des 50 m devient flou et Alpha reste vide – c'est la fréquence d'enregistrement, pas une erreur.
 - **🚩 Plus longue run** — la plus longue distance parcourue d'un seul trait sans t'arrêter.
 - **👥 Distance totale** — toutes tes sessions additionnées.
+- **📅 Jours sur l'eau** — sur combien de jours distincts tu as navigué dans la période choisie (deux sessions le même jour comptent pour un jour ; le nombre de sessions est indiqué à côté). Une somme sur le filtre de dates, pas un record — règle la période sur un mois et tu as un classement mensuel.
 
 ### 🌊 Planing & vent (windsurf · kite · wing)
 - **🌊 Plus long planing** · **🪽 Plus long vol** (wing) — ta plus longue portion d'un seul trait au-dessus de la vitesse de planing (ou de vol), en minutes. Les creux courts jusqu'à 2 s ne l'interrompent pas : un clapot ou un trou dans la rafale n'est pas la fin d'un planing. Le pendant de la plus longue run, mais en temps — et sans dépendre de l'endroit où tu as fait demi-tour.
 - **⏱️ Plus de temps en planing** — toutes tes phases de planing d'une session additionnées. La version honnête du temps sur l'eau, qui compte aussi le temps à flotter. Les longues sessions ont un avantage ici, et c'est voulu : celle-ci récompense une journée entière, le plus long planing récompense une belle portion.
+- **🧮 Temps de planing total** — tout ton temps de planing sur la période choisie, additionné sur toutes les sessions — pas seulement la meilleure. Ne compte que les sessions dont la trace est assez dense pour mesurer le planing ; lis donc ce chiffre comme un minimum.
 - **🌬️ Vitesse par vent** — ton avg 5×10 divisé par le vent moyen de la session. Cela rend les journées et les spots comparables et mesure le matériel plus la technique au lieu de la chance météo : 28 nœuds dans 35 nœuds de vent est une session plus faible que 24 dans 18. Demande au moins 8 nœuds de vent — en dessous, le planing est une affaire de chance et le rapport explose.
   Le seuil de planing est ici **le même pour tous** (windsurf 12 nœuds, kite 11, wing 10), car c'est ce qui rend les chiffres comparables. Ton seuil **personnel**, tiré du type de flotteur, du volume et du poids, se trouve dans la vue de session, où il répond à l'autre question : est-ce que *toi* tu as plané sur *ton* matériel ? Les deux chiffres indiquent le seuil utilisé.
   **Dépend de ta fréquence d'enregistrement.** Ces valeurs viennent de la trace GPS et comptent donc aussi pour des sessions envoyées depuis longtemps — mais seulement si la trace a un point au moins toutes les 6 s. Les montres allègent les longs enregistrements : à 20 s par point, une portion en planing est moyennée avec le jibe d'avant et d'après et passe sous le seuil. Plutôt qu'afficher une valeur discrètement trop basse, nous n'affichons rien. Un fichier à 1 Hz fonctionne toujours, une très longue session de montre pas forcément.
@@ -6407,10 +6418,12 @@ Cada clasificación muestra el mejor valor por rider (salvo que se indique). Con
 - **🔄 Alpha 500** — los 500 m más rápidos cuyo inicio y final están a menos de 50 m: tiene que haber una trasluchada dentro. Una línea recta con viento a favor no cuenta. **Depende de tu reloj:** lo calculamos desde el track GPS, y los relojes lo adelgazan. Si los puntos están muy separados, la prueba de los 50 m se vuelve imprecisa y Alpha queda vacío – es la frecuencia de grabación, no un error.
 - **🚩 Run más larga** — la distancia más larga que recorriste de un tirón sin parar.
 - **👥 Distancia total** — todas tus sesiones sumadas.
+- **📅 Días en el agua** — en cuántos días distintos navegaste en el periodo elegido (dos sesiones el mismo día cuentan como un día; el número de sesiones aparece al lado). Una suma sobre el filtro de fechas, no un récord — pon el periodo en un mes y tienes una liga mensual.
 
 ### 🌊 Planeo y viento (windsurf · kite · wing)
 - **🌊 Planeo más largo** · **🪽 Vuelo más largo** (wing) — tu tramo más largo de un tirón por encima de la velocidad de planeo (o de vuelo), en minutos. Las caídas cortas de hasta 2 s no lo interrumpen: una picada de olas o un hueco en la racha no es el final de un planeo. La contraparte de la run más larga, pero en tiempo — y sin depender de dónde diste la vuelta.
 - **⏱️ Más tiempo en planeo** — todas las fases de planeo de una sesión sumadas. La versión honesta del tiempo en el agua, que también cuenta el rato flotando. Las sesiones largas tienen ventaja aquí, y es intencionado: esta premia un día entero, el planeo más largo premia un buen tramo.
+- **🧮 Tiempo de planeo total** — todo tu tiempo de planeo en el periodo elegido, sumado sobre todas las sesiones — no solo la mejor. Solo cuenta sesiones cuyo track es lo bastante denso para medir el planeo; lee la cifra como un mínimo.
 - **🌬️ Velocidad por viento** — tu avg 5×10 dividido por el viento medio de la sesión. Así se pueden comparar días y spots, y mide material más técnica en lugar de suerte con el tiempo: 28 nudos con 35 de viento es una sesión más débil que 24 con 18. Necesita al menos 8 nudos de viento — por debajo el planeo es cuestión de suerte y la proporción se dispara.
   El umbral de planeo aquí es **el mismo para todos** (windsurf 12 nudos, kite 11, wing 10), porque es lo que hace comparables las cifras. Tu umbral **personal**, según tipo de tabla, volumen y peso, está en la vista de sesión, donde responde a la otra pregunta: ¿planeaste *tú* con *tu* material? Ambas cifras indican con qué umbral se calcularon.
   **Depende de tu frecuencia de registro.** Estos valores salen del track GPS, así que también cuentan para sesiones subidas hace tiempo — pero solo si el track tiene un punto al menos cada 6 s. Los relojes adelgazan las grabaciones largas: a 20 s por punto, un tramo en planeo se promedia con la trasluchada anterior y posterior y cae por debajo del umbral. Antes que mostrar un valor silenciosamente bajo, no mostramos ninguno. Un archivo a 1 Hz funciona siempre; una sesión de reloj muy larga puede que no.
@@ -8552,6 +8565,82 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "than none."
             )
 
+    def _r_glidesum(c):
+        """Gesamte Gleit-/Flugzeit ueber den ZEITRAUM - Summe aller Sessions.
+
+        Das Gegenstueck zu "Most glide time", das nur die beste EINZELNE
+        Session wertet (Jans Wunsch 27.10.2026): Wer im gewaehlten Zeitraum
+        am meisten geglitten ist, unabhaengig davon, wie es sich auf
+        Sessions verteilt. Ein Aggregat wie "Days on the water", kein
+        Bestwert - darum hier eine eigene groupby-Rechnung statt
+        _metric_body (das drop_duplicates auf die beste Session macht)."""
+        _w = _glide_word(_sp)
+        with c:
+            st.markdown(f"### 🧮 Total {_w} time")
+            tbl = ranking[["name", "glide_min"]].copy()
+            tbl["glide_min"] = pd.to_numeric(tbl["glide_min"], errors="coerce")
+            tbl = tbl[tbl["glide_min"] > 0].dropna(subset=["glide_min"])
+            if tbl.empty:
+                st.caption(f"No {_w} data yet.")
+                return
+            agg = (tbl.groupby("name")
+                   .agg(Minutes=("glide_min", "sum"),
+                        Sessions=("glide_min", "size"))
+                   .reset_index()
+                   .sort_values("Minutes", ascending=False)
+                   .reset_index(drop=True).head(RANKING_TOP_N))
+            agg.insert(0, "Rank", agg.index + 1)
+            # Stunden als Hauptzahl: Ueber einen Monat kommen schnell
+            # 300+ Minuten zusammen, und "5.2" liest sich besser als "312".
+            agg["Hours"] = (agg["Minutes"] / 60.0).round(2)
+            agg = agg[["Rank", "name", "Hours", "Sessions"]].rename(
+                columns={"name": "Name"})
+            _show_rank(agg, extra.get("columns"), gear_label)
+            st.caption(
+                f"All your {_w} time in the selected period added up across "
+                f"sessions - not just the best one. Counts only sessions "
+                f"whose track is dense enough to measure {_w} phases, so "
+                "read it as a lower bound; the session count is next to the "
+                "number. Narrow the date filter to run a month or season "
+                "contest."
+            )
+
+    def _r_days(c):
+        """Tage auf dem Wasser - ein AGGREGAT ueber den Zeitraum-Filter.
+
+        Jans Beobachtung 27.10.2026: Das Ranking hatte nur Bestwerte, nicht
+        die FLEISS-Frage "an wie vielen Tagen war jemand drauf?". Sessions
+        desselben Tages zaehlen als EIN Tag (zweimal raus = ein Fahrtag),
+        die Sessionzahl steht als Zweitwert daneben."""
+        with c:
+            st.markdown("### 📅 Days on the water")
+            tbl = ranking[["name", "date"]].copy()
+            _d = pd.to_datetime(tbl["date"], errors="coerce", format="mixed")
+            tbl["day"] = _d.dt.strftime("%Y-%m-%d")
+            # Unlesbares Datum: der ISO-Stringanfang traegt den Tag noch.
+            _kaputt = tbl["day"].isna()
+            if _kaputt.any():
+                tbl.loc[_kaputt, "day"] = (
+                    tbl.loc[_kaputt, "date"].astype(str).str[:10])
+            agg = (tbl.groupby("name")
+                   .agg(Days=("day", "nunique"), Sessions=("day", "size"))
+                   .reset_index()
+                   .sort_values(["Days", "Sessions"], ascending=False)
+                   .reset_index(drop=True).head(RANKING_TOP_N))
+            if agg.empty:
+                st.caption("No entries yet.")
+                return
+            agg.insert(0, "Rank", agg.index + 1)
+            agg = agg.rename(columns={"name": "Name"})
+            _show_rank(agg, extra.get("columns"), gear_label)
+            st.caption(
+                "How often, not how fast: on how many distinct days you "
+                "were on the water in the selected period (two sessions on "
+                "one day count as one day; the session count is next to "
+                "it). A sum over the date filter, not a best value - set "
+                "the period to a month for a monthly contest."
+            )
+
     def _r_swr(c):
         """Speed je Wind - Leistung ohne Wetterglueck."""
         _metric_body(c, "swr", "### 🌬️ Speed per wind", "Speed ÷ wind",
@@ -8669,6 +8758,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         if _sp in ("windsurf", "kitesurf", "wingsurf"):
             for _gk, _gf, _gs in (("glidel", _r_glidel, "glide_longest_min"),
                                   ("glidet", _r_glidet, "glide_min"),
+                                  ("glidesum", _r_glidesum, "glide_min"),
                                   ("swr", _r_swr, "swr")):
                 if _gs in ranking.columns and pd.to_numeric(
                         ranking[_gs], errors="coerce").gt(0).any():
@@ -8686,6 +8776,11 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
         if _sp == "windsurf":
             _avail += [("kw_ppf", _r_kw_ppf), ("kw_force", _r_kw_force),
                        ("kw_power", _r_kw_power)]
+
+    # Tage auf dem Wasser: fuer JEDE Sportart sinnvoll - haengt an keiner
+    # Messgroesse, nur am Datum, und der Zeitraum-Filter macht daraus
+    # Monats- oder Saisonwettbewerbe.
+    _avail.append(("days", _r_days))
 
     _keys = [k for k, _ in _avail]
     _default = _rank_default_tables(_sp)
