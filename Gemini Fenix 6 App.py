@@ -8585,24 +8585,40 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 return
             agg = (tbl.groupby("name")
                    .agg(Minutes=("glide_min", "sum"),
-                        Sessions=("glide_min", "size"))
+                        _n=("glide_min", "size"))
                    .reset_index()
                    .sort_values("Minutes", ascending=False)
                    .reset_index(drop=True).head(RANKING_TOP_N))
             agg.insert(0, "Rank", agg.index + 1)
-            # Stunden als Hauptzahl: Ueber einen Monat kommen schnell
-            # 300+ Minuten zusammen, und "5.2" liest sich besser als "312".
-            agg["Hours"] = (agg["Minutes"] / 60.0).round(2)
-            agg = agg[["Rank", "name", "Hours", "Sessions"]].rename(
+            # h:mm statt Dezimalstunden (Jans Einwand 28.10.2026: "1.05 h"
+            # liest niemand als Stunde und Minuten).
+            def _hmm(m):
+                m = int(round(m))
+                return f"{m // 60}:{m % 60:02d} h"
+            lbl = f"{_w.capitalize()} time"
+            agg[lbl] = [_hmm(m) for m in agg["Minutes"]]
+            # "7/13 Sessions": Zaehler = messbare Sessions, Nenner = alle im
+            # Zeitraum. Die Luecke SICHTBAR machen statt still zu klein zu
+            # sein - Jans eigene Summe wirkte falsch, war aber eine
+            # Untergrenze: 6 seiner 13 Sessions 2026 hatten keinen Gleitwert
+            # (zu duenner Uhr-Track, Uhr zaehlt erst seit App 1.1 selbst).
+            _alle = ranking.groupby("name")["name"].size()
+            agg["Sessions"] = [
+                f"{int(n)}/{int(_alle.get(nm, n))}"
+                for nm, n in zip(agg["name"], agg["_n"])]
+            agg = agg[["Rank", "name", lbl, "Sessions"]].rename(
                 columns={"name": "Name"})
             _show_rank(agg, extra.get("columns"), gear_label)
             st.caption(
-                f"All your {_w} time in the selected period added up across "
-                f"sessions - not just the best one. Counts only sessions "
-                f"whose track is dense enough to measure {_w} phases, so "
-                "read it as a lower bound; the session count is next to the "
-                "number. Narrow the date filter to run a month or season "
-                "contest."
+                f"All your {_w} time in the selected period, added up "
+                f"across sessions. The session count reads counted/total: "
+                f"the watch counts {_w} second-by-second since app 1.1, "
+                f"older sessions are computed from the GPS track - and that "
+                f"works only where the track has a point at least every "
+                f"{_GLIDE_MAX_DT_S:.0f} s. Watches thin long recordings "
+                f"out, so sessions before the counting watch often cannot "
+                "be measured and are left out. Read the total as a lower "
+                "bound, not your whole season."
             )
 
     def _r_days(c):
