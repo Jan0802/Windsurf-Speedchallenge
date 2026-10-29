@@ -2556,6 +2556,32 @@ def set_profile_list(name, key, values):
     clear_data_caches()
 
 
+def set_profile_value(name, key, value):
+    """Wie set_profile_list, aber fuer beliebige JSON-Werte (z.B. die
+    Kosten-Dicts des Kosten-Trackings). Andere Keys bleiben unangetastet."""
+    if not name:
+        return
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            select(profiles_table.c.data).where(profiles_table.c.name == name)
+        ).first()
+        rider = {}
+        if row and row[0]:
+            try:
+                rider = json.loads(row[0])
+            except Exception:  # noqa: BLE001
+                rider = {}
+        rider[key] = value
+        data = json.dumps(rider, ensure_ascii=False)
+        if row:
+            conn.execute(
+                update(profiles_table).where(profiles_table.c.name == name).values(data=data)
+            )
+        else:
+            conn.execute(insert(profiles_table).values(name=name, data=data))
+    clear_data_caches()
+
+
 # ---- Equipment teilen (Freigabe-Code) ----
 
 @st.cache_resource(show_spinner=False)
@@ -22266,6 +22292,49 @@ def render_user_profile(user):
                     st.success(f"{gear_word}s updated.")
                     st.rerun()
 
+        # --- Kosten (privat): Kaufpreise je Teil + Anfahrt je Spot ----------
+        # Kosten-Tracking Phase 2 (30.10.2026, MBS-Muster): Preise haengen an
+        # den Equipment-NAMEN (Sessions speichern genau diese Strings), die
+        # Anfahrt am Spot (€ je Besuch, hin+zurueck - bewusst manuell, die
+        # Heimadresse wird nicht gespeichert). My Results rechnet daraus
+        # € je Session und € je km. Nur Eintraege > 0 werden gespeichert.
+        _gc = rider.get("gear_costs", {}) or {}
+        _sc = rider.get("spot_costs", {}) or {}
+        _n_cost = (sum(1 for v in _gc.values() if v)
+                   + sum(1 for v in _sc.values() if v))
+        if _equip_open(("💶 Costs (private)", _n_cost),
+                       f"sec_costs_{user['id']}_{sport}"):
+            st.caption(
+                f"Purchase price per board/{gear_word.lower()} and travel "
+                "cost per spot visit (round trip, your estimate). Private — "
+                "only you see this. My Results turns it into € per session "
+                "and € per km.")
+            with st.form(f"equip_costs_{user['id']}_{sport}"):
+                neu_g = dict(_gc)
+                for _kind, _items, _wort in (
+                        (gear_meta["boards_key"], boards, "Board"),
+                        (gear_meta["gear_key"], gear, gear_word)):
+                    for _it in _items:
+                        _k = f"{_kind}|{_it}"
+                        neu_g[_k] = st.number_input(
+                            f"{_wort}: {_it} (€)", 0.0, 50000.0,
+                            float(_gc.get(_k) or 0.0), step=50.0,
+                            key=f"gc_{sport}_{_k}")
+                neu_s = dict(_sc)
+                for _sp in spots:
+                    neu_s[_sp] = st.number_input(
+                        f"🚗 {_sp} — € per visit", 0.0, 2000.0,
+                        float(_sc.get(_sp) or 0.0), step=1.0,
+                        key=f"sc_{user['id']}_{_sp}")
+                if st.form_submit_button("Save costs",
+                                         use_container_width=True):
+                    set_profile_value(user["username"], "gear_costs",
+                                      {k: v for k, v in neu_g.items() if v})
+                    set_profile_value(user["username"], "spot_costs",
+                                      {k: v for k, v in neu_s.items() if v})
+                    st.success("Costs saved — see My Results.")
+                    st.rerun()
+
         # --- Finnen (nur Sportarten mit Fin): ganze Finne = Marke+Größe+Carbon ---
         if "Fin" in gear_meta["gear_type_options"]:
             fins = rider.get(f"{sport}_fins", []) or []
@@ -23669,6 +23738,85 @@ def render_history_import(user):
                     st.rerun()
 
 
+def render_cost_overview(name):
+    """Kosten-Tracking Phase 2 (Jans/Annas Idee 30.10.2026): Was kostet mich
+    mein Sport? Kaufpreise je Board/Segel (Profil "gear_costs", Schluessel
+    "<listen_key>|<name>" - Sessions speichern exakt diese Strings) und
+    Anfahrt je Spot ("spot_costs", € je BESUCH: zwei Sessions an einem Tag
+    sind EINE Fahrt). PRIVAT und opt-in: ohne Eintraege erscheint nichts."""
+    rider = load_profiles().get(name, {}) or {}
+    gc = rider.get("gear_costs") or {}
+    sc = rider.get("spot_costs") or {}
+    if not gc and not sc:
+        return
+    sport = active_sport()
+    meta = SPORT_META[sport]
+    df = load_rider_sessions(name, sport)
+    if df is None or df.empty:
+        return
+    with st.expander("💶 What your sport costs (private)", expanded=False):
+        zeilen = []
+        summe_material = 0.0
+        for kind, col, wort in ((meta["boards_key"], "board", "Board"),
+                                (meta["gear_key"], "sail",
+                                 meta["gear_label"])):
+            for item in rider.get(kind, []) or []:
+                preis = gc.get(f"{kind}|{item}")
+                if not preis:
+                    continue
+                summe_material += float(preis)
+                if col in df.columns:
+                    sess = df[df[col].astype(str) == item]
+                else:
+                    sess = df.iloc[0:0]
+                n = len(sess)
+                km = 0.0
+                if n and "total_distance_km" in sess.columns:
+                    km = float(pd.to_numeric(
+                        sess["total_distance_km"],
+                        errors="coerce").fillna(0).sum())
+                zeilen.append({
+                    "Gear": f"{wort}: {item}",
+                    "Price": f"{preis:.0f} €",
+                    "Sessions": n,
+                    "km": round(km),
+                    "€/session": f"{preis / n:.2f}" if n else "–",
+                    "€/km": f"{preis / km:.2f}" if km >= 1 else "–",
+                })
+        if zeilen:
+            st.dataframe(pd.DataFrame(zeilen), hide_index=True,
+                         width="stretch")
+        fahrt_summe = 0.0
+        fahrt_zeilen = []
+        if sc and "surfspot" in df.columns and "date" in df.columns:
+            tage_js = df.assign(
+                _tag=df["date"].astype(str).str[:10]
+            ).groupby(df["surfspot"].astype(str))["_tag"].nunique()
+            for spot_name, eur in sc.items():
+                tage = int(tage_js.get(spot_name, 0))
+                if not tage or not eur:
+                    continue
+                fahrt_summe += tage * float(eur)
+                fahrt_zeilen.append({
+                    "Spot": spot_name, "Visits": tage,
+                    "€/visit": f"{eur:.0f}",
+                    "Travel total": f"{tage * eur:.0f} €",
+                })
+        if fahrt_zeilen:
+            st.dataframe(pd.DataFrame(fahrt_zeilen), hide_index=True,
+                         width="stretch")
+        n_all = len(df)
+        gesamt = summe_material + fahrt_summe
+        if gesamt and n_all:
+            st.caption(
+                f"Gear {summe_material:.0f} € + travel {fahrt_summe:.0f} € "
+                f"= **{gesamt:.0f} €** over {n_all} sessions → "
+                f"**{gesamt / n_all:.2f} € per session**. Every session "
+                "makes it cheaper. Private — only you see this; prices and "
+                "travel costs live under My profile → Equipment → Costs. "
+                "A visit counts per day on the water, not per session.")
+
+
 def render_my_results_page(user):
     """Persönliche Seite: KPI-Rekorde, eigener Rang, Bestleistungen (mit Filter),
     eigene Sessions + Detailanalyse und der „complete my sessions“-Editor – alles
@@ -23727,6 +23875,13 @@ def render_my_results_page(user):
     # --- Finnenberater (Windsurf, aufklappbar; reine Faustregel, kein Serverkost) ---
     _render_fin_advisor(name)
     _dbperf_marke("Finne")
+
+    # --- Was kostet mich mein Sport? (opt-in, privat) ---
+    try:
+        render_cost_overview(name)
+    except Exception:  # noqa: BLE001 - Zusatzkachel darf die Seite nie reissen
+        logging.exception("Kosten-Uebersicht fehlgeschlagen")
+    _dbperf_marke("Kosten")
 
     st.markdown("---")
 
