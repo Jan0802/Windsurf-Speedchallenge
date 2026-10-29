@@ -2556,6 +2556,17 @@ def set_profile_list(name, key, values):
     clear_data_caches()
 
 
+def _kosten_wert(v):
+    """gear_costs-Wert lesen: die erste Fassung (30.10. vormittags) war ein
+    nackter Preis-Float, seit der Jahresuebersicht ist es {"eur", "year"}.
+    -> (eur, jahr_oder_None), fuer beide Formen."""
+    if isinstance(v, dict):
+        jahr = v.get("year")
+        return (float(v.get("eur") or 0.0),
+                int(jahr) if jahr else None)
+    return float(v or 0.0), None
+
+
 def set_profile_value(name, key, value):
     """Wie set_profile_list, aber fuer beliebige JSON-Werte (z.B. die
     Kosten-Dicts des Kosten-Trackings). Andere Keys bleiben unangetastet."""
@@ -22316,10 +22327,18 @@ def render_user_profile(user):
                         (gear_meta["gear_key"], gear, gear_word)):
                     for _it in _items:
                         _k = f"{_kind}|{_it}"
-                        neu_g[_k] = st.number_input(
+                        _eur_alt, _jahr_alt = _kosten_wert(_gc.get(_k))
+                        _c1, _c2 = st.columns([2, 1])
+                        _eur = _c1.number_input(
                             f"{_wort}: {_it} (€)", 0.0, 50000.0,
-                            float(_gc.get(_k) or 0.0), step=50.0,
-                            key=f"gc_{sport}_{_k}")
+                            _eur_alt, step=50.0, key=f"gc_{sport}_{_k}")
+                        # Kaufjahr (optional) fuer die Jahresuebersicht in
+                        # My Results - 0 = unbekannt.
+                        _jahr = _c2.number_input(
+                            "Year bought", 0, 2100, _jahr_alt or 0, step=1,
+                            key=f"gy_{sport}_{_k}")
+                        neu_g[_k] = {"eur": _eur,
+                                     "year": int(_jahr) or None}
                 neu_s = dict(_sc)
                 for _sp in spots:
                     neu_s[_sp] = st.number_input(
@@ -22328,12 +22347,59 @@ def render_user_profile(user):
                         key=f"sc_{user['id']}_{_sp}")
                 if st.form_submit_button("Save costs",
                                          use_container_width=True):
-                    set_profile_value(user["username"], "gear_costs",
-                                      {k: v for k, v in neu_g.items() if v})
+                    set_profile_value(
+                        user["username"], "gear_costs",
+                        {k: v for k, v in neu_g.items()
+                         if _kosten_wert(v)[0]})
                     set_profile_value(user["username"], "spot_costs",
                                       {k: v for k, v in neu_s.items() if v})
                     st.success("Costs saved — see My Results.")
                     st.rerun()
+
+            # --- Freie Posten (Mast, Gabelbaum, Neo, Reparatur …) ----------
+            # Jans Einwand 30.10.: nicht alles ist Board oder Segel, und
+            # nicht alles kam im selben Jahr - darum eigene Eintraege MIT
+            # Datum. Daraus speist sich die Jahresuebersicht in My Results.
+            _ce = rider.get("cost_entries", []) or []
+            _ce_sport = [(i, e) for i, e in enumerate(_ce)
+                         if e.get("sport") == sport]
+            if _ce_sport:
+                st.caption(f"Other purchases ({gear_meta['label']}):")
+                for _i, _e in _ce_sport:
+                    _z1, _z2 = st.columns([5, 1])
+                    _z1.caption(
+                        f"{str(_e.get('date') or '?')[:10]} · "
+                        f"{_e.get('label') or '?'} · "
+                        f"**{float(_e.get('eur') or 0):.0f} €**")
+                    if _z2.button("✕", key=f"ce_del_{user['id']}_{_i}",
+                                  help="Delete entry"):
+                        _rest = [e for j, e in enumerate(_ce) if j != _i]
+                        set_profile_value(user["username"],
+                                          "cost_entries", _rest)
+                        st.rerun()
+            with st.form(f"equip_extras_{user['id']}_{sport}",
+                         clear_on_submit=True):
+                _e1, _e2, _e3 = st.columns([1.2, 2, 1])
+                _ce_datum = _e1.date_input("Date", key=f"ce_d_{sport}")
+                _ce_label = _e2.text_input(
+                    "What", placeholder="e.g. mast 460 SDM, wetsuit, repair",
+                    key=f"ce_l_{sport}")
+                _ce_eur = _e3.number_input("€", 0.0, 50000.0, 0.0,
+                                           step=10.0, key=f"ce_e_{sport}")
+                if st.form_submit_button("➕ Add purchase",
+                                         use_container_width=True):
+                    if _ce_eur > 0 and _ce_label.strip():
+                        set_profile_value(
+                            user["username"], "cost_entries",
+                            list(_ce) + [{
+                                "sport": sport,
+                                "date": _ce_datum.isoformat(),
+                                "label": _ce_label.strip(),
+                                "eur": float(_ce_eur)}])
+                        st.success("Added.")
+                        st.rerun()
+                    else:
+                        st.error("Needs a label and an amount.")
 
         # --- Finnen (nur Sportarten mit Fin): ganze Finne = Marke+Größe+Carbon ---
         if "Fin" in gear_meta["gear_type_options"]:
@@ -23747,24 +23813,36 @@ def render_cost_overview(name):
     rider = load_profiles().get(name, {}) or {}
     gc = rider.get("gear_costs") or {}
     sc = rider.get("spot_costs") or {}
-    if not gc and not sc:
-        return
     sport = active_sport()
     meta = SPORT_META[sport]
+    extras = [e for e in (rider.get("cost_entries") or [])
+              if e.get("sport") == sport]
+    if not gc and not sc and not extras:
+        return
     df = load_rider_sessions(name, sport)
     if df is None or df.empty:
         return
     with st.expander("💶 What your sport costs (private)", expanded=False):
         zeilen = []
         summe_material = 0.0
+        jahres_topf = {}
+
+        def _jahr_add(jahr, feld, betrag):
+            if not betrag:
+                return
+            topf = jahres_topf.setdefault(
+                jahr or "–", {"Gear": 0.0, "Other": 0.0, "Travel": 0.0})
+            topf[feld] += float(betrag)
+
         for kind, col, wort in ((meta["boards_key"], "board", "Board"),
                                 (meta["gear_key"], "sail",
                                  meta["gear_label"])):
             for item in rider.get(kind, []) or []:
-                preis = gc.get(f"{kind}|{item}")
+                preis, kaufjahr = _kosten_wert(gc.get(f"{kind}|{item}"))
                 if not preis:
                     continue
                 summe_material += float(preis)
+                _jahr_add(kaufjahr, "Gear", preis)
                 if col in df.columns:
                     sess = df[df[col].astype(str) == item]
                 else:
@@ -23786,12 +23864,35 @@ def render_cost_overview(name):
         if zeilen:
             st.dataframe(pd.DataFrame(zeilen), hide_index=True,
                          width="stretch")
+
+        # Freie Posten (Mast, Gabelbaum, Neo, Reparatur ...) - haben ein
+        # Datum und speisen damit vor allem die Jahresuebersicht.
+        summe_extra = 0.0
+        if extras:
+            ex_zeilen = []
+            for e in sorted(extras, key=lambda x: str(x.get("date") or ""),
+                            reverse=True):
+                _eur = float(e.get("eur") or 0)
+                summe_extra += _eur
+                _d = str(e.get("date") or "")[:10]
+                _jahr_add(_d[:4] if _d else None, "Other", _eur)
+                ex_zeilen.append({"Purchase": e.get("label") or "?",
+                                  "Date": _d or "–",
+                                  "Price": f"{_eur:.0f} €"})
+            st.dataframe(pd.DataFrame(ex_zeilen), hide_index=True,
+                         width="stretch")
+
         fahrt_summe = 0.0
         fahrt_zeilen = []
         if sc and "surfspot" in df.columns and "date" in df.columns:
-            tage_js = df.assign(
-                _tag=df["date"].astype(str).str[:10]
-            ).groupby(df["surfspot"].astype(str))["_tag"].nunique()
+            _tagdf = df.assign(
+                _tag=df["date"].astype(str).str[:10],
+                _spot=df["surfspot"].astype(str))
+            tage_js = _tagdf.groupby("_spot")["_tag"].nunique()
+            # Besuche je Spot UND Jahr - fuer die Jahresuebersicht.
+            _tagdf = _tagdf.assign(_jahr=_tagdf["_tag"].str[:4])
+            tage_jahr = (_tagdf.drop_duplicates(["_spot", "_tag"])
+                         .groupby(["_spot", "_jahr"])["_tag"].count())
             for spot_name, eur in sc.items():
                 tage = int(tage_js.get(spot_name, 0))
                 if not tage or not eur:
@@ -23802,14 +23903,42 @@ def render_cost_overview(name):
                     "€/visit": f"{eur:.0f}",
                     "Travel total": f"{tage * eur:.0f} €",
                 })
+                for (_sp2, _j2), _n2 in tage_jahr.items():
+                    if _sp2 == spot_name and _j2:
+                        _jahr_add(_j2, "Travel", int(_n2) * float(eur))
         if fahrt_zeilen:
             st.dataframe(pd.DataFrame(fahrt_zeilen), hide_index=True,
                          width="stretch")
+
+        # --- Jahresuebersicht (Jans Wunsch 30.10.: "was habe ich in einem
+        # Jahr ausgegeben?"). Gear braucht dafuer das Kaufjahr am Preis,
+        # freie Posten ihr Datum, die Anfahrt kommt aus den Session-Tagen.
+        # "-" sammelt alles ohne Jahresangabe.
+        if jahres_topf:
+            j_zeilen = []
+            for jahr in sorted(jahres_topf, key=str, reverse=True):
+                t = jahres_topf[jahr]
+                j_zeilen.append({
+                    "Year": jahr,
+                    "Gear": f"{t['Gear']:.0f} €" if t["Gear"] else "–",
+                    "Other": f"{t['Other']:.0f} €" if t["Other"] else "–",
+                    "Travel": f"{t['Travel']:.0f} €" if t["Travel"] else "–",
+                    "Total": f"{t['Gear'] + t['Other'] + t['Travel']:.0f} €",
+                })
+            st.markdown("**📅 Per year**")
+            st.dataframe(pd.DataFrame(j_zeilen), hide_index=True,
+                         width="stretch")
+            if any(j == "–" for j in jahres_topf):
+                st.caption("„–“ = purchases without a year — set the "
+                           "year next to the price under My profile → "
+                           "Equipment → Costs.")
+
         n_all = len(df)
-        gesamt = summe_material + fahrt_summe
+        gesamt = summe_material + summe_extra + fahrt_summe
         if gesamt and n_all:
             st.caption(
-                f"Gear {summe_material:.0f} € + travel {fahrt_summe:.0f} € "
+                f"Gear {summe_material:.0f} € + other purchases "
+                f"{summe_extra:.0f} € + travel {fahrt_summe:.0f} € "
                 f"= **{gesamt:.0f} €** over {n_all} sessions → "
                 f"**{gesamt / n_all:.2f} € per session**. Every session "
                 "makes it cheaper. Private — only you see this; prices and "
