@@ -21135,9 +21135,29 @@ if os.path.exists(app_path("static", "hero", f"{sport}-1920.webp")):
         "</style>"
     )
 
+# Wasserzeichen (04.11.2026, Jans Wunsch nach dem Wegfall des Hero-Fotos):
+# Der aktive Sport als riesige, durchscheinende "Glas"-Typo rechts im Hero -
+# fuellt die leere Flaeche mit Tiefe, ohne die Wortmarke zu stoeren. Nur
+# EIN Wort (das des aktiven Tabs): Die Sportliste steht schon in der
+# Navigation darueber, dreifach waere es Dekoration ohne Information.
+# Klick-durchlaessig, nicht markierbar, unter 900 px Breite ausgeblendet.
+# Geplant als Nachfolger, sobald es genug Sessions gibt: eine lebendige
+# Zahlenleiste (Spots - Sessions - Rekord des Tages) an derselben Stelle.
+_hero_wm = SPORT_META[sport]["title"]
 _hero_html = f"""
 {_hero_css}
+<style>
+.hero{{position:relative;overflow:hidden;}}
+.hero-wm{{position:absolute;right:2.5%;top:50%;transform:translateY(-50%);
+  font-size:clamp(72px,9vw,150px);font-weight:900;letter-spacing:.04em;
+  text-transform:uppercase;line-height:1;white-space:nowrap;
+  color:rgba(255,255,255,.055);-webkit-text-stroke:1px rgba(255,255,255,.11);
+  pointer-events:none;user-select:none;z-index:0;}}
+.hero-row{{position:relative;z-index:1;}}
+@media (max-width:900px){{.hero-wm{{display:none;}}}}
+</style>
 <div class="hero">
+    <div class="hero-wm" aria-hidden="true">{_hero_wm}</div>
     <div class="hero-row">
         {_hero_icon}
         <div class="hero-content">
