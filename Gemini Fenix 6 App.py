@@ -17187,6 +17187,72 @@ def _render_garmin_connect(user):
         st.rerun()
 
 
+def _render_connect_watch(user):
+    """EIN Ort fuer alle Verbindungswege (Jans Befund 04.11.2026: "Koppeln
+    viel zu versteckt" - lag verstreut im Profil und unter Add session).
+    Reihenfolge = Haeufigkeit: WaterSession-Uhr-Code, dann Garmin-Konto
+    (jede Garmin-App), dann Polar."""
+    if not user:
+        return
+    uid = user["id"]
+    # 1) WaterSession-App: Kopplungscode
+    st.markdown("**⌚ WaterSession watch app**")
+    st.caption("Enter the short code the WaterSession app shows on your watch "
+               "(after a session, on the Resend screen: *your code: …*). "
+               "Then tap Resend once – future sessions upload automatically.")
+    _tok_key = f"_device_token_{uid}"
+    if get_device_token(uid):
+        st.caption("✅ Watch connected.")
+    with st.form(f"connect_watch_{uid}"):
+        code_in = st.text_input("Watch code", placeholder="e.g. AB3KQ7")
+        if st.form_submit_button("🔗 Connect watch", use_container_width=True):
+            code = (code_in or "").strip().replace(" ", "").replace("-", "")
+            if 0 < len(code) <= 8:
+                code = code.upper()
+            if not code:
+                st.error("Please enter the code shown on your watch.")
+            else:
+                ok, msg = admin_set_device_token(uid, code)
+                if ok:
+                    st.session_state[_tok_key] = code
+                    st.success("Watch connected – now tap Resend on the watch.")
+                    st.rerun()
+                else:
+                    st.error(msg)
+    # Manueller Token: Button-Toggle statt Expander (Expander in Expander
+    # ist in Streamlit nicht erlaubt - wir sitzen schon in einem).
+    _adv_key = f"_adv_token_open_{uid}"
+    if st.button(("▾" if st.session_state.get(_adv_key) else "▸")
+                 + "  Advanced: device token (manual setup)",
+                 key=f"adv_token_btn_{uid}", use_container_width=True):
+        st.session_state[_adv_key] = not st.session_state.get(_adv_key)
+        st.rerun()
+    if st.session_state.get(_adv_key):
+        st.caption("Old manual way: paste this token into the watch app settings "
+                   "in Garmin Connect. Most people don't need this.")
+        if _tok_key not in st.session_state:
+            st.session_state[_tok_key] = get_or_create_device_token(uid)
+        st.code(st.session_state[_tok_key], language=None)
+        if st.button("Regenerate token", key=f"regen_token_{uid}",
+                     use_container_width=True):
+            st.session_state[_tok_key] = regenerate_device_token(uid)
+            st.success("New token generated.")
+            st.rerun()
+    # 2) Garmin-Konto (jede Garmin-App, Auto-Import per Push)
+    st.markdown("---")
+    st.markdown("**🔗 Garmin account (any Garmin app)**")
+    _render_garmin_connect(user)
+    # 3) Polar
+    if _polar_enabled():
+        st.markdown("---")
+        st.markdown("**🔗 Polar Flow**")
+        _pf = st.session_state.pop("_polar_flash", None)
+        if _pf:
+            (st.success if _pf.startswith("✅") else st.error)(_pf)
+        _render_polar_connect(user)
+    st.caption("[How to connect any watch ↗](https://mywatersessions.com/watches.html)")
+
+
 def _render_polar_connect(user):
     """Polar verbinden/trennen + Status + Sync (Sessions abholen)."""
     username = (user or {}).get("username")
@@ -22273,44 +22339,11 @@ def render_user_profile(user):
                         else:
                             st.error(msg)
 
-        # --- Uhr verbinden (Pairing-Code) ---
-        _tok_key = f"_device_token_{user['id']}"
-        if _section("⌚ Connect your watch", f"sec_watch_{user['id']}"):
-            st.caption(
-                "Enter the short code the WaterSession app shows on your watch "
-                "(after a session, on the Resend screen: your code: …). This links your "
-                "rides to your account. Then tap Resend on the watch once to upload "
-                "sessions you already recorded – future ones sync automatically."
-            )
-            with st.form(f"connect_watch_{user['id']}"):
-                code_in = st.text_input("Watch code", placeholder="e.g. AB3KQ7")
-                if st.form_submit_button("🔗 Connect watch", use_container_width=True):
-                    code = (code_in or "").strip().replace(" ", "").replace("-", "")
-                    if 0 < len(code) <= 8:
-                        code = code.upper()
-                    if not code:
-                        st.error("Please enter the code shown on your watch.")
-                    else:
-                        ok, msg = admin_set_device_token(user["id"], code)
-                        if ok:
-                            st.session_state[_tok_key] = code
-                            st.success("Watch connected – now tap Resend on the watch.")
-                        else:
-                            st.error(msg)
-
-            with st.expander("Advanced: device token (manual setup)", expanded=False):
-                st.caption(
-                    "Old manual way: paste this token into the watch app settings in "
-                    "Garmin Connect. Most people don't need this – the code above is easier."
-                )
-                if _tok_key not in st.session_state:
-                    st.session_state[_tok_key] = get_or_create_device_token(user["id"])
-                st.code(st.session_state[_tok_key], language=None)
-                if st.button("Regenerate token", key=f"regen_token_{user['id']}",
-                             use_container_width=True):
-                    st.session_state[_tok_key] = regenerate_device_token(user["id"])
-                    st.success("New token generated.")
-                    st.rerun()
+        # --- Uhr verbinden: seit 04.11.2026 EIGENER Sidebar-Punkt
+        # ("⌚ Connect watch · Garmin · Polar", direkt unter dem Profil) -
+        # hier nur noch der Wegweiser, damit niemand im Profil sucht.
+        st.caption("⌚ Connect your watch, Garmin or Polar: see the "
+                   "**Connect watch** section right below this profile.")
 
         # --- SOS / Sicherheits-Check-in (Totmann-Timer) ---
         # Ein aktiver Timer erzwingt das Aufklappen + eine ACTIVE-Markierung im
@@ -22695,6 +22728,12 @@ def render_account_sidebar(user):
 
         st.markdown("---")
         render_user_profile(user)
+
+        # ⌚ Verbinden - EIGENER Punkt direkt unter dem Profil (Jans Befund
+        # 04.11.2026: "viel zu versteckt"). Der wichtigste Onboarding-
+        # Schritt gehoert nach ganz oben, nicht ins Profil oder unter Upload.
+        with st.expander("⌚ Connect watch · Garmin · Polar", expanded=False):
+            _render_connect_watch(user)
 
         # Die zwei Bereiche, die man im Alltag WIRKLICH braucht: eine Session
         # hochladen und die Ranglisten filtern. Sie standen ganz unten, hinter
@@ -25334,15 +25373,11 @@ with left:
             st.markdown("**— or import from Strava —**")
             _render_strava_import()
 
-        st.markdown("**— or connect Garmin (auto-import) —**")
-        _render_garmin_connect(current_user)
-
-        if _polar_enabled():
-            _pf = st.session_state.pop("_polar_flash", None)
-            if _pf:
-                (st.success if _pf.startswith("✅") else st.error)(_pf)
-            st.markdown("**— or connect Polar (auto-import) —**")
-            _render_polar_connect(current_user)
+        # Garmin-/Polar-Verbindung wohnt seit 04.11.2026 im Sidebar-Punkt
+        # "⌚ Connect watch · Garmin · Polar" (direkt unter dem Profil) -
+        # hier nur der Wegweiser, die Widgets duerfen nicht doppelt existieren.
+        st.caption("🔗 Prefer auto-import? Connect your **Garmin** or **Polar** "
+                   "account under *⌚ Connect watch* in the sidebar.")
     else:
         st.caption(
             "Connect the watch via USB. Whether it shows up as a drive (e.g. "
