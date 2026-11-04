@@ -21143,7 +21143,10 @@ if os.path.exists(app_path("static", "hero", f"{sport}-1920.webp")):
 # Klick-durchlaessig, nicht markierbar, unter 900 px Breite ausgeblendet.
 # Geplant als Nachfolger, sobald es genug Sessions gibt: eine lebendige
 # Zahlenleiste (Spots - Sessions - Rekord des Tages) an derselben Stelle.
-_hero_wm = SPORT_META[sport]["title"]
+# "label" (Windsurf), NICHT "title" (WINDSURF): Der Titel liegt schon als
+# Versalien in den Metadaten - gegen den hilft kein text-transform, und in
+# Grossbuchstaben wirkt dieselbe Schrift fremd zur gemischten Wortmarke.
+_hero_wm = SPORT_META[sport]["label"]
 _hero_html = f"""
 {_hero_css}
 <style>
