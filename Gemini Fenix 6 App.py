@@ -16959,6 +16959,194 @@ def polar_repair_tracks(username):
     return fixed, checked, None
 
 
+# ---------------------------------------------------------------------------
+#  Garmin-Anbindung (Connect Developer Program, Starter - seit 04.11.2026).
+#  OAuth und Push-Empfang wohnen im INGEST (spots.mywatersessions.com, Tabellen
+#  garmin_links / garmin_inbox in der gemeinsamen DB). Die Web-App hat hier
+#  zwei Aufgaben: den Nutzer mit einem SEED_KEY-signierten Zeichen zum
+#  Verbinden schicken - und die Inbox VERARBEITEN (?garmin_inbox=1&key=…,
+#  per Cron), mit exakt derselben Pipeline wie Datei-Upload und Polar.
+# ---------------------------------------------------------------------------
+GARMIN_INGEST_BASE = "https://spots.mywatersessions.com"
+
+
+def garmin_connect_url(username):
+    """Signierter Start-Link in den Ingest (15 Minuten gueltig)."""
+    _sk = _secret("SEED_KEY", "").strip()
+    if not _sk:
+        return None
+    exp = int(time.time()) + 900
+    sig = hmac.new(_sk.encode(), f"garmin|{username}|{exp}".encode(),
+                   hashlib.sha256).hexdigest()[:32]
+    return (f"{GARMIN_INGEST_BASE}/garmin/connect?"
+            + urlencode({"u": username, "exp": exp, "sig": sig}))
+
+
+def load_garmin_link(username):
+    """Verknuepfung aus garmin_links - None, wenn keine (oder Tabelle noch
+    nicht da, solange der Ingest nicht neu deployt ist)."""
+    from sqlalchemy import text as _sqtext
+    if not username:
+        return None
+    try:
+        with get_engine().connect() as conn:
+            row = conn.execute(
+                _sqtext("SELECT garmin_user_id, updated_at FROM garmin_links"
+                        " WHERE username=:u"), {"u": username}).mappings().first()
+        return dict(row) if row else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def delete_garmin_link(username):
+    from sqlalchemy import text as _sqtext
+    with get_engine().begin() as conn:
+        conn.execute(_sqtext("DELETE FROM garmin_links WHERE username=:u"),
+                     {"u": username})
+
+
+def _garmin_sport(typ):
+    """Garmin-Aktivitaetstyp (typeKey wie windsurfing_v2, oder FIT-Sportname)
+    -> unser Sport-Schluessel; None = kein Wassersport (Radfahren usw.
+    landet NICHT in MWS). Reihenfolge wichtig: 'windsurf' vor 'surf'."""
+    t = (typ or "").lower()
+    if not t:
+        return None
+    if "wind" in t:
+        return "windsurf"
+    if "kite" in t:
+        return "kitesurf"
+    if "wing" in t:
+        return "wingsurf"
+    if "paddle" in t or t.startswith("sup"):
+        return "sup"
+    if "wake" in t:
+        return "wakeboard"
+    if "surf" in t:
+        return "surf"
+    return None
+
+
+def _fit_sport_name(fit_bytes):
+    """Sport aus der FIT selbst (sport-/session-Nachricht) - Rueckfall, wenn
+    der Steckbrief-Push den Typ nicht geliefert hat."""
+    try:
+        import fitdecode as _fd
+        with _fd.FitReader(io.BytesIO(fit_bytes)) as fr:
+            for fr2 in fr:
+                if (isinstance(fr2, _fd.FitDataMessage)
+                        and fr2.name in ("sport", "session")):
+                    v = fr2.get_value("sport", fallback=None)
+                    if v is not None:
+                        return str(v)
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def _garmin_watch_dublette(eng, username, date_str, df):
+    """Dubletten-Bremse gegen die eigene Uhr-App: Wer mit WaterSession
+    aufzeichnet, erzeugt AUCH eine Garmin-Aktivitaet - die kaeme per Push ein
+    zweites Mal. Gleicher Fahrer, gleicher Tag, Dauer +/- 3 min = dieselbe
+    Fahrt."""
+    from sqlalchemy import text as _sqtext
+    if not date_str:
+        return False
+    dur = None
+    if "timestamp" in df.columns:
+        _ts = df["timestamp"].dropna()
+        if len(_ts) > 1:
+            dur = int((_ts.max() - _ts.min()).total_seconds())
+    with eng.connect() as conn:
+        rows = conn.execute(
+            _sqtext("SELECT duration_s FROM sessions WHERE name=:u"
+                    " AND source='watch' AND CAST(date AS TEXT) LIKE :d"),
+            {"u": username, "d": str(date_str)[:10] + "%"}).fetchall()
+    for (d_s,) in rows:
+        if dur is None or d_s is None or abs(int(d_s) - dur) < 180:
+            return True
+    return False
+
+
+def garmin_inbox_verarbeiten(limit=10):
+    """Inbox abarbeiten: FIT -> Pipeline -> Session (source='garmin').
+    Jede Zeile bekommt einen Status; die FIT-Bytes werden danach geloescht
+    (nur Fehlerfaelle behalten sie fuer die Nachschau)."""
+    from sqlalchemy import text as _sqtext
+    eng = get_engine()
+    with eng.connect() as conn:
+        rows = conn.execute(
+            _sqtext("SELECT id, username, summary_id, activity_type, fit"
+                    " FROM garmin_inbox WHERE status='new'"
+                    " ORDER BY id LIMIT :n"), {"n": int(limit)}).mappings().all()
+    out = []
+    for r in rows:
+        status, note = "done", None
+        try:
+            fit = bytes(r["fit"]) if r["fit"] is not None else b""
+            fname = f"garmin-{r['summary_id']}"
+            _fs = _fit_sport_name(fit) if fit else None
+            sport = _garmin_sport(r["activity_type"]) or _garmin_sport(_fs)
+            if not fit:
+                status, note = "error", "keine FIT-Bytes"
+            elif not sport:
+                status, note = "skipped", (
+                    f"kein Wassersport ({r['activity_type'] or _fs or '?'})")
+            elif session_exists(fname):
+                status, note = "duplicate", "schon importiert"
+            else:
+                df = read_activity_file(io.BytesIO(fit), fname + ".fit")
+                entry = _polar_entry_from_df(df, r["username"], sport, fname)
+                if not entry:
+                    status, note = "skipped", "keine auswertbaren Daten"
+                elif _garmin_watch_dublette(eng, r["username"],
+                                            entry.get("date"), df):
+                    status, note = "duplicate", "schon per Uhr-App da"
+                else:
+                    entry["source"] = "garmin"
+                    save_session(entry)
+                    note = (f"{sport} {entry.get('date')} "
+                            f"{entry.get('total_distance_km')} km "
+                            f"max {entry.get('speed_1s_kmh')} km/h")
+        except Exception as exc:  # noqa: BLE001
+            status, note = "error", f"{type(exc).__name__}: {str(exc)[:200]}"
+        with eng.begin() as conn:
+            conn.execute(
+                _sqtext("UPDATE garmin_inbox SET status=:s, note=:n,"
+                        " processed_at=NOW(), fit=CASE WHEN :s2 IN"
+                        " ('done','duplicate','skipped') THEN NULL ELSE fit END"
+                        " WHERE id=:i"),
+                {"s": status, "s2": status, "n": note, "i": r["id"]})
+        out.append(f"#{r['id']} {r['username']}: {status} - {note}")
+    return "garmin_inbox: " + (" | ".join(out) if out else "nichts zu tun")
+
+
+def _render_garmin_connect(user):
+    """Garmin verbinden/trennen + Status (Import laeuft automatisch per
+    Push - kein Sync-Knopf noetig)."""
+    username = (user or {}).get("username")
+    if not username:
+        return
+    link = load_garmin_link(username)
+    if not link or not link.get("garmin_user_id"):
+        url = garmin_connect_url(username)
+        if url:
+            st.link_button("🔗 Connect Garmin (auto-import)", url,
+                           use_container_width=True)
+        st.caption("Link your Garmin account once - watersport activities you "
+                   "record with any Garmin app are then imported automatically "
+                   "within minutes. Recording with the WaterSession watch app "
+                   "stays the fastest way (no duplicates - we check).")
+        return
+    c1, c2 = st.columns([3, 1])
+    c1.caption("✅ Garmin connected. New watersport activities import "
+               "automatically - add spot, board and sail under My Results so "
+               "they count in the ranking.")
+    if c2.button("Disconnect", key="garmin_disconnect"):
+        delete_garmin_link(username)
+        st.rerun()
+
+
 def _render_polar_connect(user):
     """Polar verbinden/trennen + Status + Sync (Sessions abholen)."""
     username = (user or {}).get("username")
@@ -20360,6 +20548,23 @@ if "warm" in st.query_params:
     _warm("spot_names", _all_spot_names)
     _warm("spot_info", load_all_spot_info)
     st.write("warm ok · " + ", ".join(_warmed))
+    st.stop()
+
+# Garmin-Inbox verarbeiten (Cron alle 5 Min, 04.11.2026): Der Ingest legt
+# die per Push geholten FIT-Dateien in garmin_inbox; HIER laufen sie durch
+# dieselbe Pipeline wie ein Datei-Upload. Gated per SEED_KEY in der URL -
+# dasselbe Muster wie die Ingest-Crons (und dieselbe %23-Falle beim '#').
+if "garmin_inbox" in st.query_params:
+    _gk = _secret("SEED_KEY", "").strip()
+    if not _gk or st.query_params.get("key", "") != _gk:
+        st.write("forbidden")
+        st.stop()
+    ensure_schema()
+    ensure_watch_columns()
+    try:
+        st.write(garmin_inbox_verarbeiten())
+    except Exception as _exc:  # noqa: BLE001 - der Cron soll den Grund sehen
+        st.write(f"garmin_inbox: Fehler {type(_exc).__name__}: {_exc}")
     st.stop()
 
 # Spot-TV-Vollbildmodus (Cafe/Shop/Club-Screen): wird per ?tv=... aufgerufen und
@@ -25088,6 +25293,9 @@ with left:
         if _strava_enabled():
             st.markdown("**— or import from Strava —**")
             _render_strava_import()
+
+        st.markdown("**— or connect Garmin (auto-import) —**")
+        _render_garmin_connect(current_user)
 
         if _polar_enabled():
             _pf = st.session_state.pop("_polar_flash", None)
