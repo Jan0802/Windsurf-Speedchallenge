@@ -16773,10 +16773,50 @@ def _track_json_from_df(df, max_points=4000):
     return json.dumps(pts)
 
 
+def _spot_automatisch(lat, lon):
+    """Spot fuer einen Startpunkt - die 3-Stufen-Erkennung der Uhr-Sessions,
+    jetzt auch fuer Polar- und Garmin-Importe (Jans Wunsch 04.11.2026:
+    "ohne Spot keine Rangliste").
+
+    Stufe 1 lokal und kostenlos: naechster bekannter Spot im 2-km-Umkreis
+    aus der eigenen Spot-Tabelle. Stufe 2 ueber den Ingest (/spot_lookup,
+    SEED_KEY): Reverse-Geocoding samt Cache, legt den Ort als Spot an -
+    EINE Erkennung fuer alle Wege, kein zweiter Geocoder hier. Faellt alles
+    aus -> None, der Nutzer traegt nach wie bisher."""
+    if lat is None or lon is None:
+        return None
+    try:
+        best, best_d = None, 2000.0
+        for name, pos in load_spots().items():
+            if pos.get("lat") is None or pos.get("lon") is None:
+                continue
+            d = float(_haversine_m(float(lat), float(lon),
+                                   float(pos["lat"]), float(pos["lon"])))
+            if d <= best_d:
+                best, best_d = name, d
+        if best:
+            return best
+    except Exception:  # noqa: BLE001 - Stufe 1 darf nie den Import reissen
+        pass
+    _sk = _secret("SEED_KEY", "").strip()
+    if not _sk:
+        return None
+    try:
+        _u = (f"{GARMIN_INGEST_BASE}/spot_lookup?"
+              + urlencode({"key": _sk, "lat": round(float(lat), 5),
+                           "lon": round(float(lon), 5)}))
+        req = Request(_u, headers={"User-Agent": "MyWaterSessions/1.0"})
+        with urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return data.get("spot") or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _polar_entry_from_df(df, username, sport, fname):
     """Berechnet aus dem geparsten Track dieselben Kennzahlen wie der Datei-Upload
-    und baut einen Session-Eintrag. UNVOLLSTÄNDIG (ohne Spot/Board/Segel) – wird
-    wie eine Uhr-Session später nachgepflegt. source='polar'."""
+    und baut einen Session-Eintrag (Polar UND Garmin). Spot kommt seit 04.11.
+    automatisch (_spot_automatisch); Board/Segel traegt der Nutzer nach."""
     if df is None or df.empty or "speed_kmh" not in df.columns:
         return None
     best_1s = best_average_speed(df, 1)
@@ -16815,7 +16855,7 @@ def _polar_entry_from_df(df, username, sport, fname):
 
     return {
         "sport": sport, "date": session_date, "name": username,
-        "surfspot": None, "board": None, "sail": None,
+        "surfspot": _spot_automatisch(lat, lon), "board": None, "sail": None,
         "filename": fname, "source": "polar",
         # Gleitanteil aus demselben geparsten Track (leer bei Surf/Wakeboard).
         **glide_metrics(df, sport),
