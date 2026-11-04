@@ -21149,15 +21149,16 @@ _hero_html = f"""
 <style>
 .hero{{position:relative;overflow:hidden;}}
 .hero-wm{{position:absolute;right:2.5%;top:50%;transform:translateY(-50%);
-  font-size:clamp(72px,9vw,150px);font-weight:900;letter-spacing:.04em;
-  text-transform:uppercase;line-height:1;white-space:nowrap;
+  font-family:inherit;font-size:clamp(72px,9vw,150px);font-weight:800;
+  letter-spacing:-0.02em;text-transform:none;line-height:1;white-space:nowrap;
   color:rgba(255,255,255,.055);-webkit-text-stroke:1px rgba(255,255,255,.11);
   pointer-events:none;user-select:none;z-index:0;}}
+.hero-wm-dot{{color:rgba(43,212,217,.32);-webkit-text-stroke:0;}}
 .hero-row{{position:relative;z-index:1;}}
 @media (max-width:900px){{.hero-wm{{display:none;}}}}
 </style>
 <div class="hero">
-    <div class="hero-wm" aria-hidden="true">{_hero_wm}</div>
+    <div class="hero-wm" aria-hidden="true">{_hero_wm}<span class="hero-wm-dot">.</span></div>
     <div class="hero-row">
         {_hero_icon}
         <div class="hero-content">
