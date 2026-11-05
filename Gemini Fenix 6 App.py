@@ -163,7 +163,7 @@ SPORTS = ("windsurf", "kitesurf", "wingsurf", "sup", "wakeboard", "surf")
 # Die Version selbst bleibt, aber nur noch leise im Fuss: fuer Rueckfragen
 # ("welche Version hast du?") ist sie nuetzlich, im Kopf hat sie nichts verloren.
 # Die Uhr im Connect-IQ-Store zaehlt getrennt weiter.
-APP_VERSION = "1.0"
+APP_VERSION = "1.5"
 VERSION_BADGE = (
     "<span style=\"font-size:.34em;font-weight:600;color:#fff;opacity:.55;"
     "vertical-align:super;margin-left:.45em;letter-spacing:0;white-space:nowrap;\">"
