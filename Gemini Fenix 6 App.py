@@ -5181,7 +5181,7 @@ def _rank_default_tables(sport):
 RANKING_TABLE_LABELS = {
     "30s": "🏆 Best 30 s", "2s": "⚡ Top 2 s", "500m": "📏 Best 500 m",
     "nm": "⚓ Nautical mile", "5x10": "🎯 Avg 5×10",
-    "alpha": "🔄 Alpha 500",
+    "alpha": "🔄 Alpha 500", "top10": "🔟 Top-10 average",
     "run": "🚩 Longest run", "total": "👥 Total distance",
     "time": "⏱️ Most water time",
     "glidel": "🌊 Longest glide", "glidet": "⏱️ Most glide time",
@@ -6220,6 +6220,7 @@ Every ranking shows each rider's best value (unless noted). Use the filters (spo
 - **🚩 Longest run** — the longest distance you rode in one go without stopping.
 - **👥 Total distance** — how far you travelled across all your sessions, added up.
 - **📅 Days on the water** — on how many distinct days you rode in the selected period (two sessions on one day count as one day; the session count is shown next to it). A sum over the date filter, not a best value — set the period to a month for a monthly contest.
+- **🔟 Top-10 average** — the average of your ten best sessions' Top 2 s (and Best 30 s) in the selected period. Consistency instead of one lucky gust: a single record day counts one tenth. Fewer than ten sessions count the missing ones as zero (shown as n/10), so riding often matters as much as riding fast.
 
 ### 🌊 Glide & wind (windsurf · kite · wing)
 _You may well have glided more than these numbers show: all glide values count only time above a fixed threshold (windsurf 12 kn, kite 11, wing 10) — the same line for everyone, which is what makes riders comparable. Light-wind gliding on big gear sits below it; your personal threshold from board and weight is in the session view._
@@ -6280,6 +6281,7 @@ Jede Rangliste zeigt den besten Wert je Fahrer (wenn nicht anders vermerkt). Üb
 - **🚩 Longest run** — die längste Strecke, die du am Stück ohne Stopp gefahren bist.
 - **👥 Gesamtdistanz** — alle deine Sessions zusammengezählt.
 - **📅 Tage auf dem Wasser** — an wie vielen verschiedenen Tagen du im gewählten Zeitraum gefahren bist (zwei Sessions an einem Tag zählen als ein Tag; die Sessionzahl steht daneben). Eine Summe über den Datums-Filter, kein Bestwert — stell den Zeitraum auf einen Monat und du hast einen Monatswettbewerb.
+- **🔟 Top-10-Schnitt** — der Schnitt deiner zehn besten Session-Werte (Top 2 s, daneben Beste 30 s) im gewählten Zeitraum. Beständigkeit statt einer Glücksböe: ein einzelner Rekordtag zählt ein Zehntel. Bei weniger als zehn Sessions zählen die fehlenden als null (steht als n/10 daneben) — oft fahren zählt also so viel wie schnell fahren.
 
 ### 🌊 Gleiten & Wind (Windsurf · Kite · Wing)
 _Du kannst durchaus mehr geglitten sein, als diese Zahlen zeigen: Alle Gleitwerte zählen nur die Zeit über einer festen Schwelle (Windsurf 12 kn, Kite 11, Wing 10) — dieselbe Linie für alle, denn nur so sind Fahrer vergleichbar. Leichtwind-Gleiten auf großem Material liegt darunter; deine persönliche Schwelle aus Brett und Gewicht steht in der Sessionansicht._
@@ -8678,6 +8680,55 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
                 "bound, not your whole season."
             )
 
+    def _r_top10(c):
+        """Top-10-Schnitt ueber den ZEITRAUM (Jans Wunsch 05.11.2026): je
+        Fahrer das Mittel der zehn besten Session-Werte (2 s und 30 s) im
+        gefilterten Zeitraum - eine BESTAENDIGKEITS-Wertung. Ein einzelner
+        Glueckstag zaehlt ein Zehntel; wer die Saison durch schnell faehrt,
+        steht vorne. Fehlende Sessions zaehlen als 0 (sonst stuende der
+        Fahrer mit EINER Session ueber dem mit zehn - und die Wertung waere
+        wieder nur "Top 2 s"); die Luecke steht als n/10 daneben. Ein
+        Aggregat wie Tage auf dem Wasser, darum eigene groupby-Rechnung."""
+        with c:
+            st.markdown("### 🔟 Top-10 average")
+            cols = ["name", "speed_1s_kn", "speed_30s_kn"]
+            if any(k not in ranking.columns for k in cols):
+                st.caption("No data yet.")
+                return
+            tbl = ranking[cols].copy()
+            for k in cols[1:]:
+                tbl[k] = pd.to_numeric(tbl[k], errors="coerce")
+            tbl = tbl[tbl["speed_1s_kn"] > 0].dropna(subset=["speed_1s_kn"])
+            if tbl.empty:
+                st.caption("No entries yet.")
+                return
+
+            def _top10_mean(s):
+                v = sorted((float(x) for x in s if pd.notna(x) and x > 0), reverse=True)[:10]
+                return sum(v) / 10.0 if v else 0.0
+
+            agg = (tbl.groupby("name")
+                   .agg(_a2=("speed_1s_kn", _top10_mean),
+                        _a30=("speed_30s_kn", _top10_mean),
+                        _n=("speed_1s_kn", "size"))
+                   .reset_index()
+                   .sort_values("_a2", ascending=False)
+                   .reset_index(drop=True).head(RANKING_TOP_N))
+            agg.insert(0, "Rank", agg.index + 1)
+            agg["Ø 2 s (kn)"] = agg["_a2"].round(1)
+            agg["Ø 30 s (kn)"] = [("–" if v <= 0 else f"{v:.1f}") for v in agg["_a30"]]
+            agg["Sessions"] = [f"{min(int(n), 10)}/10" for n in agg["_n"]]
+            agg = agg[["Rank", "name", "Ø 2 s (kn)", "Ø 30 s (kn)", "Sessions"]].rename(
+                columns={"name": "Name"})
+            _show_rank(agg, extra.get("columns"), gear_label)
+            st.caption(
+                "Consistency, not one lucky gust: the average of your ten best "
+                "sessions' Top 2 s (and Best 30 s) in the selected period. "
+                "Fewer than ten sessions count the missing ones as zero – the "
+                "n/10 shows it – so riding often matters as much as riding "
+                "fast. Set the period to a season or a month for a contest."
+            )
+
     def _r_days(c):
         """Tage auf dem Wasser - ein AGGREGAT ueber den Zeitraum-Filter.
 
@@ -8822,7 +8873,7 @@ def _render_ranking_tables(ranking, group_choice, member_groups, months,
             _avail.append(("5x10", _r_5x10))
         if "speed_alpha500_kmh" in ranking.columns:
             _avail.append(("alpha", _r_alpha))
-        _avail += [("run", _r_run), ("total", _r_total)]
+        _avail += [("top10", _r_top10), ("run", _r_run), ("total", _r_total)]
         # Gleitanteil: nur die Sportarten, in denen "gleiten" bzw. "fliegen" die
         # Grenze zwischen Fahren und Duempeln ist. SUP hat zwar eine Schwelle
         # (5 kn Renntempo), aber "laengste Gleitphase" waere dort das falsche
@@ -9317,6 +9368,19 @@ def best_5x10_avg(df, count=5, seconds=10, max_step_s=5.0):
     Szene-Werkzeuge rechnen. Theoretisch koennte eine andere Fuenferkombination
     in Summe hoeher liegen - das waere aber eine andere Definition.
     """
+    picks = best_5x10_windows(df, count, seconds, max_step_s)
+    if picks is None or len(picks) < count:
+        return None
+    return float(sum(v for _, v in picks) / count)
+
+
+def best_5x10_windows(df, count=5, seconds=10, max_step_s=5.0):
+    """Die Fenster hinter avg 5x10: [(Zeitstempel des Fensterendes, km/h), ...]
+    absteigend nach Tempo, hoechstens `count` Stueck - auch WENIGER, wenn die
+    Aufzeichnung nicht mehr hergibt (der Aufrufer entscheidet, ob er die
+    Liste trotzdem zeigt; best_5x10_avg verlangt alle fuenf). Seit 05.11.2026
+    zeigt die Uhr (1.4.0) dieselbe Liste live; hier steht sie neben der
+    Speedkurve. Gleiche Gier, gleicher Dichte-Riegel wie der Mittelwert."""
     if "timestamp" not in df.columns or "speed_kmh" not in df.columns:
         return None
     d = df[["timestamp", "speed_kmh"]].dropna().copy()
@@ -9341,11 +9405,9 @@ def best_5x10_avg(df, count=5, seconds=10, max_step_s=5.0):
     picks = []
     while len(picks) < count and not roll.empty:
         ts = roll.idxmax()
-        picks.append(float(roll.loc[ts]))
+        picks.append((ts, float(roll.loc[ts])))
         roll = roll[(roll.index <= ts - win) | (roll.index >= ts + win)]
-    if len(picks) < count:
-        return None
-    return float(sum(picks) / count)
+    return picks
 
 
 def best_distance_speed(df, meters):
@@ -15806,6 +15868,64 @@ def _render_speed_curve(track_pts, duration_s, record):
         st.caption(f"🟦 Highlighted band = longest run ({longest[2] / 1000.0:.2f} km · "
                    f"{_mins:.1f} min). Curve reconstructed from the GPS track "
                    f"(~{dt:.0f}s sampling); the watch app will provide a finer curve.")
+
+    # --- Die beiden Listen der Uhr (1.4.0) auch hier (Jans Wunsch 05.11.2026:
+    # "dann kann die Uhr jetzt was, was die MWS-App nicht kann"). Links alle
+    # Speed-Wertungen der Session auf einen Blick, rechts die fuenf
+    # 10-s-Fenster hinter avg 5x10 - aus dem Track rekonstruiert, darum bei
+    # Uhr-Sessions (ausgeduennt) um Zehntel neben der Liste auf der Uhr.
+    _lc, _rc = st.columns(2)
+    with _lc:
+        st.markdown("#### 🏁 Top results")
+        _is_surf = _txt_or(record.get("sport")).lower() == "surf"
+        _tr = [("Top 2 s", "speed_1s_kmh")]
+        if not _is_surf:
+            _tr += [("Avg 5×10", "speed_5x10_kmh"), ("Best 30 s", "speed_30s_kmh"),
+                    ("Best 500 m", "speed_500m_kmh"), ("Nautical mile", "speed_nm_kmh"),
+                    ("Alpha 500", "speed_alpha500_kmh")]
+        _rows = []
+        for _lbl, _key in _tr:
+            _v = pd.to_numeric(record.get(_key), errors="coerce")
+            if pd.notna(_v) and float(_v) > 0:
+                _rows.append(f"| **{float(_v) / 1.852:.1f}** | {float(_v):.1f} | {_lbl} |")
+        if _rows:
+            st.markdown("| kn | km/h | |\n|---:|---:|:---|\n" + "\n".join(_rows))
+        else:
+            st.caption("No speed results stored for this session.")
+    with _rc:
+        st.markdown("#### 🎯 Top 5 × 10 s")
+        _wins = None
+        if not _is_surf and n_seg:
+            _base = pd.Timestamp("2000-01-01")
+            _tdf = pd.DataFrame({
+                "timestamp": [_base + pd.Timedelta(seconds=float(m) * 60.0) for m in t_min],
+                "speed_kmh": np.asarray(v_kn, dtype=float) * 1.852,
+            })
+            _wins = best_5x10_windows(_tdf)
+        if _wins:
+            _wr = []
+            for _i, (_ts, _kmh) in enumerate(_wins):
+                _at = (_ts - _base).total_seconds() / 60.0
+                _wr.append(f"| {_i + 1} | **{_kmh / 1.852:.1f}** | {_kmh:.1f} | {_at:.1f} min |")
+            _avg = sum(k for _, k in _wins) / len(_wins)
+            _wr.append(f"| avg | **{_avg / 1.852:.1f}** | {_avg:.1f} | "
+                       + ("" if len(_wins) == 5 else f"{len(_wins)}/5 windows") + " |")
+            st.markdown("| # | kn | km/h | at |\n|---:|---:|---:|:---|\n" + "\n".join(_wr))
+            _stored = pd.to_numeric(record.get("speed_5x10_kmh"), errors="coerce")
+            if pd.notna(_stored) and record.get("source") == "watch":
+                st.caption(f"Ranked value from the watch: **{float(_stored) / 1.852:.1f} kn** "
+                           "(counted second by second). The list is rebuilt from the "
+                           f"thinned track (~{dt:.0f} s), so single windows can differ "
+                           "by a few tenths from what the watch showed.")
+            else:
+                st.caption("The five best 10-second windows that do not overlap – "
+                           "their average is avg 5×10, the ranking's number.")
+        elif _is_surf:
+            st.caption("Not ranked for surfing (like 500 m and the nautical mile).")
+        else:
+            st.caption(f"Needs a track with a point at least every 5 s – this one "
+                       f"has ~{dt:.0f} s. The watch (app 1.4.0+) shows the list live "
+                       "and sends the average.")
 
     # --- Halsen-Analyse (Beta) -------------------------------------------
     if gybes:
