@@ -67,10 +67,11 @@ GUIDES = {
     "Und <b>avg 5×10</b> (der Schnitt deiner fünf besten 10-Sekunden-Läufe, ohne Überlappung) "
     "belohnt die konstante Session statt des einen Glückstreffers."),
    ("Welche Uhr taugt dafür? Fast jede.",
-    "Für belastbare Zahlen braucht es keinen Spezial-Logger mehr. Eine <b>Garmin</b> mit unserer "
-    "kostenlosen Connect-IQ-App rechnet die Disziplinen direkt auf der Uhr und lädt die Session "
-    "automatisch hoch. Eine <b>Polar</b> verbindet sich per Konto. Und jede andere GPS-Uhr oder "
-    "Handy-App — Apple Watch, Suunto, COROS, Garmin Connect, Strava — exportiert eine "
+    "Für belastbare Zahlen braucht es keinen Spezial-Logger mehr. <b>Garmin</b> und <b>Polar</b> "
+    "verbinden sich per Konto, und jede Wassersport-Session kommt von selbst an. Auf einer Garmin "
+    "rechnet unsere kostenlose Connect-IQ-App die Disziplinen zusätzlich direkt auf der Uhr, "
+    "Sekunde für Sekunde. Und jede andere GPS-Uhr oder "
+    "Handy-App — Apple Watch, Suunto, COROS, Strava — exportiert eine "
     "<b>FIT-, GPX- oder TCX-Datei</b>, aus der sich alle Werte berechnen lassen. Wichtiger als "
     "die Marke ist die <b>Aufzeichnungsrate</b>: einmal pro Sekunde ist die Basis für saubere "
     "2-s-Werte. „Smart Recording“, das nur alle paar Sekunden einen Punkt setzt, verschenkt "
@@ -151,10 +152,10 @@ GUIDES = {
     "average of your five best 10-second runs, non-overlapping) rewards the consistent session "
     "over the one lucky hit."),
    ("Which watch is good enough? Almost any.",
-    "You no longer need a dedicated logger for solid numbers. A <b>Garmin</b> with our free "
-    "Connect IQ app computes the disciplines on the watch and uploads the session "
-    "automatically. A <b>Polar</b> connects via your account. And every other GPS watch or "
-    "phone app — Apple Watch, Suunto, COROS, Garmin Connect, Strava — exports a "
+    "You no longer need a dedicated logger for solid numbers. <b>Garmin</b> and <b>Polar</b> "
+    "connect via your account, and every water session arrives on its own. On a Garmin our "
+    "free Connect IQ app also computes the disciplines on the watch, second by second. And "
+    "every other GPS watch or phone app — Apple Watch, Suunto, COROS, Strava — exports a "
     "<b>FIT, GPX or TCX file</b> from which all values can be computed. More important than "
     "the brand is the <b>recording rate</b>: one point per second is the basis for clean 2 s "
     "values. “Smart recording”, which stores a point only every few seconds, throws peaks away."),

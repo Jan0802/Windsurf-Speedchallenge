@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
 <link rel="manifest" href="/site.webmanifest">
 <title>Hoe MyWaterSessions werkt – handleiding voor windsurf-, kite-, wing-, SUP-, wakeboard- &amp; surf-snelheidsranglijst</title>
-<meta name="description" content="Stapsgewijze handleiding voor MyWaterSessions: opnemen op je Garmin-horloge, je top-2s/30s-snelheid en rang per spot zien, spotgids met 3-daagse windverwachting, groepen, Spot-TV en meer.">
+<meta name="description" content="Stapsgewijze handleiding voor MyWaterSessions: Garmin of Polar koppelen of een bestand van elk gps-horloge uploaden, je 2 s-, 30 s- en avg 5×10-snelheid en rang per spot zien, spotgids met 3-daagse windverwachting, groepen, Spot-TV en meer.">
 <link rel="canonical" href="https://mywatersessions.com/guide-nl.html">
 <link rel="alternate" hreflang="en" href="https://mywatersessions.com/guide.html">
 <link rel="alternate" hreflang="de" href="https://mywatersessions.com/guide-de.html">
@@ -21,7 +21,7 @@
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="MyWaterSessions">
 <meta property="og:title" content="Hoe MyWaterSessions werkt – de handleiding">
-<meta property="og:description" content="Opnemen op je Garmin-horloge, stijgen in de snelheidsranglijst, windverwachting en je rang per spot bekijken. Zo werkt alles.">
+<meta property="og:description" content="Opnemen met elk gps-horloge, stijgen in de snelheidsranglijst, windverwachting en je rang per spot bekijken. Zo werkt alles.">
 <meta property="og:url" content="https://mywatersessions.com/guide-nl.html">
 <meta property="og:image" content="https://mywatersessions.com/og.png">
 <meta property="og:image:width" content="1200">
@@ -52,11 +52,11 @@
     { "@type": "Question", "name": "Is MyWaterSessions gratis?",
       "acceptedAnswer": { "@type": "Answer", "text": "Ja. Een account aanmaken, sessies opnemen, de ranglijsten, de spotgids en de windverwachting zijn allemaal gratis." } },
     { "@type": "Question", "name": "Welke Garmin-horloges worden ondersteund?",
-      "acceptedAnswer": { "@type": "Answer", "text": "De Connect IQ-app WaterSession draait op zo'n 40 Garmin-horloges, waaronder Fenix, Epix, Forerunner, Instinct, Venu en vívoactive. Installeer via de Connect IQ Store en plak je Device Token." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Allemaal, via je Garmin-account: koppel het één keer en elke watersessie komt vanzelf binnen. De optionele Connect IQ-app WaterSession voor live-schermen draait op zo'n 40 Garmin-horloges, waaronder Fenix, Epix, Forerunner, Instinct, Venu en vívoactive; je koppelt hem met een korte code die het horloge toont." } },
     { "@type": "Question", "name": "Hoe wordt mijn snelheid gemeten?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Via GPS. De ranglijst gebruikt je beste 2-seconden-piek en je beste 30-seconden-gemiddelde, zodat één GPS-uitschieter geen topsnelheid kan faken. Elke sessie krijgt ook een trust-score." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Via GPS. De ranglijsten gebruiken gemiddelden, geen losse meting: je beste 2-seconden-piek, je beste 30 seconden en avg 5x10 (het gemiddelde van je vijf beste runs van 10 seconden), zodat één GPS-uitschieter geen topsnelheid kan faken. Elke sessie krijgt ook een trust-score." } },
     { "@type": "Question", "name": "Kan ik het zonder Garmin-horloge gebruiken?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Ja. Elk horloge dat een FIT-bestand exporteert (bijvoorbeeld een Apple Watch) werkt. Upload het onder Add session en je krijgt dezelfde snelheidsanalyse, runs en kaart." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Ja. Polar koppel je net als Garmin, en elk horloge dat een FIT-, GPX- of TCX-bestand exporteert (bijvoorbeeld een Apple Watch) werkt. Upload het onder Add session en je krijgt dezelfde snelheidsanalyse, runs en kaart." } },
     { "@type": "Question", "name": "Registreert het sprongen en airtime bij wakeboarden?",
       "acceptedAnswer": { "@type": "Answer", "text": "Ja. Voor windsport en wakeboard detecteert het horloge elke sprong en toont spronghoogte en airtime; SUP registreert in plaats daarvan slagen en cadans." } },
     { "@type": "Question", "name": "Is mijn GPS-locatie privé?",
@@ -113,8 +113,9 @@
     <div class="langbar"><a href="/guide.html">EN</a><a href="/guide-de.html">DE</a><a class="active">NL</a><a href="/guide-fr.html">FR</a><a href="/guide-es.html">ES</a></div>
     <h1>Hoe het werkt</h1>
     <p class="lead">MyWaterSessions is de gratis community-snelheidsranglijst en spotgids voor windsurfen,
-      kitesurfen, wingfoilen, SUP en wakeboarden. Neem een sessie op met je Garmin-horloge (of upload een FIT-bestand)
-      en hij verschijnt in de online ranglijst. Plus een spotgids met 3-daagse windverwachting.</p>
+      kitesurfen, wingfoilen, SUP, wakeboarden en golfsurfen. Het werkt met elk GPS-horloge: upload een
+      FIT- / GPX- / TCX-bestand, of koppel Garmin of Polar één keer en je sessies komen vanzelf binnen.
+      Elke sessie verschijnt in de online ranglijst. Plus een spotgids met 3-daagse windverwachting.</p>
     <a class="btn" href="https://app.mywatersessions.com/">🌊 App openen</a>
   </div>
 </header>
@@ -124,14 +125,14 @@
     <h2>Inhoud</h2>
     <ol>
       <li><a href="#account">Account aanmaken</a></li>
-      <li><a href="#token">Je Device Token</a></li>
-      <li><a href="#watch">Horloge-app instellen</a></li>
-      <li><a href="#screens">De 8 horlogeschermen</a></li>
-      <li><a href="#send">Je sessie versturen</a></li>
-      <li><a href="#rankings">Sporten &amp; ranglijst</a></li>
+      <li><a href="#token">Je horloge koppelen</a></li>
+      <li><a href="#watch">De Garmin-horloge-app</a></li>
+      <li><a href="#screens">De horlogeschermen</a></li>
+      <li><a href="#send">Opslaan &amp; versturen</a></li>
+      <li><a href="#rankings">Sporten &amp; ranglijsten</a></li>
       <li><a href="#filters">Filters &amp; opgeslagen start</a></li>
       <li><a href="#results">My Results &amp; rang</a></li>
-      <li><a href="#bests">Records &amp; analyse</a></li>
+      <li><a href="#bests">Sessies &amp; analyse</a></li>
       <li><a href="#spots">Spots &amp; weersverwachting</a></li>
       <li><a href="#tv">Spot-TV</a></li>
       <li><a href="#groups">Groepen &amp; community</a></li>
@@ -150,49 +151,51 @@
       <li>Daarna <b>inloggen</b>. Vink <i>Ingelogd blijven</i> aan om ingelogd te blijven.</li>
     </ul>
 
-    <h2 id="token">2. Je Device Token</h2>
+    <h2 id="token">2. Je horloge koppelen</h2>
     <ul>
-      <li>Log in en open je <b>profiel / account</b>.</li>
-      <li>Kopieer de getoonde <b>Device Token</b> en plak die in de app-instellingen van het horloge.</li>
-      <li>De token koppelt je sessies aan je account – het enige dat elke rider moet instellen.</li>
+      <li>Open in de zijbalk van de app <b>⌚ Connect watch · Garmin · Polar</b>, direct onder <b>My profile</b>. Alles rond horloges staat op die ene plek.</li>
+      <li><b>Garmin:</b> klik op <b>Connect Garmin</b> en bevestig in je Garmin-account. Vanaf dan komt elke watersessie die je op je Garmin opneemt vanzelf binnen – met Garmins eigen windsurf-, kite-, SUP- of surfprofiel, of met onze horloge-app. Alleen watersporten worden overgenomen; je hardloop- en fietsritten blijven in Garmin.</li>
+      <li><b>Polar:</b> klik op <b>Connect Polar</b>, log in bij Polar Flow en bevestig. Je Polar-sessies worden daarvandaan geïmporteerd.</li>
+      <li>Geïmporteerde sessies worden op de <b>dichtstbijzijnde bekende spot</b> binnen 2 km geplaatst; is er geen, dan wordt op basis van de locatie een nieuwe spot aangemaakt. Ze tellen meteen mee in de ranglijsten.</li>
+      <li>Elk ander horloge: upload een <b>FIT- / GPX- / TCX</b>-bestand – zie hoofdstuk 14.</li>
     </ul>
 
-    <h2 id="watch">3. Horloge-app installeren &amp; instellen</h2>
+    <h2 id="watch">3. De Garmin-horloge-app (optioneel)</h2>
     <ul>
-      <li>Installeer <b>WaterSession</b> uit de Connect IQ Store op je Garmin.</li>
-      <li>In <b>Garmin Connect</b> (telefoon) → <b>Toestellen</b> → je horloge → <b>Connect IQ-apps</b> → <b>WaterSession</b> → <b>Instellingen</b>.</li>
-      <li>Vul je <b>Device Token</b> in (verplicht). Laat <b>Spot</b> leeg → wordt automatisch via GPS herkend.</li>
-      <li><b>Synchroniseer</b> het horloge.</li>
+      <li>De gratis app <b>WaterSession</b> uit de Connect IQ Store voegt toe wat een bestand niet kan meenemen: live-snelheidsschermen, het spotrecord als ring om je pols, en waarden die seconde voor seconde worden geteld – planeertijd, avg 5×10, je gijpen.</li>
+      <li>Start een eerste sessie: het horloge toont een korte <b>koppelcode</b>. Voer die één keer in onder <b>⌚ Connect watch</b> in de app, en het horloge is aan je account gekoppeld.</li>
+      <li>In <b>Garmin Connect</b> (telefoon) → <b>Toestellen</b> → je horloge → <b>Connect IQ-apps</b> → <b>WaterSession</b> → <b>Instellingen</b> kies je pagina's en eenheden. Laat <b>Spot</b> leeg → wordt automatisch via GPS herkend.</li>
     </ul>
 
-    <h2 id="screens">4. De 8 horlogeschermen</h2>
-    <p>Wissel tijdens het opnemen met <kbd>UP</kbd>/<kbd>DOWN</kbd>:</p>
+    <h2 id="screens">4. De horlogeschermen</h2>
+    <p>Wissel tijdens het opnemen van pagina met <kbd>UP</kbd>/<kbd>DOWN</kbd>. Welke pagina's verschijnen hangt af van de sport, en elke pagina kun je in de instellingen uitzetten:</p>
     <ol>
-      <li><b>Snelheid</b> – actuele snelheid groot (knopen + km/u), plus je max en de tijd.</li>
+      <li><b>Snelheid</b> – actuele snelheid groot, met tijd, beste 2 s en max eronder.</li>
       <li><b>Sprongen</b> (windsport &amp; wakeboard) / <b>Peddelen</b> (SUP) – aantal en de laatste waarde.</li>
-      <li><b>Totalen</b> – afstand, gemiddelde, 2 s-piek.</li>
-      <li><b>alleen km/u</b> – alleen de actuele snelheid in km/u (groot) + max.</li>
-      <li><b>alleen knopen</b> – alleen de actuele snelheid in knopen (groot) + max.</li>
-      <li><b>Afstand</b> – totale sessie-afstand, groot.</li>
-      <li><b>Spronghoogte</b> (wind &amp; wakeboard) / <b>Cadans</b> (SUP) – hoogte van de laatste sprong in m / slagen per minuut.</li>
-      <li><b>Airtime</b> (wind &amp; wakeboard) / <b>Slagen</b> (SUP) – airtime van de laatste sprong in s / totaal aantal slagen.</li>
+      <li><b>Totaal</b> – afstand, met gemiddelde en beste 2 s.</li>
+      <li><b>Afstand</b> – groot, met je afstandsrecord op deze spot.</li>
+      <li><b>Spronghoogte</b> &amp; <b>Airtime</b> (windsport &amp; wakeboard) / <b>Cadans</b> &amp; <b>Slagen</b> (SUP).</li>
+      <li><b>Gijpen</b> (windsport &amp; wakeboard) – aantal, plus het traagste punt en de uitgangssnelheid van de laatste.</li>
+      <li><b>Run</b> (niet bij SUP) – beste 2 s, lengte en tijd van de run waarin je zit, daarna van je laatste. De ring vult zich ten opzichte van je snelste run van de sessie.</li>
+      <li><b>Top 5 × 10 s</b> (niet bij surf) – je vijf beste runs van 10 seconden en hun gemiddelde, avg 5×10.</li>
+      <li><b>Beat the Beach</b> – het spotrecord en je eigen beste als dubbele ring; het horloge trilt als je er een verbetert.</li>
     </ol>
-    <p>Bovenaan staat <b>REC</b> (opname) of <b>READY</b>.</p>
+    <p>Op elke pagina laat een ring zien hoe dicht je bij je dagrecord zit, en een gevulde badge bovenaan geeft aan dat het horloge opneemt. Losse pagina's met alleen km/u of alleen knopen kun je in de instellingen aanzetten.</p>
 
-    <h2 id="send">5. Je sessie versturen</h2>
+    <h2 id="send">5. Opslaan &amp; versturen</h2>
     <ul>
-      <li>Afsluiten met <kbd>START</kbd> → kies <b>Send</b> (of <i>Keep recording</i> / <i>Discard</i>).</li>
+      <li>Afsluiten met <kbd>START</kbd> → <b>Save and Send</b> is voorgeselecteerd. <i>Store and send later</i> bewaart de sessie op het horloge, <i>Resume</i> gaat verder, <i>Discard</i> staat apart.</li>
       <li>Een telefoon met <b>Garmin Connect</b> moet in de buurt zijn – het horloge uploadt daardoorheen.</li>
-      <li>Status: <code>sent</code> (gelukt), <code>retry …</code> of <code>err …</code>.</li>
-      <li>Geen telefoon op het strand? Hij probeert het automatisch opnieuw; later kan ook <b>Resend last</b>.</li>
+      <li>Na het versturen toont het horloge al je resultaten op één pagina, daarna elke waarde afzonderlijk.</li>
+      <li>Geen telefoon op het strand? Sessies wachten op het horloge en worden later verstuurd, de oudste eerst – via <b>Resend</b> in het startmenu.</li>
     </ul>
 
-    <h2 id="rankings">6. Sporten &amp; de ranglijst op de startpagina</h2>
+    <h2 id="rankings">6. Sporten &amp; ranglijsten</h2>
     <ul>
-      <li>Wissel van sport bovenaan: <b>Windsurf · Kitesurf · Wingsurf · SUP · Wakeboard · Surf</b>.</li>
-      <li>De startpagina toont de <b>Top 15</b> per categorie: <b>Beste 30 s</b>, <b>Topsnelheid 2 s</b>, <b>Langste run</b> en <b>Totale afstand</b> (beste sessie per rider).</li>
-      <li>Windsport &amp; wakeboard hebben ook <b>Beste airtime</b> &amp; <b>Hoogste sprong</b>; SUP <b>Meeste slagen</b> &amp; <b>Max. cadans</b>.</li>
-      <li>Elke regel toont het <b>weer</b> van die sessie en een <b>trust</b>-badge.</li>
+      <li>Wissel van sport bovenaan: <b>Windsurf · Kitesurf · Wingsurf · SUP · Wakeboard · Surf</b>. Elke sport heeft de ranglijsten die erbij passen, als chips waar je doorheen swipet – <b>Top 15</b>, één beste sessie per rider.</li>
+      <li><b>Windsurf:</b> top 2 s, beste 30 s, 500 m, zeemijl, avg 5×10, Alpha 500, planeertijd en snelheid per wind. <b>Wing:</b> foiling-wendingen en vliegtijd. <b>Kite:</b> totale airtime en hoogste sprongen. <b>SUP:</b> beste 1 km, 5 km, 10 km en uur als tempo, plus afstand per slag. <b>Wakeboard:</b> airtime, landingsquote en runs. <b>Surf:</b> topsnelheid, langste ride en tijd op het water.</li>
+      <li>Sommige ranglijsten tellen de gekozen periode op in plaats van één sessie te kiezen: <b>Dagen op het water</b>, <b>Totale planeertijd</b> en het <b>top-10-gemiddelde</b> – het gemiddelde van je tien beste sessies, dat constantheid beloont boven één gelukkige vlaag.</li>
+      <li>Elke regel toont het <b>weer</b> van die sessie, een <b>trust</b>-badge en een mini-curve van de snelste run van de sessie.</li>
     </ul>
 
     <h2 id="filters">7. Filters &amp; je opgeslagen start</h2>
@@ -204,17 +207,19 @@
 
     <h2 id="results">8. My Results – records, index &amp; jouw rang</h2>
     <ul>
-      <li>Je <b>records</b>: top 2 s, top 30 s, langste run, hoogste sprong, totale afstand.</li>
+      <li><b>My Results</b> is een eigen tabblad. Het begroet je met waar je vooraan staat – de ranglijst waarin je het best scoort.</li>
+      <li>Je <b>records</b> per sport, en <b>jouw rang</b> totaal of op een spot die je in het filter kiest.</li>
       <li><b>Performance Index</b> = top 2 s ÷ (wind × zeilgrootte) × 100 – hoger = snel met <i>weinig wind en een klein zeil</i>.</li>
-      <li><b>Jouw positie</b>: je rang totaal, of kies een spot in het filter voor je rang <i>op die spot</i> (voor 2 s &amp; 30 s).</li>
+      <li><b>Wat je sport kost</b> (privé, optioneel): vul in wat je materiaal kostte, de rit heen en terug naar elke spot en extra's zoals een mast of een wetsuit – je krijgt de kosten per sessie en per kilometer en een jaaroverzicht. Niemand anders ziet het.</li>
     </ul>
 
-    <h2 id="bests">9. My Results – records, sessies &amp; analyse</h2>
+    <h2 id="bests">9. My Results – sessies &amp; analyse</h2>
     <ul>
       <li><b>Persoonlijke records</b>: je top-10 snelheidstabel, te filteren op spot, jaar, board en max. wind (bijv. ≤ 5 Bft).</li>
-      <li><b>View my sessions</b>: lijst met datumfilter; kies er een voor de volledige analyse.</li>
-      <li>Detail: afstand, gemiddelde, pieksnelheden, sprongen/peddelen, herkende <b>runs</b>, de <b>GPS-kaart</b>, weer en trust.</li>
-      <li><b>Complete my sessions</b>: stel bij horlogesessies spot / board / zeil in zodat ze meetellen in de ranglijst.</li>
+      <li>Kies een sessie voor de volledige analyse: een <b>snelheidscurve</b> met je runs en de langste gemarkeerd, alle snelheidsresultaten in één oogopslag, de <b>vijf runs van 10 seconden</b> achter avg 5×10, en een <b>gijp-analyse</b> die elke manoeuvre in fases opdeelt.</li>
+      <li>De <b>kaart</b> toont de hele track, alleen de snelste of alleen de langste run. Zeegang, getij en weer worden automatisch toegevoegd.</li>
+      <li><b>Who else was out?</b> – de anderen die die dag een sessie op dezelfde spot hebben gelogd, met jouw plek tussen hen.</li>
+      <li>Stel spot, board en zeil op elk moment in bij een sessie; een sessie telt mee in de ranglijsten zodra hij een spot heeft.</li>
     </ul>
 
     <h2 id="spots">10. Spots &amp; weersverwachting</h2>
@@ -248,8 +253,14 @@
 
     <h2 id="fit">14. Andere horloges / Apple Watch</h2>
     <ul>
-      <li>Elk horloge dat een <b>FIT-bestand</b> exporteert (bijv. Apple Watch via HealthFit) werkt ook.</li>
-      <li>Gebruik <b>Add session</b> in de zijbalk → kies materiaal → upload het FIT-bestand. Weer wordt automatisch toegevoegd; je krijgt runs, kaart en de snelheidsanalyse.</li>
+      <li>Elk horloge of elke telefoon-app die een <b>FIT-, GPX- of TCX-bestand</b> exporteert werkt – Apple Watch via HealthFit, Suunto, Fitbit, een Strava-export en meer.</li>
+      <li>Gebruik <b>Add session</b> in de zijbalk en upload het bestand. De app stelt de spot voor op basis van de track; weer wordt automatisch toegevoegd, en je krijgt runs, kaart en de volledige snelheidsanalyse.</li>
+      <li>Overstappen vanuit een andere app? <a href="/import-nl.html">Importeer je hele historie</a> in één keer.</li>
+    </ul>
+    <h3>COROS-horloges</h3>
+    <ul>
+      <li>Open in de COROS-app de sessie → menu rechtsboven → <b>Export Data</b> → <b>.FIT</b>, en upload het bestand onder <b>Add session</b> – je krijgt runs, de GPS-kaart en de volledige snelheidsanalyse, net als bij elke andere sessie.</li>
+      <li>We hebben directe COROS-sync aangevraagd; tot die is goedgekeurd, duurt het uploaden maar een paar seconden.</li>
     </ul>
 
     <h2 id="trust">15. Trust, fair play &amp; privacy</h2>
@@ -265,11 +276,13 @@
     <h3>Is MyWaterSessions gratis?</h3>
     <p>Ja. Een account aanmaken, sessies opnemen, de ranglijsten, de spotgids en de windverwachting zijn allemaal gratis.</p>
     <h3>Welke Garmin-horloges worden ondersteund?</h3>
-    <p>De Connect IQ-app <b>WaterSession</b> draait op zo'n 40 Garmin-horloges – Fenix, Epix, Forerunner, Instinct, Venu, vívoactive en meer. Installeer via de Connect IQ Store en plak je Device Token.</p>
+    <p>Allemaal, via je Garmin-account: koppel het één keer en elke watersessie komt vanzelf binnen. De optionele Connect IQ-app <b>WaterSession</b> voor live-schermen draait op zo'n 40 Garmin-horloges – Fenix, Epix, Forerunner, Instinct, Venu, vívoactive en meer; je koppelt hem met een korte code die het horloge toont.</p>
     <h3>Hoe wordt mijn snelheid gemeten?</h3>
-    <p>Via GPS. De ranglijst gebruikt je beste <b>2-seconden</b>-piek en je beste <b>30-seconden</b>-gemiddelde, zodat één GPS-uitschieter geen topsnelheid kan faken. Elke sessie krijgt ook een trust-score.</p>
+    <p>Via GPS. De ranglijsten gebruiken gemiddelden, geen losse meting: je beste <b>2-seconden</b>-piek, je beste <b>30 seconden</b> en <b>avg 5×10</b> – het gemiddelde van je vijf beste runs van 10 seconden – zodat één GPS-uitschieter geen topsnelheid kan faken. Elke sessie krijgt ook een trust-score.</p>
     <h3>Kan ik het zonder Garmin-horloge gebruiken (bijv. Apple Watch)?</h3>
-    <p>Ja. Elk horloge dat een <b>FIT-bestand</b> exporteert werkt – upload het onder <b>Add session</b> en je krijgt dezelfde snelheidsanalyse, runs en kaart.</p>
+    <p>Ja. Polar koppel je net als Garmin, en elk horloge dat een <b>FIT-, GPX- of TCX-bestand</b> exporteert werkt – upload het onder <b>Add session</b> en je krijgt dezelfde snelheidsanalyse, runs en kaart.</p>
+    <h3>Kan ik het met COROS gebruiken?</h3>
+    <p>Ja. Exporteer een <b>.FIT</b>-bestand uit de COROS-app en upload het onder <b>Add session</b> – dezelfde snelheidsanalyse, runs en kaart als bij elk ander horloge. Directe COROS-sync is aangevraagd.</p>
     <h3>Registreert het sprongen en airtime bij wakeboarden?</h3>
     <p>Ja. Voor windsport <b>en wakeboard</b> detecteert het horloge elke sprong en toont spronghoogte en airtime; SUP registreert in plaats daarvan slagen en cadans.</p>
     <h3>Is mijn GPS-locatie privé?</h3>

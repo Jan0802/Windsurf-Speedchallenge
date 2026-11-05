@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
 <link rel="manifest" href="/site.webmanifest">
 <title>Comment fonctionne MyWaterSessions – guide du classement de vitesse windsurf, kite, wing, SUP, wakeboard &amp; surf</title>
-<meta name="description" content="Guide pas à pas de MyWaterSessions : enregistrez sur votre montre Garmin, voyez vos vitesses sur 2s et 30s et votre rang par spot, utilisez le guide des spots avec prévisions de vent sur 3 jours, les groupes, le Spot-TV et plus.">
+<meta name="description" content="Guide pas à pas de MyWaterSessions : connectez Garmin ou Polar ou téléversez un fichier depuis n'importe quelle montre GPS, voyez vos vitesses sur 2 s, 30 s et avg 5×10 et votre rang par spot, utilisez le guide des spots avec prévisions de vent sur 3 jours, les groupes, le Spot-TV et plus.">
 <link rel="canonical" href="https://mywatersessions.com/guide-fr.html">
 <link rel="alternate" hreflang="en" href="https://mywatersessions.com/guide.html">
 <link rel="alternate" hreflang="de" href="https://mywatersessions.com/guide-de.html">
@@ -21,7 +21,7 @@
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="MyWaterSessions">
 <meta property="og:title" content="Comment fonctionne MyWaterSessions – le guide complet">
-<meta property="og:description" content="Enregistrez sur votre montre Garmin, grimpez au classement de vitesse, consultez les prévisions de vent et votre rang par spot. Voici comment tout fonctionne.">
+<meta property="og:description" content="Enregistrez avec n'importe quelle montre GPS, grimpez au classement de vitesse, consultez les prévisions de vent et votre rang par spot. Voici comment tout fonctionne.">
 <meta property="og:url" content="https://mywatersessions.com/guide-fr.html">
 <meta property="og:image" content="https://mywatersessions.com/og.png">
 <meta property="og:image:width" content="1200">
@@ -53,11 +53,11 @@
     { "@type": "Question", "name": "MyWaterSessions est-il gratuit ?",
       "acceptedAnswer": { "@type": "Answer", "text": "Oui. Créer un compte, enregistrer des sessions, les classements, le guide des spots et les prévisions de vent sont entièrement gratuits." } },
     { "@type": "Question", "name": "Quelles montres Garmin sont compatibles ?",
-      "acceptedAnswer": { "@type": "Answer", "text": "L'application Connect IQ WaterSession fonctionne sur une quarantaine de montres Garmin (Fenix, Epix, Forerunner, Instinct, Venu, vívoactive…). Installez-la depuis le Connect IQ Store et collez votre Device Token." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Toutes, via votre compte Garmin : connectez-le une fois et chaque session nautique arrive toute seule. L'application Connect IQ WaterSession, facultative, pour les écrans en direct fonctionne sur une quarantaine de montres Garmin (Fenix, Epix, Forerunner, Instinct, Venu, vívoactive…) ; vous la reliez avec un code court affiché par la montre." } },
     { "@type": "Question", "name": "Comment ma vitesse est-elle mesurée ?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Par GPS. Le classement utilise votre meilleur pic sur 2 secondes et votre meilleure moyenne sur 30 secondes, afin qu'un seul pic GPS ne puisse pas fausser une vitesse de pointe. Chaque session reçoit aussi un score de confiance." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Par GPS. Les classements utilisent des moyennes, pas une seule mesure : votre meilleur pic sur 2 secondes, vos meilleures 30 secondes et l'avg 5x10 (la moyenne de vos cinq meilleurs runs de 10 secondes), afin qu'un seul pic GPS ne puisse pas fausser une vitesse de pointe. Chaque session reçoit aussi un score de confiance." } },
     { "@type": "Question", "name": "Puis-je l'utiliser sans montre Garmin ?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Oui. Toute montre qui exporte un fichier FIT (par exemple une Apple Watch) convient. Téléversez-le dans Ajouter une session et vous obtenez la même analyse de vitesse, les runs et la carte." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Oui. Polar se connecte comme Garmin, et toute montre qui exporte un fichier FIT, GPX ou TCX (par exemple une Apple Watch) convient. Téléversez-le dans Ajouter une session et vous obtenez la même analyse de vitesse, les runs et la carte." } },
     { "@type": "Question", "name": "Enregistre-t-il les sauts et l'airtime pour le wakeboard ?",
       "acceptedAnswer": { "@type": "Answer", "text": "Oui. Pour les sports de vent et le wakeboard, la montre détecte chaque saut et affiche la hauteur de saut et l'airtime ; le SUP enregistre plutôt les coups de pagaie et la cadence." } },
     { "@type": "Question", "name": "Ma position GPS est-elle privée ?",
@@ -114,8 +114,9 @@
     <div class="langbar"><a href="/guide.html">EN</a><a href="/guide-de.html">DE</a><a href="/guide-nl.html">NL</a><a class="active">FR</a><a href="/guide-es.html">ES</a></div>
     <h1>Comment ça marche</h1>
     <p class="lead">MyWaterSessions est le classement de vitesse communautaire gratuit et le guide des
-      spots pour le windsurf, le kitesurf, le wingfoil, le SUP et le wakeboard. Enregistrez une session
-      sur votre montre Garmin (ou téléversez un fichier FIT) et elle entre dans le classement en ligne —
+      spots pour le windsurf, le kitesurf, le wingfoil, le SUP, le wakeboard et le surf. Ça fonctionne avec
+      n'importe quelle montre GPS : téléversez un fichier FIT / GPX / TCX, ou connectez une fois Garmin ou
+      Polar et vos sessions arrivent toutes seules. Chaque session entre dans le classement en ligne —
       avec un guide des spots et des prévisions de vent sur 3 jours.</p>
     <a class="btn" href="https://app.mywatersessions.com/">🌊 Ouvrir l'app</a>
   </div>
@@ -126,14 +127,14 @@
     <h2>Sommaire</h2>
     <ol>
       <li><a href="#account">Créer votre compte</a></li>
-      <li><a href="#token">Votre Device Token</a></li>
-      <li><a href="#watch">Configurer l'app de la montre</a></li>
-      <li><a href="#screens">Les 8 écrans de la montre</a></li>
-      <li><a href="#send">Envoyer votre session</a></li>
+      <li><a href="#token">Connecter votre montre</a></li>
+      <li><a href="#watch">L'app montre Garmin</a></li>
+      <li><a href="#screens">Les écrans de la montre</a></li>
+      <li><a href="#send">Enregistrer &amp; envoyer</a></li>
       <li><a href="#rankings">Sports &amp; classements</a></li>
       <li><a href="#filters">Filtres &amp; départ enregistré</a></li>
       <li><a href="#results">My Results &amp; rang</a></li>
-      <li><a href="#bests">Records &amp; analyse</a></li>
+      <li><a href="#bests">Sessions &amp; analyse</a></li>
       <li><a href="#spots">Spots &amp; prévisions météo</a></li>
       <li><a href="#tv">Spot-TV</a></li>
       <li><a href="#groups">Groupes &amp; communauté</a></li>
@@ -152,49 +153,51 @@
       <li>Puis <b>connectez-vous</b>. Cochez <i>Rester connecté</i> pour rester connecté sur votre appareil.</li>
     </ul>
 
-    <h2 id="token">2. Votre Device Token</h2>
+    <h2 id="token">2. Connecter votre montre</h2>
     <ul>
-      <li>Connectez-vous et ouvrez votre <b>compte / profil</b>.</li>
-      <li>Copiez le <b>Device Token</b> affiché et collez-le dans les réglages de l'app de la montre.</li>
-      <li>Le token relie vos sessions à votre compte – c'est la seule chose que chaque rider doit régler.</li>
+      <li>Dans la barre latérale de l'app, ouvrez <b>⌚ Connect watch · Garmin · Polar</b>, juste sous <b>My profile</b>. Tout ce qui concerne les montres se trouve à cet endroit.</li>
+      <li><b>Garmin :</b> cliquez sur <b>Connect Garmin</b> et confirmez dans votre compte Garmin. Dès lors, chaque session nautique enregistrée sur votre Garmin arrive toute seule – avec le profil windsurf, kite, SUP ou surf propre à Garmin, ou avec notre app montre. Seuls les sports nautiques sont repris ; vos courses et sorties vélo restent dans Garmin.</li>
+      <li><b>Polar :</b> cliquez sur <b>Connect Polar</b>, connectez-vous à Polar Flow et confirmez. Vos sessions Polar sont importées depuis là.</li>
+      <li>Les sessions importées sont placées sur le <b>spot connu le plus proche</b> dans un rayon de 2 km ; s'il n'y en a pas, un nouveau spot est créé à partir de la position. Elles comptent tout de suite au classement.</li>
+      <li>Toute autre montre : téléversez un fichier <b>FIT / GPX / TCX</b> – voir la section 14.</li>
     </ul>
 
-    <h2 id="watch">3. Installer &amp; configurer l'app de la montre</h2>
+    <h2 id="watch">3. L'app montre Garmin (facultative)</h2>
     <ul>
-      <li>Sur votre montre Garmin, installez <b>WaterSession</b> depuis le Connect IQ Store.</li>
-      <li>Dans <b>Garmin Connect</b> (téléphone) → <b>Appareils</b> → votre montre → <b>Applis Connect IQ</b> → <b>WaterSession</b> → <b>Réglages</b>.</li>
-      <li>Collez votre <b>Device Token</b> (obligatoire). Laissez <b>Spot</b> vide pour une détection automatique par GPS.</li>
-      <li><b>Synchronisez</b> la montre.</li>
+      <li>L'app gratuite <b>WaterSession</b> du Connect IQ Store ajoute ce qu'un fichier ne peut pas transporter : des écrans de vitesse en direct, le record du spot sous forme d'anneau à votre poignet et des valeurs comptées à la seconde près – temps de planing, avg 5×10, vos empannages.</li>
+      <li>Lancez une première session : la montre affiche un court <b>code de connexion</b>. Saisissez-le sous <b>⌚ Connect watch</b> dans l'app – une seule fois – et la montre est reliée à votre compte.</li>
+      <li>Dans <b>Garmin Connect</b> (téléphone) → <b>Appareils</b> → votre montre → <b>Applis Connect IQ</b> → <b>WaterSession</b> → <b>Réglages</b>, vous pouvez choisir les pages et les unités. Laissez <b>Spot</b> vide pour une détection automatique par GPS.</li>
     </ul>
 
-    <h2 id="screens">4. Les 8 écrans de la montre</h2>
-    <p>Pendant l'enregistrement, changez d'écran avec <kbd>UP</kbd>/<kbd>DOWN</kbd> :</p>
+    <h2 id="screens">4. Les écrans de la montre</h2>
+    <p>Pendant l'enregistrement, changez de page avec <kbd>UP</kbd>/<kbd>DOWN</kbd>. Les pages affichées dépendent du sport, et chacune peut être désactivée dans les réglages :</p>
     <ol>
-      <li><b>Vitesse</b> – vitesse actuelle en grand (nœuds + km/h), avec votre max et le temps.</li>
+      <li><b>Vitesse</b> – vitesse actuelle en grand, avec le temps, le meilleur 2&nbsp;s et le max en dessous.</li>
       <li><b>Sauts</b> (sports de vent &amp; wakeboard) / <b>Pagaie</b> (SUP) – nombre et dernière valeur.</li>
-      <li><b>Totaux</b> – distance, moyenne, pic sur 2&nbsp;s.</li>
-      <li><b>km/h seul</b> – uniquement la vitesse actuelle en km/h (en grand) + max.</li>
-      <li><b>nœuds seul</b> – uniquement la vitesse actuelle en nœuds (en grand) + max.</li>
-      <li><b>Distance</b> – distance totale de la session, en grand.</li>
-      <li><b>Hauteur de saut</b> (vent &amp; wakeboard) / <b>Cadence</b> (SUP) – hauteur du dernier saut en m / coups par minute.</li>
-      <li><b>Airtime</b> (vent &amp; wakeboard) / <b>Coups</b> (SUP) – airtime du dernier saut en s / total des coups.</li>
+      <li><b>Total</b> – distance, avec moyenne et meilleur 2&nbsp;s.</li>
+      <li><b>Distance</b> – en grand, avec votre record de distance sur ce spot.</li>
+      <li><b>Hauteur de saut</b> &amp; <b>Airtime</b> (sports de vent &amp; wakeboard) / <b>Cadence</b> &amp; <b>Coups</b> (SUP).</li>
+      <li><b>Empannages</b> (sports de vent &amp; wakeboard) – nombre, plus le point le plus lent et la vitesse de sortie du dernier.</li>
+      <li><b>Run</b> (sauf SUP) – meilleur 2&nbsp;s, longueur et durée du run en cours, puis du dernier. L'anneau se remplit par rapport à votre run le plus rapide de la session.</li>
+      <li><b>Top 5 × 10 s</b> (sauf surf) – vos cinq meilleurs runs de 10 secondes et leur moyenne, l'avg 5×10.</li>
+      <li><b>Beat the Beach</b> – le record du spot et votre propre meilleur en double anneau ; la montre vibre quand vous en battez un.</li>
     </ol>
-    <p>En haut de l'écran s'affiche <b>REC</b> (enregistrement) ou <b>READY</b>.</p>
+    <p>Sur chaque page, un anneau montre à quel point vous êtes proche de votre meilleur du jour, et un badge plein en haut indique que la montre enregistre. Des pages séparées avec uniquement les km/h ou uniquement les nœuds peuvent être activées dans les réglages.</p>
 
-    <h2 id="send">5. Envoyer votre session</h2>
+    <h2 id="send">5. Enregistrer &amp; envoyer</h2>
     <ul>
-      <li>Terminez avec <kbd>START</kbd> → choisissez <b>Send</b> (ou <i>Continuer l'enregistrement</i> / <i>Ignorer</i>).</li>
+      <li>Terminez avec <kbd>START</kbd> → <b>Save and Send</b> est présélectionné. <i>Store and send later</i> la garde sur la montre, <i>Resume</i> reprend l'enregistrement, <i>Discard</i> est placé à part.</li>
       <li>Un téléphone avec <b>Garmin Connect</b> doit être à proximité – la montre envoie via lui.</li>
-      <li>Le statut affiche <code>sent</code> (réussi), <code>retry …</code> ou <code>err …</code>.</li>
-      <li>Pas de téléphone sur la plage ? Elle réessaie automatiquement ; vous pouvez aussi utiliser <b>Resend last</b> plus tard.</li>
+      <li>Après l'envoi, la montre affiche tous vos résultats sur une page, puis chaque valeur séparément.</li>
+      <li>Pas de téléphone sur la plage ? Les sessions attendent sur la montre et sont envoyées plus tard, la plus ancienne d'abord – via <b>Resend</b> dans le menu de démarrage.</li>
     </ul>
 
-    <h2 id="rankings">6. Sports &amp; classements de l'accueil</h2>
+    <h2 id="rankings">6. Sports &amp; classements</h2>
     <ul>
-      <li>Changez de sport en haut : <b>Windsurf · Kitesurf · Wingsurf · SUP · Wakeboard · Surf</b>.</li>
-      <li>L'accueil montre le <b>Top 15</b> par catégorie : <b>Meilleur 30&nbsp;s</b>, <b>Vitesse de pointe 2&nbsp;s</b>, <b>Run le plus long</b> et <b>Distance totale</b> (la meilleure session par rider).</li>
-      <li>Les sports de vent &amp; le wakeboard ont aussi <b>Meilleur airtime</b> &amp; <b>Saut le plus haut</b> ; le SUP a <b>Plus de coups</b> &amp; <b>Cadence max</b>.</li>
-      <li>Chaque ligne montre la <b>météo</b> de la session et un badge de <b>confiance</b>.</li>
+      <li>Changez de sport en haut : <b>Windsurf · Kitesurf · Wingsurf · SUP · Wakeboard · Surf</b>. Chaque sport a les classements qui lui correspondent, sous forme de puces à faire défiler – <b>Top 15</b>, la meilleure session par rider.</li>
+      <li><b>Windsurf :</b> meilleur 2&nbsp;s, meilleur 30&nbsp;s, 500&nbsp;m, mille nautique, avg 5×10, Alpha 500, temps de planing et vitesse selon le vent. <b>Wing :</b> virages en foil et temps de vol. <b>Kite :</b> airtime total et sauts les plus hauts. <b>SUP :</b> meilleurs 1&nbsp;km, 5&nbsp;km, 10&nbsp;km et heure en allure, plus la distance par coup de pagaie. <b>Wakeboard :</b> airtime, taux de réception et runs. <b>Surf :</b> vitesse de pointe, plus longue vague et temps dans l'eau.</li>
+      <li>Certains classements additionnent la période choisie au lieu de retenir une seule session : <b>Jours sur l'eau</b>, <b>Temps de planing total</b> et la <b>Moyenne top 10</b> – la moyenne de vos dix meilleures sessions, qui récompense la régularité plutôt qu'une seule rafale chanceuse.</li>
+      <li>Chaque ligne montre la <b>météo</b> de la session, un badge de <b>confiance</b> et une mini-courbe du run le plus rapide de la session.</li>
     </ul>
 
     <h2 id="filters">7. Filtres &amp; votre départ enregistré</h2>
@@ -206,17 +209,19 @@
 
     <h2 id="results">8. My Results – records, indice &amp; votre rang</h2>
     <ul>
-      <li>Vos <b>records</b> : meilleur 2&nbsp;s, meilleur 30&nbsp;s, run le plus long, saut le plus haut et distance totale.</li>
+      <li><b>My Results</b> est un onglet à part. Il vous accueille avec l'endroit où vous êtes devant – le classement où vous êtes le mieux placé.</li>
+      <li>Vos <b>records</b> par sport, et <b>votre rang</b> global ou sur un spot choisi dans le filtre.</li>
       <li><b>Indice de Performance</b> = meilleur 2&nbsp;s ÷ (vent × taille de voile) × 100 – plus c'est élevé, plus vous étiez rapide avec <i>peu de vent et une petite voile</i> (un score d'efficacité équitable pour suivre vos progrès).</li>
-      <li><b>Votre position au classement</b> : votre rang global, ou choisissez un spot dans le filtre pour voir votre rang <i>sur ce spot</i> (pour le 2&nbsp;s et le 30&nbsp;s).</li>
+      <li><b>Ce que coûte votre sport</b> (privé, sur activation) : saisissez le prix de votre matériel, l'aller-retour vers chaque spot et des extras comme un mât ou une combinaison – vous obtenez le coût par session et par kilomètre ainsi qu'un bilan annuel. Personne d'autre ne le voit.</li>
     </ul>
 
-    <h2 id="bests">9. My Results – records, sessions &amp; analyse</h2>
+    <h2 id="bests">9. My Results – sessions &amp; analyse</h2>
     <ul>
       <li><b>Records personnels</b> : votre top 10 de vitesse, filtrable par spot, année, planche et vent max (p. ex. quelle vitesse à ≤ 5&nbsp;Bft ?).</li>
-      <li><b>Voir mes sessions</b> : liste avec filtre de date ; choisissez-en une pour l'analyse complète.</li>
-      <li>Détail de la session : distance, moyenne, vitesses de pointe, sauts/pagaie, <b>runs</b> détectés, la <b>carte GPS</b>, météo et confiance.</li>
-      <li><b>Compléter mes sessions</b> : renseignez spot / planche / voile sur les sessions de la montre pour qu'elles comptent au classement.</li>
+      <li>Choisissez une session pour l'analyse complète : une <b>courbe de vitesse</b> avec vos runs et le plus long mis en évidence, tous les résultats de vitesse d'un coup d'œil, les <b>cinq runs de 10 secondes</b> derrière l'avg 5×10, et une <b>analyse des empannages</b> qui découpe chaque virage en phases.</li>
+      <li>La <b>carte</b> montre toute la trace, seulement le run le plus rapide ou seulement le plus long. L'état de la mer, la marée et la météo sont ajoutés automatiquement.</li>
+      <li><b>Who else was out?</b> – les autres riders qui ont enregistré une session sur le même spot ce jour-là, avec votre place parmi eux.</li>
+      <li>Renseignez spot, planche et voile sur une session à tout moment ; une session compte au classement dès qu'elle a un spot.</li>
     </ul>
 
     <h2 id="spots">10. Spots &amp; prévisions météo</h2>
@@ -250,8 +255,14 @@
 
     <h2 id="fit">14. Autres montres / Apple Watch</h2>
     <ul>
-      <li>Toute montre qui exporte un <b>fichier FIT</b> (p. ex. Apple Watch via HealthFit) fonctionne aussi.</li>
-      <li>Utilisez <b>Add session</b> dans la barre latérale → choisissez le matériel → téléversez le fichier FIT. La météo est ajoutée automatiquement ; vous obtenez runs, carte et analyse de vitesse.</li>
+      <li>Toute montre ou appli téléphone qui exporte un <b>fichier FIT, GPX ou TCX</b> fonctionne – Apple Watch via HealthFit, Suunto, Fitbit, un export Strava et plus.</li>
+      <li>Utilisez <b>Add session</b> dans la barre latérale et téléversez le fichier. L'app propose le spot d'après la trace ; la météo est ajoutée automatiquement, et vous obtenez runs, carte et l'analyse de vitesse complète.</li>
+      <li>Vous venez d'une autre appli ? <a href="/import-fr.html">Importez tout votre historique</a> en une fois.</li>
+    </ul>
+    <h3>Montres COROS</h3>
+    <ul>
+      <li>Dans l'appli COROS, ouvrez la session → menu en haut à droite → <b>Export Data</b> → <b>.FIT</b>, puis téléversez-la dans <b>Add session</b> – vous obtenez les runs, la carte GPS et l'analyse de vitesse complète, comme pour toute autre session.</li>
+      <li>Nous avons demandé la synchronisation directe COROS ; en attendant son approbation, le téléversement ne prend que quelques secondes.</li>
     </ul>
 
     <h2 id="trust">15. Confiance, fair-play &amp; vie privée</h2>
@@ -267,11 +278,13 @@
     <h3>MyWaterSessions est-il gratuit ?</h3>
     <p>Oui. Créer un compte, enregistrer des sessions, les classements, le guide des spots et les prévisions de vent sont entièrement gratuits.</p>
     <h3>Quelles montres Garmin sont compatibles ?</h3>
-    <p>L'app Connect IQ <b>WaterSession</b> fonctionne sur une quarantaine de montres Garmin – Fenix, Epix, Forerunner, Instinct, Venu, vívoactive et plus. Installez-la depuis le Connect IQ Store et collez votre Device Token.</p>
+    <p>Toutes, via votre compte Garmin : connectez-le une fois et chaque session nautique arrive toute seule. L'app Connect IQ <b>WaterSession</b>, facultative, pour les écrans en direct fonctionne sur une quarantaine de montres Garmin – Fenix, Epix, Forerunner, Instinct, Venu, vívoactive et plus ; vous la reliez avec un code court affiché par la montre.</p>
     <h3>Comment ma vitesse est-elle mesurée ?</h3>
-    <p>Par GPS. Le classement utilise votre meilleur pic sur <b>2 secondes</b> et votre meilleure moyenne sur <b>30 secondes</b>, afin qu'un seul pic GPS ne puisse pas fausser une vitesse de pointe. Chaque session reçoit aussi un score de confiance.</p>
+    <p>Par GPS. Les classements utilisent des moyennes, pas une seule mesure : votre meilleur pic sur <b>2 secondes</b>, vos meilleures <b>30 secondes</b> et l'<b>avg 5×10</b> – la moyenne de vos cinq meilleurs runs de 10 secondes – afin qu'un seul pic GPS ne puisse pas fausser une vitesse de pointe. Chaque session reçoit aussi un score de confiance.</p>
     <h3>Puis-je l'utiliser sans montre Garmin (p. ex. Apple Watch) ?</h3>
-    <p>Oui. Toute montre qui exporte un <b>fichier FIT</b> convient – téléversez-le dans <b>Add session</b> et vous obtenez la même analyse de vitesse, les runs et la carte.</p>
+    <p>Oui. Polar se connecte comme Garmin, et toute montre qui exporte un <b>fichier FIT, GPX ou TCX</b> convient – téléversez-le dans <b>Add session</b> et vous obtenez la même analyse de vitesse, les runs et la carte.</p>
+    <h3>Puis-je l'utiliser avec COROS ?</h3>
+    <p>Oui. Exportez un fichier <b>.FIT</b> depuis l'appli COROS et téléversez-le dans <b>Add session</b> – la même analyse de vitesse, les runs et la carte qu'avec toute autre montre. La synchronisation directe COROS est demandée.</p>
     <h3>Enregistre-t-il les sauts et l'airtime pour le wakeboard ?</h3>
     <p>Oui. Pour les sports de vent <b>et le wakeboard</b>, la montre détecte chaque saut et affiche la hauteur de saut et l'airtime ; le SUP enregistre plutôt les coups de pagaie et la cadence.</p>
     <h3>Ma position GPS est-elle privée ?</h3>

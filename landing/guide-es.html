@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
 <link rel="manifest" href="/site.webmanifest">
 <title>Cómo funciona MyWaterSessions – guía del ranking de velocidad windsurf, kite, wing, SUP, wakeboard y surf</title>
-<meta name="description" content="Guía paso a paso de MyWaterSessions: graba con tu reloj Garmin, mira tus velocidades de 2s y 30s y tu puesto por spot, usa la guía de spots con previsión de viento a 3 días, grupos, Spot-TV y más.">
+<meta name="description" content="Guía paso a paso de MyWaterSessions: conecta Garmin o Polar o sube un archivo desde cualquier reloj GPS, mira tus velocidades de 2 s, 30 s y avg 5×10 y tu puesto por spot, usa la guía de spots con previsión de viento a 3 días, grupos, Spot-TV y más.">
 <link rel="canonical" href="https://mywatersessions.com/guide-es.html">
 <link rel="alternate" hreflang="en" href="https://mywatersessions.com/guide.html">
 <link rel="alternate" hreflang="de" href="https://mywatersessions.com/guide-de.html">
@@ -21,7 +21,7 @@
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="MyWaterSessions">
 <meta property="og:title" content="Cómo funciona MyWaterSessions – la guía completa">
-<meta property="og:description" content="Graba con tu reloj Garmin, sube en el ranking de velocidad, consulta la previsión de viento y tu puesto por spot. Así funciona todo.">
+<meta property="og:description" content="Graba con cualquier reloj GPS, sube en el ranking de velocidad, consulta la previsión de viento y tu puesto por spot. Así funciona todo.">
 <meta property="og:url" content="https://mywatersessions.com/guide-es.html">
 <meta property="og:image" content="https://mywatersessions.com/og.png">
 <meta property="og:image:width" content="1200">
@@ -53,11 +53,11 @@
     { "@type": "Question", "name": "¿MyWaterSessions es gratis?",
       "acceptedAnswer": { "@type": "Answer", "text": "Sí. Crear una cuenta, grabar sesiones, los rankings, la guía de spots y la previsión de viento son totalmente gratis." } },
     { "@type": "Question", "name": "¿Qué relojes Garmin son compatibles?",
-      "acceptedAnswer": { "@type": "Answer", "text": "La app Connect IQ WaterSession funciona en unos 40 relojes Garmin (Fenix, Epix, Forerunner, Instinct, Venu, vívoactive…). Instálala desde la Connect IQ Store y pega tu Device Token." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Todos, a través de tu cuenta de Garmin: conéctala una vez y cada sesión en el agua llega sola. La app opcional Connect IQ WaterSession, con pantallas en directo, funciona en unos 40 relojes Garmin (Fenix, Epix, Forerunner, Instinct, Venu, vívoactive…); la vinculas con un código corto que muestra el reloj." } },
     { "@type": "Question", "name": "¿Cómo se mide mi velocidad?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Por GPS. El ranking usa tu mejor pico de 2 segundos y tu mejor media de 30 segundos, de modo que un solo pico GPS no puede falsear una velocidad punta. Cada sesión recibe además una puntuación de confianza." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Por GPS. Los rankings usan medias, no una sola lectura: tu mejor pico de 2 segundos, tus mejores 30 segundos y el avg 5x10 (la media de tus cinco mejores runs de 10 segundos), de modo que un solo pico GPS no puede falsear una velocidad punta. Cada sesión recibe además una puntuación de confianza." } },
     { "@type": "Question", "name": "¿Puedo usarlo sin un reloj Garmin?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Sí. Cualquier reloj que exporte un archivo FIT (por ejemplo un Apple Watch) sirve. Súbelo en Añadir sesión y obtienes el mismo análisis de velocidad, los runs y el mapa." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Sí. Polar se conecta igual que Garmin, y cualquier reloj que exporte un archivo FIT, GPX o TCX (por ejemplo un Apple Watch) sirve. Súbelo en Añadir sesión y obtienes el mismo análisis de velocidad, los runs y el mapa." } },
     { "@type": "Question", "name": "¿Registra saltos y airtime para wakeboard?",
       "acceptedAnswer": { "@type": "Answer", "text": "Sí. Para los deportes de viento y el wakeboard, el reloj detecta cada salto y muestra la altura de salto y el airtime; el SUP registra en su lugar las paladas y la cadencia." } },
     { "@type": "Question", "name": "¿Mi ubicación GPS es privada?",
@@ -114,8 +114,9 @@
     <div class="langbar"><a href="/guide.html">EN</a><a href="/guide-de.html">DE</a><a href="/guide-nl.html">NL</a><a href="/guide-fr.html">FR</a><a class="active">ES</a></div>
     <h1>Cómo funciona</h1>
     <p class="lead">MyWaterSessions es el ranking de velocidad comunitario gratuito y la guía de spots
-      para windsurf, kitesurf, wingfoil, SUP, wakeboard y surf. Graba una sesión con tu reloj Garmin (o sube un
-      archivo FIT) y entra en el ranking online — además de una guía de spots con previsión de viento a 3 días.</p>
+      para windsurf, kitesurf, wingfoil, SUP, wakeboard y surf. Funciona con cualquier reloj GPS: sube un
+      archivo FIT / GPX / TCX, o conecta Garmin o Polar una vez y tus sesiones llegan solas.
+      Cada sesión entra en el ranking online — además de una guía de spots con previsión de viento a 3 días.</p>
     <a class="btn" href="https://app.mywatersessions.com/">🌊 Abrir la app</a>
   </div>
 </header>
@@ -125,14 +126,14 @@
     <h2>Contenido</h2>
     <ol>
       <li><a href="#account">Crear tu cuenta</a></li>
-      <li><a href="#token">Tu Device Token</a></li>
-      <li><a href="#watch">Configurar la app del reloj</a></li>
-      <li><a href="#screens">Las 8 pantallas del reloj</a></li>
-      <li><a href="#send">Enviar tu sesión</a></li>
+      <li><a href="#token">Conecta tu reloj</a></li>
+      <li><a href="#watch">La app para relojes Garmin</a></li>
+      <li><a href="#screens">Las pantallas del reloj</a></li>
+      <li><a href="#send">Guardar &amp; enviar</a></li>
       <li><a href="#rankings">Deportes &amp; rankings</a></li>
       <li><a href="#filters">Filtros &amp; inicio guardado</a></li>
       <li><a href="#results">My Results &amp; puesto</a></li>
-      <li><a href="#bests">Récords &amp; análisis</a></li>
+      <li><a href="#bests">Sesiones &amp; análisis</a></li>
       <li><a href="#spots">Spots &amp; previsión</a></li>
       <li><a href="#tv">Spot-TV</a></li>
       <li><a href="#groups">Grupos &amp; comunidad</a></li>
@@ -151,49 +152,51 @@
       <li>Luego <b>inicia sesión</b>. Marca <i>Seguir conectado</i> para mantener la sesión en tu dispositivo.</li>
     </ul>
 
-    <h2 id="token">2. Tu Device Token</h2>
+    <h2 id="token">2. Conecta tu reloj</h2>
     <ul>
-      <li>Inicia sesión y abre tu <b>cuenta / perfil</b>.</li>
-      <li>Copia el <b>Device Token</b> que aparece y pégalo en los ajustes de la app del reloj.</li>
-      <li>El token vincula tus sesiones a tu cuenta – es lo único que cada rider debe configurar.</li>
+      <li>En la barra lateral de la app abre <b>⌚ Connect watch · Garmin · Polar</b>, justo debajo de <b>My profile</b>. Todo lo relacionado con relojes está en ese único sitio.</li>
+      <li><b>Garmin:</b> haz clic en <b>🔗 Connect Garmin</b> y confirma en tu cuenta de Garmin. A partir de ahí, cada sesión en el agua que grabes con tu Garmin llega sola – con el perfil propio de Garmin para windsurf, kite, SUP o surf, o con nuestra app para el reloj. Solo se importan los deportes acuáticos; tus carreras y salidas en bici se quedan en Garmin.</li>
+      <li><b>Polar:</b> haz clic en <b>🔗 Connect Polar</b>, inicia sesión en Polar Flow y confirma. Tus sesiones de Polar se importan desde ahí.</li>
+      <li>Las sesiones importadas se asignan al <b>spot conocido más cercano</b> en un radio de 2 km; si no hay ninguno, se crea un spot nuevo a partir de la ubicación. Cuentan en los rankings desde el primer momento.</li>
+      <li>Cualquier otro reloj: sube un archivo <b>FIT / GPX / TCX</b> – mira la sección 14.</li>
     </ul>
 
-    <h2 id="watch">3. Instalar &amp; configurar la app del reloj</h2>
+    <h2 id="watch">3. La app para relojes Garmin (opcional)</h2>
     <ul>
-      <li>En tu reloj Garmin, instala <b>WaterSession</b> desde la Connect IQ Store.</li>
-      <li>En <b>Garmin Connect</b> (móvil) → <b>Dispositivos</b> → tu reloj → <b>Apps Connect IQ</b> → <b>WaterSession</b> → <b>Ajustes</b>.</li>
-      <li>Pega tu <b>Device Token</b> (obligatorio). Deja <b>Spot</b> vacío para detectarlo automáticamente por GPS.</li>
-      <li><b>Sincroniza</b> el reloj.</li>
+      <li>La app gratuita <b>WaterSession</b> de la Connect IQ Store añade lo que un archivo no puede llevar: pantallas de velocidad en directo, el récord del spot como anillo en tu muñeca y valores contados segundo a segundo – tiempo de planeo, avg 5×10, tus trasluchadas.</li>
+      <li>Empieza una primera sesión: el reloj muestra un <b>código de conexión</b> corto. Introdúcelo una sola vez en <b>⌚ Connect watch</b> en la app y el reloj queda vinculado a tu cuenta.</li>
+      <li>En <b>Garmin Connect</b> (móvil) → <b>Dispositivos</b> → tu reloj → <b>Apps Connect IQ</b> → <b>WaterSession</b> → <b>Ajustes</b> puedes elegir páginas y unidades. Deja <b>Spot</b> vacío para detectarlo automáticamente por GPS.</li>
     </ul>
 
-    <h2 id="screens">4. Las 8 pantallas del reloj</h2>
-    <p>Durante la grabación, cambia de pantalla con <kbd>UP</kbd>/<kbd>DOWN</kbd>:</p>
+    <h2 id="screens">4. Las pantallas del reloj</h2>
+    <p>Durante la grabación, cambia de página con <kbd>UP</kbd>/<kbd>DOWN</kbd>. Las páginas que aparecen dependen del deporte, y cada una se puede desactivar en los ajustes:</p>
     <ol>
-      <li><b>Velocidad</b> – velocidad actual en grande (nudos + km/h), con tu máx. y el tiempo.</li>
+      <li><b>Velocidad</b> – velocidad actual en grande, con el tiempo, el mejor 2&nbsp;s y la máx. debajo.</li>
       <li><b>Saltos</b> (deportes de viento &amp; wakeboard) / <b>Palada</b> (SUP) – número y último valor.</li>
-      <li><b>Totales</b> – distancia, media, pico de 2&nbsp;s.</li>
-      <li><b>solo km/h</b> – solo la velocidad actual en km/h (en grande) + máx.</li>
-      <li><b>solo nudos</b> – solo la velocidad actual en nudos (en grande) + máx.</li>
-      <li><b>Distancia</b> – distancia total de la sesión, en grande.</li>
-      <li><b>Altura de salto</b> (viento &amp; wakeboard) / <b>Cadencia</b> (SUP) – altura del último salto en m / paladas por minuto.</li>
-      <li><b>Airtime</b> (viento &amp; wakeboard) / <b>Paladas</b> (SUP) – airtime del último salto en s / total de paladas.</li>
+      <li><b>Total</b> – distancia, con la media y el mejor 2&nbsp;s.</li>
+      <li><b>Distancia</b> – en grande, con tu récord de distancia en este spot.</li>
+      <li><b>Altura de salto</b> &amp; <b>Airtime</b> (deportes de viento &amp; wakeboard) / <b>Cadencia</b> &amp; <b>Paladas</b> (SUP).</li>
+      <li><b>Trasluchadas</b> (deportes de viento &amp; wakeboard) – número, más el punto más lento y la velocidad de salida de la última.</li>
+      <li><b>Run</b> (no en SUP) – mejor 2&nbsp;s, longitud y tiempo del run en el que estás, y luego del último. El anillo se llena comparado con tu run más rápido de la sesión.</li>
+      <li><b>Top 5 × 10 s</b> (no en surf) – tus cinco mejores runs de 10 segundos y su media, el avg 5×10.</li>
+      <li><b>Beat the Beach</b> – el récord del spot y tu propia mejor marca como doble anillo; el reloj vibra cuando superas uno.</li>
     </ol>
-    <p>En la parte superior de la pantalla aparece <b>REC</b> (grabando) o <b>READY</b>.</p>
+    <p>En cada página, un anillo muestra lo cerca que estás de tu mejor marca del día, y una insignia rellena arriba indica que el reloj está grabando. Las páginas sueltas con solo km/h o solo nudos se pueden activar en los ajustes.</p>
 
-    <h2 id="send">5. Enviar tu sesión</h2>
+    <h2 id="send">5. Guardar &amp; enviar</h2>
     <ul>
-      <li>Termina con <kbd>START</kbd> → elige <b>Send</b> (o <i>Seguir grabando</i> / <i>Descartar</i>).</li>
+      <li>Termina con <kbd>START</kbd> → <b>Save and Send</b> viene preseleccionado. <i>Store and send later</i> la guarda en el reloj, <i>Resume</i> sigue grabando y <i>Discard</i> está aparte.</li>
       <li>Debe haber cerca un móvil con <b>Garmin Connect</b> – el reloj sube a través de él.</li>
-      <li>El estado muestra <code>sent</code> (éxito), <code>retry …</code> o <code>err …</code>.</li>
-      <li>¿Sin móvil en la playa? Reintenta automáticamente; también puedes usar <b>Resend last</b> más tarde.</li>
+      <li>Tras el envío, el reloj muestra todos tus resultados en una página y luego cada valor por separado.</li>
+      <li>¿Sin móvil en la playa? Las sesiones esperan en el reloj y se envían más tarde, la más antigua primero – con <b>Resend</b> en el menú de inicio.</li>
     </ul>
 
-    <h2 id="rankings">6. Deportes &amp; rankings de inicio</h2>
+    <h2 id="rankings">6. Deportes &amp; rankings</h2>
     <ul>
-      <li>Cambia de deporte arriba: <b>Windsurf · Kitesurf · Wingsurf · SUP · Wakeboard · Surf</b>.</li>
-      <li>La portada muestra el <b>Top 15</b> por categoría: <b>Mejor 30&nbsp;s</b>, <b>Velocidad punta 2&nbsp;s</b>, <b>Run más largo</b> y <b>Distancia total</b> (la mejor sesión por rider).</li>
-      <li>Los deportes de viento &amp; el wakeboard tienen además <b>Mejor airtime</b> &amp; <b>Salto más alto</b>; el SUP tiene <b>Más paladas</b> &amp; <b>Cadencia máx.</b>.</li>
-      <li>Cada fila muestra el <b>tiempo</b> de la sesión y una insignia de <b>confianza</b>.</li>
+      <li>Cambia de deporte arriba: <b>Windsurf · Kitesurf · Wingsurf · SUP · Wakeboard · Surf</b>. Cada deporte tiene los rankings que le van, como fichas que vas deslizando – <b>Top 15</b>, la mejor sesión por rider.</li>
+      <li><b>Windsurf:</b> mejor 2&nbsp;s, mejor 30&nbsp;s, 500&nbsp;m, milla náutica, avg 5×10, Alpha 500, tiempo de planeo y velocidad según el viento. <b>Wing:</b> giros en foil y tiempo de vuelo. <b>Kite:</b> airtime total y saltos más altos. <b>SUP:</b> mejor 1&nbsp;km, 5&nbsp;km, 10&nbsp;km y hora como ritmo, más distancia por palada. <b>Wakeboard:</b> airtime, tasa de aterrizajes y runs. <b>Surf:</b> velocidad punta, ola más larga y tiempo en el agua.</li>
+      <li>Algunos rankings suman el periodo elegido en lugar de tomar una sola sesión: <b>Días en el agua</b>, <b>Tiempo total de planeo</b> y la <b>Media top-10</b> – la media de tus diez mejores sesiones, que premia la constancia frente a una racha con suerte.</li>
+      <li>Cada fila muestra el <b>tiempo</b> de la sesión, una insignia de <b>confianza</b> y una mini curva del run más rápido de la sesión.</li>
     </ul>
 
     <h2 id="filters">7. Filtros &amp; tu inicio guardado</h2>
@@ -205,17 +208,19 @@
 
     <h2 id="results">8. My Results – récords, índice &amp; tu puesto</h2>
     <ul>
-      <li>Tus <b>récords</b>: mejor 2&nbsp;s, mejor 30&nbsp;s, run más largo, salto más alto y distancia total.</li>
+      <li><b>My Results</b> es una pestaña propia. Te recibe mostrando dónde vas por delante – el ranking en el que mejor quedas.</li>
+      <li>Tus <b>récords</b> por deporte, y <b>tu puesto</b> global o en un spot que elijas en el filtro.</li>
       <li><b>Índice de Rendimiento</b> = mejor 2&nbsp;s ÷ (viento × tamaño de vela) × 100 – cuanto más alto, más rápido fuiste con <i>poco viento y una vela pequeña</i> (una puntuación de eficiencia justa para seguir tu progreso).</li>
-      <li><b>Tu posición en el ranking</b>: tu puesto global, o elige un spot en el filtro para ver tu puesto <i>en ese spot</i> (para 2&nbsp;s y 30&nbsp;s).</li>
+      <li><b>Lo que te cuesta tu deporte</b> (privado, opcional): introduce lo que te costó el material, el viaje de ida y vuelta a cada spot y extras como un mástil o un neopreno – obtienes el coste por sesión y por kilómetro y un resumen anual. Nadie más lo ve.</li>
     </ul>
 
-    <h2 id="bests">9. My Results – récords, sesiones &amp; análisis</h2>
+    <h2 id="bests">9. My Results – sesiones &amp; análisis</h2>
     <ul>
       <li><b>Récords personales</b>: tu top 10 de velocidad, filtrable por spot, año, tabla y viento máx. (p. ej. ¿qué velocidad con ≤ 5&nbsp;Bft?).</li>
-      <li><b>Ver mis sesiones</b>: lista con filtro de fecha; elige una para el análisis completo.</li>
-      <li>Detalle de la sesión: distancia, media, velocidades punta, saltos/palada, <b>runs</b> detectados, el <b>mapa GPS</b>, tiempo y confianza.</li>
-      <li><b>Completar mis sesiones</b>: pon spot / tabla / vela en las sesiones del reloj para que cuenten en el ranking.</li>
+      <li>Elige una sesión para el análisis completo: una <b>curva de velocidad</b> con tus runs y el más largo resaltado, todos los resultados de velocidad de un vistazo, los <b>cinco runs de 10 segundos</b> que forman el avg 5×10, y un <b>análisis de trasluchadas</b> que divide cada giro en fases.</li>
+      <li>El <b>mapa</b> muestra todo el track, solo el run más rápido o solo el más largo. El estado del mar, la marea y el tiempo se añaden automáticamente.</li>
+      <li><b>¿Quién más estaba en el agua?</b> – los demás que registraron una sesión en el mismo spot ese día, con tu puesto entre ellos.</li>
+      <li>Pon spot, tabla y vela en una sesión cuando quieras; una sesión cuenta en los rankings en cuanto tiene un spot.</li>
     </ul>
 
     <h2 id="spots">10. Spots &amp; previsión meteorológica</h2>
@@ -249,8 +254,14 @@
 
     <h2 id="fit">14. Otros relojes / Apple Watch</h2>
     <ul>
-      <li>Cualquier reloj que exporte un <b>archivo FIT</b> (p. ej. Apple Watch vía HealthFit) también funciona.</li>
-      <li>Usa <b>Add session</b> en la barra lateral → elige el material → sube el archivo FIT. El tiempo se añade automáticamente; obtienes runs, mapa y análisis de velocidad.</li>
+      <li>Cualquier reloj o app de móvil que exporte un <b>archivo FIT, GPX o TCX</b> funciona – Apple Watch vía HealthFit, Suunto, Fitbit, una exportación de Strava y más.</li>
+      <li>Usa <b>Add session</b> en la barra lateral y sube el archivo. La app propone el spot a partir del track; el tiempo se añade automáticamente, y obtienes runs, mapa y el análisis de velocidad completo.</li>
+      <li>¿Vienes de otra app? <a href="/import-es.html">Importa todo tu historial</a> de una vez.</li>
+    </ul>
+    <h3>Relojes COROS</h3>
+    <ul>
+      <li>En la app de COROS abre la sesión → menú arriba a la derecha → <b>Export Data</b> → <b>.FIT</b>, y súbela en <b>Add session</b> – obtienes runs, el mapa GPS y el análisis de velocidad completo, igual que con cualquier otra sesión.</li>
+      <li>Hemos solicitado la sincronización directa con COROS; hasta que se apruebe, subir el archivo lleva unos segundos.</li>
     </ul>
 
     <h2 id="trust">15. Confianza, juego limpio &amp; privacidad</h2>
@@ -266,11 +277,13 @@
     <h3>¿MyWaterSessions es gratis?</h3>
     <p>Sí. Crear una cuenta, grabar sesiones, los rankings, la guía de spots y la previsión de viento son totalmente gratis.</p>
     <h3>¿Qué relojes Garmin son compatibles?</h3>
-    <p>La app Connect IQ <b>WaterSession</b> funciona en unos 40 relojes Garmin – Fenix, Epix, Forerunner, Instinct, Venu, vívoactive y más. Instálala desde la Connect IQ Store y pega tu Device Token.</p>
+    <p>Todos, a través de tu cuenta de Garmin: conéctala una vez y cada sesión en el agua llega sola. La app opcional Connect IQ <b>WaterSession</b>, con pantallas en directo, funciona en unos 40 relojes Garmin – Fenix, Epix, Forerunner, Instinct, Venu, vívoactive y más; la vinculas con un código corto que muestra el reloj.</p>
     <h3>¿Cómo se mide mi velocidad?</h3>
-    <p>Por GPS. El ranking usa tu mejor pico de <b>2 segundos</b> y tu mejor media de <b>30 segundos</b>, de modo que un solo pico GPS no puede falsear una velocidad punta. Cada sesión recibe además una puntuación de confianza.</p>
+    <p>Por GPS. Los rankings usan medias, no una sola lectura: tu mejor pico de <b>2 segundos</b>, tus mejores <b>30 segundos</b> y el <b>avg 5×10</b> (la media de tus cinco mejores runs de 10 segundos), de modo que un solo pico GPS no puede falsear una velocidad punta. Cada sesión recibe además una puntuación de confianza.</p>
     <h3>¿Puedo usarlo sin un reloj Garmin (p. ej. Apple Watch)?</h3>
-    <p>Sí. Cualquier reloj que exporte un <b>archivo FIT</b> sirve – súbelo en <b>Add session</b> y obtienes el mismo análisis de velocidad, los runs y el mapa.</p>
+    <p>Sí. Polar se conecta igual que Garmin, y cualquier reloj que exporte un <b>archivo FIT, GPX o TCX</b> sirve – súbelo en <b>Add session</b> y obtienes el mismo análisis de velocidad, los runs y el mapa.</p>
+    <h3>¿Puedo usarlo con COROS?</h3>
+    <p>Sí. Exporta un archivo <b>.FIT</b> desde la app de COROS y súbelo en <b>Add session</b> – el mismo análisis de velocidad, los runs y el mapa que con cualquier otro reloj. La sincronización directa con COROS está solicitada.</p>
     <h3>¿Registra saltos y airtime para wakeboard?</h3>
     <p>Sí. Para los deportes de viento <b>y el wakeboard</b>, el reloj detecta cada salto y muestra la altura de salto y el airtime; el SUP registra en su lugar las paladas y la cadencia.</p>
     <h3>¿Mi ubicación GPS es privada?</h3>
