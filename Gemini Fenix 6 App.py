@@ -836,6 +836,7 @@ sessions_table = Table(
     Column("speed_nm_kmh", Float),       # beste Ø-Geschwindigkeit über 1 Seemeile (1852 m)
     Column("speed_5x10_kmh", Float),     # Mittel der 5 besten 10-s-Fahrten (avg 5x10)
     Column("speed_alpha500_kmh", Float), # schnellste 500 m mit Halse (Start/Ende < 50 m)
+    Column("speed_5x10_top", String),    # die 5 Fenster hinter avg 5x10, km/h, JSON (Uhr 1.4.0+)
     # --- Ausdauer-Bestzeiten ueber Distanzen (sup-kennzahlen.md) ------------
     # Beim SUP liegt zwischen Sonntagsrunde und Rennfahrer nur 5 bis 12 km/h.
     # In diesem Band trennt eine Speed-Rangliste fast nichts ausser den
@@ -1479,6 +1480,7 @@ _WATCH_COLUMNS = {
     "speed_nm_kmh": "DOUBLE PRECISION",
     "speed_5x10_kmh": "DOUBLE PRECISION",
     "speed_alpha500_kmh": "DOUBLE PRECISION",
+    "speed_5x10_top": "TEXT",
     "jumps": "INTEGER",
     "max_airtime_s": "DOUBLE PRECISION",
     "max_jump_m": "DOUBLE PRECISION",
@@ -15894,9 +15896,21 @@ def _render_speed_curve(track_pts, duration_s, record):
             st.caption("No speed results stored for this session.")
     with _rc:
         st.markdown("#### 🎯 Top 5 × 10 s")
-        _wins = None
-        if not _is_surf and n_seg:
-            _base = pd.Timestamp("2000-01-01")
+        # Die Uhr (1.4.0+) schickt ihre fuenf Fenster mit - dann DIE zeigen,
+        # sekundengenau und identisch mit der Liste auf der Uhr. Sonst aus
+        # dem Track rekonstruieren (mit Zeitpunkt, den hat nur der Track).
+        _wins, _base, _von_uhr = None, pd.Timestamp("2000-01-01"), False
+        _raw_top = record.get("speed_5x10_top")
+        if not _is_surf and _raw_top:
+            try:
+                _lst = json.loads(_raw_top) if isinstance(_raw_top, str) else list(_raw_top)
+                _lst = [float(x) for x in _lst if x is not None and float(x) > 0]
+                if _lst:
+                    _wins = [(None, k) for k in sorted(_lst, reverse=True)[:5]]
+                    _von_uhr = True
+            except (TypeError, ValueError):
+                _wins = None
+        if _wins is None and not _is_surf and n_seg:
             _tdf = pd.DataFrame({
                 "timestamp": [_base + pd.Timedelta(seconds=float(m) * 60.0) for m in t_min],
                 "speed_kmh": np.asarray(v_kn, dtype=float) * 1.852,
@@ -15905,14 +15919,18 @@ def _render_speed_curve(track_pts, duration_s, record):
         if _wins:
             _wr = []
             for _i, (_ts, _kmh) in enumerate(_wins):
-                _at = (_ts - _base).total_seconds() / 60.0
-                _wr.append(f"| {_i + 1} | **{_kmh / 1.852:.1f}** | {_kmh:.1f} | {_at:.1f} min |")
+                _at = "" if _ts is None else f"{(_ts - _base).total_seconds() / 60.0:.1f} min"
+                _wr.append(f"| {_i + 1} | **{_kmh / 1.852:.1f}** | {_kmh:.1f} | {_at} |")
             _avg = sum(k for _, k in _wins) / len(_wins)
             _wr.append(f"| avg | **{_avg / 1.852:.1f}** | {_avg:.1f} | "
                        + ("" if len(_wins) == 5 else f"{len(_wins)}/5 windows") + " |")
-            st.markdown("| # | kn | km/h | at |\n|---:|---:|---:|:---|\n" + "\n".join(_wr))
+            st.markdown("| # | kn | km/h | " + ("" if _von_uhr else "at")
+                        + " |\n|---:|---:|---:|:---|\n" + "\n".join(_wr))
             _stored = pd.to_numeric(record.get("speed_5x10_kmh"), errors="coerce")
-            if pd.notna(_stored) and record.get("source") == "watch":
+            if _von_uhr:
+                st.caption("Counted second by second on the watch – the same list "
+                           "the watch showed on its Top 5 × 10 s page.")
+            elif pd.notna(_stored) and record.get("source") == "watch":
                 st.caption(f"Ranked value from the watch: **{float(_stored) / 1.852:.1f} kn** "
                            "(counted second by second). The list is rebuilt from the "
                            f"thinned track (~{dt:.0f} s), so single windows can differ "
