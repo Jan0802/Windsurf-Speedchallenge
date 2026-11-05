@@ -37,10 +37,11 @@ T = {
   "html": "en",
   "s_track": "What gets tracked", "s_how": "How it works — with any watch",
   "s_why": "Why riders use it", "cta": "🌊 Launch the app",
-  "how": ("Record on a <b>Garmin</b> with our free Connect IQ app, or connect your <b>Polar</b> "
-          "account, and the session uploads automatically. Neither one? Just upload a "
-          "<b>FIT / GPX / TCX</b> file from any other watch or phone app — Apple Watch, Suunto, "
-          "COROS, or a Garmin Connect / Strava export. "
+  "how": ("Works with <b>any GPS watch</b>: upload a <b>FIT / GPX / TCX</b> file from Apple Watch, "
+          "Suunto, COROS, a Strava export or any phone app. <b>Garmin</b> and <b>Polar</b> are even "
+          "easier: connect your account once and every water session arrives on its own — with "
+          "Garmin's own sport profiles, or with our free WaterSession watch app, which adds live "
+          "speed screens and the spot record on your wrist. "
           "Speed, GPS track and every metric above are computed for you."),
   "why": ["<b>100% free</b> — no premium, no paywall on the ranking.",
           "<b>Per-spot rankings</b> and a personal <b>performance index</b>.",
@@ -54,11 +55,12 @@ T = {
   "html": "de",
   "s_track": "Was getrackt wird", "s_how": "So funktioniert's — mit jeder Uhr",
   "s_why": "Warum Rider es nutzen", "cta": "🌊 App öffnen",
-  "how": ("Mit einer <b>Garmin</b> und unserer kostenlosen Connect-IQ-App aufzeichnen oder dein "
-          "<b>Polar</b>-Konto verbinden – die Session lädt automatisch hoch. Keins von beiden? "
-          "Einfach eine <b>FIT / GPX / TCX</b>-Datei von jeder anderen Uhr oder App hochladen – "
-          "Apple Watch, Suunto, COROS oder ein Export aus Garmin Connect / Strava. Speed, GPS-Track "
-          "und alle Werte oben werden automatisch berechnet."),
+  "how": ("Funktioniert mit <b>jeder GPS-Uhr</b>: eine <b>FIT / GPX / TCX</b>-Datei hochladen – von "
+          "Apple Watch, Suunto, COROS, aus einem Strava-Export oder jeder Handy-App. Mit <b>Garmin</b> "
+          "und <b>Polar</b> geht es noch einfacher: Konto einmal verbinden, und jede "
+          "Wassersport-Session kommt von selbst – mit Garmins eigenen Sportprofilen oder mit unserer "
+          "kostenlosen WaterSession-Uhren-App, die Live-Speed-Seiten und den Spot-Rekord ans "
+          "Handgelenk bringt. Speed, GPS-Track und alle Werte oben werden automatisch berechnet."),
   "why": ["<b>100% kostenlos</b> – kein Premium, keine Paywall auf der Rangliste.",
           "<b>Ranglisten pro Spot</b> und ein persönlicher <b>Performance-Index</b>.",
           "<b>Spot-Guide + 3-Tage-Windvorhersage</b> mit „Lohnt-sich\"-Bewertung — <a href='%SPOTS%'>Spots ansehen</a>.",
@@ -71,11 +73,12 @@ T = {
   "html": "nl",
   "s_track": "Wat wordt gemeten", "s_how": "Zo werkt het — met elk horloge",
   "s_why": "Waarom riders het gebruiken", "cta": "🌊 App openen",
-  "how": ("Neem op met een <b>Garmin</b> en onze gratis Connect IQ-app of koppel je <b>Polar</b>-account "
-          "– de sessie wordt automatisch geüpload. Geen van beide? Upload gewoon een "
-          "<b>FIT / GPX / TCX</b>-bestand van elk ander horloge of elke app – Apple Watch, Suunto, "
-          "COROS of een export uit Garmin Connect / Strava. Snelheid, GPS-track en alle waarden "
-          "hierboven worden automatisch berekend."),
+  "how": ("Werkt met <b>elk gps-horloge</b>: upload een <b>FIT / GPX / TCX</b>-bestand van Apple Watch, "
+          "Suunto, COROS, een Strava-export of elke telefoon-app. Met <b>Garmin</b> en <b>Polar</b> "
+          "gaat het nog makkelijker: koppel je account één keer en elke watersportsessie komt vanzelf "
+          "binnen – met de eigen sportprofielen van Garmin of met onze gratis WaterSession-horloge-app, "
+          "die live snelheidsschermen en het spotrecord op je pols zet. Snelheid, GPS-track en alle "
+          "waarden hierboven worden automatisch berekend."),
   "why": ["<b>100% gratis</b> – geen premium, geen paywall op de ranglijst.",
           "<b>Ranglijsten per spot</b> en een persoonlijke <b>performance-index</b>.",
           "<b>Spotgids + 3-daagse windverwachting</b> met een „de moeite waard\"-score — <a href='%SPOTS%'>bekijk spots</a>.",
@@ -88,11 +91,13 @@ T = {
   "html": "fr",
   "s_track": "Ce qui est mesuré", "s_how": "Comment ça marche — avec n'importe quelle montre",
   "s_why": "Pourquoi les riders l'utilisent", "cta": "🌊 Ouvrir l'app",
-  "how": ("Enregistrez sur une <b>Garmin</b> avec notre appli Connect IQ gratuite ou connectez votre "
-          "compte <b>Polar</b> – la session se téléverse automatiquement. Ni l'un ni l'autre ? "
-          "Téléversez un fichier <b>FIT / GPX / TCX</b> depuis n'importe quelle montre ou appli – "
-          "Apple Watch, Suunto, COROS ou un export Garmin Connect / Strava. Vitesse, trace GPS et "
-          "toutes les mesures ci-dessus sont calculées pour vous."),
+  "how": ("Fonctionne avec <b>n'importe quelle montre GPS</b> : téléversez un fichier "
+          "<b>FIT / GPX / TCX</b> depuis une Apple Watch, Suunto, COROS, un export Strava ou n'importe "
+          "quelle appli mobile. Avec <b>Garmin</b> et <b>Polar</b>, c'est encore plus simple : "
+          "connectez votre compte une fois et chaque session nautique arrive toute seule – avec les "
+          "profils sportifs de Garmin ou avec notre appli montre gratuite WaterSession, qui affiche "
+          "la vitesse en direct et le record du spot au poignet. Vitesse, trace GPS et toutes les "
+          "mesures ci-dessus sont calculées pour vous."),
   "why": ["<b>100% gratuit</b> – pas de premium, pas de paywall sur le classement.",
           "<b>Classements par spot</b> et un <b>indice de performance</b> personnel.",
           "<b>Guide des spots + prévisions de vent 3 jours</b> avec une note « ça vaut le coup » — <a href='%SPOTS%'>voir les spots</a>.",
@@ -105,11 +110,12 @@ T = {
   "html": "es",
   "s_track": "Qué se mide", "s_how": "Cómo funciona — con cualquier reloj",
   "s_why": "Por qué lo usan los riders", "cta": "🌊 Abrir la app",
-  "how": ("Graba con un <b>Garmin</b> y nuestra app Connect IQ gratuita o conecta tu cuenta "
-          "<b>Polar</b>: la sesión se sube automáticamente. ¿Ninguno de los dos? Sube un archivo "
-          "<b>FIT / GPX / TCX</b> desde cualquier otro reloj o app: Apple Watch, Suunto, COROS o una "
-          "exportación de Garmin Connect / Strava. La velocidad, el track GPS y todas las métricas "
-          "de arriba se calculan por ti."),
+  "how": ("Funciona con <b>cualquier reloj GPS</b>: sube un archivo <b>FIT / GPX / TCX</b> desde Apple "
+          "Watch, Suunto, COROS, una exportación de Strava o cualquier app del móvil. Con <b>Garmin</b> "
+          "y <b>Polar</b> es aún más fácil: conecta tu cuenta una vez y cada sesión en el agua llega "
+          "sola – con los perfiles deportivos de Garmin o con nuestra app gratuita para el reloj "
+          "WaterSession, que muestra la velocidad en vivo y el récord del spot en tu muñeca. La "
+          "velocidad, el track GPS y todas las métricas de arriba se calculan por ti."),
   "why": ["<b>100% gratis</b> — sin premium, sin muro de pago en el ranking.",
           "<b>Rankings por spot</b> y un <b>índice de rendimiento</b> personal.",
           "<b>Guía de spots + previsión de viento 3 días</b> con una valoración « vale la pena » — <a href='%SPOTS%'>ver spots</a>.",
@@ -349,7 +355,7 @@ M["es"]["ride"] = ("🌊 Ola más larga y tiempo en el agua",
                    "Tu ola más larga y el tiempo que pasaste en el agua.")
 
 SLUGS.append("surf")
-SPORTS["surf"] = {"cards": ["speed", "ride", "trust"],
+SPORTS["surf"] = {"cards": ["speed", "ride", "log", "trust"],
                   "name": {"en": "Surf", "de": "Wellenreiten", "nl": "Golfsurfen",
                            "fr": "Surf", "es": "Surf"}}
 SPORT_KEY["surf"] = "surf"
@@ -403,6 +409,97 @@ P["surf"] = {
         "plataforma que también cubre windsurf, kite, wing, SUP y wakeboard. Sin vela ni cometa: solo "
         "tú, tu tabla y la ola."),
 }
+
+# --- Kennzahlen seit Web 1.0 (Sept. 2026): jede Sportart hat ihre eigenen
+# Leitwertungen statt des Windsurf-Satzes fuer alle sechs. Die Karten folgen
+# dem, was die App je Sportart wirklich wertet (Nachtrag 05.11.2026 - bis
+# dahin warb die SUP-Seite noch mit 500 m und Seemeile, die es dort seit 1.0
+# nicht mehr gibt).
+_NEU = {
+ "en": {
+  "fivex10": ("🎯 Avg 5×10", "The average of your five best 10-second runs that do not overlap – the number the speed scene ranks on. A GPS spike cannot fake it."),
+  "glide": ("🌊 Glide time", "How long you were really planing: total glide time, your longest glide and the share of the session."),
+  "wind": ("🌬️ Speed per wind", "Your avg 5×10 divided by the day's wind – so a light-wind day and a storm day compare fairly."),
+  "flight": ("🪽 Flight time", "How long you were up on the foil: total flight time, your longest flight and the share of the session."),
+  "turns": ("🔄 Foiling turns", "The share of your turns where the foil never touched down – not how many turns, but whether you kept them."),
+  "airtot": ("⏳ Total airtime", "All your hangtime added up – jumps up to 10 s count – plus the average of your five longest."),
+  "land": ("✅ Landing rate &amp; runs", "How many jumps you rode away from, and how many runs you rode in one go."),
+  "distbest": ("🥇 Distance bests", "Best 1 km, 5 km, 10 km and best hour – shown as pace in min/km, the way paddlers think."),
+  "dps": ("📏 Distance per stroke", "How far each stroke carries you – the number that shows technique, not just effort."),
+  "log": ("📓 Surf log", "Session rating, wave size in body scale and your wave count – sea state and tide are added automatically."),
+ },
+ "de": {
+  "fivex10": ("🎯 Avg 5×10", "Der Schnitt deiner fünf besten 10-Sekunden-Fahrten, die sich nicht überlappen – die Zahl, nach der die Speed-Szene wertet. Ein GPS-Ausreißer kann sie nicht fälschen."),
+  "glide": ("🌊 Gleitzeit", "Wie lange du wirklich geglitten bist: Gleitzeit gesamt, längste Gleitphase und Anteil an der Session."),
+  "wind": ("🌬️ Speed je Wind", "Dein Avg 5×10 geteilt durch den Wind des Tages – so sind Leichtwindtag und Sturmtag fair vergleichbar."),
+  "flight": ("🪽 Flugzeit", "Wie lange du auf dem Foil warst: Flugzeit gesamt, längster Flug und Anteil an der Session."),
+  "turns": ("🔄 Foiling-Wenden", "Der Anteil deiner Wenden, in denen das Foil nie aufgesetzt hat – nicht wie viele, sondern ob du sie gehalten hast."),
+  "airtot": ("⏳ Gesamt-Airtime", "Deine ganze Hangtime zusammengezählt – Sprünge bis 10 s zählen – plus der Schnitt deiner fünf längsten."),
+  "land": ("✅ Landequote &amp; Runs", "Wie viele Sprünge du gestanden hast und wie viele Runs du am Stück gefahren bist."),
+  "distbest": ("🥇 Distanz-Bestzeiten", "Beste 1 km, 5 km, 10 km und beste Stunde – als Pace in min/km, so wie Paddler denken."),
+  "dps": ("📏 Distanz pro Zug", "Wie weit dich jeder Zug trägt – die Zahl, die Technik zeigt, nicht nur Kraft."),
+  "log": ("📓 Surf-Logbuch", "Session-Bewertung, Wellengröße in Körperskala und deine Wellenzahl – Seegang und Tide kommen automatisch dazu."),
+ },
+ "nl": {
+  "fivex10": ("🎯 Avg 5×10", "Het gemiddelde van je vijf beste runs van 10 seconden die elkaar niet overlappen – het getal waarop de speedscene rangschikt. Een gps-uitschieter kan het niet vervalsen."),
+  "glide": ("🌊 Planeertijd", "Hoe lang je echt planeerde: totale planeertijd, je langste planeerfase en het aandeel van de sessie."),
+  "wind": ("🌬️ Snelheid per wind", "Je avg 5×10 gedeeld door de wind van die dag – zo zijn een lichtwinddag en een stormdag eerlijk te vergelijken."),
+  "flight": ("🪽 Vliegtijd", "Hoe lang je op de foil stond: totale vliegtijd, je langste vlucht en het aandeel van de sessie."),
+  "turns": ("🔄 Foiling-wendingen", "Het aandeel van je wendingen waarin de foil nooit het water raakte – niet hoeveel, maar of je ze vasthield."),
+  "airtot": ("⏳ Totale airtime", "Al je hangtime bij elkaar opgeteld – sprongen tot 10 s tellen – plus het gemiddelde van je vijf langste."),
+  "land": ("✅ Landingsquote &amp; runs", "Hoeveel sprongen je hebt geland en hoeveel runs je in één keer hebt gereden."),
+  "distbest": ("🥇 Afstandsrecords", "Beste 1 km, 5 km, 10 km en beste uur – als tempo in min/km, zoals peddelaars denken."),
+  "dps": ("📏 Afstand per slag", "Hoe ver elke slag je draagt – het getal dat techniek laat zien, niet alleen kracht."),
+  "log": ("📓 Surflogboek", "Sessiebeoordeling, golfhoogte op lichaamsschaal en je aantal golven – zeegang en getij komen er automatisch bij."),
+ },
+ "fr": {
+  "fivex10": ("🎯 Avg 5×10", "La moyenne de vos cinq meilleurs runs de 10 secondes qui ne se chevauchent pas – le chiffre sur lequel se classe la scène speed. Un pic GPS ne peut pas le fausser."),
+  "glide": ("🌊 Temps de planing", "Combien de temps vous avez vraiment plané : temps total, plus longue phase de planing et part de la session."),
+  "wind": ("🌬️ Vitesse par vent", "Votre avg 5×10 divisé par le vent du jour – une journée de petit temps et une journée de tempête se comparent équitablement."),
+  "flight": ("🪽 Temps de vol", "Combien de temps vous étiez sur le foil : temps de vol total, plus long vol et part de la session."),
+  "turns": ("🔄 Virements en foil", "La part de vos virements où le foil n'a jamais touché l'eau – pas combien, mais si vous les avez tenus."),
+  "airtot": ("⏳ Airtime totale", "Tout votre temps en l'air additionné – les sauts jusqu'à 10 s comptent – plus la moyenne de vos cinq plus longs."),
+  "land": ("✅ Taux de réception &amp; runs", "Combien de sauts vous avez réceptionnés et combien de runs vous avez enchaînés d'une traite."),
+  "distbest": ("🥇 Records de distance", "Meilleurs 1 km, 5 km, 10 km et meilleure heure – en allure min/km, comme pensent les pagayeurs."),
+  "dps": ("📏 Distance par coup", "La distance que vous parcourez à chaque coup de pagaie – le chiffre qui montre la technique, pas seulement l'effort."),
+  "log": ("📓 Carnet de surf", "Note de session, taille des vagues à l'échelle du corps et nombre de vagues – état de la mer et marée ajoutés automatiquement."),
+ },
+ "es": {
+  "fivex10": ("🎯 Avg 5×10", "La media de tus cinco mejores tramos de 10 segundos que no se solapan – la cifra con la que puntúa la escena speed. Un pico de GPS no puede falsearla."),
+  "glide": ("🌊 Tiempo en planeo", "Cuánto tiempo planeaste de verdad: tiempo total, tu planeo más largo y el porcentaje de la sesión."),
+  "wind": ("🌬️ Velocidad por viento", "Tu avg 5×10 dividida por el viento del día – así un día flojo y un día de temporal se comparan con justicia."),
+  "flight": ("🪽 Tiempo de vuelo", "Cuánto tiempo estuviste sobre el foil: tiempo de vuelo total, tu vuelo más largo y el porcentaje de la sesión."),
+  "turns": ("🔄 Viradas en foil", "El porcentaje de tus viradas en las que el foil nunca tocó el agua – no cuántas, sino si las mantuviste."),
+  "airtot": ("⏳ Airtime total", "Todo tu tiempo en el aire sumado – cuentan saltos de hasta 10 s – más la media de tus cinco más largos."),
+  "land": ("✅ Tasa de aterrizaje y runs", "Cuántos saltos aterrizaste y cuántos runs hiciste de una tirada."),
+  "distbest": ("🥇 Mejores marcas en distancia", "Mejores 1 km, 5 km, 10 km y mejor hora – en ritmo min/km, como piensan los palistas."),
+  "dps": ("📏 Distancia por palada", "Cuánto te lleva cada palada – la cifra que muestra la técnica, no solo el esfuerzo."),
+  "log": ("📓 Diario de surf", "Valoración de la sesión, tamaño de ola en escala corporal y tu número de olas – estado del mar y marea se añaden automáticamente."),
+ },
+}
+for _l, _cards in _NEU.items():
+    M[_l].update(_cards)
+
+SPORTS["windsurf"]["cards"] = ["speed", "fivex10", "dist", "glide", "wind", "trust"]
+SPORTS["kitesurf"]["cards"] = ["airtot", "jump", "speed", "trust"]
+SPORTS["wingfoil"]["cards"] = ["turns", "flight", "speed", "dist", "runs", "trust"]
+SPORTS["sup"]["cards"] = ["distbest", "dps", "cadence", "trust"]
+SPORTS["wakeboard"]["cards"] = ["airtot", "jump", "land", "trust"]
+
+# Lead-Texte: Surf in die Aufzaehlung "auch ... SUP und Wakeboard" (die alten
+# fuenf Seiten nannten Surf nicht). Je Seite genau EIN Treffer erwartet - die
+# Zaehlung wird ausgegeben, 0 Treffer fallen so auf.
+import re as _re
+_UND = {"en": "and", "de": "und", "nl": "en", "fr": "et", "es": "y"}
+_SURF = {"en": "surf", "de": "Wellenreiten", "nl": "golfsurfen", "fr": "surf", "es": "surf"}
+_LEAD_SURF_HITS = 0
+for _slug in ["windsurf", "kitesurf", "wingfoil", "sup", "wakeboard"]:
+    for _l in LANGS:
+        _t, _m, _h, _s, _lead = P[_slug][_l]
+        _neu, _n = _re.subn(rf"(\S+) {_UND[_l]} (wakeboard|Wakeboard|SUP)(?=[\s.])",
+                            rf"\1, \2 {_UND[_l]} {_SURF[_l]}", _lead, count=1)
+        _LEAD_SURF_HITS += _n
+        P[_slug][_l] = (_t, _m, _h, _s, _neu)
 
 # Footer-Zeile: Surf mit aufnehmen (gilt fuer ALLE generierten Sportseiten).
 for _l, _old, _new in [
@@ -621,6 +718,7 @@ def build():
             count += 1
     # Sitemap-Fragment ausgeben (zum Einfügen).
     print("generated", count, "pages")
+    print("lead texts with surf added:", _LEAD_SURF_HITS, "(expected 25)")
     print("--- sitemap urls ---")
     import datetime as _dt
     _today = _dt.date.today().isoformat()
