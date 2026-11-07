@@ -17223,13 +17223,13 @@ def _fit_sport_name(fit_bytes):
 
 
 def _garmin_watch_dublette(eng, username, date_str, df):
-    """Dubletten-Bremse gegen die eigene Uhr-App: Wer mit WaterSession
+    """Zwilling aus der eigenen Uhr-App finden: Wer mit WaterSession
     aufzeichnet, erzeugt AUCH eine Garmin-Aktivitaet - die kaeme per Push ein
     zweites Mal. Gleicher Fahrer, gleicher Tag, Dauer +/- 3 min = dieselbe
-    Fahrt."""
+    Fahrt. -> Session-ID der Uhr-Session oder None."""
     from sqlalchemy import text as _sqtext
     if not date_str:
-        return False
+        return None
     dur = None
     if "timestamp" in df.columns:
         _ts = df["timestamp"].dropna()
@@ -17237,13 +17237,61 @@ def _garmin_watch_dublette(eng, username, date_str, df):
             dur = int((_ts.max() - _ts.min()).total_seconds())
     with eng.connect() as conn:
         rows = conn.execute(
-            _sqtext("SELECT duration_s FROM sessions WHERE name=:u"
-                    " AND source='watch' AND CAST(date AS TEXT) LIKE :d"),
+            _sqtext("SELECT id, duration_s FROM sessions WHERE name=:u"
+                    " AND source='watch' AND CAST(date AS TEXT) LIKE :d"
+                    " ORDER BY id DESC"),
             {"u": username, "d": str(date_str)[:10] + "%"}).fetchall()
-    for (d_s,) in rows:
+    for sid, d_s in rows:
         if dur is None or d_s is None or abs(int(d_s) - dur) < 180:
-            return True
-    return False
+            return int(sid)
+    return None
+
+
+# Felder, die bei einer Verschmelzung NIE von der FIT kommen: Die Uhr misst sie
+# sekundengenau (Doppler-Speed, Gleitsekunden, Runs, Spruenge, Halsen) oder
+# sie beschreiben die Herkunft. Alles andere darf die FIT FUELLEN, wo die Uhr
+# nichts hat - und Track + Alpha 500 ERSETZT sie immer (1 Hz schlaegt den
+# ausgeduennten Uhr-Track).
+_MERGE_NIE = {"id", "name", "date", "sport", "filename", "source", "duration_s",
+              "active_s", "trust_score", "total_distance_km"}
+
+
+def _garmin_in_uhr_session_mischen(eng, sid, entry, df):
+    """FIT aus dem Garmin-Konto in die vorhandene Uhr-Session einarbeiten
+    (Jans Punkt 07.11.2026: bisher wurde die FIT als Dublette verworfen -
+    also ausgerechnet die bessere Datenbasis). Regel: Uhrwerte bleiben, der
+    Track wird die 1-Hz-Spur der FIT, Alpha 500 kommt aus ihr (braucht
+    1 Hz), leere Uhrfelder werden gefuellt. -> Kurztext fuers Protokoll."""
+    row = None
+    with eng.connect() as conn:
+        row = conn.execute(select(sessions_table)
+                           .where(sessions_table.c.id == int(sid))).mappings().first()
+    if row is None:
+        return "Uhr-Session nicht mehr da"
+    upd = {}
+    tj = _track_json_from_df(df, max_points=6000)
+    alt = row.get("track") or ""
+    if tj and len(tj) > len(alt):
+        upd["track"] = tj
+    if entry.get("speed_alpha500_kmh") is not None:
+        upd["speed_alpha500_kmh"] = entry["speed_alpha500_kmh"]
+    gefuellt = []
+    for k, v in entry.items():
+        if (k in _MERGE_NIE or k in upd or v is None
+                or k not in SESSION_FIELDS or row.get(k) is not None):
+            continue
+        upd[k] = v
+        gefuellt.append(k)
+    if upd:
+        update_session(sid, upd)
+    teile = [f"in Uhr-Session #{sid} eingearbeitet"]
+    if "track" in upd:
+        teile.append(f"Track {len(json.loads(tj))} Punkte")
+    if "speed_alpha500_kmh" in upd:
+        teile.append(f"Alpha {upd['speed_alpha500_kmh']}")
+    if gefuellt:
+        teile.append("gefuellt: " + ", ".join(gefuellt[:6]))
+    return "; ".join(teile)
 
 
 def garmin_inbox_verarbeiten(limit=10):
@@ -17275,11 +17323,17 @@ def garmin_inbox_verarbeiten(limit=10):
             else:
                 df = read_activity_file(io.BytesIO(fit), fname + ".fit")
                 entry = _polar_entry_from_df(df, r["username"], sport, fname)
+                _sid = (_garmin_watch_dublette(eng, r["username"],
+                                               entry.get("date"), df)
+                        if entry else None)
                 if not entry:
                     status, note = "skipped", "keine auswertbaren Daten"
-                elif _garmin_watch_dublette(eng, r["username"],
-                                            entry.get("date"), df):
-                    status, note = "duplicate", "schon per Uhr-App da"
+                elif _sid:
+                    # Kein "duplicate" mehr: Die FIT ist die bessere Spur
+                    # (1 Hz), die Uhr hat die besseren Werte - beides
+                    # zusammen in EINER Session.
+                    status = "merged"
+                    note = _garmin_in_uhr_session_mischen(eng, _sid, entry, df)
                 else:
                     entry["source"] = "garmin"
                     save_session(entry)
@@ -17292,7 +17346,7 @@ def garmin_inbox_verarbeiten(limit=10):
             conn.execute(
                 _sqtext("UPDATE garmin_inbox SET status=:s, note=:n,"
                         " processed_at=NOW(), fit=CASE WHEN :s2 IN"
-                        " ('done','duplicate','skipped') THEN NULL ELSE fit END"
+                        " ('done','duplicate','skipped','merged') THEN NULL ELSE fit END"
                         " WHERE id=:i"),
                 {"s": status, "s2": status, "n": note, "i": r["id"]})
         out.append(f"#{r['id']} {r['username']}: {status} - {note}")
