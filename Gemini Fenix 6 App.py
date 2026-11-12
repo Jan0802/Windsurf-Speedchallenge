@@ -17302,8 +17302,12 @@ def garmin_inbox_verarbeiten(limit=10):
     eng = get_engine()
     with eng.connect() as conn:
         rows = conn.execute(
+            # Zeilen anderer Verticals (username 'mbs:42' = MyBikeSessions,
+            # 12.11.2026) gehoeren deren eigenem Verarbeiter - nicht
+            # anfassen, sonst waere die FIT als "kein Wassersport" weg.
             _sqtext("SELECT id, username, summary_id, activity_type, fit"
                     " FROM garmin_inbox WHERE status='new'"
+                    " AND username NOT LIKE '%:%'"
                     " ORDER BY id LIMIT :n"), {"n": int(limit)}).mappings().all()
     out = []
     for r in rows:
