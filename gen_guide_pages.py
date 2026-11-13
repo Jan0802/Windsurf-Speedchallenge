@@ -15,8 +15,12 @@ Doppler-Speed vs. Positionsrauschen, ausgeduennte Tracks, Streckenfehler der
 Speed-Integration) - das unterscheidet die Seite von zusammengegoogeltem
 SEO-Text, und genau deshalb darf sie das auch behaupten.
 
-START: Windsurf in DE + EN (die Suche, um die es geht, ist deutsch). Weitere
-Sportarten/Sprachen = ein weiterer Eintrag in GUIDES, der Rest ist Vorlage.
+START: Windsurf in DE + EN (die Suche, um die es geht, ist deutsch). Seit
+13.11.2026 auch NL/FR/ES, mit Sprachleiste wie auf den Sportseiten (Jan:
+"gibt es scheinbar nur auf deutsch" - die EN-Seite gab es, war aber von der
+DE-Seite aus unsichtbar). Weitere Sportarten/Sprachen = ein weiterer Eintrag
+in GUIDES, der Rest ist Vorlage. Die Dateinamen tragen den Suchbegriff der
+jeweiligen Sprache; NL heisst wie DE "windsurfen", darum dort ein -nl-Suffix.
 
 Aufruf: python gen_guide_pages.py  -> schreibt die HTML-Dateien und druckt
 die Sitemap-Zeilen zum Einfuegen in landing/sitemap.xml.
@@ -31,6 +35,10 @@ APP = "https://app.mywatersessions.com"
 SPOTS = "https://spots.mywatersessions.com/spots"
 BEACON = ("<script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' "
           "data-cf-beacon='{\"token\": \"c16ea8dadd7749e1826d6ea48f80ca6d\"}'></script>")
+
+# Reihenfolge und Beschriftung der Sprachleiste (wie gen_sport_pages.py).
+LANGS = ["en", "de", "nl", "fr", "es"]
+LANG_NAME = {"en": "EN", "de": "DE", "nl": "NL", "fr": "FR", "es": "ES"}
 
 # je Seite: (dateiname, sprache, titel, meta, h1, untertitel,
 #            [(ueberschrift, html-absatz), ...], [(frage, antwort), ...], landing-href)
@@ -203,6 +211,259 @@ GUIDES = {
   "foot": "speed rankings &amp; spot guide for windsurf, kite, wing, SUP, wakeboard &amp; surf",
   "nav": ("Home", "", "Guide", "guide.html", "Spots", "Open the app"),
  },
+ ("windsurf", "nl"): {
+  "file": "gps-tracking-windsurfen-nl.html",
+  "html": "nl",
+  "title": "GPS-tracking bij windsurfen: snelheid goed meten — gratis | MyWaterSessions",
+  "meta": ("GPS-tracking bij windsurfen uitgelegd: waarom het 2-seconden-gemiddelde telt, wat 500 m "
+           "en zeemijl betekenen, welk horloge geschikt is — en waarom twee apparaten verschillende "
+           "cijfers laten zien. Van de makers van een gratis ranglijstplatform."),
+  "h1": "GPS-tracking bij windsurfen: snelheid goed meten",
+  "sub": ("Wat de cijfers betekenen, welk horloge geschikt is en waar metingen misgaan — "
+          "uitgelegd door mensen die de meetfouten zelf hebben nagemeten."),
+  "cta": "🌊 Gratis tracken & de ranglijst in",
+  "landing": "windsurf-nl.html",
+  "landing_text": "Meer over de gratis windsurf-ranglijst",
+  "sections": [
+   ("Waarom niemand de topsnelheid rangschikt",
+    "Het ene getal dat je horloge groot laat zien — de maximale momentwaarde — is het "
+    "onbetrouwbaarste van allemaal. GPS meet snelheid via de dopplerverschuiving van het "
+    "satellietsignaal, en één meetwaarde kan omhoogschieten door afschaduwing, een draai van "
+    "de pols of een spat water op de kast. Daarom rangschikken alle serieuze snelheidsklassementen "
+    "<b>gemiddelden over een duur of een afstand</b>: een uitschieter van een halve seconde "
+    "verdwijnt in het gemiddelde, maar de run moet nog steeds gevaren worden. De standaard is het "
+    "<b>beste 2-seconden-gemiddelde</b> — kort genoeg om die ene perfecte run te belonen, lang "
+    "genoeg om meetruis weg te filteren."),
+   ("De disciplines: 2 s, 30 s, 500 m, zeemijl, alpha",
+    "Achter de afkortingen zitten verschillende vragen aan dezelfde run: het <b>2 s-gemiddelde</b> "
+    "meet het piekmoment, het <b>30 s-gemiddelde</b> of je het tempo kunt vasthouden. <b>500 m</b> "
+    "en de <b>zeemijl</b> (1852 m) zijn de klassieke afstandsdisciplines van het speedsurfen — "
+    "hier telt niet het moment, maar de complete run. <b>Alpha 500</b> vraagt 500 m met een gijp "
+    "erin en meet daarmee wat een slalomsurfer echt kan. En <b>avg 5×10</b> (het gemiddelde van "
+    "je vijf beste runs van 10 seconden, zonder overlap) beloont de constante sessie in plaats van "
+    "die ene gelukstreffer."),
+   ("Welk horloge is geschikt? Bijna elk.",
+    "Voor betrouwbare cijfers heb je geen speciale logger meer nodig. <b>Garmin</b> en <b>Polar</b> "
+    "koppel je via je account, en elke watersportsessie komt vanzelf binnen. Op een Garmin rekent "
+    "onze gratis Connect IQ-app de disciplines bovendien direct op het horloge uit, seconde voor "
+    "seconde. En elk ander gps-horloge of elke telefoon-app — Apple Watch, Suunto, COROS, Strava — "
+    "exporteert een <b>FIT-, GPX- of TCX-bestand</b> waaruit alle waarden berekend kunnen worden. "
+    "Belangrijker dan het merk is de <b>opnamefrequentie</b>: één punt per seconde is de basis voor "
+    "schone 2 s-waarden. „Smart recording”, dat maar om de paar seconden een punt zet, gooit "
+    "pieken weg."),
+   ("Waarom twee apparaten verschillende cijfers laten zien",
+    "Het gebruikelijke vermoeden — „mijn horloge meet verkeerd” — heeft meestal een onschuldiger "
+    "verklaring: twee apparaten meten <b>niet hetzelfde</b>. De snelheid komt uit het dopplersignaal "
+    "en is ook bij laag tempo heel betrouwbaar; de <b>afstand</b> daarentegen wordt soms uit de "
+    "posities opgeteld en soms uit de snelheid geïntegreerd — en die twee lopen uiteen. We hebben "
+    "het nagemeten: dezelfde sessie kwam afhankelijk van de rekenmethode op 4,78 of 5,38 km uit, "
+    "elf procent verschil, beide apparaten „correct”. Daar komt de weergave bij: een uitgedund "
+    "track (één punt per 10 s) snijdt bochten af en meet systematisch te kort. Wie cijfers "
+    "vergelijkt, moet de rekenmethode vergelijken — of een platform gebruiken dat voor iedereen "
+    "hetzelfde rekent."),
+   ("Hoe herken je een onbetrouwbaar cijfer?",
+    "Aan drie tegenstrijdigheden: de 2 s-waarde ligt <i>onder</i> de 30 s-waarde (onmogelijk — het "
+    "kortere venster wint altijd). De gemiddelde snelheid van de sessie ligt boven de piek "
+    "(onmogelijk). Of het track ligt helemaal niet op het water. Een eerlijke ranglijst controleert "
+    "precies dat automatisch — bij ons heet dat de <b>trust-score</b>: onwaarschijnlijke sessies "
+    "vallen uit de ranglijst, en wie het treft, ziet de reden. Zo blijft de ranglijst geloofwaardig "
+    "zonder dat iemand met de hand censureert."),
+  ],
+  "faq_title": "Veelgestelde vragen",
+  "faq": [
+   ("Welke GPS-tracking-app voor windsurfen is gratis?",
+    "MyWaterSessions is helemaal gratis — tracking, spotranglijsten, sessieanalyse en "
+    "windverwachting, zonder premium-niveau en zonder paywall. De Garmin-horloge-app is ook gratis, "
+    "en bestanden van elk ander horloge (FIT/GPX/TCX) kun je kosteloos uploaden."),
+   ("Werkt GPS-tracking bij windsurfen ook zonder Garmin?",
+    "Ja. Elk gps-horloge en elke telefoon-app die FIT, GPX of TCX exporteert werkt — Apple Watch, "
+    "Suunto, COROS, Polar (ook automatisch via accountkoppeling) of een export uit Garmin Connect "
+    "of Strava."),
+   ("Waarom laat mijn horloge een andere afstand zien dan de analyse?",
+    "Omdat afstand op twee manieren berekend wordt: uit de gps-posities of door de snelheid op te "
+    "tellen. Die twee kunnen zo'n tien procent uit elkaar liggen — vooral bij langzaam varen. De "
+    "posities zijn de betrouwbaarste methode."),
+   ("Wat is een goede windsurfsnelheid?",
+    "Planeren begint afhankelijk van het materiaal rond 15–20 km/u. Ambitieuze freeriders halen "
+    "50–60 km/u als 2-seconden-gemiddelde, slalom- en speedsurfers aanzienlijk meer — het "
+    "wereldrecord over 500 m ligt boven 98 km/u. Zinvoller dan elk absoluut getal is de ranglijst "
+    "op je eigen spot bij vergelijkbare wind."),
+   ("Is een telefoon genoeg in plaats van een horloge?",
+    "Voor een logboek wel, voor snelheidsmetingen maar beperkt: een telefoon zit meestal in neopreen "
+    "of een drybag, dempt het gps-signaal en neemt vaak maar om de paar seconden op. Een horloge om "
+    "de pols dat elke seconde opneemt, levert de schonere pieken."),
+  ],
+  "foot": "snelheidsranglijst &amp; spotgids voor windsurf, kite, wing, SUP, wakeboard &amp; surf",
+  "nav": ("Home", "index-nl.html", "Handleiding", "guide-nl.html", "Spots", "App openen"),
+ },
+ ("windsurf", "fr"): {
+  "file": "suivi-gps-windsurf.html",
+  "html": "fr",
+  "title": "Suivi GPS en windsurf : bien mesurer sa vitesse — gratuit | MyWaterSessions",
+  "meta": ("Le suivi GPS en windsurf expliqué : pourquoi la moyenne sur 2 secondes compte, ce que "
+           "signifient 500 m et mille nautique, quelle montre convient — et pourquoi deux appareils "
+           "affichent des chiffres différents. Par les créateurs d'une plateforme de classement gratuite."),
+  "h1": "Suivi GPS en windsurf : bien mesurer sa vitesse",
+  "sub": ("Ce que signifient les chiffres, quelle montre convient et où les mesures se trompent — "
+          "expliqué par des gens qui ont mesuré les erreurs eux-mêmes."),
+  "cta": "🌊 Tracker gratuitement & rejoindre le classement",
+  "landing": "windsurf-fr.html",
+  "landing_text": "En savoir plus sur le classement windsurf gratuit",
+  "sections": [
+   ("Pourquoi personne ne classe la vitesse max",
+    "Le seul chiffre que votre montre affiche en grand — la valeur instantanée maximale — est le "
+    "moins fiable de tous. Le GPS mesure la vitesse par l'effet Doppler du signal satellite, et une "
+    "seule mesure peut s'envoler à cause d'un masquage, d'un mouvement du poignet ou d'une "
+    "éclaboussure sur le boîtier. C'est pourquoi tous les classements de vitesse sérieux retiennent "
+    "des <b>moyennes sur une durée ou une distance</b> : un pic d'une demi-seconde disparaît dans la "
+    "moyenne, mais le run doit quand même être navigué. La référence est la <b>meilleure moyenne sur "
+    "2 secondes</b> — assez courte pour récompenser le run parfait, assez longue pour filtrer le "
+    "bruit de mesure."),
+   ("Les disciplines : 2 s, 30 s, 500 m, mille nautique, alpha",
+    "Derrière les abréviations se cachent des questions différentes posées au même run : la "
+    "<b>moyenne 2 s</b> mesure le pic, la <b>moyenne 30 s</b> si vous tenez le rythme. <b>500 m</b> "
+    "et le <b>mille nautique</b> (1852 m) sont les disciplines de distance classiques du speed "
+    "windsurf — ici, c'est le run complet qui compte, pas l'instant. L'<b>Alpha 500</b> exige 500 m "
+    "avec un jibe au milieu et mesure ainsi ce qu'un slalomeur sait vraiment faire. Et l'<b>avg "
+    "5×10</b> (la moyenne de vos cinq meilleurs runs de 10 secondes, sans chevauchement) récompense "
+    "la session régulière plutôt que le coup de chance."),
+   ("Quelle montre convient ? Presque toutes.",
+    "Plus besoin d'un enregistreur spécialisé pour obtenir des chiffres solides. <b>Garmin</b> et "
+    "<b>Polar</b> se connectent via votre compte, et chaque session nautique arrive toute seule. Sur "
+    "une Garmin, notre appli Connect IQ gratuite calcule en plus les disciplines directement sur la "
+    "montre, seconde par seconde. Et toute autre montre GPS ou appli mobile — Apple Watch, Suunto, "
+    "COROS, Strava — exporte un <b>fichier FIT, GPX ou TCX</b> à partir duquel toutes les valeurs se "
+    "calculent. Plus important que la marque : la <b>fréquence d'enregistrement</b>. Un point par "
+    "seconde est la base de valeurs 2 s propres. L'« enregistrement intelligent », qui ne pose un "
+    "point que toutes les quelques secondes, jette les pics."),
+   ("Pourquoi deux appareils affichent des chiffres différents",
+    "Le soupçon habituel — « ma montre mesure mal » — a le plus souvent une explication plus "
+    "innocente : deux appareils ne mesurent <b>pas la même chose</b>. La vitesse vient du signal "
+    "Doppler et reste très fiable même à faible allure ; la <b>distance</b>, elle, est tantôt sommée "
+    "à partir des positions, tantôt intégrée à partir de la vitesse — et les deux divergent. Nous "
+    "l'avons mesuré : la même session donnait 4,78 ou 5,38 km selon la méthode, onze pour cent "
+    "d'écart, les deux appareils « corrects ». S'y ajoute l'affichage : une trace allégée (un point "
+    "toutes les 10 s) coupe les virages et mesure systématiquement trop court. Qui compare des "
+    "chiffres doit comparer la méthode — ou utiliser une plateforme qui calcule de la même façon "
+    "pour tout le monde."),
+   ("Comment reconnaître un chiffre douteux ?",
+    "À trois contradictions : la valeur 2 s est <i>inférieure</i> à la valeur 30 s (impossible — la "
+    "fenêtre la plus courte gagne toujours). La vitesse moyenne de la session dépasse le pic "
+    "(impossible). Ou la trace n'est pas du tout sur l'eau. Un classement équitable vérifie "
+    "exactement cela automatiquement — chez nous, c'est le <b>score de confiance</b> : les sessions "
+    "invraisemblables sortent du classement, et le rider concerné voit la raison. Le classement "
+    "reste crédible sans que personne ne censure à la main."),
+  ],
+  "faq_title": "Questions fréquentes",
+  "faq": [
+   ("Quelle appli de suivi GPS pour le windsurf est gratuite ?",
+    "MyWaterSessions est entièrement gratuite — suivi, classements par spot, analyse de session et "
+    "prévisions de vent, sans niveau premium ni paywall. L'appli pour montre Garmin est gratuite "
+    "elle aussi, et les fichiers de toute autre montre (FIT/GPX/TCX) se téléversent sans frais."),
+   ("Le suivi GPS en windsurf fonctionne-t-il sans Garmin ?",
+    "Oui. Toute montre GPS et toute appli mobile qui exporte du FIT, GPX ou TCX fonctionne — Apple "
+    "Watch, Suunto, COROS, Polar (aussi automatiquement via la connexion du compte) ou un export "
+    "depuis Garmin Connect ou Strava."),
+   ("Pourquoi ma montre affiche-t-elle une distance différente de l'analyse ?",
+    "Parce que la distance se calcule de deux façons : à partir des positions GPS, ou en sommant la "
+    "vitesse. Les deux peuvent s'écarter d'environ dix pour cent — surtout à faible allure. Les "
+    "positions sont la méthode la plus fiable."),
+   ("Qu'est-ce qu'une bonne vitesse en windsurf ?",
+    "Le planing commence vers 15–20 km/h selon le matériel. Les freeriders ambitieux atteignent "
+    "50–60 km/h en moyenne sur 2 secondes, les slalomeurs et riders de speed nettement plus — le "
+    "record du monde sur 500 m dépasse 98 km/h. Plus parlant que tout chiffre absolu : le classement "
+    "sur votre propre spot, par vent comparable."),
+   ("Un téléphone suffit-il à la place d'une montre ?",
+    "Pour un carnet de bord, oui ; pour mesurer la vitesse, seulement en partie : le téléphone est "
+    "généralement dans du néoprène ou une pochette étanche, atténue le signal GPS et n'enregistre "
+    "souvent que toutes les quelques secondes. Une montre au poignet qui enregistre chaque seconde "
+    "donne des pics plus propres."),
+  ],
+  "foot": "classement de vitesse &amp; guide des spots pour windsurf, kite, wing, SUP, wakeboard &amp; surf",
+  "nav": ("Accueil", "index-fr.html", "Guide", "guide-fr.html", "Spots", "Ouvrir l'app"),
+ },
+ ("windsurf", "es"): {
+  "file": "seguimiento-gps-windsurf.html",
+  "html": "es",
+  "title": "Seguimiento GPS en windsurf: cómo medir bien la velocidad — gratis | MyWaterSessions",
+  "meta": ("El seguimiento GPS en windsurf explicado: por qué cuenta la media de 2 segundos, qué "
+           "significan 500 m y milla náutica, qué reloj sirve — y por qué dos dispositivos muestran "
+           "cifras distintas. De los creadores de una plataforma de ranking gratuita."),
+  "h1": "Seguimiento GPS en windsurf: cómo medir bien la velocidad",
+  "sub": ("Qué significan las cifras, qué reloj sirve y dónde fallan las mediciones — "
+          "explicado por gente que midió los errores por sí misma."),
+  "cta": "🌊 Registra gratis y entra en el ranking",
+  "landing": "windsurf-es.html",
+  "landing_text": "Más sobre el ranking de windsurf gratuito",
+  "sections": [
+   ("Por qué nadie puntúa la velocidad máxima",
+    "La única cifra que tu reloj muestra en grande — el valor instantáneo máximo — es la menos "
+    "fiable de todas. El GPS mide la velocidad por el efecto Doppler de la señal del satélite, y "
+    "una sola lectura puede dispararse por una sombra, un giro de muñeca o una salpicadura en la "
+    "caja. Por eso todos los rankings de velocidad serios puntúan <b>medias sobre una duración o "
+    "una distancia</b>: un pico de medio segundo desaparece en la media, pero el tramo hay que "
+    "navegarlo igualmente. El estándar es la <b>mejor media de 2 segundos</b> — lo bastante corta "
+    "para premiar ese tramo perfecto, lo bastante larga para filtrar el ruido de medición."),
+   ("Las disciplinas: 2 s, 30 s, 500 m, milla náutica, alpha",
+    "Tras las abreviaturas hay preguntas distintas al mismo tramo: la <b>media de 2 s</b> mide el "
+    "momento punta, la <b>media de 30 s</b> si puedes mantener el ritmo. <b>500 m</b> y la "
+    "<b>milla náutica</b> (1852 m) son las disciplinas de distancia clásicas del speed windsurf — "
+    "aquí no cuenta el instante, sino el tramo completo. <b>Alpha 500</b> exige 500 m con una "
+    "trasluchada en medio y mide así lo que un regatista de slalom sabe hacer de verdad. Y "
+    "<b>avg 5×10</b> (la media de tus cinco mejores tramos de 10 segundos, sin solaparse) premia la "
+    "sesión constante en lugar del golpe de suerte."),
+   ("¿Qué reloj sirve? Casi cualquiera.",
+    "Para cifras sólidas ya no hace falta un registrador especial. <b>Garmin</b> y <b>Polar</b> se "
+    "conectan con tu cuenta, y cada sesión en el agua llega sola. En un Garmin, nuestra app "
+    "gratuita de Connect IQ calcula además las disciplinas directamente en el reloj, segundo a "
+    "segundo. Y cualquier otro reloj GPS o app del móvil — Apple Watch, Suunto, COROS, Strava — "
+    "exporta un <b>archivo FIT, GPX o TCX</b> del que se calculan todos los valores. Más importante "
+    "que la marca es la <b>frecuencia de grabación</b>: un punto por segundo es la base para valores "
+    "de 2 s limpios. La « grabación inteligente », que solo guarda un punto cada pocos segundos, "
+    "tira los picos."),
+   ("Por qué dos dispositivos muestran cifras distintas",
+    "La sospecha habitual — « mi reloj mide mal » — suele tener una explicación más inocente: dos "
+    "dispositivos <b>no miden lo mismo</b>. La velocidad sale de la señal Doppler y es muy fiable "
+    "incluso a poca velocidad; la <b>distancia</b>, en cambio, a veces se suma a partir de las "
+    "posiciones y a veces se integra a partir de la velocidad — y ambas se separan. Lo medimos: la "
+    "misma sesión daba 4,78 o 5,38 km según el método, un once por ciento de diferencia, ambos "
+    "dispositivos « correctos ». A eso se suma la presentación: un track aligerado (un punto cada "
+    "10 s) recorta las curvas y mide sistemáticamente de menos. Quien compara cifras debe comparar "
+    "el método — o usar una plataforma que calcule igual para todos."),
+   ("¿Cómo se reconoce una cifra poco fiable?",
+    "Por tres contradicciones: el valor de 2 s está <i>por debajo</i> del de 30 s (imposible — la "
+    "ventana más corta siempre gana). La velocidad media de la sesión supera el pico (imposible). O "
+    "el track ni siquiera está sobre el agua. Un ranking justo comprueba justo eso automáticamente — "
+    "en nuestro caso se llama <b>puntuación de confianza</b>: lo inverosímil sale del ranking, y el "
+    "afectado ve el motivo. Así el ranking sigue siendo creíble sin que nadie censure a mano."),
+  ],
+  "faq_title": "Preguntas frecuentes",
+  "faq": [
+   ("¿Qué app de seguimiento GPS para windsurf es gratis?",
+    "MyWaterSessions es completamente gratis — seguimiento, rankings por spot, análisis de sesión y "
+    "previsión de viento, sin nivel premium ni muro de pago. La app para reloj Garmin también es "
+    "gratuita, y los archivos de cualquier otro reloj (FIT/GPX/TCX) se suben sin coste."),
+   ("¿Funciona el seguimiento GPS en windsurf sin Garmin?",
+    "Sí. Cualquier reloj GPS y cualquier app del móvil que exporte FIT, GPX o TCX funciona — Apple "
+    "Watch, Suunto, COROS, Polar (también automáticamente al conectar la cuenta) o una exportación "
+    "desde Garmin Connect o Strava."),
+   ("¿Por qué mi reloj muestra una distancia distinta a la del análisis?",
+    "Porque la distancia se calcula de dos maneras: a partir de las posiciones GPS o sumando la "
+    "velocidad. Ambas pueden diferir en torno a un diez por ciento — sobre todo a poca velocidad. "
+    "Las posiciones son el método más fiable."),
+   ("¿Cuál es una buena velocidad en windsurf?",
+    "El planeo empieza, según el material, en torno a 15–20 km/h. Los freeriders ambiciosos "
+    "alcanzan 50–60 km/h de media en 2 segundos, los regatistas de slalom y speed bastante más — el "
+    "récord mundial en 500 m supera los 98 km/h. Más significativo que cualquier cifra absoluta es "
+    "el ranking en tu propio spot con un viento comparable."),
+   ("¿Basta el móvil en lugar de un reloj?",
+    "Para un registro sí, para medir velocidad solo a medias: el móvil suele ir en neopreno o en una "
+    "bolsa estanca, atenúa la señal GPS y a menudo solo graba cada pocos segundos. Un reloj en la "
+    "muñeca que graba cada segundo da los picos más limpios."),
+  ],
+  "foot": "ranking de velocidad y guía de spots para windsurf, kite, wing, SUP, wakeboard y surf",
+  "nav": ("Inicio", "index-es.html", "Guía", "guide-es.html", "Spots", "Abrir la app"),
+ },
 }
 
 TEMPLATE = """<!doctype html>
@@ -243,6 +504,9 @@ TEMPLATE = """<!doctype html>
   .logo .dot{{ color:var(--aqua); }}
   h1{{ font-size:clamp(25px,4.4vw,38px); margin:18px 0 8px; }}
   .sub{{ color:#bfe7ee; font-size:clamp(16px,2.2vw,18px); max-width:640px; margin:0 auto; }}
+  .langbar{{ font-size:13px; margin:0 0 10px; }}
+  .langbar a{{ margin:0 6px; text-decoration:none; color:#bfe7ee; }}
+  .langbar .active{{ color:#fff; font-weight:700; }}
   .btn{{ display:inline-block; margin-top:20px; background:var(--aqua); color:var(--ink); font-weight:800; text-decoration:none; padding:13px 26px; border-radius:14px; font-size:16px; }}
   article{{ padding:30px 0 6px; }}
   h2{{ font-size:clamp(20px,3vw,25px); margin:30px 0 8px; }}
@@ -260,6 +524,7 @@ TEMPLATE = """<!doctype html>
 <body>
 <header class="hero">
   <div class="wrap">
+    <div class="langbar">{langbar}</div>
     <div class="logo">MyWaterSessions<span class="dot">.</span></div>
     <h1>{h1}</h1>
     <p class="sub">{sub}</p>
@@ -314,6 +579,12 @@ def build():
         )
         if "en" in pair:
             hreflang += f'\n<link rel="alternate" hreflang="x-default" href="{BASE}/{pair["en"]}">'
+        # Sprachleiste: nur Sprachen, die es fuer diese Sportart wirklich gibt.
+        langbar = "".join(
+            (f'<a class="active">{LANG_NAME[lg]}</a>' if lg == lang
+             else f'<a href="/{pair[lg]}">{LANG_NAME[lg]}</a>')
+            for lg in LANGS if lg in pair
+        )
 
         article_ld = json.dumps({
             "@context": "https://schema.org",
@@ -347,7 +618,7 @@ def build():
         nav1, nav1h, nav2, nav2h, nav3, nav4 = g["nav"]
         html = TEMPLATE.format(
             html=g["html"], title=g["title"], meta=g["meta"], canon=canon,
-            base=BASE, hreflang=hreflang, h1=g["h1"], sub=g["sub"],
+            base=BASE, hreflang=hreflang, langbar=langbar, h1=g["h1"], sub=g["sub"],
             cta=g["cta"], app=APP, spots=SPOTS, spotsname=nav3,
             article_ld=article_ld, faq_ld=faq_ld, sections=sections,
             faq=faq, faq_title=g["faq_title"], landing=g["landing"],

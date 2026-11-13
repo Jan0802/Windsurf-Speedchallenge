@@ -24,6 +24,12 @@ GUIDE_LINKS = {
                          "Ratgeber: GPS-Tracking beim Windsurfen — Speed richtig messen"),
     ("windsurf", "en"): ("gps-tracking-windsurfing.html",
                          "Guide: GPS tracking for windsurfing — measuring speed properly"),
+    ("windsurf", "nl"): ("gps-tracking-windsurfen-nl.html",
+                         "Gids: GPS-tracking bij windsurfen — snelheid goed meten"),
+    ("windsurf", "fr"): ("suivi-gps-windsurf.html",
+                         "Guide : suivi GPS en windsurf — bien mesurer sa vitesse"),
+    ("windsurf", "es"): ("seguimiento-gps-windsurf.html",
+                         "Guía: seguimiento GPS en windsurf — cómo medir bien la velocidad"),
 }
 
 
