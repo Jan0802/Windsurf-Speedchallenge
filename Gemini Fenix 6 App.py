@@ -5536,12 +5536,23 @@ def render_session_history(name):
                 "total_distance_km": "Distance km",
             })
 
-            st.dataframe(
+            # Zeile anklicken = Session auswaehlen (Jans Wunsch 16.11.2026,
+            # wie im MBS-Fahrtenbuch): die Tabelle laesst sich sortieren,
+            # das Dropdown darunter ist bei vielen Sessions unhandlich.
+            # selection.rows liefert die Position in der UNsortierten
+            # Tabelle, und die ist dieselbe wie in history_full (head).
+            _tab = st.dataframe(
                 _round_display(show_history),
                 width="stretch",
                 hide_index=True,
                 height=df_height(len(show_history)),
+                on_select="rerun",
+                selection_mode="single-row",
+                key=f"history_table_{name}",
             )
+            _klick = (_tab.selection.rows or [None])[0]
+            st.caption("💡 Click a row to show that session on the right; "
+                       "click a column header to sort.")
 
             if len(history_full) > len(history):
                 st.caption(
@@ -5576,9 +5587,21 @@ def render_session_history(name):
 
                 record_by_label[label] = row
 
+            _labels = ["—"] + list(record_by_label.keys())
+            # Neuer Tabellenklick setzt das Dropdown (ueber den Widget-
+            # Schluessel, VOR dem Zeichnen); danach darf der Nutzer es
+            # weiter frei umstellen - darum nur bei GEAENDERTEM Klick.
+            _klick_key = f"history_klick_{name}"
+            if (_klick is not None and 0 <= _klick + 1 < len(_labels)
+                    and st.session_state.get(_klick_key) != _klick):
+                st.session_state[f"history_pick_{name}"] = _labels[_klick + 1]
+            st.session_state[_klick_key] = _klick
+            if st.session_state.get(f"history_pick_{name}") not in _labels:
+                st.session_state[f"history_pick_{name}"] = "—"   # Filter geaendert
+
             chosen_label = st.selectbox(
                 "Show session details on the right",
-                ["—"] + list(record_by_label.keys()),
+                _labels,
                 key=f"history_pick_{name}",
             )
 
