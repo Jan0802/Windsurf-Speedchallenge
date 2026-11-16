@@ -5485,10 +5485,10 @@ def render_session_history(name):
                     & (history["date"].dt.date <= end)
                 ]
 
-        # Vollständige (datums-gefilterte) Liste behalten – die Tabelle zeigt die
-        # letzten 10, im Dropdown sind aber alle wählbar.
+        # Tabelle und Dropdown zeigen ALLE Sessions des Zeitraums (Jans Wunsch
+        # 16.11.2026; vorher nur die letzten 10 in der Tabelle). df_height
+        # deckelt auf 15 Zeilen, darueber scrollt die Tabelle in der Box.
         history_full = history
-        history = history_full.head(10)
 
         # Transparenz: eigene, nicht gewertete Sessions (mit Grund) auflisten.
         _wl = _water_ok_spots()
@@ -5540,7 +5540,7 @@ def render_session_history(name):
             # wie im MBS-Fahrtenbuch): die Tabelle laesst sich sortieren,
             # das Dropdown darunter ist bei vielen Sessions unhandlich.
             # selection.rows liefert die Position in der UNsortierten
-            # Tabelle, und die ist dieselbe wie in history_full (head).
+            # Tabelle, und die ist dieselbe wie in history_full.
             _tab = st.dataframe(
                 _round_display(show_history),
                 width="stretch",
@@ -5551,18 +5551,14 @@ def render_session_history(name):
                 key=f"history_table_{name}",
             )
             _klick = (_tab.selection.rows or [None])[0]
-            st.caption("💡 Click a row to show that session on the right; "
-                       "click a column header to sort.")
+            st.caption(
+                f"💡 {len(history_full)} session(s) in this period. Click a row to "
+                "show that session on the right; click a column header to sort. "
+                "(Delete under \"Account & delete data\".)"
+            )
 
-            if len(history_full) > len(history):
-                st.caption(
-                    f"Table shows the last {len(history)} – all {len(history_full)} "
-                    f"are selectable in the dropdown. "
-                    "(Delete under \"Account & delete data\".)"
-                )
-
-            # Dropdown über ALLE (gefilterten) Sessions, nicht nur die 10 in der
-            # Tabelle. Label mit Speed zur besseren Unterscheidung.
+            # Dropdown über dieselben Sessions wie die Tabelle (Ersatz fuers
+            # Handy). Label mit Speed zur besseren Unterscheidung.
             record_by_label = {}
 
             for i, (_, row) in enumerate(history_full.iterrows()):
