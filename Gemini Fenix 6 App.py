@@ -5362,6 +5362,9 @@ def personal_best_table(df, spot="All", year="All", board="All", max_bft=None, l
     if max_bft is not None:
         parts.append(f"≤ {max_bft} Bft")
     caption = " · ".join(parts) if parts else "All spots · all years"
+    # Die Quell-Zeilen (gleiche Reihenfolge wie die Tabelle) haengen an der
+    # Anzeige-Tabelle: ein Klick auf Rang n zeigt Session n (Jan, 21.11.2026).
+    out.attrs["rows"] = data.reset_index(drop=True)
 
     return out, caption, total
 
@@ -5429,9 +5432,11 @@ def render_personal_best_filter(name, inline=False):
     return pb_table, pb_table_caption, pb_total
 
 
-def render_personal_best_table(pb_table, pb_table_caption, total=0):
+def render_personal_best_table(pb_table, pb_table_caption, total=0, name=None):
     """Zeigt die Top-10-Bestleistungs-Tabelle im Hauptfenster (gefiltert über
-    den Filter im Konto-Bereich). `total` = Anzahl Sessions in der Auswahl."""
+    den Filter im Konto-Bereich). `total` = Anzahl Sessions in der Auswahl.
+    Ein Klick auf eine Zeile zeigt die Session direkt darunter (Jans Wunsch
+    21.11.2026) - ohne den Umweg ueber "View my sessions"."""
     if pb_table is None:
         return
 
@@ -5444,8 +5449,23 @@ def render_personal_best_table(pb_table, pb_table_caption, total=0):
         if pb_table_caption:
             st.caption(pb_table_caption)
 
-        st.dataframe(_round_display(_mobile_slim(pb_table)), width="stretch", hide_index=True,
-                     height=df_height(len(pb_table)))
+        rows = pb_table.attrs.get("rows")
+        _tab = st.dataframe(_round_display(_mobile_slim(pb_table)), width="stretch", hide_index=True,
+                            height=df_height(len(pb_table)),
+                            on_select="rerun", selection_mode="single-row",
+                            key=f"pb_table_{name or 'x'}")
+        _klick = (_tab.selection.rows or [None])[0]
+        st.caption("💡 Click a row to see that session below.")
+        if rows is not None and _klick is not None and 0 <= _klick < len(rows):
+            rec = rows.iloc[_klick]
+            _d = pd.to_datetime(rec.get("date"), errors="coerce", format="mixed")
+            _ds = _d.strftime("%Y-%m-%d") if pd.notna(_d) else ""
+            st.markdown(f"#### 🏅 #{_klick + 1} · {_ds} · {rec.get('surfspot') or ''}")
+            try:
+                render_history_overview(rec)
+            except Exception:  # noqa: BLE001 - Detailansicht darf die Tabelle nicht reissen
+                logging.exception("Personal-Best-Detail fehlgeschlagen")
+                st.info("Details for this session are not available.")
 
     st.markdown("---")
 
@@ -5484,6 +5504,23 @@ def render_session_history(name):
                     (history["date"].dt.date >= start)
                     & (history["date"].dt.date <= end)
                 ]
+
+        # Tippfilter (Jans Wunsch 21.11.2026): "S" -> alle Spots mit S, "St"
+        # -> alle, die mit St beginnen. Gilt fuer Spot, Board und Segel;
+        # Gross-/Kleinschreibung egal. Streamlit uebernimmt den Text beim
+        # Verlassen des Feldes bzw. mit Enter - je Buchstabe geht nur mit
+        # einer eigenen Komponente.
+        _ftxt = st.text_input(
+            "Filter: spot, board or sail starts with …",
+            key=f"history_filter_{name}", placeholder="e.g. St",
+        ).strip().lower()
+        if _ftxt:
+            _cols = [c for c in ("surfspot", "board", "sail") if c in history.columns]
+            if _cols:
+                _mask = pd.Series(False, index=history.index)
+                for _c in _cols:
+                    _mask |= history[_c].fillna("").astype(str).str.strip().str.lower().str.startswith(_ftxt)
+                history = history[_mask]
 
         # Tabelle und Dropdown zeigen ALLE Sessions des Zeitraums (Jans Wunsch
         # 16.11.2026; vorher nur die letzten 10 in der Tabelle). df_height
@@ -24511,7 +24548,7 @@ def render_my_results_page(user):
     # --- Personal Bests: Filter offen + eigener Rang + Top-10-Tabelle ---
     pb_table, pb_caption, pb_total = render_personal_best_filter(name, inline=True)
     render_my_results_rank(name, st.session_state.get(f"pb_spot_{name}", "All"))
-    render_personal_best_table(pb_table, pb_caption, pb_total)
+    render_personal_best_table(pb_table, pb_caption, pb_total, name=name)
     _dbperf_marke("Bestleistungen")
 
     st.markdown("---")
