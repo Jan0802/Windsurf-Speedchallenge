@@ -18635,6 +18635,30 @@ def render_admin_mls():
         except Exception:  # noqa: BLE001
             pass
 
+        # --- Konto-Werkzeuge (Jan 22.11.: Profil/Einstufung selbst zuruecksetzen,
+        # um alle Wege auszuprobieren). Lektionen, Vokabeln, Fehler bleiben.
+        st.markdown("**Konto-Werkzeuge**")
+        st.caption("Zurücksetzen wirkt beim nächsten Seiten-Neuladen in der App "
+                   "(die laufende Sitzung hält Profil und Niveau im Speicher).")
+        w1, w2, w3 = st.columns(3)
+        _sql = {
+            "profil": ["UPDATE mls.users SET profile_json = NULL WHERE id = :i"],
+            "einstufung": ["UPDATE mls.users SET level = NULL, placement_json = NULL WHERE id = :i",
+                           "DELETE FROM mls.user_levels WHERE user_id = :i"],
+        }
+        _sql["beides"] = _sql["profil"] + _sql["einstufung"]
+        for col, (key, label) in zip((w1, w2, w3), (("profil", "👤 Profil zurücksetzen"),
+                                                    ("einstufung", "🧭 Einstufung zurücksetzen"),
+                                                    ("beides", "🔄 Beides zurücksetzen"))):
+            if col.button(label, key=f"mls_reset_{key}", use_container_width=True):
+                try:
+                    with get_engine().begin() as conn:
+                        for sql in _sql[key]:
+                            conn.execute(text(sql), {"i": wahl["id"]})
+                    st.success(f"„{wahl['name']}“: {label[2:]} erledigt – in der App Seite neu laden.")
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Zurücksetzen fehlgeschlagen: {exc}")
+
 
 def _mbs_hash_password(pw):
     """MUSS zum Format in mbs/bike_core/auth.py passen
