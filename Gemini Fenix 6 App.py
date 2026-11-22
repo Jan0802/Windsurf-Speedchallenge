@@ -18436,7 +18436,7 @@ def render_admin():
     # der 512-MB-Instanz fuehrte das im Backoffice (Karte/Profile/Analytics
     # gleichzeitig) zu Segfaults/502. Radio -> nur der gewaehlte Bereich rendert.
     _sections = ["📣 Werbung pro Spot", "📍 Spots", "⚖️ Sessions", "👤 Profile",
-                 "📊 Web Analytics", fb_label, "🚴 MyBikeSessions"]
+                 "📊 Web Analytics", fb_label, "🚴 MyBikeSessions", "🗣️ MyLanguageSessions"]
     _pick = st.radio("Bereich", _sections, horizontal=True, key="admin_section",
                      label_visibility="collapsed")
     if _pick == _sections[0]:
@@ -18451,6 +18451,8 @@ def render_admin():
         render_admin_analytics()
     elif _pick == "🚴 MyBikeSessions":
         render_admin_mbs()
+    elif _pick == "🗣️ MyLanguageSessions":
+        render_admin_mls()
     else:
         render_admin_feedback()
 
@@ -18462,6 +18464,177 @@ def render_admin():
 # DIREKT mit rohem SQL (kein Import aus dem mbs-Repo; die App-Trennung vom
 # 13.10. bleibt). Jeder Block faengt seine Fehler selbst: Bewegt sich das
 # mbs-Schema, bricht hier EIN Block mit Klartext, nicht das Backoffice.
+
+# --- MyLanguageSessions im zentralen Backoffice (Jans Wunsch 22.11.2026) ----
+# Gleiche Neon-DB, Schema `mls`, rohes SQL wie beim MBS-Block: wer was wie
+# lange gemacht hat - Mitglieder, Lektionen, Minuten, Niveau, Kosten.
+
+def _mls_profile_kurz(raw):
+    """profile_json -> 'Schüler/in · Kl. 9 · fr' (nur Kernfelder)."""
+    try:
+        p = json.loads(raw or "{}") or {}
+    except (TypeError, ValueError):
+        return "–"
+    typ = {"schueler": "Schüler/in", "beruf": "Berufstätig", "zugewandert": "Zugewandert",
+           "hobby": "Urlaub & Hobby", "familie": "Familie"}.get(p.get("type"), p.get("type") or "–")
+    bits = [typ]
+    if p.get("grade"):
+        bits.append(f"Kl. {p['grade']}")
+    if p.get("minutes"):
+        bits.append(f"{p['minutes']} min/Tag")
+    if p.get("target"):
+        bits.append(str(p["target"]))
+    return " · ".join(str(b) for b in bits)
+
+
+def render_admin_mls():
+    st.markdown("### 🗣️ MyLanguageSessions")
+    st.caption("Eigener Dienst ([mylanguagesessions.onrender.com]"
+               "(https://mylanguagesessions.onrender.com)), gleiche Neon-DB, "
+               "Schema `mls` — nur Lesen: wer hat was wie lange gemacht.")
+
+    # --- Kennzahlen -------------------------------------------------------
+    try:
+        with get_engine().connect() as conn:
+            kz = conn.execute(text(
+                "SELECT (SELECT COUNT(*) FROM mls.users) AS mitglieder,"
+                " (SELECT COUNT(*) FROM mls.sessions) AS lektionen,"
+                " (SELECT COUNT(*) FROM mls.sessions"
+                "  WHERE finished_at IS NOT NULL) AS fertig,"
+                " (SELECT COUNT(*) FROM mls.sessions"
+                "  WHERE started_at >= NOW() - INTERVAL '30 days') AS l30,"
+                " (SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (finished_at - started_at))) / 60, 0)"
+                "  FROM mls.sessions WHERE finished_at IS NOT NULL"
+                "  AND finished_at > started_at"
+                "  AND finished_at - started_at < INTERVAL '3 hours') AS minuten,"
+                " (SELECT COALESCE(SUM(cost_usd), 0) FROM mls.usage_log) AS kosten,"
+                " (SELECT COALESCE(SUM(cost_usd), 0) FROM mls.usage_log"
+                "  WHERE day >= TO_CHAR(NOW() - INTERVAL '30 days', 'YYYY-MM-DD')) AS k30"
+            )).mappings().first()
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("👥 Mitglieder", int(kz["mitglieder"]))
+        c2.metric("📚 Lektionen", int(kz["lektionen"]),
+                  f"+{kz['l30']} in 30 Tagen", delta_color="off")
+        c3.metric("⏱️ Lernzeit", f"{float(kz['minuten']) / 60:.1f} h",
+                  help=f"{int(kz['fertig'])} ausgewertete Lektionen (Start bis Auswertung, "
+                       "Ausreißer über 3 h ausgeschlossen)")
+        c4.metric("💸 KI-Kosten", f"{float(kz['kosten']):.2f} $",
+                  f"{float(kz['k30']):.2f} $ in 30 Tagen", delta_color="off")
+    except Exception as exc:  # noqa: BLE001
+        st.warning(f"mls-Kennzahlen nicht lesbar: {exc}")
+        return
+
+    # --- Verlauf 30 Tage --------------------------------------------------
+    try:
+        with get_engine().connect() as conn:
+            tage = conn.execute(text(
+                "SELECT DATE(started_at) AS tag, COUNT(*) AS lektionen"
+                " FROM mls.sessions"
+                " WHERE started_at >= NOW() - INTERVAL '30 days'"
+                " GROUP BY 1 ORDER BY 1")).mappings().all()
+        if tage:
+            _df = pd.DataFrame([dict(r) for r in tage])
+            _df["tag"] = pd.to_datetime(_df["tag"])
+            st.bar_chart(_df.set_index("tag")[["lektionen"]], height=160)
+    except Exception:  # noqa: BLE001
+        pass
+
+    # --- Mitglieder: wer, Profil, Niveau, Lektionen, Minuten, letzte -------
+    mg = []
+    try:
+        with get_engine().connect() as conn:
+            mg = conn.execute(text(
+                "SELECT u.id, u.name, u.level, u.profile_json, u.created_at AS seit,"
+                " COUNT(s.id) AS lektionen,"
+                " COUNT(s.finished_at) AS fertig,"
+                " COALESCE(SUM(CASE WHEN s.finished_at IS NOT NULL"
+                "   AND s.finished_at > s.started_at"
+                "   AND s.finished_at - s.started_at < INTERVAL '3 hours'"
+                "   THEN EXTRACT(EPOCH FROM (s.finished_at - s.started_at)) END) / 60, 0)"
+                "   AS minuten,"
+                " MAX(s.started_at) AS letzte,"
+                " (SELECT STRING_AGG(lang || ':' || level, ' ') FROM mls.user_levels ul"
+                "   WHERE ul.user_id = u.id) AS niveaus,"
+                " (SELECT COALESCE(SUM(cost_usd), 0) FROM mls.usage_log g"
+                "   WHERE g.user_id = u.id) AS kosten"
+                " FROM mls.users u"
+                " LEFT JOIN mls.sessions s ON s.user_id = u.id"
+                " GROUP BY u.id, u.name, u.level, u.profile_json, u.created_at"
+                " ORDER BY MAX(s.started_at) DESC NULLS LAST")).mappings().all()
+    except Exception as exc:  # noqa: BLE001
+        st.warning(f"Mitgliederliste nicht lesbar: {exc}")
+    if mg:
+        st.dataframe(pd.DataFrame([{
+            "Name": r["name"],
+            "Profil": _mls_profile_kurz(r["profile_json"]),
+            "Niveau": r["niveaus"] or (r["level"] or "–"),
+            "Lektionen": int(r["lektionen"]),
+            "Ausgewertet": int(r["fertig"]),
+            "Minuten": int(round(float(r["minuten"] or 0))),
+            "Kosten $": round(float(r["kosten"] or 0), 2),
+            "Letzte": str(r["letzte"])[:16] if r["letzte"] else "–",
+            "Seit": str(r["seit"])[:10],
+        } for r in mg]), hide_index=True, use_container_width=True)
+
+        # --- Lektionen eines Mitglieds -------------------------------------
+        wahl = st.selectbox("Mitglied", mg, format_func=lambda r: r["name"],
+                            key="mls_admin_user")
+        try:
+            with get_engine().connect() as conn:
+                lk = conn.execute(text(
+                    "SELECT s.id, s.started_at, s.finished_at, s.target_lang, s.level,"
+                    " s.mode, s.unit_id, s.wish, s.scenario_json, s.review_json, s.n_turns,"
+                    " (SELECT COUNT(*) FROM mls.exercise_results e"
+                    "   WHERE e.session_id = s.id) AS uebungen,"
+                    " (SELECT COUNT(*) FROM mls.exercise_results e"
+                    "   WHERE e.session_id = s.id AND e.verdict = 'correct') AS richtig"
+                    " FROM mls.sessions s WHERE s.user_id = :u"
+                    " ORDER BY s.started_at DESC LIMIT 60"), {"u": wahl["id"]}).mappings().all()
+        except Exception as exc:  # noqa: BLE001
+            st.warning(f"Lektionen nicht lesbar: {exc}")
+            lk = []
+        rows = []
+        for r in lk:
+            try:
+                titel = (json.loads(r["scenario_json"] or "{}") or {}).get("title") or (r["wish"] or "")[:40]
+            except (TypeError, ValueError):
+                titel = (r["wish"] or "")[:40]
+            try:
+                est = (json.loads(r["review_json"] or "{}") or {}).get("level_estimate") or "–"
+            except (TypeError, ValueError):
+                est = "–"
+            dauer = "–"
+            if r["finished_at"] and r["started_at"] and r["finished_at"] > r["started_at"]:
+                dauer = f"{(r['finished_at'] - r['started_at']).total_seconds() / 60:.0f} min"
+            rows.append({
+                "Datum": str(r["started_at"])[:16], "Sprache": r["target_lang"],
+                "Niveau": r["level"], "Titel": titel,
+                "Weg": ("Kurs " + str(r["unit_id"])) if r["unit_id"] else
+                       ("Wiederholung" if r["mode"] == "repeat" else "Wunsch"),
+                "Übungen": f"{int(r['richtig'])}/{int(r['uebungen'])}",
+                "Gespräch": int(r["n_turns"] or 0), "Eindruck": est, "Dauer": dauer,
+                "Status": "ausgewertet" if r["finished_at"] else "offen",
+            })
+        if rows:
+            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        else:
+            st.caption("Noch keine Lektionen.")
+        # Stufen-Bilanz des Mitglieds (richtig je Übungsstufe)
+        try:
+            with get_engine().connect() as conn:
+                stf = conn.execute(text(
+                    "SELECT e.stage, COUNT(*) AS n,"
+                    " SUM(CASE WHEN e.verdict = 'correct' THEN 1 ELSE 0 END) AS ok"
+                    " FROM mls.exercise_results e"
+                    " JOIN mls.sessions s ON s.id = e.session_id"
+                    " WHERE s.user_id = :u GROUP BY e.stage ORDER BY e.stage"),
+                    {"u": wahl["id"]}).mappings().all()
+            if stf:
+                st.caption("Übungsstufen: " + " · ".join(
+                    f"{r['stage']} {int(r['ok'])}/{int(r['n'])}" for r in stf))
+        except Exception:  # noqa: BLE001
+            pass
+
 
 def _mbs_hash_password(pw):
     """MUSS zum Format in mbs/bike_core/auth.py passen
