@@ -18492,6 +18492,13 @@ def render_admin_mls():
     st.caption("Eigener Dienst ([mylanguagesessions.onrender.com]"
                "(https://mylanguagesessions.onrender.com)), gleiche Neon-DB, "
                "Schema `mls` — nur Lesen: wer hat was wie lange gemacht.")
+    # Buecher pflegen (24.11.): braucht den Claude-Prompt und die Kapitel-
+    # Logik der MLS-App, darum DORT als Admin-Seite (Render-Env
+    # MLS_ADMIN_USERS, Vorgabe = erster Name in MLS_USERS).
+    st.info("📚 **Bücher pflegen** (Lehrbücher jeder Sprache Kapitel für Kapitel aus Fotos "
+            "auslesen, z. B. Mortens Bücher): in der MLS-App als Admin anmelden → Seitenleiste "
+            "→ „📚 Bücher pflegen“ oder direkt "
+            "[mylanguagesessions.onrender.com/buecher](https://mylanguagesessions.onrender.com/buecher).")
 
     # --- Kennzahlen -------------------------------------------------------
     try:
