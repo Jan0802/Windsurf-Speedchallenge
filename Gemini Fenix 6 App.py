@@ -19764,6 +19764,68 @@ def render_admin_sessions():
     render_session_trim(row)
 
 
+def render_spot_check():
+    """Prüfbericht der öffentlichen Spot-Seiten (25.11.2026): der Ingest prüft die
+    gespeicherten Texte je Sprache auf fremdsprachige Absätze/Wörter, KI-Vorreden,
+    alte Namen, doppelte Einstufung, fehlende Sprachversionen und abgeschnittene
+    Meta-Beschreibungen (`/spots_check`, nur lesend, per SEED_KEY). Steht ÜBER
+    render_admin_spots (Modulebenen-Regel)."""
+    with st.expander("🔎 Spot-Seiten prüfen (Sprache, Widersprüche, Meta)", expanded=False):
+        st.caption(
+            "Prüft die gespeicherten Texte aller Spots mit Beschreibung. Beheben: Spot unten "
+            "auswählen und den Text korrigieren – oder „🤖 KI-Beschreibung holen“ bzw. "
+            "„Übersetzen & hinzufügen“ neu laufen lassen. Die Spracherkennung ist grob "
+            "(häufige Wörter je Absatz) – ein Treffer ist ein Hinweis, kein Urteil.")
+        if st.button("Prüfbericht holen", key="admin_spotcheck_btn"):
+            _sk = _secret("SEED_KEY", "").strip()
+            _ingest = os.environ.get("INGEST_URL", "https://ingest-kxxw.onrender.com").rstrip("/")
+            if not _sk:
+                st.warning("SEED_KEY fehlt in der App-Umgebung.")
+            else:
+                try:
+                    with st.spinner("Der Ingest prüft die Spot-Texte …"):
+                        _req = Request(f"{_ingest}/spots_check?{urlencode({'key': _sk})}",
+                                       headers={"User-Agent": "MyWaterSessions/1.0"})
+                        with urlopen(_req, timeout=90) as _resp:
+                            st.session_state["_spotcheck"] = json.loads(_resp.read().decode("utf-8"))
+                except Exception as _exc:  # noqa: BLE001 - auch TimeoutError; nie den Schlüssel zeigen
+                    st.error(f"Prüfbericht fehlgeschlagen: {type(_exc).__name__}")
+        _rep = st.session_state.get("_spotcheck")
+        if not _rep:
+            return
+        _labels = _rep.get("labels") or {}
+        _m1, _m2, _m3 = st.columns(3)
+        _m1.metric("Spots geprüft", _rep.get("spots", 0))
+        _m2.metric("mit Hinweisen", _rep.get("with_warnings", 0))
+        _m3.metric("Hinweise", _rep.get("warnings", 0))
+        _by = _rep.get("by_code") or {}
+        if not _by:
+            st.success("Keine Hinweise – alle Spot-Texte sind sauber.")
+            return
+        _opts = sorted(_by, key=lambda c: -_by[c])
+        # Voreinstellung ohne die beiden „es fehlt etwas“-Arten: die stehen
+        # schon in der Vollständigkeits-Übersicht darunter.
+        _default = [c for c in _opts if c not in ("class_missing", "missing_lang")] or _opts
+        _pick = st.multiselect(
+            "Arten", _opts, default=_default, key="admin_spotcheck_codes",
+            format_func=lambda c: f"{_labels.get(c, c)} ({_by.get(c, 0)})")
+        _tbl = []
+        for _it in _rep.get("items") or []:
+            for _w in _it.get("warnings") or []:
+                if _w.get("code") in _pick:
+                    _tbl.append({"Spot": _it.get("spot"), "Sprache": _w.get("lang") or "–",
+                                 "Art": _labels.get(_w.get("code"), _w.get("code")),
+                                 "Hinweis": _w.get("msg"), "Fundstelle": _w.get("sample") or "",
+                                 "Seite": _it.get("url")})
+        if _tbl:
+            st.dataframe(_tbl, use_container_width=True, hide_index=True,
+                         column_config={"Seite": st.column_config.LinkColumn("Seite", display_text="öffnen")})
+            st.caption(f"{len(_tbl)} Hinweis(e) bei {len({r['Spot'] for r in _tbl})} Spot(s). "
+                       "Nach dem Korrigieren „Prüfbericht holen“ erneut drücken.")
+        else:
+            st.info("Für diese Auswahl gibt es keine Hinweise.")
+
+
 def render_admin_spots():
     """Spots anlegen/bearbeiten: Name + Koordinaten. Schreibt in spots_table
     (update_spot_coords = Upsert). Neue Spots erscheinen sofort in den Location-
@@ -19782,6 +19844,7 @@ def render_admin_spots():
 
     # --- Wartung: mitkopierte Kopfzeilen aus den Beschreibungen entfernen -----
     render_desc_cleanup()
+    render_spot_check()
 
     # (Der Wasser-Recheck sitzt jetzt im eigenen Bereich „⚖️ Sessions".)
 
