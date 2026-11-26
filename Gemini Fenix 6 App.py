@@ -24773,6 +24773,34 @@ def render_cost_overview(name):
                 "A visit counts per day on the water, not per session.")
 
 
+@st.cache_data(ttl=900, show_spinner=False)
+def _watch_old_at(name):
+    """Hat zuletzt eine ALT-Uhr (Build vor dem 26.09.2026) fuer dieses Konto
+    gesendet? Die Marke users.watch_old_at setzt und loescht der Ingest
+    (_mark_watch_build). Fehlt die Spalte (lokal/SQLite, Ingest noch nicht
+    deployt), gibt es schlicht keinen Hinweis."""
+    try:
+        with get_engine().connect() as conn:
+            row = conn.execute(text("SELECT watch_old_at FROM users WHERE username = :u"),
+                               {"u": name}).fetchone()
+        return str(row[0]) if row and row[0] else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def render_old_watch_hint(name):
+    """Update-Hinweis fuer Fahrer mit Alt-Uhr (Jan, 26.11.2026): Alt-Builds
+    haengen am Oregon-Dienst, der nur ihretwegen weiterlaeuft."""
+    if not _watch_old_at(name):
+        return
+    st.warning(
+        "⌚ **Your watch is running an old version of the MyWaterSessions app.** "
+        "Please update it: open the **Connect IQ** app on your phone → your watch → "
+        "*My Device Apps* → update. Newer versions keep unsent sessions in a queue, "
+        "measure distance more accurately and add the 500 m and nautical-mile rankings. "
+        "Old versions may stop uploading in the future.")
+
+
 def render_my_results_page(user):
     """Persönliche Seite: KPI-Rekorde, eigener Rang, Bestleistungen (mit Filter),
     eigene Sessions + Detailanalyse und der „complete my sessions“-Editor – alles
@@ -24785,6 +24813,7 @@ def render_my_results_page(user):
     )
 
     render_sport_switch(st.columns([1, 2])[0])
+    render_old_watch_hint(name)
 
     # ?perf=1 zerlegt diese Seite in ihre Bausteine. Gemessen am 28.09.2026
     # entfielen 206 der 289 ms eines Durchlaufs auf diese Funktion - welcher
